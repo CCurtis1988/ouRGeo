@@ -1,0 +1,82 @@
+import { create } from 'zustand'
+import type { ViewState } from './geometryEdit'
+
+export type InitialExtentMode = 'world' | 'user'
+
+export interface UserExtent {
+  minLng: number
+  maxLng: number
+  minLat: number
+  maxLat: number
+}
+
+export const DEFAULT_USER_EXTENT: UserExtent = {
+  minLng: -180,
+  maxLng: 180,
+  minLat: -90,
+  maxLat: 90
+}
+
+/** Which geometry parts the snapping engine locks onto, and within how many pixels. */
+export interface SnapSettings {
+  kinds: {
+    vertex: boolean
+    edge: boolean
+    midpoint: boolean
+    intersection: boolean
+  }
+  tolerancePx: number
+}
+
+export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
+  kinds: { vertex: true, edge: true, midpoint: true, intersection: true },
+  tolerancePx: 15
+}
+
+interface SpatialSettingsState {
+  initialExtentMode: InitialExtentMode
+  userExtent: UserExtent
+  snapSettings: SnapSettings
+  /** Show the attribute popup after drawing a new feature's geometry (persisted; the popup's "ignore until next save" checkbox snoozes it transiently). */
+  showAttributePopup: boolean
+  /**
+   * Default calculation CRS for spatial tools that need planar math (buffer,
+   * overlays, centroid, simplify). 'auto' = detect per input in R (UTM zone
+   * from the dataset centroid; projected input passes through unchanged);
+   * otherwise an EPSG code / CRS string.
+   */
+  calcCrs: string
+  /** Default CRS (EPSG code / CRS string) for sf geometry created in ouRGeo. */
+  defaultCrs: string
+  setInitialExtentMode: (mode: InitialExtentMode) => void
+  setUserExtent: (extent: UserExtent) => void
+  setSnapSettings: (s: SnapSettings) => void
+  setShowAttributePopup: (v: boolean) => void
+  setCalcCrs: (v: string) => void
+  setDefaultCrs: (v: string) => void
+}
+
+export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
+  initialExtentMode: 'world',
+  userExtent: DEFAULT_USER_EXTENT,
+  snapSettings: DEFAULT_SNAP_SETTINGS,
+  showAttributePopup: true,
+  calcCrs: 'auto',
+  defaultCrs: '4326',
+  setInitialExtentMode: (initialExtentMode) => set({ initialExtentMode }),
+  setUserExtent: (userExtent) => set({ userExtent }),
+  setSnapSettings: (snapSettings) => set({ snapSettings }),
+  setShowAttributePopup: (showAttributePopup) => set({ showAttributePopup }),
+  setCalcCrs: (calcCrs) => set({ calcCrs }),
+  setDefaultCrs: (defaultCrs) => set({ defaultCrs })
+}))
+
+export function computeInitialViewState(mode: InitialExtentMode, userExtent: UserExtent): ViewState {
+  if (mode === 'world') return { longitude: 0, latitude: 20, zoom: 2 }
+  const longitude = (userExtent.minLng + userExtent.maxLng) / 2
+  const latitude = (userExtent.minLat + userExtent.maxLat) / 2
+  const lngSpan = userExtent.maxLng - userExtent.minLng
+  const latSpan = userExtent.maxLat - userExtent.minLat
+  const zoom = Math.max(0, Math.min(18, Math.floor(Math.log2(360 / Math.max(lngSpan, latSpan * 2)))))
+  return { longitude, latitude, zoom }
+}

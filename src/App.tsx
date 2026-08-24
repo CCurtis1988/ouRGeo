@@ -1,0 +1,271 @@
+import React, { useEffect, useRef } from 'react'
+import { EditorLayout } from './components/layout/EditorLayout'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { rClient, type REnvironmentInfo, type RLibrary } from './lib/r-client'
+import { wsClient } from './lib/ws-client'
+import { useSessionStore } from './store/session'
+import { usePackagesStore } from './store/packages'
+import { usePlottingStore } from './store/plotting'
+import { useWidgetsStore } from './store/widgets'
+import { loadSession, setupSessionAutosave, saveSessionImmediate } from './lib/session-persistence'
+import { loadPlots, setupPlotsAutosave } from './lib/plots-persistence'
+import { setupPlotPopoutSync } from './lib/plot-popout-sync'
+import { PlotPopoutView } from './components/plotting/PlotPopoutView'
+import { loadWorkspace, setupWorkspaceAutosave } from './lib/workspace-persistence'
+import { rehydrateRasterLayers, createRasterLayerInfo } from './lib/raster-layers'
+import { useSpatialStore } from './store/spatial'
+import {
+  loadRecentProjects,
+  setupProjectTracking,
+  enableDirtyTracking,
+  saveCurrentProject,
+} from './lib/project-persistence'
+import { UnsavedChangesDialog, confirmUnsaved } from './components/project/UnsavedChangesDialog'
+import { reconnectToR, pruneStaleObjectTabs } from './lib/reconnect-r'
+import { loadTheme, loadUiScale } from './lib/theme-persistence'
+import { applyTheme, THEMES } from './lib/themes'
+import { useThemeStore, applyUiScale } from './store/theme'
+import { loadSpatialSettings } from './lib/spatial-settings-persistence'
+import { useSpatialSettingsStore } from './store/spatialSettings'
+import { loadBasemap } from './lib/basemap-persistence'
+import { useBasemapStore } from './store/basemap'
+import { useEnvironmentStore } from './store/environment'
+
+// Detect if this window is the plot popout
+const isPopout = typeof window !== 'undefined' && window.location.hash === '#plot-popout'
+
+export default function App(): React.ReactElement {
+  if (isPopout) return <PlotPopoutView />
+
+  return <MainApp />
+}
+
+function MainApp(): React.ReactElement {
+  const setRStatus = useSessionStore((s) => s.setRStatus)
+  const setRPort = useSessionStore((s) => s.setRPort)
+  const setWsConnected = useSessionStore((s) => s.setWsConnected)
+  const addEntry = useSessionStore((s) => s.addConsoleEntry)
+
+  const initialized = useRef(false)
+
+  useEffect(() => {
+    async function init() {
+      if (initialized.current) return
+      initialized.current = true
+
+      // Restore previous session (tabs, files)
+      await loadSession()
+
+      // Restore plots from previous session
+      try { await loadPlots() } catch { /* no saved plots yet */ }
+
+      // Restore spatial layers, map-preview documents, and console history
+      try { await loadWorkspace() } catch { /* no saved workspace yet */ }
+
+      // Load the recent-projects list for the project dropdown
+      try { await loadRecentProjects() } catch { /* no recents yet */ }
+
+      // Load and apply saved theme
+      const savedTheme = await loadTheme()
+      applyTheme(savedTheme)
+      const savedScale = await loadUiScale()
+      applyUiScale(savedScale)
+      useThemeStore.setState({
+        current: savedTheme,
+        monacoTheme: THEMES[savedTheme]?.monacoTheme ?? THEMES.dark.monacoTheme,
+        uiScale: savedScale,
+      })
+
+      // Load spatial editor settings
+      const { mode: extentMode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs } =
+        await loadSpatialSettings()
+      useSpatialSettingsStore.setState({
+        initialExtentMode: extentMode,
+        userExtent,
+        snapSettings,
+        showAttributePopup,
+        calcCrs,
+        defaultCrs
+      })
+
+      // Load saved basemap override
+      const savedBasemap = await loadBasemap()
+      useBasemapStore.setState({ overrideBasemapId: savedBasemap })
+
+      setRStatus('connecting')
+
+      try {
+        await rClient.connect()
+        const port = rClient.port
+
+        if (!port) {
+          setRStatus('error')
+          addEntry('error', 'Could not connect to R server. Is R installed?')
+          return
+        }
+
+        setRPort(port)
+
+        // Wait for R to be healthy
+        let healthy = false
+        for (let i = 0; i < 30; i++) {
+          healthy = await rClient.health()
+          if (healthy) break
+          await new Promise((r) => setTimeout(r, 1000))
+        }
+
+        if (!healthy) {
+          setRStatus('error')
+          addEntry('error', 'R server health check failed after 30s')
+          return
+        }
+
+        setRStatus('ready')
+
+        // Initialize session
+        const sessionResult = await rClient.initSession()
+        if (sessionResult.systemNames?.length) {
+          useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', sessionResult.systemNames)
+        }
+        addEntry('info', 'R session ready.')
+
+        // Startup restore is done — from here on, env/state changes mark the
+        // project dirty (drives the exit/switch save prompt).
+        enableDirtyTracking()
+
+        // Drop any restored data-viewer/function-editor tabs whose object isn't
+        // in this R session (keeps them after a reload, cleans up on fresh start).
+        void pruneStaleObjectTabs()
+
+        // Re-register restored raster map layers with the R tile engine
+        // (server-side registrations are session-scoped; layers whose object
+        // is gone are dropped).
+        void rehydrateRasterLayers()
+
+        // Connect WebSocket console
+        wsClient.connect(port)
+
+        wsClient.onStatus((connected) => {
+          setWsConnected(connected)
+        })
+
+        wsClient.onMessage((type, text, data) => {
+          if (type === 'install_complete') {
+            usePackagesStore.getState().refreshPackages()
+            return
+          }
+          if (type === 'plot' && data && typeof data === 'object' && 'dataUrl' in (data as object)) {
+            // The popout window is fed by setupPlotPopoutSync, which mirrors
+            // the store — no direct push needed here.
+            const { dataUrl, plotId } = data as { dataUrl: string; plotId?: string }
+            usePlottingStore.getState().addPlot(dataUrl, plotId ?? null)
+            return
+          }
+          if (type === 'env' && data && typeof data === 'object' && 'name' in (data as object)) {
+            useEnvironmentStore.getState().mergeEnvironment(data as REnvironmentInfo)
+            return
+          }
+          if (type === 'packages' && data && typeof data === 'object' && 'libraries' in (data as object)) {
+            usePackagesStore.getState().setLibraries((data as { libraries: RLibrary[] }).libraries)
+            return
+          }
+          if (type === 'widget' && data && typeof data === 'object' && 'id' in (data as object)) {
+            useWidgetsStore.getState().addWidget((data as { id: string }).id)
+            usePlottingStore.getState().ensureOpen()
+            return
+          }
+          if (type === 'raster_layer_invalidated' && data && typeof data === 'object' && 'layerId' in (data as object)) {
+            // The backing R object changed or vanished — re-register the map
+            // layer (fresh warp) or drop it when the object is gone.
+            const staleId = (data as { layerId: string }).layerId
+            const spatial = useSpatialStore.getState()
+            const target = spatial.layers.find(
+              (l) => l.kind === 'raster' && l.raster?.layerId === staleId
+            )
+            if (target?.raster) {
+              void createRasterLayerInfo(target.name, target.envName, target.raster.symbology)
+                .then((info) => useSpatialStore.getState().updateRasterInfo(target.id, info))
+                .catch(() => useSpatialStore.getState().removeLayer(target.id))
+            }
+            return
+          }
+          if (text.trim()) {
+            addEntry(type === 'stderr' ? 'error' : 'output', text)
+          }
+        })
+      } catch (err) {
+        setRStatus('error')
+        addEntry('error', `Initialization failed: ${String(err)}`)
+      }
+    }
+
+    init()
+
+    const cleanupAutosave = setupSessionAutosave()
+    const cleanupPlotsAutosave = setupPlotsAutosave()
+    const cleanupPlotPopoutSync = setupPlotPopoutSync()
+    const cleanupWorkspaceAutosave = setupWorkspaceAutosave()
+    const cleanupProjectTracking = setupProjectTracking()
+
+    // Auto-reconnect when R restarts (e.g. after hibernation or crash)
+    const cleanupRestarted = window.electronAPI.r.onRestarted(() => {
+      reconnectToR()
+    })
+
+    // On system resume, the R console WebSocket can be left half-open (no data,
+    // no close event) — reconnect it so live output/plots/env updates resume.
+    // R itself survives sleep, so this keeps all state intact.
+    const refreshSocket = (): void => {
+      // Force a fresh socket — a suspended one can report OPEN while being dead,
+      // so don't trust isConnected. connect() closes the stale one first.
+      const port = useSessionStore.getState().rPort
+      if (port) wsClient.connect(port)
+    }
+    const cleanupResume = window.electronAPI.system?.onResume(refreshSocket)
+
+    // On window close, prompt to save unsaved project changes. Scratch/.R tabs
+    // are always flushed regardless of the choice; only 'cancel' aborts the quit.
+    const cleanupBeforeQuit = window.electronAPI.app.onBeforeQuit(() => {
+      void (async () => {
+        const choice = await confirmUnsaved()
+        if (choice === 'cancel') return // keep the app open
+        if (choice === 'save') {
+          const saved = await saveCurrentProject()
+          if (!saved) return // Save As dialog cancelled → abort quit
+        }
+        saveSessionImmediate()
+        await window.electronAPI.app.confirmQuit()
+      })()
+    })
+
+    // Fallback wake detector: powerMonitor's resume event is unreliable on some
+    // Linux/Wayland desktops. A heartbeat that sees a large wall-clock jump means
+    // the machine slept — revalidate the R socket even if system:resume didn't fire.
+    let lastTick = Date.now()
+    const wakeTimer = setInterval(() => {
+      const now = Date.now()
+      if (now - lastTick > 30_000) refreshSocket()
+      lastTick = now
+    }, 10_000)
+
+    return () => {
+      cleanupAutosave()
+      cleanupPlotsAutosave()
+      cleanupPlotPopoutSync()
+      cleanupWorkspaceAutosave()
+      cleanupProjectTracking()
+      cleanupRestarted()
+      cleanupResume?.()
+      cleanupBeforeQuit()
+      clearInterval(wakeTimer)
+      wsClient.disconnect()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <ErrorBoundary>
+      <EditorLayout />
+      <UnsavedChangesDialog />
+    </ErrorBoundary>
+  )
+}

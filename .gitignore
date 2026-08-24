@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# R session artifacts
+.RData
+.Rhistory
+
+# Runtime plot artifacts
+plot.png

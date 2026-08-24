@@ -1,0 +1,162 @@
+import { spawn, ChildProcess } from 'child_process'
+import { join } from 'path'
+import { app } from 'electron'
+import { is } from '@electron-toolkit/utils'
+
+const PORT_ANNOUNCE_PREFIX = 'OURGEO_PORT:'
+const READY_SIGNAL = 'OURGEO_READY'
+const STARTUP_TIMEOUT_MS = 30_000
+
+class RBridge {
+  private process: ChildProcess | null = null
+  private _port: number | null = null
+  private _isReady = false
+  private _startPromise: Promise<void> | null = null
+  private _customPath: string | null = null
+  private _stopping = false
+
+  onUnexpectedExit?: () => void
+
+  get port(): number | null {
+    return this._port
+  }
+
+  get isReady(): boolean {
+    return this._isReady
+  }
+
+  get currentPath(): string {
+    return this._customPath ?? this.getDefaultRScriptPath()
+  }
+
+  setPath(path: string | null): void {
+    this._customPath = path
+  }
+
+  async restart(): Promise<void> {
+    this.stop()
+    return this.start()
+  }
+
+  private getDefaultRScriptPath(): string {
+    if (process.platform === 'win32') {
+      return 'Rscript.exe'
+    }
+    return 'Rscript'
+  }
+
+  private getRScriptPath(): string {
+    return this._customPath ?? this.getDefaultRScriptPath()
+  }
+
+  private getRDir(): string {
+    if (is.dev) {
+      return join(process.cwd(), 'r')
+    }
+    return join(process.resourcesPath, 'r')
+  }
+
+  start(): Promise<void> {
+    if (this._startPromise) return this._startPromise
+
+    this._startPromise = new Promise<void>((resolve, reject) => {
+      const rscript = this.getRScriptPath()
+      const rDir = this.getRDir()
+
+      console.log('[RBridge] Spawning R process:', rscript, 'server.R', '(cwd:', rDir + ')')
+
+      this.process = spawn(rscript, ['server.R'], {
+        cwd: rDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          OURGEO_MODE: 'server'
+        }
+      })
+
+      const timeout = setTimeout(() => {
+        reject(new Error('R server startup timed out'))
+        this.stop()
+      }, STARTUP_TIMEOUT_MS)
+
+      this.process.stdout?.on('data', (data: Buffer) => {
+        const text = data.toString()
+        const lines = text.split('\n')
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+
+          if (trimmed.startsWith(PORT_ANNOUNCE_PREFIX)) {
+            const portStr = trimmed.slice(PORT_ANNOUNCE_PREFIX.length).trim()
+            this._port = parseInt(portStr, 10)
+            console.log('[RBridge] R server port:', this._port)
+          }
+
+          if (trimmed === READY_SIGNAL) {
+            this._isReady = true
+            clearTimeout(timeout)
+            console.log('[RBridge] R server ready')
+            resolve()
+          }
+
+          if (trimmed.startsWith('OURGEO_ERROR:')) {
+            clearTimeout(timeout)
+            reject(new Error(trimmed.slice('OURGEO_ERROR:'.length).trim()))
+          }
+
+          // Forward all stdout to console for debugging
+          if (trimmed) {
+            console.log('[R stdout]', trimmed)
+          }
+        }
+      })
+
+      this.process.stderr?.on('data', (data: Buffer) => {
+        const text = data.toString().trim()
+        if (text) {
+          console.error('[R stderr]', text)
+        }
+      })
+
+      this.process.on('error', (err) => {
+        console.error('[RBridge] Process error:', err)
+        clearTimeout(timeout)
+        reject(err)
+      })
+
+      this.process.on('exit', (code, signal) => {
+        console.log('[RBridge] R process exited, code:', code, 'signal:', signal)
+        const wasUnexpected = !this._stopping
+        this._isReady = false
+        this._port = null
+        this._startPromise = null
+        this._stopping = false
+        if (wasUnexpected && this.onUnexpectedExit) {
+          this.onUnexpectedExit()
+        }
+      })
+    })
+
+    return this._startPromise
+  }
+
+  stop(): void {
+    if (this.process) {
+      this._stopping = true
+      console.log('[RBridge] Stopping R process')
+      this.process.kill('SIGTERM')
+      this.process = null
+      this._isReady = false
+      this._port = null
+      this._startPromise = null
+    }
+  }
+
+  interrupt(): void {
+    if (!this.process || this.process.killed) return
+    console.log('[RBridge] Sending SIGINT to R process')
+    this.process.kill('SIGINT')
+  }
+}
+
+export const rBridge = new RBridge()

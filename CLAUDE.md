@@ -1,0 +1,424 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**ouRGeo** is a desktop spatial IDE — an open-source alternative to ArcGIS Pro — built with Electron. It wraps R's spatial ecosystem (sf, terra, ggplot2, tmap) in a dark-mode GUI while keeping R at the core. Every GUI-driven operation echoes its R code to the console.
+
+## Development
+
+```bash
+npm install
+npm run dev        # Start Electron + Vite dev server
+npm run build      # Production build
+npm run package    # Build + package with electron-builder
+```
+
+TypeScript is the primary correctness check — run `npm run typecheck` from the repo root (it builds both the `tsconfig.node.json` and `tsconfig.web.json` projects). Run `npm run lint` for ESLint (flat config in `eslint.config.mjs`). A Vitest suite (`npm run test`, jsdom for component tests) covers codegen and a few components.
+
+## R Dependencies
+
+Must be installed in R before running:
+```r
+install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+# Spatial features also need: sf, terra, ggplot2, tmap, ggspatial, maptiles, tidyterra
+# Raster map rendering also needs: png (tile encoding); ggplot raster export with
+#   mixed fill scales additionally uses ggnewscale (emitted only when needed)
+# Curved geometry (CIRCULARSTRING/COMPOUNDCURVE/CURVEPOLYGON) also needs: sfarc
+# Database (.Rgeo) features also need: DBI, duckdb, dplyr
+```
+
+The Data Connector's **Web APIs** tab generates import code with `httr2`/`jsonlite`
+(tabular) and `sf::st_read` (geospatial — Esri/OGC/WFS/STAC), all covered above. No
+extra packages are required; the idiomatic clients `RSocrata`, `esri2sf`, `rstac`,
+`rerddap`, `rsdmx` are optional alternatives, not used by the generated code.
+
+## Architecture
+
+### Three-process model
+
+```
+Electron Main Process  (electron/main/)
+  ├── r-bridge.ts     — Spawns Rscript, captures port from stdout, auto-restarts on crash
+  ├── ipc.ts          — All IPC handlers: file dialogs, R management, plot popout
+  ├── ai-proxy.ts     — Proxies AI-provider HTTP calls (ai:fetch/ai:chunk/ai:abort) so the
+  │                     renderer keeps webSecurity enabled
+  ├── plot-window.ts  — Creates/updates a secondary BrowserWindow for plot popout
+  └── index.ts        — BrowserWindow (1000×700); on resume/GPU-loss forces a
+                         state-preserving repaint (invalidate + resize nudge) so
+                         sleep doesn't leave a black screen; reloads only if the
+                         renderer process itself dies. Emits `system:resume`.
+
+Electron Renderer Process  (src/)
+  ├── Connects to R over HTTP (rClient) and WebSocket (wsClient)
+  ├── App.tsx detects window.location.hash === '#plot-popout' to render PlotPopoutView
+  └── Full React UI (see Layout section below)
+
+R Process  (r/server.R + r/lib/*.R)
+  ├── server.R is a slim bootstrap: loads packages, sets up .ourgeo_env global
+  │   state + the headless PNG device/viewer hooks, source()s every r/lib module,
+  │   then binds the httpuv server on a random port (printed to stdout for r-bridge)
+  ├── r/lib/router.R    — route() HTTP dispatch + ws_handler() WebSocket handler
+  ├── r/lib/util-core.R, util-env.R — response/JSON helpers, env introspection
+  ├── r/lib/util-raster.R, handlers-raster.R — raster tile engine: registers a
+  │   SpatRaster as a map layer (gdalwarp to an EPSG:3857 COG under
+  │   tempdir()/ourgeo-raster — the COG driver builds internal overviews, since
+  │   sf::gdal_utils has no gdaladdo; plain-GTiff fallback for GDAL < 3.1),
+  │   then serves styled 256px XYZ PNG tiles (per-tile gdalwarp window read →
+  │   vectorized stretch/colormap → png::writePNG, bounded LRU of encoded
+  │   tiles). Staleness sweep hooks broadcast_env_if_changed.
+  ├── r/lib/handlers-*.R — endpoint handlers grouped by domain (exec, help, env,
+  │   packages, object, spatial, data-widget)
+  └── r/lib/db-*.R      — .Rgeo/DuckDB schema, connection, translators, /db handlers;
+      db-raster.R = format-v3 raster tile pyramid (see Database section)
+```
+
+All `r/lib/*.R` modules are `source()`d into the global environment at startup, so
+they share `.ourgeo_env` and reference each other by name at call time.
+
+### R Server Endpoints
+
+```
+POST /session/init        — Load packages, check deps
+POST /session/reset       — Clear user objects (keep system_names), DB conns, proxies
+POST /r/execute           — Run arbitrary R code; captures PNG plots automatically
+POST /r/plot/export       — Re-render last plot at a specific size/format
+POST /r/plot-preview      — Render code to PNG for inline chart preview
+GET  /health
+GET  /env/list            — List objects in R environments
+POST /env/{remove,rename,copy,move,create,save,load}
+GET  /packages/list       — Installed packages
+POST /packages/{load,unload,install,addlibpath}
+GET  /packages/cran-list
+POST /packages/check-version
+POST /object/{function,dataframe,matrix,vector}  — Inspect R objects
+POST /object/formals      — Formal argument names of a function (autocomplete)
+GET  /spatial/list        — List sf/sfc/sfg + SpatRaster objects
+POST /spatial/geojson     — Get GeoJSON for a spatial layer
+POST /raster/info         — Band stats (sampled min/max/mean/sd/q02/q98), dims, CRS,
+                            4326 extent — feeds the raster symbology editor
+POST /raster/register     — Register a SpatRaster as a tiled map layer (warp+overviews);
+                            re-register w/ same layerId = symbology-only restyle
+                            (keeps warp, bumps version). Returns tileUrl/bounds/maxzoom.
+POST /raster/unregister   — Drop a layer (evict tiles, delete warped temp file)
+POST /raster/histogram    — Sampled histogram of one band (symbology editor)
+GET  /raster/tile/{id}/{z}/{x}/{y}.png?v=N — Styled RGBA PNG tile (404 on stale version)
+POST /data/preview        — Preview tabular data
+POST /kaggle/files
+POST /help/{search,doc,package,vignettes,vignette}
+POST /selection/query
+GET  /db/proxies          — Snapshot connected dataset proxies for a project save
+POST /db/reconnect        — Reopen .Rgeo files + rebind proxies on project load
+WS   /console             — Bidirectional; server broadcasts structured messages
+```
+
+### WebSocket Message Protocol
+
+The R server broadcasts JSON via `/console`. The renderer's `wsClient` calls message handlers with `(type, text, data)`:
+
+| `type`    | Meaning |
+|-----------|---------|
+| `stdout`  | Console text output |
+| `stderr`  | Warnings / errors |
+| `plot`    | PNG plot ready — `data` is a `data:image/png;base64,...` string |
+| `widget`  | htmlwidget/help/vignette ready — `data.id` identifies the served file |
+| `env`     | `.GlobalEnv` changed — `data` is the rebuilt `.GlobalEnv` entry (change-detected; keeps the Environment panel + autocomplete live) |
+| `packages`| Installed/attached packages changed — `data.libraries` is the rebuilt library list (change-detected; keeps the Packages panel + `library()`/`require()` autocomplete live) |
+| `raster_layer_invalidated` | A registered raster map layer's backing R object changed or vanished — `data.layerId`; the renderer re-registers (fresh warp) or drops the layer |
+
+In `App.tsx`, `type === 'plot'` triggers `usePlottingStore.getState().addPlot(data)` and forwards to the plot popout window via IPC.
+
+## Layout & Panels
+
+The UI is a single-page app with a toolbar + resizable panel system managed by `EditorLayout.tsx`. Panels are toggled by toolbar icon buttons and sized with drag dividers:
+
+| Panel | Store | Component |
+|-------|-------|-----------|
+| Left: Code Editor + Console | `session`, `editor` | `CodeEditor`, `Console` |
+| Left tab: Packages | `packages` | `PackagePanel` |
+| Left tab: Environment | `environment` | `EnvironmentPanel` |
+| Right: Spatial Editor (MapLibre) | `spatial` | `SpatialEditor` |
+| Right: Plot Preview | `plotting` | `PlottingPanel` |
+| Right: AI Chat | `ai` | `AiChatPanel` |
+| Right: Help | `help` | `HelpPanel` |
+
+### Console I/O Design
+
+- Code execution: `POST /r/execute` (HTTP) — one response per request
+- `POST /r/execute` also broadcasts captured plot PNGs via WebSocket after execution
+- Frontend adds `input` entries locally (immediate feedback); R server does NOT echo `> code`
+- `Ctrl+Enter` runs a single line from Monaco and advances cursor
+- `Shift+Enter` runs selected lines
+
+## Key Stores (`src/store/`)
+
+| File | Purpose |
+|------|---------|
+| `session.ts` | R status, console history, input history, recording state |
+| `spatial.ts` | MapLibre layers, viewState, legend, north arrow, bbox |
+| `plotting.ts` | Plot PNG history (`plots[]`), `currentIndex`, open/close |
+| `editor.ts` | Monaco editor tabs and content |
+| `environment.ts` | R environment browser state |
+| `packages.ts` | Package manager state |
+| `basemap.ts` | Active basemap override |
+| `theme.ts` | Dark/light theme + UI scale |
+| `ai.ts` | AI chat panel state |
+| `help.ts` | Help panel state |
+
+### State persistence (`src/lib/*-persistence.ts`)
+
+Debounced autosave survives sleep and a renderer reload/crash. Two lifetimes:
+
+- **Kept between sessions** — `session-persistence` → `session.json` = **code tabs
+  only** (open `.R` files + untitled scratch; file-backed tabs re-read from disk
+  on load). This is the one thing deliberately left across restarts.
+- **Session-scoped (wiped on clean exit)** — `workspace-persistence` writes
+  spatial layers (`spatial-layers.json`), map view/legend settings
+  (`spatial-ui.json`), console history (`console.json`), and object-backed
+  data-viewer/function-editor tabs (`object-tabs.json`); `plots-persistence`
+  writes `plots.json`. The `will-quit`
+  handler (`electron/main/index.ts`) deletes all of these on exit, so the next
+  launch is clean. A **crash** (no `will-quit`) leaves them for recovery.
+
+Files are split so a pan or console line never rewrites the large layer geojson.
+On load, object tabs are appended after code tabs, then `pruneStaleObjectTabs`
+drops any whose R object is gone. Workspace savers intentionally have **no
+`beforeunload` flush** — that would race the on-exit deletion; the debounced
+saves during the session suffice for reload recovery. All wired in `App.tsx`.
+
+### Project workflow (`src/lib/project-persistence.ts`, `src/store/project.ts`)
+
+The toolbar's project dropdown (`src/components/project/ProjectDropdown.tsx`,
+right of the header — it also carries the small R-status dot that replaced the
+old "R Connected" label) saves/loads a portable **`.ourgeoproj`** bundle: a zip
+(packed/unpacked in the main process via `project:pack`/`project:unpack` +
+`adm-zip`) holding `project.json` (manifest: version, name, `ui` = the same
+session/workspace/plots slices the autosavers serialize, reused via
+`buildSessionData`/`applySessionData` and `buildWorkspaceData`/`applyWorkspaceData`;
+plus `databases`) and `environment.RData` (from `/env/save` with
+`excludeSystem:true` so only user objects are snapshotted, not the server's
+source()d functions).
+
+- **scratch project** (`path === null`, `SCRATCH_PROJECT_NAME`, `useProjectStore`):
+  the workspace ouRGeo always launches into — a clean R env every time, never
+  savable in place (Save disabled; closing/switching never prompts — `confirmUnsaved`
+  short-circuits to `discard` when `path === null`). `saveSession` is **gated to
+  scratch only**, so `session.json` always holds scratch's code/.R tabs even while
+  a named project is active — that's what makes scratch's tabs survive a project
+  switch and reappear on relaunch. Save As spins off a real project; named-project
+  code tabs live in the bundle.
+- **Load** → `/session/reset` (clears user objects — keeping `system_names` —
+  plus DB conns + proxies), hydrate UI stores, `/env/load`, then `/db/reconnect`
+  (reopens each `.Rgeo` and rebinds its `dplyr::tbl` proxies, since the restored
+  tbl objects hold stale connections). **New** → reset + restore scratch tabs.
+- **Dirty tracking**: env/spatial/plots/object-tab changes mark a *named*
+  project dirty (`enableDirtyTracking` after startup; suppressed during load/new).
+  On window close the main process fires `app:before-quit`; the renderer shows
+  `UnsavedChangesDialog` (Save / Don't Save / Cancel) for named projects and calls
+  `app:confirm-quit` — code/.R tabs are always flushed regardless of choice.
+- Recent projects (max 5) persist in `recent-projects.json` (never deleted).
+
+## Raster Layers (v1.7)
+
+Rasters are first-class end-to-end. `SpatialLayer` is discriminated by
+`kind: 'vector' | 'raster'` (default vector); raster layers carry an **empty
+FeatureCollection** as `geojson` (so `layer.geojson.features` consumers — lasso,
+legend column readers — no-op naturally) plus `raster: RasterLayerInfo`
+(`layerId`, `version`, 4326 `bounds`, `meta` band stats, `symbology`).
+
+- **Rendering**: R-served XYZ tiles. `src/lib/raster-layers.ts` registers the
+  object (`/raster/register`) and builds the MapLibre tile URL from
+  `rClient.baseUrl`; `MapView.tsx` renders `<Source type="raster">` keyed on
+  `id+version` so a symbology change (re-register → version bump) re-requests
+  every tile. Layer `layerId`s are **session-scoped** — `rehydrateRasterLayers()`
+  re-registers persisted/restored layers after reload, R restart
+  (`reconnect-r.ts`), and project load; orphans are dropped.
+- **Resilience**: registration is a long blocking request, and OS sleep /
+  network changes make Chromium abort in-flight requests (even to localhost,
+  `ERR_NETWORK_CHANGED`) while R finishes the warp anyway. The client
+  therefore generates the `layerId` up front and retries connection-severed
+  register/info calls — a retry against a completed warp hits the server's
+  restyle fast path (no re-warp). Long requests (`execute`, register) also
+  hold an Electron `powerSaveBlocker` via `power:block`/`power:unblock` IPC
+  (`src/lib/power-block.ts`, refcounted) so idle-suspend can't fire mid-request.
+- **Symbology** (`RasterSymbologyDialog.tsx`, opened from the ribbon symbology
+  button when the layer is raster): singleband/RGB/categorical, stretch
+  (min-max / percent clip / stddev / custom), ramps from `SEQUENTIAL_SCALES`
+  (+ raster-only `gray`/`terrain` in `RASTER_RAMPS`), per-band stats +
+  histogram (`/raster/histogram`), live apply (debounced re-register).
+- **Toolbox**: "Spatial — Raster" category (`src/components/toolbox/tools-raster.ts`),
+  30+ terra tools. Raster dataset fields use `filter: 'raster'` and ids ≠ `ds`
+  (so the dplyr pipeline never engages); `band` field type fetches band lists
+  from `/raster/info`; tools with `output: 'raster'` skip the data-viewer tab.
+- **Import**: LoadDataDialog raster formats (`terra::rast`), Data Connector
+  Manual tab "GeoTIFF / COG (URL)" (`terra::rast("/vsicurl/…")`), STAC
+  raster assets (`ourgeo_read_stac_rasters()` in `r/lib/util-stac.R`; provider
+  surfaces `rasterAssets` in `ResourceMetadata`, browser offers footprints-vs-
+  assets import), and **ArcGIS ImageServer** services (e.g. USGS 3DEP
+  elevation, a built-in Esri server): the Esri provider lists ImageServers,
+  and `ourgeo_read_esri_image()` (`r/lib/util-arcgis.R`) exports the map-view
+  bbox via `/exportImage` — chunked to a 2048px-per-request soft cap (servers
+  504 on their own advertised maxima) with one retry per chunk, mosaicked with
+  terra. `ResourceMetadata.rasterResult` marks raster-producing imports so the
+  browser skips the tabular viewer tab.
+- **.Rgeo storage (format v3, `r/lib/db-raster.R`)**: rasters save as a
+  GeoPackage-style tile pyramid — `_rgeo_raster_meta` (WKT2 CRS, dims, dtype,
+  nodata, band stats/names/categories JSON) + `_rgeo_raster_tiles`
+  (name/level/brow/bcol, gzip'd dtype-faithful blocks, BSQ, 256px, ×2 overview
+  levels). Save streams in ≤256-row strips (never whole-raster in RAM);
+  **connect** (now allowed for rasters) streams level-0 blocks into a temp
+  GeoTIFF via `writeStart/writeValues/writeStop` → a real GDAL-lazy SpatRaster,
+  registered in `rgeo_proxies` so `/db/reconnect` restores it. Legacy v2 BLOBs
+  in `_rgeo_rasters` stay readable and upgrade to a pyramid lazily on first
+  access (`.rgeo_ensure_raster_pyramid`). The raster translator supports
+  `preview`/`bbox`/`collect`/`meta`; editing ops error.
+- **Export**: both codegens emit raster layers with on-map symbology — ggplot
+  `geom_spatraster` + `scale_fill_gradientn(limits=…)` (with
+  `ggnewscale::new_scale_fill()` when fill scales must coexist),
+  `geom_spatraster_rgb(terra::stretch(…))` for RGB; tmap `tm_raster` +
+  `tm_scale_continuous/categorical`, `tm_rgb`. Shared helpers in
+  `codegen-shared.ts` (`rasterLimits`, `rasterRampVector`, `rasterRgbExpr`).
+
+## Key Code Generation (`src/lib/`)
+
+| File | What it generates |
+|------|------------------|
+| `ggplot-codegen.ts` | Full ggplot2 R code from `SpatialLayer[]` + `MapAnnotations` (vector geoms + tidyterra raster geoms) |
+| `tmap-codegen.ts` | Full tmap R code from the same inputs |
+| `map-annotations.ts` | `MapAnnotations` type + `DEFAULT_MAP_ANNOTATIONS`; types shared by both codegen files |
+| `basemap-providers.ts` | Basemap provider registry (maptiles IDs, labels) |
+| `layer-symbology.ts` | Resolves effective symbology for a layer |
+| `raster-layers.ts` | Raster layer registration/rehydration, ramp registry, symbology→wire payload, tile URLs |
+
+`MapAnnotations` carries all export-specific overrides (title/subtitle/caption, legend, north arrow, scale bar, graticules, panel border). Both `ggplot-codegen.ts` and `tmap-codegen.ts` accept it as an optional parameter; when present it overrides the spatial store values.
+
+## Data Connector — Web APIs (`src/lib/api-connectors/`)
+
+The Data Connector dialog (`src/components/connector/DataConnectorDialog.tsx`) has three
+modes: **Browse Sources** (static/dynamic source list in `sources.ts`), **Web APIs**, and
+**Manual**. The **Web APIs** tab (`WebApisTab.tsx`) is a provider framework: each API family
+implements the `ApiProvider` interface (`api-connectors/types.ts`) — a variable-depth cascade
+(`listLevel`), `getMetadata` (fields + `spatial`/`queryable` + `caps`), `opsFor`,
+`distinctValues`, `preview`, and `buildCode`. One generic component
+(`ApiConnectorBrowser.tsx`) drives any provider: server picker → cascade → `QueryBuilder.tsx`
+(shared `query-model.ts` Field/Filter/Query) → preview → generated R → Load
+(`rClient.execute` + `addObjectTab`, `sf` vs `data.frame` from `metadata.spatial`).
+
+Providers (registered in `registry.ts`, grouped by category): **CKAN, Socrata** (Open Data);
+**Esri ArcGIS REST, OGC API–Features, WFS, Macrostrat** (Geospatial → `sf`); **Esri Image Services, OGC
+WCS, OGC WMS, STAC, ERDDAP Grids** (Raster / Image Layers → SpatRaster; see below); **ERDDAP**
+(Scientific); **SDMX, OData** (Statistics). Each serializes the shared query to its own dialect
+(SoQL, ArcGIS/CQL `where`, OData `$filter`, OGC/STAC params, ERDDAP constraints, SDMX keys).
+Servers are user-extensible and persisted per provider (`apiServers.ts`). All metadata/preview
+fetches go through `proxyFetch` (`ai-proxy-fetch.ts`); only metadata/preview run in JS, the
+final import is generated R echoed to the console.
+
+### Raster / Image Layers connectors
+
+The raster connectors all follow the ImageServer template: the leaf's `getMetadata` returns
+`queryable:false + rasterResult + imageExport + downloadCode`, which renders the shared
+extent/resolution export panel (current-map-view vs full extent, long-side pixel size,
+download-size estimate; a **Time** input appears when `imageExport.time` is set) instead of the
+query builder. Raster imports skip the tabular viewer and offer an **"Add to map when done"**
+checkbox (default on) that registers the SpatRaster with the tile engine and zooms to it
+(`createRasterLayerInfo` + `rasterLayerDraft` + `requestFitBounds`, same path as the Add Layer
+dialog; a failure — e.g. a multi-item STAC list — degrades to a console note). WCS/WMS
+capabilities are parsed renderer-side with DOMParser (`api-connectors/xml.ts`); the R helpers
+regex-extract only what they need, keeping xml2 out of the R deps.
+
+- **Esri Image Services** (`esri-image.ts`, split out of the generic Esri provider, which now
+  lists only Feature/Map servers): ImageServer → `ourgeo_read_esri_image()` (chunked
+  `/exportImage` + mosaic, `r/lib/util-arcgis.R`). Built-ins: USGS 3DEP, USDA NAIP.
+- **OGC WCS** (`wcs.ts` + `r/lib/util-wcs.R`): real data values via GetCoverage 2.0.1 —
+  DescribeCoverage gives native CRS/axis labels, bbox is reprojected with sf, `SCALESIZE`
+  tries grid axes (`i,j` — GeoServer/MapServer) then CRS labels (rasdaman) then unscaled;
+  server read-limit exceptions ("too much data") trigger adaptive bbox bisection + mosaic.
+  Built-ins: EMODnet Bathymetry, DLR SRTM.
+- **OGC WMS** (`wms.ts` + `r/lib/util-wms.R`): *rendered* RGB imagery via WMS 1.1.1 GetMap
+  (1.1.1 keeps lon/lat order — avoids the 1.3.0 EPSG:4326 axis flip), chunked at 2048px and
+  mosaicked; PNG chunks are georeferenced locally from the requested bbox and the result always
+  lands in a GeoTIFF (tile engine reads the backing file). `TIME=` supported (NASA GIBS).
+  Built-ins: NASA GIBS, terrestris OSM/SRTM.
+- **ERDDAP Grids** (`erddap-grid.ts` + `r/lib/util-erddap.R`): griddap datasets
+  (`dataStructure="grid"`), cascade dataset → variable. Import uses **`.esriAscii`** (real
+  float values) — NOT `.geotif`, which is an 8-bit grayscale picture, and not `.nc`, which
+  needs GDAL's netCDF driver (broken on some systems) — converted locally to GeoTIFF. Stride
+  subsampling keeps the long side near the chosen size; descending latitude axes are handled
+  via the averageSpacing sign. Built-ins: NOAA CoastWatch, NOAA NCEI.
+- **STAC** moved here from Geospatial (imagery is its primary role); footprints-as-sf mode
+  remains, with a UI note explaining the coverage/QA use case.
+
+The Esri import calls the server-side helper `ourgeo_read_arcgis()` (`r/lib/util-arcgis.R`)
+rather than `sf::st_read`-ing the query URL directly (which returns **empty geometry**). It
+paginates EsriJSON (`f=json`) with `returnTrueCurves=true`, reads attributes via GDAL's
+ESRIJSON driver, and — because GDAL drops Esri curves — rebuilds curved geometry as OGC WKT
+(`CIRCULARSTRING`/`COMPOUNDCURVE`/`CURVEPOLYGON`) so arcs import exactly for `sfarc` instead of
+being linearized; straight layers pass through GDAL unchanged and keep their native CRS. When a
+page query errors (some layers advertise a `maxRecordCount` they can't satisfy for detailed
+geometry), the helper halves the request size and retries the same offset (down to a floor),
+so such layers still import.
+
+For large imports the browser first calls the optional `probeCapacity` provider hook
+(`ApiProvider`); when it returns `prompt`, `ApiConnectorBrowser` shows a `CapacityDialog` that
+lets the user pick how much to import, then runs `buildCode` with the chosen amount via
+`query.limit` (+ `pageSize` in `BuildCodeOptions`). The probe sets `prompt` per provider:
+**Esri** only when the server is `reduced` (can't deliver the requested page); **STAC** and
+**OData** also when the result far exceeds one page (STAC `numberMatched`, OData `$count`); **SDMX**
+when the dataflow spans many series. The dialog is
+provider-adaptable: `reduced` picks the wording ("server can't return large pages" vs "large
+result set"), and a probe may supply its own `description`, `unit`, and `choices` — SDMX uses
+these to offer *observations-per-series* (1 / 4 / 12 / all) instead of a row count. Small
+single-resource imports skip the probe (gated on `min(query.limit, meta.total) > IMPORT_PAGE_SIZE`).
+
+The Macrostrat provider (`macrostrat.ts`) wraps macrostrat.org's custom REST API (geology:
+stratigraphic columns, PBDB fossil collections, geologic map units, paleogeography — CC-BY 4.0).
+Routes and their filter params are curated in code (the API's docs are prose); filters serialize
+to plain `key=value` params (comma lists for isAnyOf; `age` between → `age_top`/`age_bottom`),
+value dropdowns come from the `/defs/*` dictionaries, and responses unwrap the API's
+`success.data` envelope. Import is `sf::st_read` on a `format=geojson_bare` URL (bare
+FeatureCollection — no R helper needed). Macrostrat's servers reject bad param combinations
+with a bare HTTP 500, so the provider implements the optional `ApiProvider.validateQuery`
+hook (sel+query → message|null): the browser shows the message as a warning banner and
+disables Load — used for unfiltered whole-database routes (fossils, map units, paleogeography)
+and map units' point-or-id rule (lat+lng together, or strat_name_id/unit_id/map_id; `scale`
+alone is rejected; `between` on lat/lng is called out since ranges aren't supported). The
+fossils route's `lith_class` param is omitted (server 500s on it, verified 2026-07).
+`QueryBuilder` additionally offers a one-click lat/lng fill when a resource has both fields:
+map-view center or any spatial layer's center (`src/lib/layer-center.ts`).
+
+The SDMX import calls `ourgeo_read_sdmx()` (`r/lib/util-sdmx.R`): `read.csv()` on the data URL
+opens R's base `url()` connection, which fails with "SSL connect error" on some systems and is
+bound by `options(timeout)` (60s) — so the helper fetches SDMX-CSV over httr2 (libcurl TLS + a
+generous timeout) and applies `last_n_obs`/`first_n_obs` to cap observations per series. The
+capacity probe uses the cheap `detail=serieskeysonly` endpoint to count series.
+
+The OData import calls `ourgeo_read_odata()` (`r/lib/util-odata.R`): the old inline code ran
+`req_perform()` with no timeout/retry, so transient slowness from a shared service tripped
+httr2's short default timeout ("Connection timed out after 10002 ms"). The helper sets a generous
+timeout + `req_retry`, paginates `$top`/`$skip` to `max_records`, and its probe reads the total
+via `$count=true`.
+
+The STAC import calls `ourgeo_read_stac()` (`r/lib/util-stac.R`): STAC's `limit` is a **per-page**
+cap the server enforces (Earth Search 502s on `limit`>1000), not a total, so the helper caps the
+page size, follows `rel:"next"` pagination tokens (POST search) up to `max_items`, halves the
+page size and retries on a server error, and reads the assembled item footprints as `sf`.
+`buildCode` emits the search body **without** `limit` (the helper owns it).
+
+## Plot Popout Window
+
+`window.location.hash === '#plot-popout'` causes `App.tsx` to render `PlotPopoutView` instead of `MainApp`. The Electron main process creates this secondary window via `plot-window.ts` and pushes new plot data URLs via `ipcRenderer.on('plot:update', ...)` → `window.electronAPI.plot.onUpdate(...)`.
+
+## Design Tokens
+
+```
+Background:  #0f1117  (geo-bg)
+Panel:       #161b22  (geo-panel)
+Border:      #21262d  (geo-border)
+Accent:      #4493f8  (geo-accent)
+Success:     #3fb950  (geo-success)
+Error:       #f85149  (geo-error)
+Muted:       #8b949e  (geo-muted)
+```
+
+Dark-mode only — no light mode toggle. New UI must use these tokens via Tailwind classes (`bg-geo-bg`, `text-geo-muted`, etc.) and follow the existing shadcn/ui + Radix component patterns in `src/components/ui/`.

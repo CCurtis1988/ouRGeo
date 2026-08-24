@@ -1,0 +1,931 @@
+import axios, { AxiosInstance } from 'axios'
+import { useSessionStore } from '@/store/session'
+import { withPowerBlock } from '@/lib/power-block'
+
+export interface RResponse<T = unknown> {
+  success: boolean
+  result?: T
+  code?: string
+  message?: string
+  error?: string
+}
+
+// /r/execute returns the captured console text at the TOP level (`output`),
+// not nested under `result` — see r/lib/handlers-exec.R handle_execute.
+export interface RExecuteResponse extends RResponse {
+  output?: string
+}
+
+export interface RPackageInfo {
+  name: string
+  version: string
+  loaded: boolean
+  isBase: boolean
+}
+
+export interface RLibrary {
+  path: string
+  packages: RPackageInfo[]
+}
+
+export interface RObjectInfo {
+  name: string
+  class: string
+  size: number
+  length: number | null
+  dim: number[] | null
+  preview: string
+  isEnvironment: boolean
+  isList: boolean
+  columns?: ColumnInfo[]
+  children?: RObjectInfo[]
+  rgeoProxy?: {
+    handle: string
+    name: string
+    kind: RgeoObjectKind
+    spatialFormat?: RgeoSpatialFormat | null
+    geometryType?: string | null
+    geometryColumn?: string | null
+    pkColumn?: string
+    crs?: string | null
+  }
+}
+
+export interface ColumnInfo {
+  name: string
+  type: string
+}
+
+export interface DataFrameResponse {
+  success: boolean
+  columns: ColumnInfo[]
+  rows: string[][]
+  totalRows: number
+  offset: number
+  limit: number
+  error?: string
+}
+
+export interface MatrixResponse {
+  success: boolean
+  nrow: number
+  ncol: number
+  type: string
+  rows: string[][]
+  offset: number
+  limit: number
+  error?: string
+}
+
+export interface VectorResponse {
+  success: boolean
+  type: string
+  values: string[]
+  totalLength: number
+  offset: number
+  limit: number
+  error?: string
+}
+
+export interface FunctionResponse {
+  success: boolean
+  source: string
+  name: string
+  error?: string
+}
+
+export interface RFormalArg {
+  name: string
+  hasDefault: boolean
+  default: string
+}
+
+export interface REnvironmentInfo {
+  name: string
+  isSearchPath: boolean
+  objects: RObjectInfo[]
+}
+
+class RClient {
+  private client: AxiosInstance | null = null
+  private _port: number | null = null
+
+  get port(): number | null {
+    return this._port
+  }
+
+  get isConnected(): boolean {
+    return this._port !== null
+  }
+
+  async connect(): Promise<void> {
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      const port = await window.electronAPI.r.getPort()
+      if (!port) throw new Error('R server port not available')
+      this.init(port)
+    } else {
+      this.init(10000)
+    }
+  }
+
+  init(port: number): void {
+    this._port = port
+    this.client = axios.create({
+      baseURL: `http://127.0.0.1:${port}`,
+      timeout: 60_000,
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    // Track /r/execute calls for the console processing indicator
+    this.client.interceptors.request.use((config) => {
+      if (config.url === '/r/execute') {
+        useSessionStore.getState().setExecuting(true)
+      }
+      return config
+    })
+    this.client.interceptors.response.use(
+      (response) => {
+        if (response.config.url === '/r/execute') {
+          useSessionStore.getState().setExecuting(false)
+        }
+        return response
+      },
+      (error) => {
+        if (error.config?.url === '/r/execute') {
+          useSessionStore.getState().setExecuting(false)
+        }
+        return Promise.reject(error)
+      }
+    )
+  }
+
+  private get http(): AxiosInstance {
+    if (!this.client) throw new Error('R client not initialized. Call connect() first.')
+    return this.client
+  }
+
+  async initSession(): Promise<RResponse & { systemNames?: string[] }> {
+    const res = await this.http.post<RResponse & { systemNames?: string[] }>('/session/init')
+    return res.data
+  }
+
+  async health(): Promise<boolean> {
+    try {
+      await this.http.get('/health')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async execute(code: string): Promise<RExecuteResponse> {
+    // Arbitrary user/generated code — imports, geoprocessing, model fits — can
+    // run for a long time (a large chunked ImageServer export easily exceeds
+    // 10 minutes against slow government servers). The 60s client default
+    // would abort while R is still working, so allow a very generous ceiling;
+    // R executes requests serially, so a stuck call blocks nothing else.
+    // Inhibit OS idle-suspend for the duration: sleeping mid-request makes
+    // Chromium abort it (ERR_NETWORK_CHANGED) even though R finishes the work.
+    return withPowerBlock(async () => {
+      const res = await this.http.post<RExecuteResponse>('/r/execute', { code }, { timeout: 3_600_000 })
+      return res.data
+    })
+  }
+
+  async kaggleFiles(ref: string, username: string, apiKey: string): Promise<{
+    success: boolean
+    files?: { name: string; totalBytes: number }[]
+    zipPath?: string
+    error?: string
+  }> {
+    const res = await this.http.post(
+      '/kaggle/files',
+      { ref, username, apiKey },
+      { timeout: 300_000 }  // large datasets can take a while
+    )
+    return res.data
+  }
+
+  async listPackages(): Promise<{ success: boolean; libraries: RLibrary[]; error?: string }> {
+    const res = await this.http.get<{ success: boolean; libraries: RLibrary[]; error?: string }>(
+      '/packages/list',
+      { timeout: 120_000 }
+    )
+    return res.data
+  }
+
+  async loadPackage(name: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/packages/load', { name })
+    return res.data
+  }
+
+  async unloadPackage(name: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/packages/unload', { name })
+    return res.data
+  }
+
+  async installPackage(code: string): Promise<RResponse<{ output: string }>> {
+    const res = await this.http.post<RResponse<{ output: string }>>(
+      '/packages/install',
+      { code },
+      { timeout: 300_000 }
+    )
+    return res.data
+  }
+
+  async getCranList(): Promise<{ success: boolean; packages: { name: string; title: string }[]; error?: string }> {
+    const res = await this.http.get<{ success: boolean; packages: { name: string; title: string }[]; error?: string }>(
+      '/packages/cran-list',
+      { timeout: 30_000 }
+    )
+    return res.data
+  }
+
+  async checkPackageVersion(name: string, libPath: string): Promise<{
+    success: boolean
+    installed: string | null
+    cran: string | null
+    upToDate: boolean
+  }> {
+    const res = await this.http.post('/packages/check-version', { name, libPath }, { timeout: 30_000 })
+    return res.data
+  }
+
+  async addLibraryPath(path: string): Promise<RResponse<{ path: string; libPaths: string[] }>> {
+    const res = await this.http.post<RResponse<{ path: string; libPaths: string[] }>>(
+      '/packages/addlibpath',
+      { path }
+    )
+    return res.data
+  }
+
+  async listEnvironments(): Promise<{ success: boolean; environments: REnvironmentInfo[] }> {
+    const res = await this.http.get<{ success: boolean; environments: REnvironmentInfo[] }>(
+      '/env/list',
+      { timeout: 30_000 }
+    )
+    return res.data
+  }
+
+  async envRemove(name: string, envName: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/remove', { name, envName })
+    return res.data
+  }
+
+  async envRename(oldName: string, newName: string, envName: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/rename', { oldName, newName, envName })
+    return res.data
+  }
+
+  async envCopy(name: string, fromEnv: string, toEnv: string, newName: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/copy', { name, fromEnv, toEnv, newName })
+    return res.data
+  }
+
+  async envMove(name: string, fromEnv: string, toEnv: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/move', { name, fromEnv, toEnv })
+    return res.data
+  }
+
+  async envCreate(name: string, parentEnv?: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/create', { name, parentEnv })
+    return res.data
+  }
+
+  async envSave(
+    envNames: string[],
+    filePath: string,
+    rdataLoadedNames?: string[],
+    excludeSystem = false
+  ): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/env/save', {
+      envNames, filePath, rdataLoadedNames: rdataLoadedNames ?? [], excludeSystem
+    })
+    return res.data
+  }
+
+  async envLoad(filePath: string, envName: string): Promise<RResponse & { rdataLoadedNames?: string[] }> {
+    const res = await this.http.post<RResponse & { rdataLoadedNames?: string[] }>('/env/load', { filePath, envName })
+    return res.data
+  }
+
+  // Clear .GlobalEnv, disconnect all DuckDB connections, drop proxies — a clean
+  // slate for the project workflow's New action and before loading a project.
+  async sessionReset(): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/session/reset', {})
+    return res.data
+  }
+
+  async listSpatialObjects(): Promise<{
+    success: boolean
+    objects: SpatialObjectInfo[]
+  }> {
+    const res = await this.http.get<{ success: boolean; objects: SpatialObjectInfo[] }>(
+      '/spatial/list',
+      { timeout: 30_000 }
+    )
+    return res.data
+  }
+
+  /** Absolute base URL of the R server — used for raster tile templates. */
+  get baseUrl(): string {
+    if (this._port === null) throw new Error('R client not initialized')
+    return `http://127.0.0.1:${this._port}`
+  }
+
+  async rasterInfo(name: string, envName: string): Promise<RasterInfoResponse> {
+    const res = await this.http.post<RasterInfoResponse>(
+      '/raster/info',
+      { name, envName },
+      { timeout: 120_000 }
+    )
+    return res.data
+  }
+
+  // Registration warps + builds overviews for large rasters — allow time.
+  async rasterRegister(
+    name: string,
+    envName: string,
+    symbology: RasterSymbologyPayload,
+    layerId?: string
+  ): Promise<RasterRegisterResponse> {
+    const res = await this.http.post<RasterRegisterResponse>(
+      '/raster/register',
+      { name, envName, layerId, symbology },
+      { timeout: 600_000 }
+    )
+    return res.data
+  }
+
+  async rasterUnregister(layerId: string): Promise<RResponse> {
+    const res = await this.http.post<RResponse>('/raster/unregister', { layerId })
+    return res.data
+  }
+
+  async rasterHistogram(
+    name: string,
+    envName: string,
+    band: number,
+    bins = 48
+  ): Promise<{ success: boolean; error?: string; breaks: number[]; counts: number[] }> {
+    const res = await this.http.post<{
+      success: boolean
+      error?: string
+      breaks: number[]
+      counts: number[]
+    }>('/raster/histogram', { name, envName, band, bins }, { timeout: 120_000 })
+    return res.data
+  }
+
+  // Pixel band values at a 4326 lng/lat (info-click identify on a raster).
+  async rasterValue(
+    name: string,
+    envName: string,
+    lng: number,
+    lat: number
+  ): Promise<{ success: boolean; error?: string; bands?: { name: string; value: string | null }[] }> {
+    const res = await this.http.post<{
+      success: boolean
+      error?: string
+      bands?: { name: string; value: string | null }[]
+    }>('/raster/value', { name, envName, lng, lat }, { timeout: 30_000 })
+    return res.data
+  }
+
+  async getObjectFunction(
+    name: string,
+    envName: string,
+    accessPath?: string
+  ): Promise<FunctionResponse> {
+    const res = await this.http.post<FunctionResponse>('/object/function', {
+      name,
+      envName,
+      accessPath: accessPath || name
+    })
+    return res.data
+  }
+
+  async getObjectFormals(
+    name: string,
+    pkg?: string
+  ): Promise<{ success: boolean; args?: RFormalArg[]; error?: string }> {
+    const res = await this.http.post<{ success: boolean; args?: RFormalArg[]; error?: string }>(
+      '/object/formals',
+      { name, package: pkg }
+    )
+    return res.data
+  }
+
+  async getObjectDataFrame(
+    name: string,
+    envName: string,
+    accessPath?: string,
+    offset = 0,
+    limit = 500
+  ): Promise<DataFrameResponse> {
+    const res = await this.http.post<DataFrameResponse>('/object/dataframe', {
+      name,
+      envName,
+      accessPath: accessPath || name,
+      offset,
+      limit
+    })
+    return res.data
+  }
+
+  async getObjectMatrix(
+    name: string,
+    envName: string,
+    accessPath?: string,
+    offset = 0,
+    limit = 500
+  ): Promise<MatrixResponse> {
+    const res = await this.http.post<MatrixResponse>('/object/matrix', {
+      name,
+      envName,
+      accessPath: accessPath || name,
+      offset,
+      limit
+    })
+    return res.data
+  }
+
+  async getObjectVector(
+    name: string,
+    envName: string,
+    accessPath?: string,
+    offset = 0,
+    limit = 500
+  ): Promise<VectorResponse> {
+    const res = await this.http.post<VectorResponse>('/object/vector', {
+      name,
+      envName,
+      accessPath: accessPath || name,
+      offset,
+      limit
+    })
+    return res.data
+  }
+
+  async previewData(opts: {
+    file_path: string
+    format: string
+    sheet?: string
+    skip?: number
+    header?: boolean
+    sep?: string
+  }): Promise<RResponse<{ columns: { name: string; type: string }[]; is_spatial: boolean; sheet_names: string[] }>> {
+    const res = await this.http.post<RResponse<{ columns: { name: string; type: string }[]; is_spatial: boolean; sheet_names: string[] }>>(
+      '/data/preview',
+      opts,
+      { timeout: 30_000 }
+    )
+    return res.data
+  }
+
+  /**
+   * Re-render a recorded plot at an arbitrary size. `plotId` pins a specific
+   * plot from R's history; omit it to render the most recent one. Returns the
+   * server's message instead of throwing, so callers can distinguish "that
+   * plot is gone" from a real render failure.
+   */
+  async exportPlot(opts: {
+    format: 'png' | 'jpg' | 'pdf'
+    widthPx: number
+    heightPx: number
+    dpi: number
+    plotId?: string | null
+  }): Promise<{ success: boolean; data?: string; format?: string; error?: string }> {
+    try {
+      const res = await this.http.post<{
+        success: boolean
+        data?: string
+        format?: string
+        error?: string
+      }>('/r/plot/export', opts, { timeout: 30_000 })
+      return res.data
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(err)
+      return { success: false, error: msg }
+    }
+  }
+
+  async getSpatialGeoJSON(
+    name: string,
+    envName: string
+  ): Promise<{ success: boolean; geojson?: string; error?: string }> {
+    const res = await this.http.post<{ success: boolean; geojson?: string; error?: string }>(
+      '/spatial/geojson',
+      { name, envName },
+      { timeout: 120_000 }
+    )
+    return res.data
+  }
+
+  /** True (curve-preserving) WKT for one row's geometry, in WGS84. */
+  async spatialWkt(
+    name: string,
+    envName: string,
+    row: number,
+    column?: string
+  ): Promise<{ success: boolean; wkt?: string; hasCurve?: boolean; error?: string }> {
+    const res = await this.http.post<{
+      success: boolean
+      wkt?: string
+      hasCurve?: boolean
+      error?: string
+    }>('/spatial/wkt', { name, envName, row, column }, { timeout: 15_000 })
+    return res.data
+  }
+
+  async searchHelp(query: string, limit = 20): Promise<RResponse<{ results: HelpSearchResult[] }>> {
+    const res = await this.http.post<RResponse<{ results: HelpSearchResult[] }>>(
+      '/help/search', { query, limit }, { timeout: 15_000 }
+    )
+    return res.data
+  }
+
+  async getHelpDoc(topic: string, pkg?: string): Promise<RResponse<{ html: string; topic: string; package: string; examples: string }>> {
+    const res = await this.http.post<RResponse<{ html: string; topic: string; package: string; examples: string }>>(
+      '/help/doc', { topic, package: pkg ?? null }, { timeout: 15_000 }
+    )
+    return res.data
+  }
+
+  async getPackageInfo(pkg: string): Promise<RResponse<{ title: string; version: string; description: string; functions: string[] }>> {
+    const res = await this.http.post<RResponse<{ title: string; version: string; description: string; functions: string[] }>>(
+      '/help/package', { package: pkg }, { timeout: 10_000 }
+    )
+    return res.data
+  }
+
+  async getVignettes(pkg: string): Promise<RResponse<{ vignettes: { name: string; title: string }[] }>> {
+    const res = await this.http.post<RResponse<{ vignettes: { name: string; title: string }[] }>>(
+      '/help/vignettes', { package: pkg }, { timeout: 10_000 }
+    )
+    return res.data
+  }
+
+  async getVignetteContent(pkg: string, name: string): Promise<RResponse<{ html: string; name: string }>> {
+    const res = await this.http.post<RResponse<{ html: string; name: string }>>(
+      '/help/vignette', { package: pkg, name }, { timeout: 10_000 }
+    )
+    return res.data
+  }
+
+  interrupt(): void {
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      window.electronAPI.r.interrupt()
+    }
+    useSessionStore.getState().setExecuting(false)
+  }
+
+  async selectionQuery(params: {
+    code: string
+    sourceName: string
+    sourceEnv: string
+  }): Promise<{ success: boolean; rowIndices: number[]; error?: string }> {
+    const res = await this.http.post('/selection/query', params, { timeout: 60_000 })
+    return res.data
+  }
+
+  async renderPlotPreview(code: string): Promise<{ success: boolean; data?: string; error?: string }> {
+    try {
+      const res = await this.http.post<{ success: boolean; data?: string; error?: string }>(
+        '/r/plot-preview',
+        { code },
+        { timeout: 30_000 }
+      )
+      return res.data
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? String(err)
+      return { success: false, error: msg }
+    }
+  }
+
+  // Routes /db/* responses through here so a non-2xx (e.g. missing R package → HTTP 500)
+  // surfaces the R server's structured `{success:false, error:"..."}` body instead of axios's
+  // generic "Request failed with status code 500".
+  private async dbCall<T extends { success: boolean; error?: string }>(
+    fn: () => Promise<{ data: T }>
+  ): Promise<T> {
+    try {
+      const res = await fn()
+      return res.data
+    } catch (err: unknown) {
+      const body = (err as { response?: { data?: unknown } })?.response?.data
+      if (body && typeof body === 'object') return body as T
+      return { success: false, error: err instanceof Error ? err.message : String(err) } as T
+    }
+  }
+
+  async dbCreate(filePath: string): Promise<RResponse & { path?: string }> {
+    return this.dbCall(() => this.http.post<RResponse & { path?: string }>('/db/create', { filePath }))
+  }
+
+  async dbOpen(filePath: string): Promise<{ success: boolean; handle?: string; objects?: RgeoObjectInfo[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; handle?: string; objects?: RgeoObjectInfo[]; error?: string }>(
+        '/db/open', { filePath }
+      )
+    )
+  }
+
+  async dbClose(handle: string): Promise<RResponse> {
+    return this.dbCall(() => this.http.post<RResponse>('/db/close', { handle }))
+  }
+
+  // Snapshot connected dataset proxies for a project save.
+  async dbProxies(): Promise<{ success: boolean; proxies?: DbProxyInfo[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.get<{ success: boolean; proxies?: DbProxyInfo[]; error?: string }>('/db/proxies')
+    )
+  }
+
+  // Reopen each .Rgeo file and rebind its proxies after a project load.
+  async dbReconnect(databases: DbReconnectEntry[]):
+    Promise<{ success: boolean; handles?: Record<string, string>; errors?: string[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; handles?: Record<string, string>; errors?: string[]; error?: string }>(
+        '/db/reconnect', { databases }, { timeout: 120_000 }
+      )
+    )
+  }
+
+  async dbListObjects(handle: string): Promise<{ success: boolean; objects?: RgeoObjectInfo[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; objects?: RgeoObjectInfo[]; error?: string }>(
+        '/db/list-objects', { handle }
+      )
+    )
+  }
+
+  async dbDeleteObject(handle: string, name: string): Promise<RResponse> {
+    return this.dbCall(() => this.http.post<RResponse>('/db/delete-object', { handle, name }))
+  }
+
+  async dbConnectObject(handle: string, name: string, varName: string, mode: 'connect' | 'load'):
+    Promise<{ success: boolean; varName?: string; kind?: string; mode?: 'lazy' | 'loaded'; code?: string; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; varName?: string; kind?: string; mode?: 'lazy' | 'loaded'; code?: string; error?: string }>(
+        '/db/connect-object', { handle, name, varName, mode }
+      )
+    )
+  }
+
+  async dbPreviewObject(handle: string, name: string, n = 100):
+    Promise<{ success: boolean; kind?: string; columns?: ColumnInfo[]; rows?: (string | null)[][]; message?: string; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; kind?: string; columns?: ColumnInfo[]; rows?: (string | null)[][]; message?: string; error?: string }>(
+        '/db/preview-object', { handle, name, n }
+      )
+    )
+  }
+
+  async dbImportObject(handle: string, sourceVarName: string, targetName: string, notes?: string):
+    Promise<{ success: boolean; name?: string; kind?: string; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; name?: string; kind?: string; error?: string }>(
+        '/db/import-object', { handle, sourceVarName, targetName, notes }
+      )
+    )
+  }
+
+  async dbPreviewTbl(varName: string, n = 100):
+    Promise<{ success: boolean; columns?: ColumnInfo[]; rows?: (string | null)[][]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; columns?: ColumnInfo[]; rows?: (string | null)[][]; error?: string }>(
+        '/db/preview-tbl', { varName, n }
+      )
+    )
+  }
+
+  async dbRecents(): Promise<{ success: boolean; files?: string[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.get<{ success: boolean; files?: string[]; error?: string }>('/db/recents')
+    )
+  }
+
+  async dbRecentsAdd(filePath: string): Promise<{ success: boolean; files?: string[]; error?: string }> {
+    return this.dbCall(() =>
+      this.http.post<{ success: boolean; files?: string[]; error?: string }>(
+        '/db/recents-add', { filePath }
+      )
+    )
+  }
+
+  // -------------------------------------------------------------------------
+  // /dataset/* — uniform per-kind operations on database-backed datasets.
+  // The `proxy` argument identifies the (open db handle, object name) pair.
+  // -------------------------------------------------------------------------
+
+  async datasetPreview(proxy: RgeoProxyRef, opts: { offset?: number; limit?: number; where?: string; orderBy?: string } = {}) {
+    type R = { success: boolean; columns?: ColumnInfo[]; rows?: (string | null)[][]; totalRows?: number; pkColumn?: string; geometryColumn?: string; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/preview', { ...proxy, ...opts }))
+  }
+
+  async datasetUpdateCell(proxy: RgeoProxyRef, rowId: number, column: string, value: string | number | null) {
+    type R = { success: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/update-cell', { ...proxy, rowId, column, value }))
+  }
+
+  async datasetAddColumn(proxy: RgeoProxyRef, newColumn: string, formula: string) {
+    type R = { success: boolean; used_pushdown?: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/add-column', { ...proxy, newColumn, formula }))
+  }
+
+  async datasetDeleteRows(proxy: RgeoProxyRef, rowIds: number[]) {
+    type R = { success: boolean; deleted?: number; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/delete-rows', { ...proxy, rowIds }))
+  }
+
+  async datasetRenameColumn(proxy: RgeoProxyRef, oldName: string, newName: string) {
+    type R = { success: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/rename-column', { ...proxy, oldName, newName }))
+  }
+
+  async datasetDeleteColumn(proxy: RgeoProxyRef, column: string) {
+    type R = { success: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/delete-column', { ...proxy, column }))
+  }
+
+  async datasetSpatialTile(proxy: RgeoProxyRef, opts: { bbox: [number, number, number, number]; zoom?: number; limit?: number }) {
+    type R = { success: boolean; geojson?: GeoJSON.FeatureCollection; truncated?: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/spatial-tile', { ...proxy, ...opts }))
+  }
+
+  async datasetUpdateGeometry(
+    proxy: RgeoProxyRef,
+    edits: { rowId: number; wkt: string; wktTrue?: string }[]
+  ) {
+    type R = { success: boolean; applied?: number; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/update-geometry', { ...proxy, edits }))
+  }
+
+  /** True (curve-preserving) WKT for one DB row, in WGS84. */
+  async datasetRowWkt(proxy: RgeoProxyRef, rowId: number) {
+    type R = { success: boolean; wkt?: string; hasCurve?: boolean; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/row-wkt', { ...proxy, rowId }))
+  }
+
+  async datasetCollect(proxy: RgeoProxyRef, opts: { varName?: string; where?: string; columns?: string[]; bbox?: [number, number, number, number] } = {}) {
+    type R = { success: boolean; varName?: string; kind?: RgeoObjectKind; nRows?: number; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/collect', { ...proxy, ...opts }))
+  }
+
+  async datasetBbox(proxy: RgeoProxyRef) {
+    type R = { success: boolean; bbox?: [number, number, number, number] | null; crs?: string | null; error?: string }
+    return this.dbCall<R>(() => this.http.post<R>('/dataset/bbox', proxy))
+  }
+}
+
+export interface HelpSearchResult {
+  name: string
+  package?: string
+  title?: string
+  type?: string
+  source: 'loaded' | 'index'
+}
+
+export interface SpatialObjectInfo {
+  name: string
+  envName: string
+  class: string
+  geometryType: string
+  nFeatures: number
+  crs: string | null
+  sfColumn?: string
+  /** SpatRaster listings only. */
+  nBands?: number
+  dims?: [number, number]
+}
+
+// ---------------------------------------------------------------------------
+// Raster engine (r/lib/handlers-raster.R)
+
+export interface RasterBandStats {
+  index: number
+  name: string
+  min: number
+  max: number
+  mean: number
+  sd: number
+  q02: number
+  q98: number
+  categorical: boolean
+  levels?: { value: number; label: string; color: string }[]
+}
+
+export interface RasterInfoResponse {
+  success: boolean
+  error?: string
+  bands: RasterBandStats[]
+  nbands: number
+  nrow: number
+  ncol: number
+  resolution: number[]
+  dtype: string
+  crs: string | null
+  extent4326: [number, number, number, number] | null
+  nodata: number | null
+  approx: boolean
+}
+
+/** Wire shape POSTed to /raster/register (resolved from RasterSymbology). */
+export interface RasterSymbologyPayload {
+  mode: 'singleband' | 'rgb' | 'categorical'
+  bands: number[]
+  stretch: {
+    type: 'minmax' | 'percent' | 'stddev' | 'custom'
+    pLow?: number
+    pHigh?: number
+    nStd?: number
+    min?: number[]
+    max?: number[]
+  }
+  colormap?: { position: number; color: string }[]
+  categories?: { value: number; label: string; color: string }[]
+  nodataTransparent: boolean
+  resampling: 'nearest' | 'bilinear'
+}
+
+export interface RasterRegisterResponse {
+  success: boolean
+  error?: string
+  layerId: string
+  version: number
+  tileUrl: string
+  bounds4326: [number, number, number, number] | null
+  minzoom: number
+  maxzoom: number
+  bands: RasterBandStats[]
+  nbands: number
+  stretch: { lo: number[]; hi: number[] }
+}
+
+export type RgeoObjectKind =
+  | 'sf' | 'geos' | 'data.frame' | 'tibble' | 'data.table' | 'raster' | 'image' | 'rds'
+
+export type RgeoSpatialFormat = 'duckdb_geometry' | 'wkb_blob' | 'serialized' | 'none'
+
+export interface RgeoObjectInfo {
+  name: string
+  kind: RgeoObjectKind
+  geometry_type?: string | null
+  crs?: string | null
+  n_rows?: number | null
+  size_bytes?: number | null
+  notes?: string | null
+  r_class?: string | null
+  pk_column?: string | null
+  geometry_column?: string | null
+  bbox?: [number, number, number, number] | null
+  spatial_format?: RgeoSpatialFormat | null
+  has_spatial_index?: boolean | null
+  editable?: boolean | null
+}
+
+// Minimal reference passed to /dataset/* endpoints to identify the
+// (open database, object name) pair. Surfaced on environment items via
+// `rgeoProxy` when the env variable is a connected database dataset.
+export interface RgeoProxyRef {
+  handle: string
+  name: string
+}
+
+// A connected dataset proxy snapshot for a project save: the env variable, the
+// source object name, and the .Rgeo file it lives in (resolved server-side).
+export interface DbProxyInfo {
+  varName: string
+  name: string
+  filePath: string | null
+}
+
+// One database to re-establish on project load, with the proxies to rebind.
+export interface DbReconnectEntry {
+  filePath: string
+  proxies: { varName: string; name: string }[]
+}
+
+// Full description of a dataset that the renderer can drive via the
+// uniform translator surface — works equally for in-memory and db-backed
+// datasets so callers don't have to fork their logic.
+export interface DatasetHandle {
+  source: 'environment' | 'database'
+  kind: RgeoObjectKind
+  envName?: string
+  accessPath?: string
+  proxy?: RgeoProxyRef
+  pkColumn?: string
+  geometryColumn?: string | null
+  geometryType?: string
+  crs?: string | null
+  bbox?: [number, number, number, number] | null
+  nRows?: number
+  columns?: ColumnInfo[]
+  spatialFormat?: RgeoSpatialFormat | null
+  editable?: boolean
+}
+
+export const rClient = new RClient()
