@@ -6,6 +6,7 @@ export interface AiPreferences {
   provider: string
   modelByProvider: Record<string, string>
   autopilotWarningDismissed: boolean
+  webAccessEnabled: boolean
 }
 
 const DEFAULTS: AiPreferences = {
@@ -26,6 +27,7 @@ const DEFAULTS: AiPreferences = {
     openllm: '',
   },
   autopilotWarningDismissed: false,
+  webAccessEnabled: true,
 }
 
 export async function loadAiPreferences(): Promise<AiPreferences> {
@@ -33,6 +35,7 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     provider?: unknown
     modelByProvider?: unknown
     autopilotWarningDismissed?: unknown
+    webAccessEnabled?: unknown
   }>()
   return {
     provider: typeof data.provider === 'string' ? data.provider : DEFAULTS.provider,
@@ -42,6 +45,10 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     autopilotWarningDismissed: typeof data.autopilotWarningDismissed === 'boolean'
       ? data.autopilotWarningDismissed
       : false,
+    // Web access is on by default; the panel's kill switch persists the opt-out.
+    webAccessEnabled: typeof data.webAccessEnabled === 'boolean'
+      ? data.webAccessEnabled
+      : DEFAULTS.webAccessEnabled,
   }
 }
 

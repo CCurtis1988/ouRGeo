@@ -237,8 +237,21 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   openllm: 'OpenLLM (Local)',
 }
 
-// ── Autopilot tool definition ──────────────────────────────────────────────
-export const EXECUTE_R_TOOL = {
+// ── Tool definitions ───────────────────────────────────────────────────────
+/** Provider-neutral tool description. Each transport below maps this onto its
+ *  own wire shape (Anthropic `input_schema`, OpenAI `function.parameters`,
+ *  Gemini `functionDeclarations`). Web tools live in `ai-web-tools.ts`. */
+export interface AiTool {
+  name: string
+  description: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required: string[]
+  }
+}
+
+export const EXECUTE_R_TOOL: AiTool = {
   name: 'execute_r_code',
   description:
     'Execute R code in the user\'s live R session. Use this to inspect data, run calculations, ' +
@@ -255,6 +268,39 @@ export const EXECUTE_R_TOOL = {
     required: ['code'],
   },
 }
+
+/** One tool invocation, as handed to `SendOptions.onToolCall`. */
+export interface ToolCall {
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+function parseToolInput(raw: string): Record<string, unknown> {
+  if (!raw.trim()) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+// Per-provider tool-list encodings
+const anthropicTools = (tools: AiTool[]) =>
+  tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema }))
+
+const openAiTools = (tools: AiTool[]) =>
+  tools.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.inputSchema },
+  }))
+
+const geminiTools = (tools: AiTool[]) => [{
+  functionDeclarations: tools.map((t) => ({
+    name: t.name, description: t.description, parameters: t.inputSchema,
+  })),
+}]
 
 // ── Environment context builder ────────────────────────────────────────────
 export function buildEnvContext(environments: REnvironmentInfo[]): string {
@@ -451,12 +497,16 @@ export interface SendOptions {
   localApiKey?: string
   messages: ChatMessage[]
   systemPrompt: string
-  autoPilot: boolean
+  /** Tools offered to the model this turn. Empty = plain streaming chat.
+   *  The caller decides membership (Autopilot → `execute_r_code`, web access →
+   *  `web_search`/`web_fetch`), so a disabled capability is simply absent from
+   *  the request rather than declined after the fact. */
+  tools?: AiTool[]
   /** Resolved context window (tokens) for usage reporting; falls back to the
    *  per-model static size when omitted. */
   contextSize?: number
   onChunk: (text: string) => void
-  onToolCall?: (call: { id: string; code: string }) => Promise<string>
+  onToolCall?: (call: ToolCall) => Promise<string>
   onUsage?: (used: number, total: number) => void
   signal?: AbortSignal
 }
@@ -478,11 +528,62 @@ export async function sendMessage(opts: SendOptions): Promise<string> {
   throw new Error(`Unsupported provider: ${opts.provider}`)
 }
 
-// ── Anthropic ─────────────────────────────────────────────────────────────
-async function sendAnthropic(opts: SendOptions): Promise<string> {
-  const { model, apiKey, messages, systemPrompt, autoPilot, onChunk, onToolCall, onUsage, signal } = opts
+// ── Streaming helpers ──────────────────────────────────────────────────────
+interface ByteStream { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> } }
 
-  const apiMessages = messages.map(toAnthropicMessage)
+/** Read a line-delimited response body, calling `onLine` for each complete line.
+ *  Buffers across reads — a single JSON event routinely straddles two chunks,
+ *  which matters most for tool arguments streamed as many small deltas. */
+async function readLineStream(body: ByteStream, onLine: (line: string) => void): Promise<void> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    for (;;) {
+      const nl = buf.indexOf('\n')
+      if (nl < 0) break
+      const line = buf.slice(0, nl)
+      buf = buf.slice(nl + 1)
+      if (line.trim()) onLine(line)
+    }
+  }
+  if (buf.trim()) onLine(buf)
+}
+
+/** `data: {...}` payload of an SSE line, or null for anything else. */
+function ssePayload(line: string): string | null {
+  if (!line.startsWith('data:')) return null
+  const raw = line.slice(5).trim()
+  return !raw || raw === '[DONE]' ? null : raw
+}
+
+// ── Anthropic ─────────────────────────────────────────────────────────────
+interface AnthropicBlock {
+  type: 'text' | 'tool_use'
+  text?: string
+  id?: string
+  name?: string
+  /** Accumulated `input_json_delta` fragments for a tool_use block */
+  json?: string
+}
+
+/** Re-encode a streamed block for the assistant turn we echo back. */
+function anthropicBlockToWire(b: AnthropicBlock): Record<string, unknown> | null {
+  if (b.type === 'text') {
+    return b.text?.trim() ? { type: 'text', text: b.text } : null
+  }
+  return { type: 'tool_use', id: b.id, name: b.name, input: parseToolInput(b.json ?? '') }
+}
+
+async function sendAnthropic(opts: SendOptions): Promise<string> {
+  const { model, apiKey, messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
+  const tools = opts.tools ?? []
+  const useTools = tools.length > 0 && !!onToolCall
+
+  const apiMessages: unknown[] = messages.map(toAnthropicMessage)
 
   const body: Record<string, unknown> = {
     model,
@@ -491,115 +592,102 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
     messages: apiMessages,
     stream: true,
   }
-  if (autoPilot && onToolCall) {
-    body.tools = [{
-      name: EXECUTE_R_TOOL.name,
-      description: EXECUTE_R_TOOL.description,
-      input_schema: EXECUTE_R_TOOL.inputSchema,
-    }]
-  }
+  if (useTools) body.tools = anthropicTools(tools)
 
   let fullText = ''
   let inputTokens = 0
-  let outputTokens = 0
+  let priorOutput = 0
 
-  // Tool-call loop — Anthropic requires non-streaming for reliable tool extraction
-  // We use streaming for text but switch to non-streaming when a tool call is expected.
-  // For simplicity and reliability, we use non-streaming for Autopilot mode.
-  if (autoPilot && onToolCall) {
-    const nbody: Record<string, unknown> = { ...body, stream: false }
-    while (true) {
-      const res = await proxyFetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(nbody),
-        signal,
-      })
-      const data = await res.json() as {
-        content?: { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }[]
-        stop_reason?: string
-        usage?: { input_tokens: number; output_tokens: number }
-      }
-      if (!res.ok) throw new Error((data as { error?: { message: string } }).error?.message ?? `HTTP ${res.status}`)
-      inputTokens = data.usage?.input_tokens ?? inputTokens
-      outputTokens += data.usage?.output_tokens ?? 0
-      onUsage?.(inputTokens + outputTokens, opts.contextSize ?? getContextSize(model))
-
-      const toolUseBlocks = (data.content ?? []).filter((b) => b.type === 'tool_use')
-      const textBlock = (data.content ?? []).find((b) => b.type === 'text')
-
-      if (textBlock?.text) {
-        fullText += textBlock.text
-        onChunk(textBlock.text)
-      }
-
-      if (data.stop_reason !== 'tool_use' || toolUseBlocks.length === 0) break
-
-      // Append assistant turn with tool_use blocks
-      ;(nbody.messages as unknown[]).push({ role: 'assistant', content: data.content })
-
-      // Execute each tool and collect results
-      const toolResults = []
-      for (const block of toolUseBlocks) {
-        const code = (block.input as Record<string, string>)?.code ?? ''
-        const result = await onToolCall({ id: block.id!, code })
-        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result })
-      }
-      ;(nbody.messages as unknown[]).push({ role: 'user', content: toolResults })
+  // One streamed assistant turn. Text is forwarded to `onChunk` as it arrives —
+  // tool_use blocks arrive as `input_json_delta` fragments and are reassembled
+  // here, so Autopilot/web turns stream just like plain chat.
+  const streamTurn = async (): Promise<{ blocks: AnthropicBlock[]; stopReason: string }> => {
+    const res = await proxyFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+      signal,
+    })
+    if (!res.ok) {
+      const err = await res.json() as { error?: { message: string } }
+      throw new Error(err.error?.message ?? `HTTP ${res.status}`)
     }
-    return fullText
-  }
 
-  // Streaming (no tools)
-  const res = await proxyFetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-    signal,
-  })
-  if (!res.ok) {
-    const err = await res.json() as { error?: { message: string } }
-    throw new Error(err.error?.message ?? `HTTP ${res.status}`)
-  }
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const text = decoder.decode(value, { stream: true })
-    for (const line of text.split('\n')) {
-      if (!line.startsWith('data:')) continue
-      const raw = line.slice(5).trim()
-      if (!raw || raw === '[DONE]') continue
-      try {
-        const evt = JSON.parse(raw) as {
-          type?: string
-          delta?: { type?: string; text?: string }
-          usage?: { input_tokens?: number; output_tokens?: number }
-          message?: { usage?: { input_tokens: number } }
+    const byIndex = new Map<number, AnthropicBlock>()
+    let stopReason = ''
+    let turnOutput = 0
+
+    await readLineStream(res.body!, (line) => {
+      const raw = ssePayload(line)
+      if (!raw) return
+      let evt: {
+        type?: string
+        index?: number
+        content_block?: { type?: string; id?: string; name?: string }
+        delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string }
+        usage?: { output_tokens?: number }
+        message?: { usage?: { input_tokens: number } }
+      }
+      try { evt = JSON.parse(raw) } catch { return /* malformed chunk */ }
+
+      if (evt.type === 'message_start' && evt.message?.usage) {
+        inputTokens = evt.message.usage.input_tokens
+      } else if (evt.type === 'content_block_start' && evt.index != null) {
+        const cb = evt.content_block
+        if (cb?.type === 'tool_use') {
+          byIndex.set(evt.index, { type: 'tool_use', id: cb.id, name: cb.name, json: '' })
+        } else if (cb?.type === 'text') {
+          byIndex.set(evt.index, { type: 'text', text: '' })
         }
-        if (evt.type === 'message_start' && evt.message?.usage) {
-          inputTokens = evt.message.usage.input_tokens
-        }
-        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+      } else if (evt.type === 'content_block_delta' && evt.index != null) {
+        const block = byIndex.get(evt.index)
+        if (evt.delta?.type === 'text_delta' && evt.delta.text) {
           fullText += evt.delta.text
           onChunk(evt.delta.text)
+          if (block) block.text = (block.text ?? '') + evt.delta.text
+        } else if (evt.delta?.type === 'input_json_delta' && block) {
+          block.json = (block.json ?? '') + (evt.delta.partial_json ?? '')
         }
-        if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
-          outputTokens = evt.usage.output_tokens
-          onUsage?.(inputTokens + outputTokens, opts.contextSize ?? getContextSize(model))
+      } else if (evt.type === 'message_delta') {
+        if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason
+        if (evt.usage?.output_tokens != null) {
+          turnOutput = evt.usage.output_tokens
+          onUsage?.(inputTokens + priorOutput + turnOutput, opts.contextSize ?? getContextSize(model))
         }
-      } catch { /* malformed chunk */ }
+      }
+    })
+
+    priorOutput += turnOutput
+    return {
+      blocks: [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b),
+      stopReason,
     }
   }
+
+  for (;;) {
+    const { blocks, stopReason } = await streamTurn()
+    const toolUses = blocks.filter((b) => b.type === 'tool_use')
+    if (!useTools || stopReason !== 'tool_use' || toolUses.length === 0) break
+
+    // Echo the assistant turn back verbatim, then answer every tool_use block.
+    const wire = blocks.map(anthropicBlockToWire).filter((b): b is Record<string, unknown> => b !== null)
+    apiMessages.push({ role: 'assistant', content: wire })
+    const toolResults: unknown[] = []
+    for (const block of toolUses) {
+      const output = await onToolCall!({
+        id: block.id ?? '',
+        name: block.name ?? '',
+        input: parseToolInput(block.json ?? ''),
+      })
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: output })
+    }
+    apiMessages.push({ role: 'user', content: toolResults })
+  }
+
   return fullText
 }
 
@@ -613,7 +701,9 @@ function toAnthropicMessage(msg: ChatMessage): Record<string, unknown> {
 async function sendOpenAICompatible(
   opts: SendOptions, conn: { baseUrl: string; apiKey: string },
 ): Promise<string> {
-  const { model, messages, systemPrompt, autoPilot, onChunk, onToolCall, onUsage, signal } = opts
+  const { model, messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
+  const tools = opts.tools ?? []
+  const useTools = tools.length > 0 && !!onToolCall
   const endpoint = `${conn.baseUrl.replace(/\/$/, '')}/chat/completions`
 
   const apiMessages: unknown[] = [
@@ -627,16 +717,7 @@ async function sendOpenAICompatible(
     stream: true,
     stream_options: { include_usage: true },
   }
-  if (autoPilot && onToolCall) {
-    body.tools = [{
-      type: 'function',
-      function: {
-        name: EXECUTE_R_TOOL.name,
-        description: EXECUTE_R_TOOL.description,
-        parameters: EXECUTE_R_TOOL.inputSchema,
-      },
-    }]
-  }
+  if (useTools) body.tools = openAiTools(tools)
 
   let fullText = ''
 
@@ -655,74 +736,66 @@ async function sendOpenAICompatible(
       throw new Error(err.error?.message ?? `HTTP ${res.status}`)
     }
 
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
     const toolCallBuffers: Record<string, { id: string; name: string; args: string }> = {}
     let finishReason = ''
+    // Text from *this* turn only — the assistant message we echo back must not
+    // repeat text already sent in an earlier tool round.
+    let turnText = ''
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const text = decoder.decode(value, { stream: true })
-      for (const line of text.split('\n')) {
-        if (!line.startsWith('data:')) continue
-        const raw = line.slice(5).trim()
-        if (!raw || raw === '[DONE]') continue
-        try {
-          const chunk = JSON.parse(raw) as {
-            choices?: {
-              delta?: {
-                content?: string
-                tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[]
-              }
-              finish_reason?: string
-            }[]
-            usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+    await readLineStream(res.body!, (line) => {
+      const raw = ssePayload(line)
+      if (!raw) return
+      let chunk: {
+        choices?: {
+          delta?: {
+            content?: string
+            tool_calls?: { index: number; id?: string; function?: { name?: string; arguments?: string } }[]
           }
-          if (chunk.usage) {
-            onUsage?.(chunk.usage.total_tokens, opts.contextSize ?? getContextSize(model))
-          }
-          const choice = chunk.choices?.[0]
-          if (!choice) continue
-          if (choice.finish_reason) finishReason = choice.finish_reason
-          const delta = choice.delta
-          if (delta?.content) {
-            fullText += delta.content
-            onChunk(delta.content)
-          }
-          if (delta?.tool_calls) {
-            for (const tc of delta.tool_calls) {
-              if (!toolCallBuffers[tc.index]) {
-                toolCallBuffers[tc.index] = { id: tc.id ?? '', name: '', args: '' }
-              }
-              if (tc.id) toolCallBuffers[tc.index].id = tc.id
-              if (tc.function?.name) toolCallBuffers[tc.index].name += tc.function.name
-              if (tc.function?.arguments) toolCallBuffers[tc.index].args += tc.function.arguments
-            }
-          }
-        } catch { /* malformed chunk */ }
+          finish_reason?: string
+        }[]
+        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
       }
-    }
+      try { chunk = JSON.parse(raw) } catch { return /* malformed chunk */ }
 
-    if (finishReason === 'tool_calls' && onToolCall) {
-      const toolResults: unknown[] = []
-      for (const tc of Object.values(toolCallBuffers)) {
-        let args: Record<string, string> = {}
-        try { args = JSON.parse(tc.args) } catch { /* ignore */ }
-        const code = args.code ?? ''
-        const result = await onToolCall({ id: tc.id, code })
-        toolResults.push({ role: 'tool', tool_call_id: tc.id, content: result })
+      if (chunk.usage) {
+        onUsage?.(chunk.usage.total_tokens, opts.contextSize ?? getContextSize(model))
       }
-      // Append assistant message with tool_calls + tool results
+      const choice = chunk.choices?.[0]
+      if (!choice) return
+      if (choice.finish_reason) finishReason = choice.finish_reason
+      const delta = choice.delta
+      if (delta?.content) {
+        fullText += delta.content
+        turnText += delta.content
+        onChunk(delta.content)
+      }
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (!toolCallBuffers[tc.index]) {
+            toolCallBuffers[tc.index] = { id: tc.id ?? '', name: '', args: '' }
+          }
+          if (tc.id) toolCallBuffers[tc.index].id = tc.id
+          if (tc.function?.name) toolCallBuffers[tc.index].name += tc.function.name
+          if (tc.function?.arguments) toolCallBuffers[tc.index].args += tc.function.arguments
+        }
+      }
+    })
+
+    const calls = Object.values(toolCallBuffers)
+    if (finishReason === 'tool_calls' && onToolCall && calls.length > 0) {
+      // Append the assistant message carrying tool_calls, then one tool message per call
       const assistantMsg: Record<string, unknown> = { role: 'assistant' }
-      if (fullText) assistantMsg.content = fullText
-      assistantMsg.tool_calls = Object.values(toolCallBuffers).map((tc) => ({
+      if (turnText) assistantMsg.content = turnText
+      assistantMsg.tool_calls = calls.map((tc) => ({
         id: tc.id,
         type: 'function',
         function: { name: tc.name, arguments: tc.args },
       }))
       apiMessages.push(assistantMsg)
-      apiMessages.push(...toolResults)
+      for (const tc of calls) {
+        const result = await onToolCall({ id: tc.id, name: tc.name, input: parseToolInput(tc.args) })
+        apiMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
+      }
       await doRequest() // recurse for next turn
     }
   }
@@ -737,7 +810,9 @@ function toOpenAIMessage(msg: ChatMessage): Record<string, unknown> {
 
 // ── Google Gemini ─────────────────────────────────────────────────────────
 async function sendGoogle(opts: SendOptions): Promise<string> {
-  const { model, apiKey, messages, systemPrompt, autoPilot, onChunk, onToolCall, onUsage, signal } = opts
+  const { model, apiKey, messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
+  const tools = opts.tools ?? []
+  const useTools = tools.length > 0 && !!onToolCall
 
   const buildContents = (msgs: ChatMessage[]) => msgs.map((m) => ({
     role: m.role === 'user' ? 'user' : 'model',
@@ -749,15 +824,7 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
   }
-  if (autoPilot && onToolCall) {
-    body.tools = [{
-      functionDeclarations: [{
-        name: EXECUTE_R_TOOL.name,
-        description: EXECUTE_R_TOOL.description,
-        parameters: EXECUTE_R_TOOL.inputSchema,
-      }],
-    }]
-  }
+  if (useTools) body.tools = geminiTools(tools)
 
   let fullText = ''
 
@@ -774,54 +841,41 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
       throw new Error(`HTTP ${res.status}: ${err.slice(0, 200)}`)
     }
 
-    const reader = res.body!.getReader()
-    const decoder = new TextDecoder()
-    let pendingFunctionCalls: { name: string; args: Record<string, string> }[] = []
+    const pendingFunctionCalls: { name: string; args: Record<string, unknown> }[] = []
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const text = decoder.decode(value, { stream: true })
-      for (const line of text.split('\n')) {
-        if (!line.startsWith('data:')) continue
-        const raw = line.slice(5).trim()
-        if (!raw) continue
-        try {
-          const chunk = JSON.parse(raw) as {
-            candidates?: {
-              content?: {
-                parts?: { text?: string; functionCall?: { name: string; args: Record<string, string> } }[]
-              }
-            }[]
-            usageMetadata?: { totalTokenCount: number }
+    await readLineStream(res.body!, (line) => {
+      const raw = ssePayload(line)
+      if (!raw) return
+      let chunk: {
+        candidates?: {
+          content?: {
+            parts?: { text?: string; functionCall?: { name: string; args: Record<string, unknown> } }[]
           }
-          if (chunk.usageMetadata?.totalTokenCount) {
-            onUsage?.(chunk.usageMetadata.totalTokenCount, opts.contextSize ?? getContextSize(model))
-          }
-          const parts = chunk.candidates?.[0]?.content?.parts ?? []
-          for (const part of parts) {
-            if (part.text) {
-              fullText += part.text
-              onChunk(part.text)
-            }
-            if (part.functionCall) {
-              pendingFunctionCalls.push(part.functionCall)
-            }
-          }
-        } catch { /* malformed */ }
+        }[]
+        usageMetadata?: { totalTokenCount: number }
       }
-    }
+      try { chunk = JSON.parse(raw) } catch { return /* malformed */ }
+
+      if (chunk.usageMetadata?.totalTokenCount) {
+        onUsage?.(chunk.usageMetadata.totalTokenCount, opts.contextSize ?? getContextSize(model))
+      }
+      for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
+        if (part.text) {
+          fullText += part.text
+          onChunk(part.text)
+        }
+        if (part.functionCall) pendingFunctionCalls.push(part.functionCall)
+      }
+    })
 
     if (pendingFunctionCalls.length > 0 && onToolCall) {
       contents.push({ role: 'model', parts: pendingFunctionCalls.map((fc) => ({ functionCall: fc })) })
       const functionResponses = []
       for (const fc of pendingFunctionCalls) {
-        const code = fc.args.code ?? ''
-        const result = await onToolCall({ id: fc.name, code })
+        const result = await onToolCall({ id: fc.name, name: fc.name, input: fc.args ?? {} })
         functionResponses.push({ functionResponse: { name: fc.name, response: { output: result } } })
       }
       contents.push({ role: 'user', parts: functionResponses })
-      pendingFunctionCalls = []
       await doRequest()
     }
   }
@@ -832,30 +886,22 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
 
 // ── Ollama ────────────────────────────────────────────────────────────────
 async function sendOllama(opts: SendOptions): Promise<string> {
-  const { model, localUrl = 'http://localhost:11434', messages, systemPrompt, autoPilot, onChunk, onToolCall, onUsage, signal } = opts
+  const { model, localUrl = 'http://localhost:11434', messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
   const base = localUrl.replace(/\/$/, '')
+  const tools = opts.tools ?? []
 
   const apiMessages: any[] = [
     { role: 'system', content: systemPrompt },
     ...messages.map((m) => ({ role: m.role, content: m.content })),
   ]
 
-  const hasTools = autoPilot && !!onToolCall
+  const hasTools = tools.length > 0 && !!onToolCall
   const body: Record<string, unknown> = {
     model,
     messages: apiMessages,
     stream: !hasTools,
   }
-  if (hasTools) {
-    body.tools = [{
-      type: 'function',
-      function: {
-        name: EXECUTE_R_TOOL.name,
-        description: EXECUTE_R_TOOL.description,
-        parameters: EXECUTE_R_TOOL.inputSchema,
-      },
-    }]
-  }
+  if (hasTools) body.tools = openAiTools(tools)
 
   let fullText = ''
 
@@ -871,7 +917,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
       const data = await res.json() as {
         message?: {
           content?: string
-          tool_calls?: { function: { name: string; arguments: Record<string, string> } }[]
+          tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[]
         }
         prompt_eval_count?: number
         eval_count?: number
@@ -885,15 +931,19 @@ async function sendOllama(opts: SendOptions): Promise<string> {
       if (!msg?.tool_calls?.length) break
       apiMessages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls })
       for (const tc of msg.tool_calls) {
-        const code = tc.function.arguments?.code ?? ''
-        const result = await onToolCall!({ id: tc.function.name, code })
+        const name = tc.function.name
+        // Ollama hands back parsed arguments, but some builds send a JSON string
+        const args = typeof tc.function.arguments === 'string'
+          ? parseToolInput(tc.function.arguments)
+          : (tc.function.arguments ?? {})
+        const result = await onToolCall!({ id: name, name, input: args })
         apiMessages.push({ role: 'tool', content: result })
       }
     }
     return fullText
   }
 
-  // Streaming (no tools)
+  // Streaming (no tools) — NDJSON, one JSON object per line
   const res = await proxyFetch(`${base}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -901,30 +951,21 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     signal,
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const text = decoder.decode(value, { stream: true })
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue
-      try {
-        const chunk = JSON.parse(line) as {
-          message?: { content?: string }
-          prompt_eval_count?: number
-          eval_count?: number
-          done?: boolean
-        }
-        if (chunk.message?.content) {
-          fullText += chunk.message.content
-          onChunk(chunk.message.content)
-        }
-        if (chunk.done && chunk.prompt_eval_count != null && chunk.eval_count != null) {
-          onUsage?.(chunk.prompt_eval_count + chunk.eval_count, opts.contextSize ?? getContextSize(model))
-        }
-      } catch { /* malformed */ }
+  await readLineStream(res.body!, (line) => {
+    let chunk: {
+      message?: { content?: string }
+      prompt_eval_count?: number
+      eval_count?: number
+      done?: boolean
     }
-  }
+    try { chunk = JSON.parse(line) } catch { return /* malformed */ }
+    if (chunk.message?.content) {
+      fullText += chunk.message.content
+      onChunk(chunk.message.content)
+    }
+    if (chunk.done && chunk.prompt_eval_count != null && chunk.eval_count != null) {
+      onUsage?.(chunk.prompt_eval_count + chunk.eval_count, opts.contextSize ?? getContextSize(model))
+    }
+  })
   return fullText
 }

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Zap, ZapOff, Plus, Send, Square, ChevronDown } from 'lucide-react'
+import { Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock } from 'lucide-react'
 import { Button } from '../ui/button'
 import { AiChatMessage } from './AiChatMessage'
 import { ModelSelectorPopup } from './ModelSelectorPopup'
@@ -9,7 +9,10 @@ import { useApiKeysStore } from '@/store/apiKeys'
 import { useEnvironmentStore } from '@/store/environment'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
-import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey } from '@/lib/ai-client'
+import type { AiTool, ToolCall } from '@/lib/ai-client'
+import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
+import { WEB_TOOLS, WEB_TOOL_NAMES, runWebTool, describeWebCall } from '@/lib/ai-web-tools'
+import { AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance } from '@/lib/ai-system-prompt'
 import { cn } from '@/lib/utils'
 
 // ── Token usage bar ────────────────────────────────────────────────────────
@@ -49,6 +52,7 @@ export function AiChatPanel(): React.ReactElement {
   const streamingContent = useAiStore((s) => s.streamingContent)
   const autoPilotEnabled = useAiStore((s) => s.autoPilotEnabled)
   const autopilotWarningDismissed = useAiStore((s) => s.autopilotWarningDismissed)
+  const webAccessEnabled = useAiStore((s) => s.webAccessEnabled)
   const tokenUsage = useAiStore((s) => s.tokenUsage)
   const init = useAiStore((s) => s.init)
   const addMessage = useAiStore((s) => s.addMessage)
@@ -58,6 +62,7 @@ export function AiChatPanel(): React.ReactElement {
   const clearMessages = useAiStore((s) => s.clearMessages)
   const setAutoPilot = useAiStore((s) => s.setAutoPilot)
   const setAutopilotWarningDismissed = useAiStore((s) => s.setAutopilotWarningDismissed)
+  const setWebAccess = useAiStore((s) => s.setWebAccess)
   const setTokenUsage = useAiStore((s) => s.setTokenUsage)
   const beginStream = useAiStore((s) => s.beginStream)
 
@@ -153,24 +158,19 @@ export function AiChatPanel(): React.ReactElement {
     addMessage(userMsg)
     setInput('')
 
-    // Build system prompt with environment context
+    // Build system prompt: role → evidence rules → the tools actually attached
+    // this turn → live session context.
     const envContext = buildEnvContext(currentEnvs)
-    let systemPrompt = `You are an expert R and geospatial data science assistant embedded in ouRGeo — a Monaco-based R code editor and console application for spatial data analysis.
-
-Your role is to help the user analyze their data, write and debug R code, explain spatial and statistical concepts, and interpret results. You have full visibility of the user's R environment below, including the column names and types of their loaded datasets.
-
-When the user references a dataset with [DatasetName] syntax, they mean the R object of that name in their environment. Always consult the environment context before guessing about data structure.
-
-Prefer concise, runnable R code blocks in your responses. For visualizations, prefer ggplot2, tmap, or leaflet as appropriate to the data type.
-
-${envContext}`
+    let systemPrompt = [
+      AI_BASE_PROMPT,
+      buildProvenanceRules(),
+      buildToolGuidance({ autoPilot: autoPilotEnabled, webAccess: webAccessEnabled }),
+      envContext,
+    ].filter(Boolean).join('\n\n')
     // Give the model awareness of the live console — commands the user ran by
     // hand plus their output — so it knows the session's recent history.
     const consoleContext = buildConsoleContext(useSessionStore.getState().consoleHistory)
     if (consoleContext) systemPrompt += `\n\n${consoleContext}`
-    if (autoPilotEnabled) {
-      systemPrompt += '\n\nYou have access to the `execute_r_code` tool to run R commands in the user\'s live session. Use it to inspect data, run calculations, and answer questions directly from the data.'
-    }
 
     // Fetch rich context for mentioned objects
     const mentioned = detectMentionedObjects(text, currentEnvs)
@@ -193,6 +193,39 @@ ${envContext}`
       }
     }
 
+    // Only the enabled capabilities are attached to the request, so a switch that
+    // is off is invisible to the model rather than merely discouraged.
+    const tools: AiTool[] = []
+    if (autoPilotEnabled) tools.push(EXECUTE_R_TOOL)
+    if (webAccessEnabled) tools.push(...WEB_TOOLS)
+
+    // Every tool re-checks its switch at call time: flipping one off mid-answer
+    // stops the next call rather than waiting for the turn to end.
+    const runTool = async (call: ToolCall): Promise<string> => {
+      if (call.name === EXECUTE_R_TOOL.name) {
+        if (!useAiStore.getState().autoPilotEnabled) {
+          return 'Refused: the user turned Autopilot off. Do not run code — give the user code to run and wait for their output.'
+        }
+        const code = String(call.input.code ?? '')
+        addConsoleEntry('input', code)
+        const res = await rClient.execute(code)
+        // /r/execute returns console text at the top level (`output`), not res.result
+        if (res.output) addConsoleEntry('output', res.output)
+        else if (res.error) addConsoleEntry('error', res.error)
+        return truncateForModel(res.output || res.error || '(no output)')
+      }
+      if (WEB_TOOL_NAMES.has(call.name)) {
+        if (!useAiStore.getState().webAccessEnabled) {
+          return 'Refused: the user has cut off your internet access. Do not attempt further web calls. Continue from the session\'s data alone and tell the user what you could not look up.'
+        }
+        // Log every network action so the console stays a complete record of
+        // what the assistant did on the user's behalf.
+        addConsoleEntry('info', describeWebCall(call.name, call.input))
+        return truncateForModel(await runWebTool(call.name, call.input), 16000)
+      }
+      return `Error: unknown tool "${call.name}".`
+    }
+
     const ac = beginStream()
     const allMessages = [...useAiStore.getState().messages.filter((m) => m.id !== userMsg.id)]
     // include the new user message
@@ -208,17 +241,9 @@ ${envContext}`
         contextSize,
         messages: conversationMessages,
         systemPrompt,
-        autoPilot: autoPilotEnabled,
+        tools,
         onChunk: (chunk) => appendStreamChunk(chunk),
-        onToolCall: autoPilotEnabled ? async (call) => {
-          addConsoleEntry('input', call.code)
-          const res = await rClient.execute(call.code)
-          // /r/execute returns console text at the top level (`output`), not res.result
-          if (res.output) addConsoleEntry('output', res.output)
-          else if (res.error) addConsoleEntry('error', res.error)
-          const output = res.output || res.error || '(no output)'
-          return truncateForModel(output)
-        } : undefined,
+        onToolCall: tools.length > 0 ? runTool : undefined,
         onUsage: (used, total) => setTokenUsage(used, total),
         signal: ac.signal,
       })
@@ -231,7 +256,7 @@ ${envContext}`
         finalizeStream(streamingContent || '')
       }
     }
-  }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, contextSize,
+  }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, contextSize,
       addMessage, appendStreamChunk, finalizeStream, beginStream, setTokenUsage, addConsoleEntry, streamingContent, setEnvironments])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -328,20 +353,40 @@ ${envContext}`
 
       {/* Footer */}
       <div className="flex-shrink-0 border-t border-geo-border px-2 pt-2 pb-2 space-y-2">
-        {/* Autopilot toggle */}
-        <button
-          onClick={handleAutopilotToggle}
-          className={cn(
-            'flex items-center gap-1.5 text-[10px] px-2 py-1 rounded transition-colors',
-            autoPilotEnabled
-              ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
-              : 'text-geo-muted hover:text-foreground hover:bg-white/5'
-          )}
-          title={autoPilotEnabled ? 'Disable Autopilot' : 'Enable Autopilot — allows AI to run R code'}
-        >
-          {autoPilotEnabled ? <Zap className="w-3 h-3" /> : <ZapOff className="w-3 h-3" />}
-          <span>Autopilot {autoPilotEnabled ? 'ON' : 'OFF'}</span>
-        </button>
+        {/* Capability toggles */}
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            onClick={handleAutopilotToggle}
+            className={cn(
+              'flex items-center gap-1.5 text-[10px] px-2 py-1 rounded transition-colors',
+              autoPilotEnabled
+                ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+                : 'text-geo-muted hover:text-foreground hover:bg-white/5'
+            )}
+            title={autoPilotEnabled ? 'Disable Autopilot' : 'Enable Autopilot — allows AI to run R code'}
+          >
+            {autoPilotEnabled ? <Zap className="w-3 h-3" /> : <ZapOff className="w-3 h-3" />}
+            <span>Autopilot {autoPilotEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Internet kill switch — with web off, the only route to the network
+              left to the assistant is R code the user watches run in the console. */}
+          <button
+            onClick={() => setWebAccess(!webAccessEnabled)}
+            className={cn(
+              'flex items-center gap-1.5 text-[10px] px-2 py-1 rounded transition-colors',
+              webAccessEnabled
+                ? 'bg-geo-accent/15 text-geo-accent hover:bg-geo-accent/25'
+                : 'bg-geo-error/10 text-geo-error hover:bg-geo-error/20'
+            )}
+            title={webAccessEnabled
+              ? 'Cut off the AI\'s internet access — it can then only reach the network through R code you see in the console'
+              : 'Internet access is cut off. Click to let the AI search and fetch web pages.'}
+          >
+            {webAccessEnabled ? <Globe className="w-3 h-3" /> : <GlobeLock className="w-3 h-3" />}
+            <span>Web {webAccessEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+        </div>
 
         {/* Error */}
         {sendError && (

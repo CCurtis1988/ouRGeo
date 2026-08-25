@@ -409,6 +409,46 @@ page size and retries on a server error, and reads the assembled item footprints
 
 `window.location.hash === '#plot-popout'` causes `App.tsx` to render `PlotPopoutView` instead of `MainApp`. The Electron main process creates this secondary window via `plot-window.ts` and pushes new plot data URLs via `ipcRenderer.on('plot:update', ...)` → `window.electronAPI.plot.onUpdate(...)`.
 
+## AI Assistant (`src/lib/ai-*.ts`, `src/components/ai/`)
+
+`ai-client.ts` speaks four transports (Anthropic, OpenAI-compatible, Gemini, Ollama)
+behind one `sendMessage(opts)`. Tools are **provider-neutral**: `SendOptions.tools`
+is an `AiTool[]` that each transport re-encodes (`anthropicTools` /`openAiTools` /
+`geminiTools`), and `onToolCall({ id, name, input })` dispatches by name. Every
+transport reads its stream through `readLineStream`, which buffers across chunk
+boundaries — a tool's arguments arrive as many small deltas and a JSON event
+routinely straddles two reads. Anthropic streams *with* tools (reassembling
+`input_json_delta` fragments), so enabling a tool never costs the streaming UX;
+Ollama still falls back to non-streaming when tools are attached.
+
+Two independent switches in the AI panel footer decide which tools are attached:
+
+| Switch | Tool(s) | Default | Store |
+|--------|---------|---------|-------|
+| **Autopilot** | `execute_r_code` — runs R in the live session | off | `ai.autoPilotEnabled` |
+| **Web** | `web_search`, `web_fetch` (`ai-web-tools.ts`) | **on** | `ai.webAccessEnabled` (persisted in `ai-preferences.json`) |
+
+A disabled switch is *absent* from the request rather than declined afterwards, and
+`runTool` in `AiChatPanel` re-reads the store at call time so flipping a switch off
+mid-answer stops the next call. **Web** is the trust control: with it off the
+assistant has no network tool at all, and its only remaining route to the internet
+is R code the user watches execute in the console. Every web call is also logged to
+the console as an `info` entry (`describeWebCall`), so the console stays a complete
+record of what the assistant did.
+
+- `web_search` scrapes DuckDuckGo's no-JS HTML endpoint (no API key); `web_fetch`
+  reduces HTML to text with `DOMParser`, passes JSON/CSV/text through, refuses
+  binaries, and blocks loopback/RFC1918/link-local hosts (those belong in the
+  console, where the user can see the request).
+- `ai-system-prompt.ts` holds the prompt in three pieces: `AI_BASE_PROMPT`,
+  `buildProvenanceRules()` and `buildToolGuidance({ autoPilot, webAccess })`. The
+  provenance rules are the reason the module exists — the assistant must derive
+  every figure from a named R object through code the user can re-run: no recalled
+  statistics, no hand-typed `data.frame()` behind a chart, every transformation
+  shown, and an explicit "I can't" when the data isn't in the session.
+  `buildToolGuidance` states the *current* switch positions so the model never
+  claims a capability it wasn't given.
+
 ## Design Tokens
 
 ```

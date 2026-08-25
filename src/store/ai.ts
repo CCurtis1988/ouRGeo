@@ -37,6 +37,11 @@ interface AiState {
   streamingContent: string
   autoPilotEnabled: boolean
   autopilotWarningDismissed: boolean
+  /** Master switch for the assistant's `web_search`/`web_fetch` tools. When off
+   *  the tools are not offered to the model and any in-flight call is refused,
+   *  so the only route to the internet left is R code the user sees run in the
+   *  console. */
+  webAccessEnabled: boolean
   tokenUsage: { used: number; total: number }
   abortController: AbortController | null
 
@@ -51,6 +56,7 @@ interface AiState {
   clearMessages: () => void
   setAutoPilot: (on: boolean) => void
   setAutopilotWarningDismissed: (v: boolean) => void
+  setWebAccess: (on: boolean) => void
   setTokenUsage: (used: number, total: number) => void
   beginStream: () => AbortController
   currentModel: () => string
@@ -81,6 +87,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   streamingContent: '',
   autoPilotEnabled: false,
   autopilotWarningDismissed: false,
+  webAccessEnabled: true,
   tokenUsage: { used: 0, total: 200000 },
   abortController: null,
 
@@ -93,6 +100,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       provider: prefs.provider as AiProvider,
       modelByProvider: prefs.modelByProvider,
       autopilotWarningDismissed: prefs.autopilotWarningDismissed,
+      webAccessEnabled: prefs.webAccessEnabled,
       initialized: true,
     })
   },
@@ -141,6 +149,11 @@ export const useAiStore = create<AiState>((set, get) => ({
   setAutopilotWarningDismissed: (v) => {
     set({ autopilotWarningDismissed: v })
     saveAiPreferences({ autopilotWarningDismissed: v })
+  },
+
+  setWebAccess: (on) => {
+    set({ webAccessEnabled: on })
+    saveAiPreferences({ webAccessEnabled: on })
   },
 
   setTokenUsage: (used, total) => set({ tokenUsage: { used, total } }),
