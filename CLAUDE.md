@@ -26,6 +26,10 @@ install.packages(c("httpuv", "jsonlite", "later", "httr2"))
 # Raster map rendering also needs: png (tile encoding); ggplot raster export with
 #   mixed fill scales additionally uses ggnewscale (emitted only when needed)
 # Curved geometry (CIRCULARSTRING/COMPOUNDCURVE/CURVEPOLYGON) also needs: sfarc
+# Knitting .Rmd also needs: knitr, rmarkdown (+ pandoc, which is NOT an R package
+#   and R does not bundle — RStudio ships its own copy; PDF additionally needs a
+#   LaTeX install, e.g. tinytex). Running chunks inline needs NOTHING extra —
+#   it uses base eval + grDevices.
 # Database (.Rgeo) features also need: DBI, duckdb, dplyr
 ```
 
@@ -448,6 +452,99 @@ record of what the assistant did.
   shown, and an explicit "I can't" when the data isn't in the session.
   `buildToolGuidance` states the *current* switch positions so the model never
   claims a capability it wasn't given.
+
+## Markdown & R Markdown (v1.9)
+
+`.md` / `.Rmd` / `.qmd` are first-class documents in the code editor.
+
+**Language is a FIELD on the tab, not a `TabType`** (`TabState.language`,
+`src/lib/markdown/doc-kind.ts`). `TabType` selects which component renders and
+gates the four `t.type === 'code'` predicates that decide what persists
+(`session-persistence.ts:24,37`, `editor.ts`); a `'markdown'` TabType would have
+been silently dropped from `session.json`. Tabs written before this feature carry
+no `language` and default to `'r'`.
+
+- **Grammar** (`rmarkdown-monarch.ts`): Monaco's stock markdown Monarch ships
+  already, but its GFM fence rule needs a word character after the backticks, so
+  it matches neither fence rule on ```` ```{r label} ````. The result is worse
+  than a miss: the *closing* fence is read as an *opening* code block and the
+  rest of the document inverts. The derived `rmarkdown` language adds one
+  brace-aware rule with `nextEmbedded`, so chunk bodies highlight as R. Pinned by
+  `rmarkdown-tokenize.test.ts`, which runs Monaco's real tokenizer.
+- **Actions** (`markdown/actions.ts`): one declarative catalog → three consumers.
+  `apply-source.ts` is a pure `computeMdEdit(text, selStart, selEnd, action)`, so
+  every wrap/unwrap toggle and list-renumbering rule is testable with no DOM;
+  `MarkdownRibbon` is a thin Monaco adapter over it (`executeEdits`, never
+  `applyExternalContent` — that does a whole-model `setValue` and destroys the
+  cursor and undo stack). Ribbon primitives live in `src/components/ui/ribbon.tsx`.
+- **Slash menu**: `getCompletions(text, offset, deps, mode = 'r')`. The mode is
+  **defaulted**, which is what structurally stops the shared R console
+  (`Console.tsx:274`) from ever seeing markdown candidates — locked by a
+  regression test asserting the no-argument call is byte-identical. `/` opens the
+  popup via `CompletionResult.autoOpen`, **not** by widening the `structural`
+  regex in `useCompletion.ts` (adding `/` there would pop the menu on `a/b`).
+  Inside a chunk, `context-markdown.ts` slices the body and delegates to the R
+  analyzer with shifted offsets, giving full R autocomplete in chunks.
+
+### Chunks and inline output
+
+- **Identity** (`chunk-identity.ts`) is the crux. Not a content hash (throws
+  output away on every keystroke) and not an index (insertion shifts everything):
+  an explicit label is the key — knitr already requires uniqueness — then exact
+  code match, then a positional pass, then a uuid. The ribbon auto-labels chunks
+  it creates, so almost everything takes the label path. **Invariant: editing a
+  chunk preserves its id and marks the output `stale`, never drops it.**
+- **Execution** (`r/lib/handlers-rmarkdown.R`): a separate endpoint because
+  `/r/execute` points the default device at a single fixed-name PNG
+  (`server.R:33-37`) and does one `recordPlot()` — a chunk drawing three plots
+  loses two, and broadcast plots carry no caller attribution. Verified: a
+  fixed-name device yields 1 file, `png("…%03d.png")` yields 3.
+- **Rendering** (`chunks/monacoChunkLayer.ts`): decorations for chunk chrome, a
+  **content** widget for `[▶]` (scrolls with the text; overlay widgets are
+  viewport-fixed and CodeLens would need a language service this repo has none
+  of), and view zones for output with `heightInPx` (`heightInLines` is wrong
+  under `wordWrap: 'on'`). React mounts via `createPortal` from the CodeEditor
+  tree, not a per-zone `createRoot`, so context survives. The `ResizeObserver`
+  watches an **inner** wrapper — observing the zone's own node makes the height
+  you set feed back into the measurement.
+- **Zones belong to the EDITOR, not the model.** There is one editor and tabs
+  swap via `setModel()`, so `chunkLayer.detach()` runs *before* the swap or the
+  previous tab's outputs float inside this tab's text.
+- Outputs live in `src/store/chunks.ts`, deliberately **not** on `TabState` —
+  they hold base64 PNGs and would otherwise be serialized into `session.json`
+  and every `.ourgeoproj`.
+
+### Knit
+
+`electron/main/knit.ts` spawns a child `Rscript` rather than using the R server:
+knitr's contract is a clean session (catching "works in my console, fails on
+knit"), a render can take minutes and the server is serial, and a child can be
+killed. `GET /rmarkdown/deps` drives `knit-deps.ts` so each format is
+**pre-disabled with a specific reason** before the user clicks — the common
+failure is missing pandoc, which is not an R package. `knit-errors.ts` turns
+knitr's output into a hint and a line number to jump to.
+
+### Visual mode
+
+Milkdown (ProseMirror + remark). remark was already in the tree via `remark-gfm`,
+so the parser driving Visual mode is the same one driving the round-trip checker —
+with Tiptap or Lexical, a second markdown implementation would put a permanent
+bug class on the Source↔Visual seam. Every Milkdown import is confined to
+`src/components/editor/visual/` behind `VisualEditorHandle`.
+
+- **The text always owns the truth**; Visual is a projection. It *replaces* the
+  editor rather than splitting, so only one is mounted and there is no sync loop.
+- **Front matter never enters ProseMirror** (`front-matter.ts`) — remark would
+  read `---` as a thematic break and destroy it.
+- **The switch is gated** on `roundtrip.ts`, which checks idempotence at the
+  second pass plus structural equality and flags raw HTML with line numbers. The
+  invariant is idempotence, never byte preservation — the first pass may
+  normalise formatting.
+- **A no-edit toggle is byte-identical**: entering records a baseline; if the
+  serialization is unchanged on exit, the *original* text is written back, so
+  looking at Visual mode never reformats the file or marks it dirty. Write-back
+  uses `pushEditOperations`, not `setValue`, so Monaco's undo survives.
+- Known gap: `$…$` math renders as literal text.
 
 ## Design Tokens
 

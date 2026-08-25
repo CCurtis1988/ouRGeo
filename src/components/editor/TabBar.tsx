@@ -1,18 +1,22 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, ChevronDown, Table2, Braces, FileCode } from 'lucide-react'
-import { useEditorStore, type TabType } from '@/store/editor'
+import { X, Plus, ChevronDown, Table2, Braces, FileCode, FileText } from 'lucide-react'
+import { useEditorStore, type TabType, type TabState } from '@/store/editor'
+import { languageOf, isMarkdownDoc } from '@/lib/markdown/doc-kind'
 import { cn } from '@/lib/utils'
 import { CreateDataDialog, type CreateDataType } from './CreateDataDialog'
 
-function TabIcon({ type }: { type?: TabType }): React.ReactElement | null {
+function TabIcon({ tab }: { tab: TabState }): React.ReactElement | null {
+  const type: TabType | undefined = tab.type
   switch (type) {
     case 'data-viewer':
       return <Table2 className="w-3 h-3 text-geo-accent flex-shrink-0" />
     case 'function-editor':
       return <Braces className="w-3 h-3 text-geo-accent flex-shrink-0" />
     default:
-      return <FileCode className="w-3 h-3 text-geo-muted flex-shrink-0" />
+      return isMarkdownDoc(languageOf(tab))
+        ? <FileText className="w-3 h-3 text-geo-muted flex-shrink-0" />
+        : <FileCode className="w-3 h-3 text-geo-muted flex-shrink-0" />
   }
 }
 
@@ -22,6 +26,7 @@ export function TabBar(): React.ReactElement {
   const setActiveTab = useEditorStore((s) => s.setActiveTab)
   const closeTab = useEditorStore((s) => s.closeTab)
   const addTab = useEditorStore((s) => s.addTab)
+  const newMarkdownTab = useEditorStore((s) => s.newMarkdownTab)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -74,7 +79,7 @@ export function TabBar(): React.ReactElement {
             )}
             onClick={() => setActiveTab(tab.id)}
           >
-            <TabIcon type={tab.type} />
+            <TabIcon tab={tab} />
             <span className="truncate">
               {tab.fileName}
               {tab.isDirty && <span className="text-geo-muted ml-0.5">*</span>}
@@ -105,7 +110,7 @@ export function TabBar(): React.ReactElement {
           ref={chevronRef}
           className="flex items-center justify-center w-4 h-8 text-geo-muted hover:text-foreground border-l border-geo-border/50"
           onClick={handleChevronClick}
-          title="Create data object"
+          title="New document or data object"
         >
           <ChevronDown className="w-2.5 h-2.5" />
         </button>
@@ -116,8 +121,21 @@ export function TabBar(): React.ReactElement {
         <div
           ref={dropdownRef}
           style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left }}
-          className="z-[9999] w-[140px] bg-geo-panel border border-geo-border rounded shadow-lg py-0.5"
+          className="z-[9999] w-[152px] bg-geo-panel border border-geo-border rounded shadow-lg py-0.5"
         >
+          <button
+            className="block w-full text-left text-xs px-3 py-1.5 text-foreground hover:bg-geo-bg/50"
+            onClick={() => { setDropdownOpen(false); newMarkdownTab('markdown') }}
+          >
+            New Markdown
+          </button>
+          <button
+            className="block w-full text-left text-xs px-3 py-1.5 text-foreground hover:bg-geo-bg/50"
+            onClick={() => { setDropdownOpen(false); newMarkdownTab('rmarkdown') }}
+          >
+            New R Markdown
+          </button>
+          <div className="h-px bg-geo-border my-0.5" />
           {(['vector', 'matrix', 'data.frame', 'tibble', 'data.table'] as const).map((type) => (
             <button
               key={type}

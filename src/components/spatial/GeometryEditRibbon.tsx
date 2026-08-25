@@ -32,40 +32,8 @@ import type { SnapSettings } from '@/store/spatialSettings'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { canComplete, canStartNextPart, canStartHole, getPath } from '@/lib/draw/draft'
 import { parseCadInput } from '@/lib/draw/cad-input'
+import { RibbonButton, RibbonDivider as Divider } from '../ui/ribbon'
 
-function RibbonButton({
-  active,
-  disabled,
-  danger,
-  accent,
-  title,
-  onClick,
-  children
-}: {
-  active?: boolean
-  disabled?: boolean
-  danger?: boolean
-  accent?: boolean
-  title?: string
-  onClick: () => void
-  children: React.ReactNode
-}): React.ReactElement {
-  const base = 'px-2 py-1 text-xs rounded border flex items-center gap-1 flex-shrink-0 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed'
-  const cls = active
-    ? 'bg-geo-accent/10 text-geo-accent border-geo-accent'
-    : danger
-      ? 'border-geo-error/50 text-geo-error hover:bg-geo-error/10'
-      : accent
-        ? 'border-geo-accent bg-geo-accent/10 text-geo-accent hover:bg-geo-accent/20'
-        : 'border-geo-border text-foreground hover:bg-geo-bg'
-  return (
-    <button className={`${base} ${cls}`} disabled={disabled} title={title} onClick={onClick}>
-      {children}
-    </button>
-  )
-}
-
-const Divider = () => <div className="w-px h-5 bg-geo-border flex-shrink-0" />
 
 // ── Unified tool catalog ────────────────────────────────────────────────────
 // Every mutually-exclusive editing mode. Icons/labels/hotkeys match the legacy

@@ -1,5 +1,11 @@
 import type { ColumnInfo, RFormalArg, REnvironmentInfo } from '@/lib/r-client'
 
+/**
+ * Which analyzer the engine uses. Defaulted to 'r' at every call site so the
+ * console and R tabs cannot accidentally opt in to markdown completions.
+ */
+export type CompletionMode = 'r' | 'markdown' | 'rmarkdown'
+
 /** Broad category of a completion, used for grouping, ranking and icon choice. */
 export type CompletionKind =
   | 'object' // an environment variable / data object
@@ -9,6 +15,7 @@ export type CompletionKind =
   | 'package' // a package name (library() / :: context)
   | 'snippet' // a code snippet
   | 'keyword' // an R language keyword
+  | 'markdown' // a markdown element from the `/` slash menu
 
 export interface CompletionCandidate {
   /** stable id (kind + name) for React keys */
@@ -41,6 +48,13 @@ export interface CompletionResult {
   /** offset where the replaced token ends (the cursor) */
   to: number
   candidates: CompletionCandidate[]
+  /**
+   * Ask the controller to open the popup even with no typed prefix. Set by the
+   * markdown slash context so `/` alone shows the menu, WITHOUT widening the
+   * shared `structural` character test (adding `/` there would pop the menu on
+   * `a/b` in the R console).
+   */
+  autoOpen?: boolean
   /**
    * Data the engine needed but did not have cached. The controller should
    * fetch these, populate its caches, then re-run the query.

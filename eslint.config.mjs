@@ -9,6 +9,18 @@ export default tseslint.config(
     ignores: ['out/**', 'dist/**', 'node_modules/**', '*.tsbuildinfo']
   },
 
+  // Agent tooling: the run-skill driver is a plain Node ESM script, not app
+  // source. It needs BOTH global sets — the script runs in Node, but the bodies
+  // it hands to page.evaluate() execute in the app's renderer.
+  {
+    files: ['.claude/skills/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+      ecmaVersion: 'latest',
+      sourceType: 'module'
+    }
+  },
+
   // Base + TypeScript recommended rules for all TS/TSX source
   js.configs.recommended,
   ...tseslint.configs.recommended,

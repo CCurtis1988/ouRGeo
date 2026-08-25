@@ -103,3 +103,127 @@
 .ourgeo-editor-canvas .monaco-editor-background {
   background-color: transparent !important;
 }
+
+/* ── R Markdown chunks ────────────────────────────────────────────────────
+   Chunk chrome inside Monaco. The background sits behind the (transparent)
+   editor canvas, so it uses a translucent wash rather than a solid colour. */
+.ourgeo-chunk-bg {
+  background-color: hsl(var(--geo-bg) / 0.55);
+}
+
+.ourgeo-chunk-bar {
+  background-color: hsl(var(--geo-accent));
+  width: 2px !important;
+  margin-left: 2px;
+}
+
+.ourgeo-chunk-bar-muted {
+  background-color: hsl(var(--geo-muted) / 0.5);
+}
+
+/* The Run affordance: a content widget anchored just after the fence header,
+   so it scrolls with the text instead of floating over the viewport. */
+.ourgeo-chunk-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 18px;
+  margin-left: 8px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 1;
+  color: hsl(var(--geo-accent));
+  background: hsl(var(--geo-accent) / 0.12);
+  border: 1px solid hsl(var(--geo-accent) / 0.5);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.ourgeo-chunk-run:hover {
+  background: hsl(var(--geo-accent) / 0.25);
+}
+
+/* View-zone container. Height is driven from JS via a ResizeObserver on the
+   INNER node, so this wrapper must never constrain its child's height. */
+.ourgeo-chunk-zone {
+  overflow: hidden;
+  background-color: hsl(var(--geo-bg) / 0.55);
+}
+
+.ourgeo-chunk-output img {
+  max-height: 420px;
+  object-fit: contain;
+}
+
+/* ── Visual (WYSIWYG) markdown mode ───────────────────────────────────────
+   Milkdown ships unstyled; map its ProseMirror output onto the geo tokens so
+   Visual mode looks like the rest of the app rather than a bare document. */
+.ourgeo-visual .ProseMirror {
+  outline: none;
+  color: hsl(var(--foreground));
+  min-height: 200px;
+}
+
+.ourgeo-visual .ProseMirror h1 { font-size: 1.35rem; font-weight: 600; margin: 1rem 0 .5rem; }
+.ourgeo-visual .ProseMirror h2 { font-size: 1.15rem; font-weight: 600; margin: .9rem 0 .45rem; }
+.ourgeo-visual .ProseMirror h3 { font-size: 1rem;    font-weight: 600; margin: .8rem 0 .4rem; }
+.ourgeo-visual .ProseMirror p  { margin: .5rem 0; line-height: 1.6; }
+
+.ourgeo-visual .ProseMirror ul { list-style: disc;    padding-left: 1.4rem; margin: .5rem 0; }
+.ourgeo-visual .ProseMirror ol { list-style: decimal; padding-left: 1.4rem; margin: .5rem 0; }
+.ourgeo-visual .ProseMirror li { margin: .2rem 0; }
+
+.ourgeo-visual .ProseMirror blockquote {
+  border-left: 2px solid hsl(var(--geo-accent) / 0.5);
+  padding-left: .75rem;
+  color: hsl(var(--geo-muted));
+  font-style: italic;
+  margin: .6rem 0;
+}
+
+.ourgeo-visual .ProseMirror code {
+  background: hsl(var(--geo-bg));
+  border: 1px solid hsl(var(--geo-border));
+  border-radius: 3px;
+  padding: .05rem .25rem;
+  font-size: .85em;
+  color: hsl(var(--geo-accent));
+}
+
+.ourgeo-visual .ProseMirror pre {
+  background: hsl(var(--geo-bg));
+  border: 1px solid hsl(var(--geo-border));
+  border-radius: 4px;
+  padding: .6rem .75rem;
+  overflow-x: auto;
+  margin: .6rem 0;
+}
+
+.ourgeo-visual .ProseMirror pre code {
+  background: none; border: none; padding: 0; color: hsl(var(--foreground));
+}
+
+.ourgeo-visual .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: .6rem 0;
+  font-size: .85rem;
+}
+
+.ourgeo-visual .ProseMirror th,
+.ourgeo-visual .ProseMirror td {
+  border: 1px solid hsl(var(--geo-border));
+  padding: .25rem .5rem;
+  text-align: left;
+}
+
+.ourgeo-visual .ProseMirror th { background: hsl(var(--geo-bg)); font-weight: 500; }
+.ourgeo-visual .ProseMirror hr {
+  border: none;
+  border-top: 1px solid hsl(var(--geo-border));
+  margin: 1rem 0;
+}
+
+.ourgeo-visual .ProseMirror a { color: hsl(var(--geo-accent)); text-decoration: underline; }
+.ourgeo-visual .ProseMirror img { max-width: 100%; border-radius: 4px; }

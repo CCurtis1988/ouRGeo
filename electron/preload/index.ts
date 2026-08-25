@@ -42,7 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   dialog: {
     openFile: (): Promise<string | null> => ipcRenderer.invoke('dialog:openFile'),
-    saveFile: (): Promise<string | null> => ipcRenderer.invoke('dialog:saveFile'),
+    saveFile: (kind?: string): Promise<string | null> => ipcRenderer.invoke('dialog:saveFile', kind),
     openRData: (): Promise<string | null> => ipcRenderer.invoke('dialog:openRData'),
     saveRData: (): Promise<string | null> => ipcRenderer.invoke('dialog:saveRData'),
     openPackageFile: (): Promise<string | null> => ipcRenderer.invoke('dialog:openPackageFile'),
@@ -82,9 +82,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fileStat: (filePath: string): Promise<{ exists: boolean; size: number; mtimeMs: number }> =>
       ipcRenderer.invoke('fs:fileStat', filePath)
   },
+  knit: {
+    render: (req: { id: string; filePath: string; format: string; rscriptPath?: string }): Promise<unknown> =>
+      ipcRenderer.invoke('knit:render', req),
+    cancel: (id: string): Promise<boolean> => ipcRenderer.invoke('knit:cancel', id),
+    onProgress: (id: string, cb: (text: string) => void): (() => void) => {
+      const ch = `knit:progress:${id}`
+      const handler = (_e: unknown, text: string): void => cb(text)
+      ipcRenderer.on(ch, handler)
+      return () => { ipcRenderer.removeListener(ch, handler) }
+    },
+  },
   shell: {
     showItemInFolder: (filePath: string): Promise<void> =>
-      ipcRenderer.invoke('shell:showItemInFolder', filePath)
+      ipcRenderer.invoke('shell:showItemInFolder', filePath),
+    /** Resolves to '' on success, or the OS error message. */
+    openPath: (filePath: string): Promise<string> =>
+      ipcRenderer.invoke('shell:openPath', filePath)
   },
   app: {
     getDataPath: (): Promise<string> => ipcRenderer.invoke('app:getDataPath'),

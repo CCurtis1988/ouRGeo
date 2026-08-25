@@ -20,6 +20,7 @@ import { useHelpStore } from '@/store/help'
 import { Button } from '../ui/button'
 import { useSessionStore } from '@/store/session'
 import { useEditorStore } from '@/store/editor'
+import { languageOf } from '@/lib/markdown/doc-kind'
 import { usePackagesStore } from '@/store/packages'
 import { useEnvironmentStore } from '@/store/environment'
 import { useDatabaseStore } from '@/store/database'
@@ -302,7 +303,7 @@ export function EditorLayout(): React.ReactElement {
     const tab = state.getActiveTab()
     if (!tab) return
 
-    const filePath = await window.electronAPI.dialog.saveFile()
+    const filePath = await window.electronAPI.dialog.saveFile(languageOf(tab))
     if (!filePath) return
 
     await window.electronAPI.file.write(filePath, tab.content)

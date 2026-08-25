@@ -64,6 +64,20 @@ function mkMonaco(
       { token: 'number', foreground: strip(num) },
       { token: 'identifier.function', foreground: strip(fn) },
       { token: 'type.identifier', foreground: strip(fn) },
+      // Markdown / R Markdown. Monaco's markdown Monarch emits these tokens;
+      // without rules they'd fall back to plain foreground and a .md would look
+      // like undifferentiated text in every theme.
+      { token: 'strong', foreground: strip(fg), fontStyle: 'bold' },
+      { token: 'emphasis', foreground: strip(fg), fontStyle: 'italic' },
+      { token: 'meta.separator', foreground: strip(cmt) },
+      { token: 'keyword.table.header', foreground: strip(kw) },
+      { token: 'keyword.table.left', foreground: strip(cmt) },
+      { token: 'keyword.table.middle', foreground: strip(cmt) },
+      { token: 'keyword.table.right', foreground: strip(cmt) },
+      // Fenced-code bodies whose language isn't embedded (the chunk fallback).
+      { token: 'variable.source', foreground: strip(fg) },
+      { token: 'string.link', foreground: strip(accent) },
+      { token: 'string.escape', foreground: strip(num) },
     ],
   }
 }

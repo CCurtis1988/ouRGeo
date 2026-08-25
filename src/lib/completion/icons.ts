@@ -56,6 +56,8 @@ export function iconFor(kind: CompletionKind, rType?: string): IconSpec {
       return { glyph: '❯', color: C.blue, tip: 'snippet' }
     case 'keyword':
       return { glyph: '◆', color: C.muted, tip: 'keyword' }
+    case 'markdown':
+      return { glyph: '¶', color: C.blue, tip: 'markdown' }
     default:
       break
   }

@@ -28,7 +28,8 @@ declare global {
       }
       dialog: {
         openFile(): Promise<string | null>
-        saveFile(): Promise<string | null>
+        /** `kind` is a DocLanguage ('r' | 'markdown' | 'rmarkdown'); omit for R. */
+        saveFile(kind?: string): Promise<string | null>
         openRData(): Promise<string | null>
         saveRData(): Promise<string | null>
         openPackageFile(): Promise<string | null>
@@ -58,6 +59,22 @@ declare global {
       }
       shell: {
         showItemInFolder(filePath: string): Promise<void>
+        /** Resolves to '' on success, or the OS error message. */
+        openPath(filePath: string): Promise<string>
+      }
+      knit: {
+        render(req: {
+          id: string; filePath: string; format: string; rscriptPath?: string
+        }): Promise<{
+          success: boolean
+          outputPath?: string
+          error?: string
+          hint?: string | null
+          errorLine?: number | null
+          log?: string
+        }>
+        cancel(id: string): Promise<boolean>
+        onProgress(id: string, cb: (text: string) => void): () => void
       }
       app: {
         getDataPath(): Promise<string>

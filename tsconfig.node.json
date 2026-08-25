@@ -10,5 +10,11 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["electron-vite.config.*", "electron/**/*"]
+  "include": [
+    "electron-vite.config.*",
+    "electron/**/*",
+    // Pure helpers shared with the main process. They live under src/ so the
+    // renderer's Vitest suite covers them; the main process imports them.
+    "src/lib/markdown/knit-errors.ts"
+  ]
 }

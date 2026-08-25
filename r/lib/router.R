@@ -22,6 +22,15 @@ route <- function(req) {
       return(handle_kaggle_files(body))
     }
 
+    if (path == "/rmarkdown/deps" && method == "GET") {
+      return(handle_rmarkdown_deps())
+    }
+
+    if (path == "/r/chunk/execute" && method == "POST") {
+      body <- parse_body(req)
+      return(handle_chunk_execute(body))
+    }
+
     if (path == "/r/plot/export" && method == "POST") {
       body <- parse_body(req)
       return(handle_plot_export(body))

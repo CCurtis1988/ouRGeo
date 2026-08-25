@@ -156,3 +156,75 @@ describe('getCompletions — packages', () => {
     expect(r.candidates.some((c) => c.kind === 'package')).toBe(false)
   })
 })
+
+// ── Markdown mode ──────────────────────────────────────────────────────────
+// The mode parameter is DEFAULTED, which is what structurally prevents the R
+// console (which shares this controller) from ever seeing markdown candidates.
+describe('getCompletions — mode gating', () => {
+  it('is byte-identical without a mode argument', () => {
+    // The console-safety guarantee, enforced. If this drifts, the console has
+    // started behaving differently and something has leaked into the R path.
+    const [text, off] = cur('mea|')
+    expect(getCompletions(text, off, deps))
+      .toEqual(getCompletions(text, off, deps, 'r'))
+  })
+
+  it('never offers markdown elements in R mode', () => {
+    for (const src of ['/|', 'a/b|', '# heading|', 'x <- 1 /|']) {
+      const [text, off] = cur(src)
+      const res = getCompletions(text, off, deps)
+      expect(res.candidates.some((c) => c.kind === 'markdown'), src).toBe(false)
+    }
+  })
+
+  it('never sets autoOpen in R mode', () => {
+    // autoOpen is what forces the popup open with no typed prefix. If R mode
+    // ever set it, `a/b` in the console would start popping a menu.
+    for (const src of ['/|', 'a/b|', 'mean(x/|']) {
+      const [text, off] = cur(src)
+      expect(getCompletions(text, off, deps).autoOpen, src).not.toBe(true)
+    }
+  })
+
+  it('offers markdown elements for a slash in markdown mode', () => {
+    const [text, off] = cur('/|')
+    const res = getCompletions(text, off, deps, 'markdown')
+    expect(res.candidates.length).toBeGreaterThan(0)
+    expect(res.candidates.every((c) => c.kind === 'markdown')).toBe(true)
+    // `/` alone must open the popup without widening the shared structural test.
+    expect(res.autoOpen).toBe(true)
+  })
+
+  it('filters markdown elements by the typed prefix', () => {
+    const [text, off] = cur('/head|')
+    const labels = getCompletions(text, off, deps, 'markdown').candidates.map((c) => c.label)
+    expect(labels.some((l) => l.startsWith('Heading'))).toBe(true)
+    expect(labels).not.toContain('Table')
+  })
+
+  it('matches on keywords, not just labels', () => {
+    const [text, off] = cur('/todo|')
+    const labels = getCompletions(text, off, deps, 'markdown').candidates.map((c) => c.label)
+    expect(labels).toContain('Task list')
+  })
+
+  it('hides chunk actions in plain markdown but offers them in R Markdown', () => {
+    const [text, off] = cur('/chunk|')
+    const md = getCompletions(text, off, deps, 'markdown').candidates.map((c) => c.label)
+    const rmd = getCompletions(text, off, deps, 'rmarkdown').candidates.map((c) => c.label)
+    expect(md).not.toContain('R chunk')
+    expect(rmd).toContain('R chunk')
+  })
+
+  it('gives full R completion inside a chunk', () => {
+    const [text, off] = cur('```{r}\nme|')
+    const res = getCompletions(text, off, deps, 'rmarkdown')
+    expect(res.candidates.map((c) => c.label)).toContain('meuse')
+  })
+
+  it('resolves data-frame columns inside a chunk', () => {
+    const [text, off] = cur('```{r}\ndf$|')
+    const res = getCompletions(text, off, deps, 'rmarkdown')
+    expect(res.candidates.map((c) => c.label)).toEqual(expect.arrayContaining(['elev', 'name']))
+  })
+})

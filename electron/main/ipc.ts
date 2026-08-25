@@ -131,12 +131,15 @@ function detectRInstallations(configuredPath: string | null): { path: string; ve
 }
 
 export function setupIpcHandlers(ipcMain: IpcMain): void {
-  // File dialog: open R scripts
+  // File dialog: open a document (R script, Markdown, R Markdown)
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog({
-      title: 'Open R Script',
+      title: 'Open Document',
       filters: [
+        { name: 'All Documents', extensions: ['R', 'r', 'Rmd', 'rmd', 'qmd', 'md', 'markdown'] },
         { name: 'R Scripts', extensions: ['R', 'r'] },
+        { name: 'R Markdown', extensions: ['Rmd', 'rmd', 'qmd'] },
+        { name: 'Markdown', extensions: ['md', 'markdown'] },
         { name: 'All Files', extensions: ['*'] }
       ],
       properties: ['openFile']
@@ -144,14 +147,22 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePaths[0]
   })
 
-  // File dialog: save R script
-  ipcMain.handle('dialog:saveFile', async () => {
+  // File dialog: save a document. `kind` picks the filter set and the default
+  // extension so a .Rmd doesn't get offered as "Save as .R"; it is optional so
+  // existing callers keep the historic R-script behaviour.
+  ipcMain.handle('dialog:saveFile', async (_event, kind?: string) => {
+    const saveFilters: Record<string, { name: string; extensions: string[] }[]> = {
+      r:         [{ name: 'R Scripts',  extensions: ['R'] }],
+      markdown:  [{ name: 'Markdown',   extensions: ['md', 'markdown'] }],
+      rmarkdown: [{ name: 'R Markdown', extensions: ['Rmd'] }],
+    }
+    const chosen = saveFilters[kind ?? 'r'] ?? saveFilters.r
+    const titles: Record<string, string> = {
+      r: 'Save R Script', markdown: 'Save Markdown', rmarkdown: 'Save R Markdown',
+    }
     const result = await dialog.showSaveDialog({
-      title: 'Save R Script',
-      filters: [
-        { name: 'R Scripts', extensions: ['R'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
+      title: titles[kind ?? 'r'] ?? 'Save Document',
+      filters: [...chosen, { name: 'All Files', extensions: ['*'] }]
     })
     return result.canceled ? null : result.filePath
   })
@@ -385,6 +396,11 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     } catch {
       return { exists: false, size: 0, mtimeMs: 0 }
     }
+  })
+
+  ipcMain.handle('shell:openPath', async (_evt, filePath: string) => {
+    // Returns '' on success, or the OS error message.
+    return await shell.openPath(filePath)
   })
 
   ipcMain.handle('shell:showItemInFolder', (_evt, filePath: string) => {

@@ -6,6 +6,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
 import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
+import { registerKnitHandlers } from './knit'
 
 async function loadSavedRPath(): Promise<void> {
   try {
@@ -133,6 +134,7 @@ app.whenReady().then(async () => {
 
   setupIpcHandlers(ipcMain)
   registerAiProxy(ipcMain)
+  registerKnitHandlers(ipcMain)
 
   // The renderer calls this after resolving the unsaved-changes prompt (Save or
   // Don't Save) to allow the intercepted window close to complete.

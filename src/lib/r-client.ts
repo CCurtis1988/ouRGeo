@@ -100,6 +100,18 @@ export interface RFormalArg {
   default: string
 }
 
+export interface RChunkResponse {
+  success: boolean
+  output: string
+  error?: string | null
+  /** data:image/png;base64,… one per plot the chunk drew, in draw order. */
+  plots: string[]
+  /** Matching ids in R's plot history, for re-export at another size. */
+  plotIds: string[]
+  skipped: boolean
+  durationMs: number
+}
+
 export interface REnvironmentInfo {
   name: string
   isSearchPath: boolean
@@ -190,6 +202,33 @@ class RClient {
       const res = await this.http.post<RExecuteResponse>('/r/execute', { code }, { timeout: 3_600_000 })
       return res.data
     })
+  }
+
+  /**
+   * Run one R Markdown chunk.
+   *
+   * A separate endpoint from `execute` because /r/execute captures at most ONE
+   * plot per call (server.R points the default device at a single fixed-name
+   * PNG) and broadcasts plots globally with no caller attribution. The chunk
+   * endpoint uses a per-page device and returns everything in the response, so a
+   * chunk that draws three plots shows three plots under that chunk.
+   */
+  async executeChunk(
+    code: string, options: Record<string, string> = {},
+  ): Promise<RChunkResponse> {
+    return withPowerBlock(async () => {
+      const res = await this.http.post<RChunkResponse>(
+        '/r/chunk/execute', { code, options }, { timeout: 3_600_000 },
+      )
+      return res.data
+    })
+  }
+
+  /** Which knit dependencies are present. Cheap and in-process — used to
+   *  pre-disable menu items rather than surfacing an opaque render failure. */
+  async rmarkdownDeps(): Promise<import('@/lib/markdown/knit-deps').KnitDeps> {
+    const res = await this.http.get('/rmarkdown/deps')
+    return res.data as import('@/lib/markdown/knit-deps').KnitDeps
   }
 
   async kaggleFiles(ref: string, username: string, apiKey: string): Promise<{

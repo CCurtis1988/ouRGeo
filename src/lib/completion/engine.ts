@@ -1,8 +1,10 @@
 import type { ColumnInfo } from '@/lib/r-client'
 import { analyzeContext, type Context } from './context'
+import { analyzeMarkdownContext } from './context-markdown'
+import { mdSlashCandidates, mdMatchTerms } from './markdown-keywords'
 import { keywordCandidates, snippetCandidates } from './keywords'
 import { fuzzyMatch } from './match'
-import type { CompletionCandidate, CompletionResult, EngineDeps, IndexedPackage } from './types'
+import type { CompletionCandidate, CompletionMode, CompletionResult, EngineDeps, IndexedPackage } from './types'
 
 const MAX_RESULTS = 60
 
@@ -12,15 +14,38 @@ const MAX_RESULTS = 60
  * cached getters in `deps`; anything missing is reported in `result.wants` so
  * the controller can fetch it and re-run.
  */
-export function getCompletions(text: string, offset: number, deps: EngineDeps): CompletionResult {
+export function getCompletions(
+  text: string,
+  offset: number,
+  deps: EngineDeps,
+  mode: CompletionMode = 'r',
+): CompletionResult {
   const { index } = deps
   const knownFrame = (name: string): boolean => !!index.byName.get(name)?.isDataFrame
 
-  const ctx = analyzeContext(text, offset, knownFrame)
+  // Markdown analysis is a different world (prose, not R), and the default keeps
+  // the R path byte-identical — which is what stops the shared console
+  // controller from ever seeing markdown candidates.
+  const ctx = mode === 'r'
+    ? analyzeContext(text, offset, knownFrame)
+    : analyzeMarkdownContext(text, offset, knownFrame, mode === 'rmarkdown')
   const wants: CompletionResult['wants'] = { columns: [], formals: [] }
   const empty: CompletionResult = { from: offset, to: offset, candidates: [], wants }
 
   if (ctx.type === 'none') return empty
+
+  if (ctx.type === 'md-slash') {
+    const raw = mdSlashCandidates(text, mode === 'rmarkdown')
+    const terms = mdMatchTerms(mode === 'rmarkdown')
+    return {
+      from: ctx.from,
+      to: ctx.to,
+      candidates: rank(raw, ctx, terms),
+      wants,
+      // `/` with nothing typed still opens the menu.
+      autoOpen: true,
+    }
+  }
 
   const raw: CompletionCandidate[] = []
   // A function is called with `()` unless the caret is already before one.
@@ -165,14 +190,27 @@ function argumentCandidate(name: string, def: string): CompletionCandidate {
 }
 
 /** Filter by the typed prefix, then order by match quality, bias and length. */
-function rank(raw: CompletionCandidate[], ctx: Context): CompletionCandidate[] {
-  const prefix = 'prefix' in ctx ? ctx.prefix : ''
+function rank(
+  raw: CompletionCandidate[],
+  ctx: { prefix?: string },
+  /** Extra terms to match against, beyond the label (slash-menu keywords). */
+  terms?: Map<string, string[]>,
+): CompletionCandidate[] {
+  const prefix = 'prefix' in ctx ? (ctx.prefix ?? '') : ''
   const scored: CompletionCandidate[] = []
   const seen = new Set<string>()
   for (const c of raw) {
     if (seen.has(c.id)) continue
     seen.add(c.id)
-    const m = fuzzyMatch(prefix, c.label)
+    // Match on the label first so the highlight offsets stay meaningful; fall
+    // back to keywords (`/todo` → "Task list") with a small score penalty.
+    let m = fuzzyMatch(prefix, c.label)
+    if (!m && terms) {
+      for (const t of terms.get(c.id) ?? []) {
+        const alt = fuzzyMatch(prefix, t)
+        if (alt) { m = { score: alt.score - 50, matched: [] }; break }
+      }
+    }
     if (!m) continue
     scored.push({ ...c, score: m.score, matched: m.matched })
   }

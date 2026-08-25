@@ -73,7 +73,29 @@ For the codebase architecture, see [CLAUDE.md](CLAUDE.md).
 
   # Database features (.Rgeo / DuckDB-backed datasets)
   install.packages(c("DBI", "duckdb", "dplyr"))
+
+  # Knitting R Markdown to HTML / PDF / Word.
+  # Running chunks inline needs nothing extra — only knitting does.
+  install.packages(c("knitr", "rmarkdown"))
   ```
+
+  Knitting also needs **pandoc**, which is *not* an R package and does not ship
+  with R (RStudio bundles its own copy). Either install it from
+  [pandoc.org](https://pandoc.org), or:
+
+  ```r
+  install.packages("pandoc"); pandoc::pandoc_install()
+  ```
+
+  PDF output additionally needs a LaTeX installation:
+
+  ```r
+  install.packages("tinytex"); tinytex::install_tinytex()   # ~200 MB
+  ```
+
+  ouRGeo checks all of these before you knit and disables any format whose
+  dependencies are missing, naming what to install — so you never hit a raw
+  render error.
 
 ## Installation
 

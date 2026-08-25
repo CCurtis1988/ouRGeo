@@ -6,7 +6,7 @@ import { usePackagesStore } from '@/store/packages'
 import { buildEnvIndex } from '@/lib/completion/env-index'
 import { getCompletions } from '@/lib/completion/engine'
 import { expandSnippet } from '@/lib/completion/snippet'
-import type { CompletionCandidate, EngineDeps, IndexedPackage } from '@/lib/completion/types'
+import type { CompletionCandidate, CompletionMode, EngineDeps, IndexedPackage } from '@/lib/completion/types'
 
 export interface CompletionState {
   open: boolean
@@ -42,7 +42,7 @@ export function useCompletion() {
   const formalsCache = useRef<Map<string, RFormalArg[]>>(new Map())
   const inFlight = useRef<Set<string>>(new Set())
   // Latest query inputs, so async fetches can re-run against current text.
-  const last = useRef<{ text: string; offset: number; manual: boolean } | null>(null)
+  const last = useRef<{ text: string; offset: number; manual: boolean; mode: CompletionMode } | null>(null)
   const envRequested = useRef(false)
   const pkgRequested = useRef(false)
 
@@ -77,8 +77,8 @@ export function useCompletion() {
   )
 
   const run = useCallback(
-    (text: string, offset: number, manual: boolean) => {
-      const result = getCompletions(text, offset, deps)
+    (text: string, offset: number, manual: boolean, mode: CompletionMode = 'r') => {
+      const result = getCompletions(text, offset, deps, mode)
 
       // Kick off any lazy fetches the engine asked for, then re-query.
       for (const col of result.wants.columns) {
@@ -94,7 +94,7 @@ export function useCompletion() {
           .finally(() => {
             inFlight.current.delete(key)
             const l = last.current
-            if (l) run(l.text, l.offset, l.manual)
+            if (l) run(l.text, l.offset, l.manual, l.mode)
           })
       }
       for (const fn of result.wants.formals) {
@@ -110,14 +110,17 @@ export function useCompletion() {
           .finally(() => {
             inFlight.current.delete(key)
             const l = last.current
-            if (l) run(l.text, l.offset, l.manual)
+            if (l) run(l.text, l.offset, l.manual, l.mode)
           })
       }
 
       const prefixLen = result.to - result.from
       const structural = result.from > 0 && /[$(:"[]/.test(text[result.from - 1] ?? '')
+      // `autoOpen` rather than adding `/` to `structural`: widening that shared
+      // character test would pop the menu on `a/b` in the R console.
       const shouldOpen =
-        result.candidates.length > 0 && (manual || prefixLen > 0 || structural)
+        result.candidates.length > 0 &&
+        (manual || prefixLen > 0 || structural || result.autoOpen === true)
 
       if (!shouldOpen) {
         setState((s) => (s.open ? CLOSED : s))
@@ -136,8 +139,8 @@ export function useCompletion() {
   )
 
   const query = useCallback(
-    (text: string, offset: number, manual = false) => {
-      last.current = { text, offset, manual }
+    (text: string, offset: number, manual = false, mode: CompletionMode = 'r') => {
+      last.current = { text, offset, manual, mode }
       // Populate the environment index on first use if the panel never opened.
       if (!envRequested.current && index.objects.length === 0 && index.functions.length === 0) {
         envRequested.current = true
@@ -157,11 +160,11 @@ export function useCompletion() {
           .refreshPackages()
           .then(() => {
             const l = last.current
-            if (l) run(l.text, l.offset, l.manual)
+            if (l) run(l.text, l.offset, l.manual, l.mode)
           })
           .catch(() => {})
       }
-      run(text, offset, manual)
+      run(text, offset, manual, mode)
     },
     [run, index]
   )
