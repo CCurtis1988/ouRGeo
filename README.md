@@ -20,7 +20,8 @@ the whole analysis.
 
 ## What it does
 
-- **Exact curved geometry.** Ships with `sfarc`, which computes length, area,
+- **Exact curved geometry.** Built on [`sfarc`](https://github.com/CCurtis1988/sfarc),
+  a companion R package that computes length, area,
   centroid, buffer and overlays on true `CIRCULARSTRING` / `COMPOUNDCURVE` /
   `CURVEPOLYGON` geometry analytically — no densification, no linearization
   error. Curves imported from Esri services are rebuilt as true OGC curves so
@@ -52,7 +53,7 @@ For the codebase architecture, see [CLAUDE.md](CLAUDE.md).
 ## Requirements
 
 - **Node.js** v18 LTS or newer, and **npm**
-- **R** v4.0 or newer
+- **R** v4.1 or newer
 - R packages:
 
   ```r
@@ -66,8 +67,9 @@ For the codebase architecture, see [CLAUDE.md](CLAUDE.md).
   # Raster map tiles (PNG encoding)
   install.packages("png")
 
-  # Exact curved geometry
-  install.packages("sfarc")
+  # Exact curved geometry — not on CRAN yet, install from Git
+  install.packages("remotes")
+  remotes::install_github("CCurtis1988/sfarc")
 
   # Database features (.Rgeo / DuckDB-backed datasets)
   install.packages(c("DBI", "duckdb", "dplyr"))
@@ -96,6 +98,12 @@ sudo pacman -S r
 ### 3. Install the R packages
 
 Open an R session and run the blocks under [Requirements](#requirements) above.
+
+`sfarc` is the only one not yet on CRAN — it is in CRAN review, so for now it
+installs from its Git repository. It is pure R — nothing to compile, so Windows
+does not need Rtools. ouRGeo starts without it,
+but has no curved-geometry support at all: a layer holding `CIRCULARSTRING` or
+`CURVEPOLYGON` features will not draw.
 
 ### 4. Install npm dependencies
 
