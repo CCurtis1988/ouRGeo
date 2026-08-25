@@ -227,3 +227,86 @@
 
 .ourgeo-visual .ProseMirror a { color: hsl(var(--geo-accent)); text-decoration: underline; }
 .ourgeo-visual .ProseMirror img { max-width: 100%; border-radius: 4px; }
+
+/* ── Chunks inside Visual mode ─────────────────────────────────────────────
+   Two stacked layers per chunk: a read-only highlighted <pre> and the real
+   editable contentDOM. Only one is displayed at a time — the `is-active` class
+   comes from activeChunkPlugin, which marks whichever code block holds the
+   selection. That is the "upgrade on focus" the design calls for: no per-chunk
+   editor is constructed, so a 50-chunk document stays cheap. */
+.ourgeo-visual .ProseMirror .ourgeo-vchunk {
+  margin: .7rem 0;
+  border: 1px solid hsl(var(--geo-border));
+  border-radius: 4px;
+  background: hsl(var(--geo-bg));
+  overflow: hidden;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk.is-chunk {
+  border-left: 2px solid hsl(var(--geo-accent) / 0.55);
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-head {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .2rem .5rem;
+  border-bottom: 1px solid hsl(var(--geo-border));
+  font-size: 10px;
+  line-height: 1.4;
+  color: hsl(var(--geo-muted));
+  user-select: none;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-engine {
+  color: hsl(var(--geo-accent));
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 600;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-label { color: hsl(var(--foreground)); }
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-opts {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-run {
+  border: none;
+  background: hsl(var(--geo-accent) / 0.15);
+  color: hsl(var(--geo-accent));
+  border-radius: 3px;
+  padding: 0 .35rem;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-run:hover {
+  background: hsl(var(--geo-accent) / 0.3);
+}
+
+/* Both layers share the <pre> look so the swap on focus is invisible. */
+.ourgeo-visual .ProseMirror .ourgeo-vchunk pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: .5rem .6rem;
+}
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-src { display: none; }
+.ourgeo-visual .ProseMirror .ourgeo-vchunk.is-active .ourgeo-vchunk-src { display: block; }
+.ourgeo-visual .ProseMirror .ourgeo-vchunk.is-active .ourgeo-vchunk-hl { display: none; }
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-hl { cursor: text; }
+
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-out:empty { display: none; }
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-out {
+  border-top: 1px solid hsl(var(--geo-border));
+  background: hsl(var(--geo-bg) / 0.5);
+}

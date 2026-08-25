@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Download, ChevronDown, Image, Map, BarChart2 } from 'lucide-react'
 import { ExportImgDialog } from './ExportImgDialog'
 import { ExportCodeDialog } from './ExportCodeDialog'
+import { useSpatialSettingsStore } from '@/store/spatialSettings'
+import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { cn } from '@/lib/utils'
 
 interface ExportDropdownProps {
@@ -14,6 +16,16 @@ export function ExportDropdown({ mapContainerRef }: ExportDropdownProps): React.
   const [tmapOpen, setTmapOpen] = useState(false)
   const [ggplotOpen, setGgplotOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Remember which generator the user reaches for. The R Markdown map chunk
+  // reads this when its engine setting is 'auto', so the code it inserts
+  // matches the flavour the user has been working in.
+  const rememberMode = (mode: 'tmap' | 'ggplot'): void => {
+    const st = useSpatialSettingsStore.getState()
+    if (st.lastExportMode === mode) return
+    st.setLastExportMode(mode)
+    void saveSpatialSettings(st.initialExtentMode, st.userExtent)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -59,14 +71,14 @@ export function ExportDropdown({ mapContainerRef }: ExportDropdownProps): React.
             Export to IMG
           </button>
           <button
-            onClick={() => { setTmapOpen(true); setOpen(false) }}
+            onClick={() => { rememberMode('tmap'); setTmapOpen(true); setOpen(false) }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-foreground hover:bg-geo-bg"
           >
             <Map className="w-3 h-3 text-geo-muted" />
             Export to Tmap
           </button>
           <button
-            onClick={() => { setGgplotOpen(true); setOpen(false) }}
+            onClick={() => { rememberMode('ggplot'); setGgplotOpen(true); setOpen(false) }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-foreground hover:bg-geo-bg"
           >
             <BarChart2 className="w-3 h-3 text-geo-muted" />

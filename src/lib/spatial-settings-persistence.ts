@@ -1,4 +1,6 @@
-import type { InitialExtentMode, UserExtent, SnapSettings } from '@/store/spatialSettings'
+import type {
+  InitialExtentMode, UserExtent, SnapSettings, ExportCodeMode
+} from '@/store/spatialSettings'
 import {
   DEFAULT_USER_EXTENT,
   DEFAULT_SNAP_SETTINGS,
@@ -15,6 +17,7 @@ export async function loadSpatialSettings(): Promise<{
   showAttributePopup: boolean
   calcCrs: string
   defaultCrs: string
+  lastExportMode: ExportCodeMode
 }> {
   const data = await store.read<{
     initialExtentMode?: unknown
@@ -22,6 +25,7 @@ export async function loadSpatialSettings(): Promise<{
     newFeatureAttributeMode?: unknown // legacy key, replaced by showAttributePopup
     calcCrs?: unknown
     defaultCrs?: unknown
+    lastExportMode?: unknown
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userExtent?: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +60,10 @@ export async function loadSpatialSettings(): Promise<{
     typeof data.calcCrs === 'string' && data.calcCrs.trim() ? data.calcCrs.trim() : 'auto'
   const defaultCrs =
     typeof data.defaultCrs === 'string' && data.defaultCrs.trim() ? data.defaultCrs.trim() : '4326'
-  return { mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs }
+  const lastExportMode: ExportCodeMode = data.lastExportMode === 'ggplot' ? 'ggplot' : 'tmap'
+  return {
+    mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs, lastExportMode
+  }
 }
 
 export async function saveSpatialSettings(
@@ -72,6 +79,7 @@ export async function saveSpatialSettings(
     snapSettings: snapSettings ?? state.snapSettings,
     showAttributePopup: showAttributePopup ?? state.showAttributePopup,
     calcCrs: state.calcCrs,
-    defaultCrs: state.defaultCrs
+    defaultCrs: state.defaultCrs,
+    lastExportMode: state.lastExportMode
   })
 }

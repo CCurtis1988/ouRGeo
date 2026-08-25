@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
-  Palette, Cpu, Globe, Map, KeyRound, Bot,
+  Palette, Cpu, Globe, Map, KeyRound, Bot, FileText,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -13,6 +13,7 @@ import { InitialExtentPicker } from './InitialExtentPicker'
 import { AttributePopupToggle } from './AttributePopupToggle'
 import { CrsSettings } from './CrsSettings'
 import { AiProviderSettings } from './AiProviderSettings'
+import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { useApiKeysStore } from '@/store/apiKeys'
 
 const BASEMAP_API_DEFS = [
@@ -234,6 +235,20 @@ export function SettingsDialog({ children }: SettingsDialogProps): React.ReactEl
               <AttributePopupToggle />
               <SubLabel className="mt-5">Coordinate Reference Systems</SubLabel>
               <CrsSettings />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={FileText}
+              title="Documents"
+              description="Markdown and R Markdown authoring"
+            >
+              <SubLabel>Map chunk code</SubLabel>
+              <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
+                The “Chunk: current map” and “Chunk: export current plot” ribbon
+                buttons generate R from the layers currently on the map. Pick which
+                mapping package that code uses.
+              </p>
+              <MapChunkEngineSetting />
             </SettingsSection>
 
             <SettingsSection

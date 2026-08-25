@@ -11,19 +11,41 @@ import type { CompletionCandidate } from './types'
  *  `linePrefix`; `wrap` actions insert their markers around an empty selection. */
 function insertionFor(action: MdActionDef, docText: string): { text: string; caret: number } {
   const op = action.source
-  if (op.kind === 'block') {
-    const body = action.chunksOnly
-      ? op.body.replace(/\$1/g, nextChunkLabel(docText))
-      : op.body
-    return expandSnippet(body)
+  switch (op.kind) {
+    case 'block': {
+      const body = action.chunksOnly
+        ? op.body.replace(/\$1/g, nextChunkLabel(docText))
+        : op.body
+      return expandSnippet(body)
+    }
+    case 'linePrefix':
+      return { text: op.prefix, caret: op.prefix.length }
+    case 'insert':
+      return expandSnippet(op.body)
+    // Footnote is always host-handled (it needs the prompt dialog), so this is
+    // only a placeholder for ranking — never actually inserted.
+    case 'footnote':
+      return { text: `[^${op.label}]`, caret: 0 }
+    case 'wrap': {
+      const tail = expandSnippet(op.after)
+      const text = op.before + tail.text
+      // Caret between the markers unless the closing marker has an explicit slot.
+      return {
+        text,
+        caret: /\$\d/.test(op.after) ? op.before.length + tail.caret : op.before.length,
+      }
+    }
   }
-  if (op.kind === 'linePrefix') {
-    return { text: op.prefix, caret: op.prefix.length }
-  }
-  const tail = expandSnippet(op.after)
-  const text = op.before + tail.text
-  // Caret between the markers unless the closing marker has an explicit slot.
-  return { text, caret: /\$\d/.test(op.after) ? op.before.length + tail.caret : op.before.length }
+}
+
+/**
+ * Actions the slash menu cannot complete by inserting text: they need the
+ * editor host — a prompt dialog for the values, or the live map for the code.
+ * The host recognises them by candidate id and routes them to the same backend
+ * the ribbon button uses, so `/link` and the Link button behave identically.
+ */
+export function mdActionNeedsHost(action: MdActionDef): boolean {
+  return !!action.prompt || !!action.dynamic
 }
 
 /**

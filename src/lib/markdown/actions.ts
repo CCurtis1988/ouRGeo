@@ -29,7 +29,20 @@ export type MdSourceOp =
   /** Prefix every selected line; toggles off if every line already has it. */
   | { kind: 'linePrefix'; prefix: string; ordered?: boolean }
   /** Insert a block on its own lines, with `$N` caret markers. */
-  | { kind: 'block'; body: string }
+  | {
+      kind: 'block'
+      body: string
+      /**
+       * Body is verbatim text — skip `$N` snippet expansion and drop the caret
+       * at the end. Set for generated R code, where a `$1` inside the code would
+       * otherwise be eaten as a caret marker.
+       */
+      literal?: boolean
+    }
+  /** Replace the selection inline, no surrounding blank lines. */
+  | { kind: 'insert'; body: string }
+  /** Footnote reference at the caret + its definition appended to the document. */
+  | { kind: 'footnote'; label: string; note: string }
 
 export interface MdActionDef {
   id: MdActionId
@@ -41,8 +54,37 @@ export interface MdActionDef {
   source: MdSourceOp
   /** Only offered in documents that can hold executable chunks (.Rmd). */
   chunksOnly?: boolean
+  /**
+   * This action's body is generated from live app state rather than the static
+   * `source.body` — see chunk-codegen.ts. The static body stays as the fallback
+   * for when there is nothing to generate from (an empty map).
+   */
+  dynamic?: 'map' | 'plot'
+  /** Values to collect from the user before the action can be applied. */
+  prompt?: MdPrompt
   /** Shown in the slash menu as a caveat. */
   note?: string
+}
+
+/** One field in an action's pre-flight prompt. */
+export interface MdPromptField {
+  id: string
+  label: string
+  placeholder?: string
+  /** Render a textarea rather than a single-line input. */
+  multiline?: boolean
+  /** Pre-fill from the current selection. */
+  fromSelection?: boolean
+  /** Blocks Apply when left empty. */
+  required?: boolean
+}
+
+export interface MdPrompt {
+  title: string
+  description?: string
+  fields: MdPromptField[]
+  /** Label for the confirm button. */
+  submitLabel?: string
 }
 
 export const MD_ACTIONS: MdActionDef[] = [
@@ -82,7 +124,18 @@ export const MD_ACTIONS: MdActionDef[] = [
 
   // ── Insert ──────────────────────────────────────────────────────────────
   { id: 'link', label: 'Link', group: 'insert', icon: Link2,
-    keywords: ['url', 'href', 'a'], source: { kind: 'wrap', before: '[', after: ']($1)' } },
+    keywords: ['url', 'href', 'a'],
+    // The static source is the fallback the prompt replaces; a link without a
+    // URL is not worth inserting, so the dialog is where this action really
+    // happens (see applyPromptValues).
+    source: { kind: 'wrap', before: '[', after: ']($1)' },
+    prompt: {
+      title: 'Insert link',
+      fields: [
+        { id: 'text', label: 'Text', placeholder: 'Link text', fromSelection: true },
+        { id: 'url', label: 'URL', placeholder: 'https://…', required: true },
+      ],
+    } },
   { id: 'image', label: 'Image', group: 'insert', icon: Image,
     keywords: ['img', 'picture', 'figure'],
     source: { kind: 'wrap', before: '![', after: ']($1)' } },
@@ -91,7 +144,15 @@ export const MD_ACTIONS: MdActionDef[] = [
     source: { kind: 'block', body: '| $1 | Column |\n| --- | --- |\n| $0 | |' } },
   { id: 'footnote', label: 'Footnote', group: 'insert', icon: Superscript,
     keywords: ['note', 'ref'],
-    source: { kind: 'block', body: '[^$1]\n\n[^$1]: $0' } },
+    source: { kind: 'footnote', label: '1', note: '' },
+    prompt: {
+      title: 'Insert footnote',
+      description: 'The marker goes at the cursor; the note is appended to the end of the document.',
+      fields: [
+        { id: 'label', label: 'Marker', placeholder: '1', required: true },
+        { id: 'note', label: 'Note', placeholder: 'Footnote text', multiline: true, required: true },
+      ],
+    } },
 
   // ── ouRGeo extras ───────────────────────────────────────────────────────
   { id: 'rchunk', label: 'R chunk', group: 'ourgeo', icon: Play, chunksOnly: true,
@@ -100,11 +161,11 @@ export const MD_ACTIONS: MdActionDef[] = [
     // because a labelled chunk gets a stable identity for its output.
     source: { kind: 'block', body: '```{r $1}\n$0\n```' } },
   { id: 'chunk-plot', label: 'Chunk: export current plot', group: 'ourgeo', icon: ChartLine,
-    chunksOnly: true, keywords: ['plot', 'figure', 'ggsave', 'export'],
+    chunksOnly: true, dynamic: 'plot', keywords: ['plot', 'figure', 'ggsave', 'export'],
     note: 'Writes the plot to figures/ so the document knits anywhere',
     source: { kind: 'block', body: '```{r $1, echo=FALSE}\nggplot2::ggsave("figures/$0.png", width = 7, height = 5, dpi = 150)\n```\n\n![](figures/$0.png)' } },
   { id: 'chunk-map', label: 'Chunk: current map', group: 'ourgeo', icon: Map,
-    chunksOnly: true, keywords: ['map', 'tmap', 'spatial', 'layer'],
+    chunksOnly: true, dynamic: 'map', keywords: ['map', 'tmap', 'spatial', 'layer'],
     note: 'Generated from the layers currently on the map',
     source: { kind: 'block', body: '```{r $1, echo=FALSE}\n$0\n```' } },
 ]
@@ -137,17 +198,64 @@ export function nextChunkLabel(text: string): string {
   return `chunk-${n}`
 }
 
+/** Produces a chunk body from live app state. See chunk-codegen.ts. */
+export type ChunkBodyGenerator = (action: MdActionDef, label: string) => string | null
+
 /**
- * Fill a chunk action's `$1` label slot with the next free label.
+ * Fill a chunk action's `$1` label slot with the next free label, and — for the
+ * two ouRGeo chunk actions — swap in code generated from the live map.
  *
  * Auto-labelling is what gives a chunk a stable identity, so its output stays
  * attached through edits — see chunk-identity.ts.
+ *
+ * `generate` is injected rather than imported so this module stays data-only:
+ * the store-reading generator lives in chunk-codegen.ts, and every test here
+ * runs without an app.
  */
-export function resolveActionBody(action: MdActionDef, docText: string): MdActionDef {
+export function resolveActionBody(
+  action: MdActionDef, docText: string, generate?: ChunkBodyGenerator,
+): MdActionDef {
   if (!action.chunksOnly || action.source.kind !== 'block') return action
   const label = nextChunkLabel(docText)
+  const generated = action.dynamic && generate ? generate(action, label) : null
+  if (generated !== null && generated !== undefined) {
+    // Generated R code is verbatim — `$1` inside it is data, not a caret slot.
+    return { ...action, source: { kind: 'block', body: generated, literal: true } }
+  }
   return {
     ...action,
     source: { ...action.source, body: action.source.body.replace(/\$1/g, label) },
+  }
+}
+
+/**
+ * Fold the values collected by an action's prompt into a concrete source op.
+ *
+ * Link and footnote are the only two actions that need something the editor
+ * can't infer — a URL, a note — and both used to be inserted with the caret
+ * placeholder still sitting in the text, producing a broken `[^]`. Pure, so the
+ * substitution rules are testable without a dialog.
+ */
+export function applyPromptValues(
+  action: MdActionDef, values: Record<string, string>, hasSelection: boolean,
+): MdActionDef {
+  switch (action.id) {
+    case 'link': {
+      const url = values.url?.trim() ?? ''
+      const text = values.text ?? ''
+      if (!url) return action
+      // With a selection, wrap it so the user's own text stays put (and a second
+      // click still unwraps). With none, the typed text is inserted whole.
+      if (hasSelection) {
+        return { ...action, source: { kind: 'wrap', before: '[', after: `](${url})` } }
+      }
+      return { ...action, source: { kind: 'insert', body: `[${text || url}](${url})` } }
+    }
+    case 'footnote': {
+      const label = values.label?.trim() || '1'
+      return { ...action, source: { kind: 'footnote', label, note: values.note ?? '' } }
+    }
+    default:
+      return action
   }
 }

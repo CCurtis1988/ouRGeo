@@ -77,7 +77,10 @@ export interface RoundTripReport {
   unsupported: { kind: string; line: number | null; snippet: string }[]
 }
 
-const UNSUPPORTED_KINDS = new Set(['html'])
+// Constructs Milkdown's commonmark+gfm schema has no node for. Raw HTML is the
+// obvious one; footnotes are the quiet one — remark parses them happily, so a
+// remark-only round trip looks lossless while ProseMirror would drop them.
+const UNSUPPORTED_KINDS = new Set(['html', 'footnoteDefinition', 'footnoteReference'])
 
 /**
  * Check whether `text` survives a Visual-mode round trip.
@@ -95,7 +98,8 @@ export function roundTripReport(text: string): RoundTripReport {
   const walk = (node: RootContent | Root): void => {
     const n = node as unknown as Record<string, unknown>
     if (UNSUPPORTED_KINDS.has(n.type as string)) {
-      const value = String(n.value ?? '')
+      // Footnote nodes carry an identifier rather than a value.
+      const value = String(n.value ?? n.identifier ?? '')
       unsupported.push({
         kind: n.type as string,
         line: (n.position as { start?: { line?: number } } | undefined)?.start?.line ?? null,

@@ -19,12 +19,18 @@ import { type DocLanguage, languageOf, monacoLanguageFor, isMarkdownDoc, labelFo
 import { LanguageSelector } from './LanguageSelector'
 import { KnitMenu } from './KnitMenu'
 import { VisualEditor, type VisualEditorHandle } from './visual/VisualEditor'
+import { VISUAL_UNSUPPORTED } from './visual/apply-visual'
 import { RoundTripWarningDialog } from './RoundTripWarningDialog'
 import { splitFrontMatter, joinFrontMatter } from '@/lib/markdown/front-matter'
 import { roundTripReport, shouldWarn, normalize, type RoundTripReport } from '@/lib/markdown/roundtrip'
 import { Eye, Code2 } from 'lucide-react'
 import { MarkdownRibbon, type MarkdownRibbonBackend } from './MarkdownRibbon'
-import { resolveActionBody } from '@/lib/markdown/actions'
+import {
+  resolveActionBody, applyPromptValues, MD_ACTION_BY_ID, type MdActionDef,
+} from '@/lib/markdown/actions'
+import { generateChunkBody } from '@/lib/markdown/chunk-codegen'
+import { mdActionNeedsHost } from '@/lib/completion/markdown-keywords'
+import { MdPromptDialog } from './MdPromptDialog'
 import { computeMdEdit } from '@/lib/markdown/apply-source'
 import { scanChunks, chunkAtLine, runnableChunks } from '@/lib/markdown/chunks'
 import { reconcileChunks, toPrev, type IdentifiedChunk, type PrevChunk } from '@/lib/markdown/chunk-identity'
@@ -165,13 +171,27 @@ export function CodeEditor(): React.ReactElement {
     if (!editor || !model) return
     const start = model.getPositionAt(res.from)
     const end = model.getPositionAt(res.to)
+
+    // A few markdown actions can't be completed by inserting their candidate
+    // text: a link needs its URL, a map chunk needs the live map. Delete the
+    // typed `/query` and hand off to the same backend the ribbon button uses,
+    // so `/link` and the Link button behave identically.
+    const mdAction = res.candidateId?.startsWith('markdown:')
+      ? MD_ACTION_BY_ID[res.candidateId.slice('markdown:'.length)]
+      : undefined
+    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column)
+    if (mdAction && mdActionNeedsHost(mdAction)) {
+      suppressChangeRef.current = false
+      editor.executeEdits('completion', [{ range, text: '', forceMoveMarkers: true }])
+      editor.setPosition(model.getPositionAt(res.from))
+      editor.focus()
+      mdBackendRef.current.apply(mdAction)
+      return
+    }
+
     suppressChangeRef.current = false
     editor.executeEdits('completion', [
-      {
-        range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
-        text: res.insertText,
-        forceMoveMarkers: true,
-      },
+      { range, text: res.insertText, forceMoveMarkers: true },
     ])
     editor.setPosition(model.getPositionAt(res.from + res.caret))
     editor.focus()
@@ -200,51 +220,96 @@ export function CodeEditor(): React.ReactElement {
     })
   }
 
+  // Actions that need values first (link, footnote) park here while the prompt
+  // dialog is open; `selectionText` seeds the dialog's "Text" field.
+  const [pending, setPending] = useState<{ action: MdActionDef; selectionText: string } | null>(null)
+
   // Ribbon/slash backend. Offset-based edits through executeEdits, exactly like
   // applyAccept above — NOT applyExternalContent, which does a whole-model
   // setValue and would throw away the cursor and the undo stack.
+  const applyResolvedAction = useCallback((
+    action: MdActionDef, values?: Record<string, string>,
+  ): void => {
+    // In Visual mode the document is a ProseMirror doc, not text — route the
+    // same catalog entry through the schema-aware backend instead.
+    if (useEditorStore.getState().getActiveTab()?.viewMode === 'visual') {
+      const ok = visualRef.current?.applyAction(action, values)
+      if (!ok) {
+        useSessionStore.getState().addConsoleEntry(
+          'info',
+          `"${action.label}" is only available in Source mode.`,
+        )
+      }
+      return
+    }
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    const sel = editor?.getSelection()
+    if (!editor || !model || !sel) return
+    const text = model.getValue()
+    // The two ouRGeo chunk actions generate their body from the live map; the
+    // generator is injected so the action catalog itself stays store-free.
+    const resolved = resolveActionBody(action, text, generateChunkBody)
+    const edit = computeMdEdit(
+      text,
+      model.getOffsetAt(sel.getStartPosition()),
+      model.getOffsetAt(sel.getEndPosition()),
+      resolved,
+    )
+    const start = model.getPositionAt(edit.from)
+    const end = model.getPositionAt(edit.to)
+    editor.executeEdits('markdown-action', [{
+      range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+      text: edit.insertText,
+      forceMoveMarkers: true,
+    }])
+    const selStart = model.getPositionAt(edit.selStart)
+    const selEnd = model.getPositionAt(edit.selEnd)
+    editor.setSelection(new monaco.Range(
+      selStart.lineNumber, selStart.column, selEnd.lineNumber, selEnd.column,
+    ))
+    editor.focus()
+  }, [])
+  const applyResolvedRef = useRef(applyResolvedAction)
+  applyResolvedRef.current = applyResolvedAction
+
+  /** Current selection text, from whichever editor is showing. */
+  const selectionText = useCallback((): string => {
+    if (useEditorStore.getState().getActiveTab()?.viewMode === 'visual') {
+      return visualRef.current?.getSelectionText() ?? ''
+    }
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    const sel = editor?.getSelection()
+    if (!editor || !model || !sel || sel.isEmpty()) return ''
+    return model.getValueInRange(sel)
+  }, [])
+
   const mdBackend = useMemo<MarkdownRibbonBackend>(() => ({
     getText: () => editorRef.current?.getModel()?.getValue() ?? '',
     apply: (action) => {
-      // In Visual mode the document is a ProseMirror doc, not text — route the
-      // same catalog entry through the schema-aware backend instead.
-      if (useEditorStore.getState().getActiveTab()?.viewMode === 'visual') {
-        const ok = visualRef.current?.applyAction(action)
-        if (!ok) {
-          useSessionStore.getState().addConsoleEntry(
-            'info',
-            `"${action.label}" is only available in Source mode.`,
-          )
-        }
+      // Refuse before the dialog, not after: a footnote prompt that collects a
+      // note and then reports it can't be inserted is worse than no prompt.
+      if (
+        useEditorStore.getState().getActiveTab()?.viewMode === 'visual' &&
+        VISUAL_UNSUPPORTED.has(action.id)
+      ) {
+        useSessionStore.getState().addConsoleEntry(
+          'info', `"${action.label}" is only available in Source mode.`,
+        )
         return
       }
-      const editor = editorRef.current
-      const model = editor?.getModel()
-      const sel = editor?.getSelection()
-      if (!editor || !model || !sel) return
-      const text = model.getValue()
-      const resolved = resolveActionBody(action, text)
-      const edit = computeMdEdit(
-        text,
-        model.getOffsetAt(sel.getStartPosition()),
-        model.getOffsetAt(sel.getEndPosition()),
-        resolved,
-      )
-      const start = model.getPositionAt(edit.from)
-      const end = model.getPositionAt(edit.to)
-      editor.executeEdits('markdown-action', [{
-        range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
-        text: edit.insertText,
-        forceMoveMarkers: true,
-      }])
-      const selStart = model.getPositionAt(edit.selStart)
-      const selEnd = model.getPositionAt(edit.selEnd)
-      editor.setSelection(new monaco.Range(
-        selStart.lineNumber, selStart.column, selEnd.lineNumber, selEnd.column,
-      ))
-      editor.focus()
+      // Link and footnote can't be inserted until the user supplies a URL or a
+      // note. Open the dialog and finish in onSubmit.
+      if (action.prompt) {
+        setPending({ action, selectionText: selectionText() })
+        return
+      }
+      applyResolvedRef.current(action)
     },
-  }), [])
+  }), [selectionText])
+  const mdBackendRef = useRef(mdBackend)
+  mdBackendRef.current = mdBackend
 
   const tabs = useEditorStore((s) => s.tabs)
   const activeTabId = useEditorStore((s) => s.activeTabId)
@@ -380,18 +445,20 @@ export function CodeEditor(): React.ReactElement {
   }, [monacoTheme])
 
   // ── Chunk execution ──────────────────────────────────────────────────────
-  const runChunkById = useCallback(async (chunkId: string): Promise<void> => {
+  /** Execute chunk code and file the result under `chunkId`.
+   *  Split out of runChunkById so Visual mode — where chunks live in a
+   *  ProseMirror doc, not in `chunksRef` — runs through the identical path. */
+  const runChunkCode = useCallback(async (
+    chunkId: string, code: string, options: Record<string, string>,
+  ): Promise<void> => {
     const tabId = useEditorStore.getState().activeTabId
     if (!tabId) return
-    const chunk = chunksRef.current.find((c) => c.id === chunkId)
-    if (!chunk || !chunk.runnable || chunk.unterminated) return
-
     const store = useChunkStore.getState()
     store.set(tabId, chunkId, { status: 'running', stale: false, error: null })
     // Echo to the console so it stays a complete record of what ran.
-    addEntry('input', chunk.code)
+    addEntry('input', code)
     try {
-      const res = await rClient.executeChunk(chunk.code, chunk.header.options)
+      const res = await rClient.executeChunk(code, options)
       if (res.output) addEntry('output', res.output)
       if (res.error) addEntry('error', res.error)
       store.set(tabId, chunkId, {
@@ -411,6 +478,14 @@ export function CodeEditor(): React.ReactElement {
       store.set(tabId, chunkId, { status: 'error', error: msg, stale: false })
     }
   }, [addEntry])
+  const runChunkCodeRef = useRef(runChunkCode)
+  runChunkCodeRef.current = runChunkCode
+
+  const runChunkById = useCallback(async (chunkId: string): Promise<void> => {
+    const chunk = chunksRef.current.find((c) => c.id === chunkId)
+    if (!chunk || !chunk.runnable || chunk.unterminated) return
+    await runChunkCodeRef.current(chunkId, chunk.code, chunk.header.options)
+  }, [])
   const runChunkRef = useRef(runChunkById)
   runChunkRef.current = runChunkById
   const runChunkAtCursorRef = useRef<() => Promise<void>>(async () => {})
@@ -840,6 +915,10 @@ export function CodeEditor(): React.ReactElement {
               modelsRef.current.get(activeTab.id)?.getValue() ?? activeTab.content
             ).body}
             onChange={() => { /* written back on exit; see exitVisual */ }}
+            tabId={activeTab.id}
+            onRunChunk={(chunkId, code, options) => {
+              void runChunkCodeRef.current(chunkId, code, options)
+            }}
           />
         )}
 
@@ -916,9 +995,28 @@ export function CodeEditor(): React.ReactElement {
         {/* Markdown insert ribbon — last child of the editor column, so it takes
             height from the editor box and never disturbs the console split. */}
         {isMarkdown && (
-          <MarkdownRibbon supportsChunks={supportsChunks(docLang)} backend={mdBackend} />
+          <MarkdownRibbon
+            supportsChunks={supportsChunks(docLang)}
+            backend={mdBackend}
+            unsupported={isVisual ? VISUAL_UNSUPPORTED : undefined}
+          />
         )}
       </div>
+
+      <MdPromptDialog
+        action={pending?.action ?? null}
+        selectionText={pending?.selectionText ?? ''}
+        onCancel={() => setPending(null)}
+        onSubmit={(values) => {
+          const p = pending
+          setPending(null)
+          if (!p) return
+          applyResolvedRef.current(
+            applyPromptValues(p.action, values, p.selectionText.length > 0),
+            values,
+          )
+        }}
+      />
 
       <RoundTripWarningDialog
         open={rtWarning !== null}

@@ -89,5 +89,7 @@ export function RoundTripWarningDialog({
 
 function labelFor(kind: string): string {
   if (kind === 'html') return 'raw HTML'
+  if (kind === 'footnoteDefinition') return 'footnote definition'
+  if (kind === 'footnoteReference') return 'footnote reference'
   return kind
 }

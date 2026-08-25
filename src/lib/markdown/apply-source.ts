@@ -157,7 +157,10 @@ function applyBlock(
   const to = hasSelection ? selEnd : lineEnd(text, selStart)
 
   const currentLine = text.slice(from, to)
-  const { text: body, caret } = expandSnippet(op.body)
+  // Generated code is verbatim: a `$1` inside R is data, not a caret slot.
+  const { text: body, caret } = op.literal
+    ? { text: op.body, caret: op.body.length }
+    : expandSnippet(op.body)
 
   // Ensure the block is separated from surrounding prose by a blank line, but
   // don't pile up blank lines at the start or end of the document.
@@ -177,6 +180,42 @@ function applyBlock(
   return { from, to, insertText, selStart: caretAt, selEnd: caretAt }
 }
 
+// ── inline insert ───────────────────────────────────────────────────────────
+/** Replace the selection with `body`, no blank-line handling. Caret at the end. */
+function applyInsert(
+  _text: string, selStart: number, selEnd: number,
+  op: Extract<MdSourceOp, { kind: 'insert' }>,
+): MdEdit {
+  const { text: body, caret } = expandSnippet(op.body)
+  const at = selStart + caret
+  return { from: selStart, to: selEnd, insertText: body, selStart: at, selEnd: at }
+}
+
+// ── footnote ────────────────────────────────────────────────────────────────
+/**
+ * A footnote is two edits in two places: the marker at the caret and the
+ * definition at the end of the document. `MdEdit` carries one range, so the
+ * single edit spans caret→EOF and re-emits the text in between. That keeps the
+ * whole insertion one undo step, which is what the user expects from one click.
+ */
+function applyFootnote(
+  text: string, _selStart: number, selEnd: number,
+  op: Extract<MdSourceOp, { kind: 'footnote' }>,
+): MdEdit {
+  const marker = `[^${op.label}]`
+  // The marker goes AFTER any selection rather than replacing it — a footnote
+  // annotates text, it doesn't consume it.
+  const rest = text.slice(selEnd)
+  const definition = `[^${op.label}]: ${op.note}`
+  // Definitions are conventionally collected at the foot of the document, and
+  // must be separated from whatever precedes them by a blank line.
+  const tail = rest.replace(/\n+$/, '')
+  const gap = tail.trim() || text.slice(0, selEnd).trim() ? '\n\n' : ''
+  const insertText = marker + tail + gap + definition + '\n'
+  const caret = selEnd + marker.length
+  return { from: selEnd, to: text.length, insertText, selStart: caret, selEnd: caret }
+}
+
 /**
  * Compute the edit an action makes. `text` is the whole buffer; `selStart`/
  * `selEnd` are absolute offsets (equal for a bare caret).
@@ -189,6 +228,8 @@ export function computeMdEdit(
     case 'wrap': return applyWrap(text, a, b, action.source)
     case 'linePrefix': return applyLinePrefix(text, a, b, action.source)
     case 'block': return applyBlock(text, a, b, action.source)
+    case 'insert': return applyInsert(text, a, b, action.source)
+    case 'footnote': return applyFootnote(text, a, b, action.source)
   }
 }
 

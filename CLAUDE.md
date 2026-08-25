@@ -470,13 +470,27 @@ no `language` and default to `'r'`.
   than a miss: the *closing* fence is read as an *opening* code block and the
   rest of the document inverts. The derived `rmarkdown` language adds one
   brace-aware rule with `nextEmbedded`, so chunk bodies highlight as R. Pinned by
-  `rmarkdown-tokenize.test.ts`, which runs Monaco's real tokenizer.
+  `rmarkdown-tokenize.test.ts`, which runs Monaco's real tokenizer. Because this
+  imports Monaco's internals (`monaco-editor/esm/vs/basic-languages/markdown/`),
+  `monaco-editor` is a **direct, exactly-pinned** dependency rather than whatever
+  `@monaco-editor/react` happens to hoist.
 - **Actions** (`markdown/actions.ts`): one declarative catalog → three consumers.
   `apply-source.ts` is a pure `computeMdEdit(text, selStart, selEnd, action)`, so
   every wrap/unwrap toggle and list-renumbering rule is testable with no DOM;
   `MarkdownRibbon` is a thin Monaco adapter over it (`executeEdits`, never
   `applyExternalContent` — that does a whole-model `setValue` and destroys the
   cursor and undo stack). Ribbon primitives live in `src/components/ui/ribbon.tsx`.
+- **Two escapes from "data-only"**, both injected rather than imported, so the
+  catalog and `apply-source.ts` still test with no app running:
+  - `prompt` — values the editor can't infer. Link and footnote are the only
+    users, and both were previously inserted with the caret marker still in the
+    text (a bare `[^]`). `MdPromptDialog` collects them; `applyPromptValues`
+    folds them into a concrete source op. The host recognises these by candidate
+    id so `/link` opens the same dialog the ribbon button does.
+  - `dynamic` — a body generated from live app state, via the
+    `ChunkBodyGenerator` passed to `resolveActionBody`. Generated bodies are
+    marked `literal`, which skips `$N` snippet expansion: R code containing a
+    `$`-digit sequence would otherwise be silently corrupted.
 - **Slash menu**: `getCompletions(text, offset, deps, mode = 'r')`. The mode is
   **defaulted**, which is what structurally stops the shared R console
   (`Console.tsx:274`) from ever seeing markdown candidates — locked by a
@@ -485,6 +499,26 @@ no `language` and default to `'r'`.
   regex in `useCompletion.ts` (adding `/` there would pop the menu on `a/b`).
   Inside a chunk, `context-markdown.ts` slices the body and delegates to the R
   analyzer with shifted offsets, giving full R autocomplete in chunks.
+
+### Map chunks (`markdown/chunk-codegen.ts`)
+
+"Chunk: current map" and "Chunk: export current plot" generate real R from the
+layers, symbology, view and annotations currently on the map, by calling the same
+`generateTmapCode` / `generateGgplotCode` the Spatial Editor's Export dialogs
+call — a map written into a document and a map exported from the dialog are the
+same code. With nothing on the map the generator returns null and the action
+falls back to its static scaffolding.
+
+- `buildMapChunkParts` returns the header and code **separately** because Visual
+  mode builds a ProseMirror `code_block`, not a string of fences.
+- The engine is `useMarkdownSettingsStore.mapChunkEngine` (Settings → Documents,
+  persisted in `markdown-settings.json`): `tmap` (default), `ggplot`, or `auto`,
+  which follows `spatialSettings.lastExportMode` — whichever Export dialog the
+  user opened last.
+- The figure variant reuses each generator's `exportOpts` to emit its own save
+  call, and its chunk is `include=FALSE`: it exists to WRITE the file that the
+  following `![](figures/…)` references, so letting it also render inline would
+  put the same figure in the knitted document twice.
 
 ### Chunks and inline output
 
@@ -544,7 +578,39 @@ bug class on the Source↔Visual seam. Every Milkdown import is confined to
   serialization is unchanged on exit, the *original* text is written back, so
   looking at Visual mode never reformats the file or marks it dirty. Write-back
   uses `pushEditOperations`, not `setValue`, so Monaco's undo survives.
-- Known gap: `$…$` math renders as literal text.
+- **Exit serializes the live doc** (`getMarkdown()` action), never the value from
+  the `markdownUpdated` listener — that listener is **debounced by 200 ms**
+  inside Milkdown, so a snapshot from it silently drops whatever was typed in the
+  last fifth of a second, which in practice is every edit made just before
+  clicking "Source".
+- `joinFrontMatter` restores the blank line after the front matter: no markdown
+  serializer emits a leading blank line, so without it every trip through Visual
+  mode would shift the document up by one.
+- Known gaps: `$…$` math renders as literal text; **footnotes have no node in
+  Milkdown's commonmark+gfm schema**, so the ribbon dims them in Visual mode
+  (`VISUAL_UNSUPPORTED`) and `roundtrip.ts` flags them as unsupported. That flag
+  matters because remark round-trips footnotes *perfectly* — a remark-only check
+  sees no loss, while ProseMirror would drop them.
+
+#### Chunks in Visual mode (`visual/chunk-view.ts`)
+
+- **Options survive the round trip.** mdast splits ```` ```{r a, echo=FALSE} ````
+  into `lang: "{r"` + `meta: "a, echo=FALSE}"`, and Milkdown's stock code_block
+  keeps only `lang` — so everything after the first space was DROPPED on the way
+  back to markdown, a silent edit to the user's document just for looking at it.
+  `chunkAwareCodeBlock` (`codeBlockSchema.extendSchema`) carries `meta` both ways.
+- **Upgrade on focus, per the plan.** Each chunk holds two stacked layers: a
+  read-only hljs-highlighted `<pre>` and the real editable `contentDOM`. CSS
+  shows one at a time, driven by the `is-active` class that `activeChunkPlugin`
+  puts on whichever code block holds the selection. No per-chunk editor is
+  constructed, so a 50-chunk document stays cheap.
+- Clicking the read-only layer maps the point back to a character offset with a
+  **Range from the layer's start to the hit point** — a click in the `<pre>`'s
+  padding resolves to the ELEMENT, not a text node, so walking text nodes would
+  land every such click at the end of the chunk.
+- Output is keyed the same way `chunk-identity.ts` keys it (`label:<label>`), so
+  a chunk run in Source mode still shows its output in Visual and back, and Run
+  goes through the same `runChunkCode` path.
 
 ## Design Tokens
 

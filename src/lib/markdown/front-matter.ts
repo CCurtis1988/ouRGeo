@@ -50,10 +50,15 @@ export function splitFrontMatter(text: string): SplitDocument {
  * `---`) and `body` begins at the character after it, so exactly one newline
  * belongs between them. Adding it conditionally swallows the blank separator
  * line that was in the original file.
+ *
+ * A body that has been REWRITTEN — by Visual mode — has lost that leading blank
+ * line, because no markdown serializer emits one. Restore it, or every trip
+ * through Visual mode would shift the whole document up by a line.
  */
 export function joinFrontMatter(frontMatter: string, body: string): string {
   if (!frontMatter) return body
-  return frontMatter + '\n' + body
+  const gap = body === '' || body.startsWith('\n') ? '\n' : '\n\n'
+  return frontMatter + gap + body
 }
 
 /** Read a handful of top-level scalar keys. Deliberately not a YAML parser —

@@ -111,3 +111,49 @@ describe('parse/serialize', () => {
     expect(normalize('# A\r\n\r\nB\r\n')).toBe('# A\n\nB\n')
   })
 })
+
+describe('footnotes are flagged as unsupported', () => {
+  // remark round-trips footnotes perfectly, so `equal` stays true and the older
+  // guard let them through — but Milkdown's commonmark+gfm schema has no
+  // footnote node, so Visual mode would have dropped them silently.
+  const doc = 'Coastlines[^ne] are simplified.\n\n[^ne]: Natural Earth, 1:10m.\n'
+
+  it('reports the reference and the definition', () => {
+    const kinds = roundTripReport(doc).unsupported.map((u) => u.kind).sort()
+    expect(kinds).toEqual(['footnoteDefinition', 'footnoteReference'])
+  })
+
+  it('warns before entering Visual mode', () => {
+    expect(shouldWarn(roundTripReport(doc))).toBe(true)
+  })
+
+  it('names the footnote in the report rather than showing an empty snippet', () => {
+    const ref = roundTripReport(doc).unsupported.find((u) => u.kind === 'footnoteReference')
+    expect(ref?.snippet).toBe('ne')
+  })
+
+  it('leaves footnote-free documents alone', () => {
+    expect(shouldWarn(roundTripReport('# Title\n\nJust prose.\n'))).toBe(false)
+  })
+})
+
+describe('joining front matter back on', () => {
+  const doc = '---\ntitle: x\n---\n\n# Heading\n'
+
+  it('is lossless for a body that came straight from splitFrontMatter', () => {
+    const { frontMatter, body } = splitFrontMatter(doc)
+    expect(joinFrontMatter(frontMatter, body)).toBe(doc)
+  })
+
+  it('restores the blank separator for a rewritten body', () => {
+    // No markdown serializer emits a leading blank line, so a body that has been
+    // through Visual mode arrives without one. Without this, every Visual round
+    // trip would shift the document up by a line.
+    const { frontMatter } = splitFrontMatter(doc)
+    expect(joinFrontMatter(frontMatter, '# Heading\n')).toBe(doc)
+  })
+
+  it('leaves a body with no front matter alone', () => {
+    expect(joinFrontMatter('', '# Heading\n')).toBe('# Heading\n')
+  })
+})

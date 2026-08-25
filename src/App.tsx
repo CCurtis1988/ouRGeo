@@ -27,6 +27,8 @@ import { applyTheme, THEMES } from './lib/themes'
 import { useThemeStore, applyUiScale } from './store/theme'
 import { loadSpatialSettings } from './lib/spatial-settings-persistence'
 import { useSpatialSettingsStore } from './store/spatialSettings'
+import { loadMarkdownSettings } from './lib/markdown-settings-persistence'
+import { useMarkdownSettingsStore } from './store/markdownSettings'
 import { loadBasemap } from './lib/basemap-persistence'
 import { useBasemapStore } from './store/basemap'
 import { useEnvironmentStore } from './store/environment'
@@ -77,16 +79,23 @@ function MainApp(): React.ReactElement {
       })
 
       // Load spatial editor settings
-      const { mode: extentMode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs } =
-        await loadSpatialSettings()
+      const {
+        mode: extentMode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs,
+        lastExportMode
+      } = await loadSpatialSettings()
       useSpatialSettingsStore.setState({
         initialExtentMode: extentMode,
         userExtent,
         snapSettings,
         showAttributePopup,
         calcCrs,
-        defaultCrs
+        defaultCrs,
+        lastExportMode
       })
+
+      // Load markdown/R Markdown document settings
+      const mdSettings = await loadMarkdownSettings()
+      useMarkdownSettingsStore.setState(mdSettings)
 
       // Load saved basemap override
       const savedBasemap = await loadBasemap()

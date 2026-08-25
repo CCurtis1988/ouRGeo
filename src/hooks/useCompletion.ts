@@ -23,6 +23,13 @@ export interface AcceptResult {
   insertText: string
   /** final caret offset relative to the start of the inserted text */
   caret: number
+  /**
+   * Id of the accepted candidate. The editor host uses it to recognise the
+   * markdown actions that can't be completed by inserting text — a link needs
+   * its URL, a map chunk needs the live map — and route them to the same
+   * backend the ribbon button uses instead.
+   */
+  candidateId?: string
 }
 
 const CLOSED: CompletionState = { open: false, candidates: [], selected: 0, from: 0, to: 0 }
@@ -194,10 +201,12 @@ export function useCompletion() {
 
       if (cand.kind === 'snippet') {
         const { text, caret } = expandSnippet(cand.insertText)
-        return { from: s.from, to: s.to, insertText: text, caret }
+        return { from: s.from, to: s.to, insertText: text, caret, candidateId: cand.id }
       }
       const caret = cand.insertText.length + (cand.cursorOffset ?? 0)
-      return { from: s.from, to: s.to, insertText: cand.insertText, caret }
+      return {
+        from: s.from, to: s.to, insertText: cand.insertText, caret, candidateId: cand.id,
+      }
     },
     [state]
   )

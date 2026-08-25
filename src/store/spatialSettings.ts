@@ -28,6 +28,9 @@ export interface SnapSettings {
   tolerancePx: number
 }
 
+/** Which map-code generator the export dialogs last used. */
+export type ExportCodeMode = 'tmap' | 'ggplot'
+
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   kinds: { vertex: true, edge: true, midpoint: true, intersection: true },
   tolerancePx: 15
@@ -48,12 +51,19 @@ interface SpatialSettingsState {
   calcCrs: string
   /** Default CRS (EPSG code / CRS string) for sf geometry created in ouRGeo. */
   defaultCrs: string
+  /**
+   * Which "Export to …" code dialog the user opened last. Read by the R
+   * Markdown map chunk when its engine setting is 'auto', so the chunk it
+   * inserts matches the flavour of code the user has been working in.
+   */
+  lastExportMode: ExportCodeMode
   setInitialExtentMode: (mode: InitialExtentMode) => void
   setUserExtent: (extent: UserExtent) => void
   setSnapSettings: (s: SnapSettings) => void
   setShowAttributePopup: (v: boolean) => void
   setCalcCrs: (v: string) => void
   setDefaultCrs: (v: string) => void
+  setLastExportMode: (v: ExportCodeMode) => void
 }
 
 export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
@@ -63,12 +73,14 @@ export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
   showAttributePopup: true,
   calcCrs: 'auto',
   defaultCrs: '4326',
+  lastExportMode: 'tmap',
   setInitialExtentMode: (initialExtentMode) => set({ initialExtentMode }),
   setUserExtent: (userExtent) => set({ userExtent }),
   setSnapSettings: (snapSettings) => set({ snapSettings }),
   setShowAttributePopup: (showAttributePopup) => set({ showAttributePopup }),
   setCalcCrs: (calcCrs) => set({ calcCrs }),
-  setDefaultCrs: (defaultCrs) => set({ defaultCrs })
+  setDefaultCrs: (defaultCrs) => set({ defaultCrs }),
+  setLastExportMode: (lastExportMode) => set({ lastExportMode })
 }))
 
 export function computeInitialViewState(mode: InitialExtentMode, userExtent: UserExtent): ViewState {
