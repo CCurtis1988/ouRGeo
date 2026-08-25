@@ -509,4 +509,20 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     const buffer = Buffer.from(base64, 'base64')
     await writeFile(filePath, buffer)
   })
+
+  // Open an http(s) URL in the user's browser. Distinct from shell:openPath,
+  // which is for files — openPath on a URL fails on every platform.
+  ipcMain.handle('shell:openExternal', async (_evt, url: string): Promise<void> => {
+    // Refuse anything that is not a web URL: openExternal will happily hand
+    // file:// or a custom scheme to the OS, which is a way to launch things.
+    if (!/^https?:\/\//i.test(url)) throw new Error('Only http(s) links can be opened.')
+    await shell.openExternal(url)
+  })
+
+  // Base64 rather than a Buffer: structured clone would hand the renderer a
+  // Uint8Array anyway, and base64 keeps the channel a plain string like every
+  // other file handler here. Used by Publish to read knitted figures.
+  ipcMain.handle('file:readBinary', async (_evt, filePath: string): Promise<string> => {
+    return (await readFile(filePath)).toString('base64')
+  })
 }

@@ -18,6 +18,8 @@ import { CompletionPopup } from '../completion/CompletionPopup'
 import { type DocLanguage, languageOf, monacoLanguageFor, isMarkdownDoc, labelFor, supportsChunks } from '@/lib/markdown/doc-kind'
 import { LanguageSelector } from './LanguageSelector'
 import { KnitMenu } from './KnitMenu'
+import { PublishDialog } from './PublishDialog'
+import { Upload } from 'lucide-react'
 import { VisualEditor, type VisualEditorHandle } from './visual/VisualEditor'
 import { VISUAL_UNSUPPORTED } from './visual/apply-visual'
 import { RoundTripWarningDialog } from './RoundTripWarningDialog'
@@ -133,6 +135,7 @@ export function CodeEditor(): React.ReactElement {
   const visualRef = useRef<VisualEditorHandle>(null)
   const visualBaseline = useRef<{ body: string; original: string; frontMatter: string } | null>(null)
   const [rtWarning, setRtWarning] = useState<RoundTripReport | null>(null)
+  const [publishOpen, setPublishOpen] = useState(false)
   const chunksRef = useRef<IdentifiedChunk[]>([])
   chunksRef.current = chunks
   const addEntry = useSessionStore((s) => s.addConsoleEntry)
@@ -878,6 +881,16 @@ export function CodeEditor(): React.ReactElement {
             </Button>
             )}
             {supportsChunks(docLang) && activeTab && (
+              <Button
+                variant="ghost" size="sm" className="h-6 text-xs gap-1"
+                onClick={() => setPublishOpen(true)}
+                title="Knit this document and post it to the ouRGeo forum"
+              >
+                <Upload className="w-3 h-3" />
+                Publish
+              </Button>
+            )}
+            {supportsChunks(docLang) && activeTab && (
               <KnitMenu
                 filePath={activeTab.filePath}
                 isDirty={activeTab.isDirty}
@@ -1017,6 +1030,17 @@ export function CodeEditor(): React.ReactElement {
           )
         }}
       />
+
+      {activeTab && (
+        <PublishDialog
+          open={publishOpen}
+          onOpenChange={setPublishOpen}
+          filePath={activeTab.filePath}
+          isDirty={activeTab.isDirty}
+          content={activeTab.content}
+          onSaveRequest={handleSaveForKnit}
+        />
+      )}
 
       <RoundTripWarningDialog
         open={rtWarning !== null}

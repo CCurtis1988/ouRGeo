@@ -6,6 +6,26 @@ interface PlotPopoutState {
   total: number
 }
 
+/** A signed-in forum account, as the main process reports it. */
+interface ForumProfile {
+  id: string
+  username: string
+  displayName: string
+  role: string
+  trustLevel: number
+  bytesUsed: number
+  quota: number
+  bannedUntil: string | null
+}
+
+interface ForumCategory {
+  slug: string
+  name: string
+  description: string
+  icon: string
+  minRoleToPost: string
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -51,6 +71,7 @@ declare global {
         read(filePath: string): Promise<string>
         write(filePath: string, content: string): Promise<void>
         writeBinary(filePath: string, base64: string): Promise<void>
+        readBinary(filePath: string): Promise<string>
       }
       fs: {
         scanRgeo(folder: string): Promise<string[]>
@@ -61,10 +82,24 @@ declare global {
         showItemInFolder(filePath: string): Promise<void>
         /** Resolves to '' on success, or the OS error message. */
         openPath(filePath: string): Promise<string>
+        openExternal(url: string): Promise<void>
+      }
+      forum: {
+        restore(): Promise<ForumProfile | null>
+        signIn(req: { provider: 'google' | 'github' | 'email'; email?: string }): Promise<ForumProfile>
+        signOut(): Promise<void>
+        redirectUri(): Promise<string>
+        postableCategories(): Promise<ForumCategory[]>
+        uploadImage(req: {
+          bytes: Uint8Array; mime: string; width: number; height: number; alt?: string
+        }): Promise<{ id: string; url: string }>
+        createThread(req: {
+          category: string; title: string; body: string; attachmentIds: string[]
+        }): Promise<{ id: number; url: string; imageError: string | null }>
       }
       knit: {
         render(req: {
-          id: string; filePath: string; format: string; rscriptPath?: string
+          id: string; filePath: string; format: string; rscriptPath?: string; outputDir?: string
         }): Promise<{
           success: boolean
           outputPath?: string

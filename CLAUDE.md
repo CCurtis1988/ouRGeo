@@ -558,6 +558,50 @@ killed. `GET /rmarkdown/deps` drives `knit-deps.ts` so each format is
 failure is missing pandoc, which is not an R package. `knit-errors.ts` turns
 knitr's output into a hint and a line number to jump to.
 
+### Publish to the forum (`src/lib/forum/`, `electron/main/forum.ts`)
+
+The Publish button beside Knit knits an `.Rmd` to markdown and posts it to
+ourgeo.dev/forum.html as a new discussion.
+
+**The forum is a static site on Supabase**, not an API: a post is an insert into
+`threads`, figures go to the `post-images` storage bucket with a row in
+`post_attachments`, bound to the thread afterwards by `link_attachments()`. The
+schema lives in the separate `ourgeo-website` repo, and every gate — trust
+level, quota, per-post image cap, category role — is a Postgres trigger or RLS
+policy whose refusal message IS the user-facing sentence.
+
+- **Markdown, never HTML.** The forum's renderer HTML-escapes everything before
+  emitting a tag, so a knitted HTML document would render as literal markup;
+  bodies are capped at 12,000 characters where self-contained HTML is hundreds
+  of KB; and `data:` image URIs are rejected outright. Markdown is not a
+  preference here, it is the only thing that works.
+- **All of it runs in the main process.** The access token never reaches the
+  renderer, so a bug in the UI cannot post as the user. The renderer only
+  transcodes pixels (it has a canvas; main does not) and asks for named
+  operations.
+- **Auth is PKCE with a loopback redirect** on 127.0.0.1:8788–8790, which is
+  what lets one flow cover all three sign-in methods: google/github through
+  `/auth/v1/authorize` in the real browser, email through `/auth/v1/otp` as a
+  magic link that lands on the same loopback. The verifier stays in the main
+  process. **The ports must be listed in Supabase → Authentication → URL
+  Configuration → Redirect URLs**, or the browser round trip dead-ends.
+- The refresh token is stored with Electron `safeStorage` (`forum-session.bin`),
+  not the plaintext `api-keys.json` convention — unlike an API key it grants the
+  ability to post as the user. With no OS keyring available nothing is stored
+  and the user signs in again next launch.
+- **Figures upload before the thread is created.** A document whose images are
+  refused then fails with nothing published; the other order would leave a
+  public post missing half its figures and no way to fix it from the app.
+
+`publish-markdown.ts` is a pure transform bridging pandoc's output to the
+forum's small vocabulary, and each rule exists because of something real in the
+renderer: indented chunk output becomes fenced (there is no indented-code rule,
+so a printed data frame would arrive as prose), ``` ``` r ``` becomes ``` ```r ```
+(the fence regex needs no space, or a stray `r` lands on the first code line),
+pipe tables become aligned text in a fence (there is no table rule at all), and
+raw HTML is dropped. Pinned by tests against a fixture captured from a real
+`rmarkdown::render()` run.
+
 ### Visual mode
 
 Milkdown (ProseMirror + remark). remark was already in the tree via `remark-gfm`,

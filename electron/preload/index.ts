@@ -72,7 +72,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     write: (filePath: string, content: string): Promise<void> =>
       ipcRenderer.invoke('file:write', filePath, content),
     writeBinary: (filePath: string, base64: string): Promise<void> =>
-      ipcRenderer.invoke('file:writeBinary', filePath, base64)
+      ipcRenderer.invoke('file:writeBinary', filePath, base64),
+    /** Base64 contents, for figures Publish has to transcode. */
+    readBinary: (filePath: string): Promise<string> =>
+      ipcRenderer.invoke('file:readBinary', filePath)
   },
   fs: {
     scanRgeo: (folder: string): Promise<string[]> =>
@@ -82,8 +85,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fileStat: (filePath: string): Promise<{ exists: boolean; size: number; mtimeMs: number }> =>
       ipcRenderer.invoke('fs:fileStat', filePath)
   },
+  forum: {
+    restore: (): Promise<unknown> => ipcRenderer.invoke('forum:restore'),
+    signIn: (req: { provider: 'google' | 'github' | 'email'; email?: string }): Promise<unknown> =>
+      ipcRenderer.invoke('forum:signIn', req),
+    signOut: (): Promise<void> => ipcRenderer.invoke('forum:signOut'),
+    redirectUri: (): Promise<string> => ipcRenderer.invoke('forum:redirectUri'),
+    postableCategories: (): Promise<unknown[]> => ipcRenderer.invoke('forum:postableCategories'),
+    uploadImage: (req: {
+      bytes: Uint8Array; mime: string; width: number; height: number; alt?: string
+    }): Promise<{ id: string; url: string }> => ipcRenderer.invoke('forum:uploadImage', req),
+    createThread: (req: {
+      category: string; title: string; body: string; attachmentIds: string[]
+    }): Promise<{ id: number; url: string; imageError: string | null }> =>
+      ipcRenderer.invoke('forum:createThread', req),
+  },
   knit: {
-    render: (req: { id: string; filePath: string; format: string; rscriptPath?: string }): Promise<unknown> =>
+    render: (req: {
+      id: string; filePath: string; format: string; rscriptPath?: string; outputDir?: string
+    }): Promise<unknown> =>
       ipcRenderer.invoke('knit:render', req),
     cancel: (id: string): Promise<boolean> => ipcRenderer.invoke('knit:cancel', id),
     onProgress: (id: string, cb: (text: string) => void): (() => void) => {
@@ -98,7 +118,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('shell:showItemInFolder', filePath),
     /** Resolves to '' on success, or the OS error message. */
     openPath: (filePath: string): Promise<string> =>
-      ipcRenderer.invoke('shell:openPath', filePath)
+      ipcRenderer.invoke('shell:openPath', filePath),
+    /** Open an http(s) URL in the user's browser. */
+    openExternal: (url: string): Promise<void> =>
+      ipcRenderer.invoke('shell:openExternal', url)
   },
   app: {
     getDataPath: (): Promise<string> => ipcRenderer.invoke('app:getDataPath'),
