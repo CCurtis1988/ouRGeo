@@ -136,9 +136,14 @@ export function CodeEditor(): React.ReactElement {
   // in and straight back out leaves the file byte-identical.
   const visualRef = useRef<VisualEditorHandle>(null)
   const visualBaseline = useRef<{ body: string; original: string; frontMatter: string } | null>(null)
-  // Where the reader was when they switched. Carried across in both directions
-  // so a mode toggle keeps its place instead of jumping to the top.
+  // Where the reader was when they switched, carried across in both directions
+  // so a mode toggle keeps its place instead of jumping to the top. The view
+  // anchor scrolls; the caret anchor is remembered so it can be compared on the
+  // way out and written back ONLY if the reader moved it — scrolling is not an
+  // edit, and must not drag the cursor around behind it.
   const [visualAnchor, setVisualAnchor] = useState<DocAnchor | null>(null)
+  const [visualCaret, setVisualCaret] = useState<DocAnchor | null>(null)
+  const entryCaret = useRef<DocAnchor | null>(null)
   const [rtWarning, setRtWarning] = useState<RoundTripReport | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
   const chunksRef = useRef<IdentifiedChunk[]>([])
@@ -883,14 +888,23 @@ export function CodeEditor(): React.ReactElement {
     }
     visualBaseline.current = { body: normalize(body), original, frontMatter }
 
-    // Anchor on what is ON SCREEN, not on the caret: the caret is wherever it
+    // Scroll to what is ON SCREEN, not to the caret: the caret is wherever it
     // was last put, which after scrolling is nowhere the reader is looking.
     // Offsets here are into the WHOLE file, so the front matter comes off first.
     const editor = editorRef.current
+    const fmLen = original.length - body.length
+    const inBody = (offset: number): number => Math.max(0, offset - fmLen)
+
     const visible = editor?.getVisibleRanges() ?? []
     const topLine = visible.length > 0 ? visible[0].startLineNumber : 1
-    const offset = model.getOffsetAt({ lineNumber: topLine, column: 1 })
-    setVisualAnchor(anchorFromSource(body, Math.max(0, offset - (original.length - body.length))))
+    setVisualAnchor(anchorFromSource(
+      body, inBody(model.getOffsetAt({ lineNumber: topLine, column: 1 })),
+    ))
+
+    const caret = editor?.getPosition()
+    const caretAnchor = caret ? anchorFromSource(body, inBody(model.getOffsetAt(caret))) : null
+    setVisualCaret(caretAnchor)
+    entryCaret.current = caretAnchor
 
     useEditorStore.getState().setTabViewMode(tab.id, 'visual')
   }, [])
@@ -920,11 +934,21 @@ export function CodeEditor(): React.ReactElement {
         useEditorStore.getState().updateTabContent(tab.id, next)
       }
     }
-    // Land the caret where the reader was in Visual mode, and scroll to it —
-    // otherwise leaving Visual always drops them back at line 1.
+    // Scroll back to whatever Visual mode had on screen. The cursor comes back
+    // only if the reader actually moved it in there: an unchanged caret anchor
+    // means they scrolled and nothing more, and re-deriving its position from
+    // an anchor would nudge it (the anchor is exact to the alphanumeric, not to
+    // the byte) for no reason the reader asked for.
     const anchor = visualRef.current?.getAnchor() ?? null
+    const caretNow = visualRef.current?.getCaretAnchor() ?? null
+    const before = entryCaret.current
+    const caretMoved = !!caretNow
+      && (!before || caretNow.block !== before.block || caretNow.chars !== before.chars)
+
     visualBaseline.current = null
     setVisualAnchor(null)
+    setVisualCaret(null)
+    entryCaret.current = null
     useEditorStore.getState().setTabViewMode(tab.id, 'source')
 
     if (anchor) {
@@ -933,7 +957,10 @@ export function CodeEditor(): React.ReactElement {
       // Measure the front matter by difference rather than by its own length:
       // the blank separator line between it and the body is restored by
       // joinFrontMatter and is not part of either string.
-      const offset = full.length - body.length + sourceOffsetFromAnchor(body, anchor)
+      const fmLen = full.length - body.length
+      const offsetOf = (a: DocAnchor): number => fmLen + sourceOffsetFromAnchor(body, a)
+      const scrollTo = offsetOf(anchor)
+      const caretTo = caretMoved && caretNow ? offsetOf(caretNow) : null
 
       // Two frames, and an explicit layout() between. Monaco spends Visual mode
       // inside a `display:none` wrapper, so it has no width until React unhides
@@ -944,11 +971,14 @@ export function CodeEditor(): React.ReactElement {
         const editor = editorRef.current
         if (!editor || editor.getModel() !== model) return
         editor.layout()
-        const pos = model.getPositionAt(Math.min(offset, model.getValueLength()))
-        editor.setPosition(pos)
+        const at = (offset: number): monaco.Position =>
+          model.getPositionAt(Math.min(offset, model.getValueLength()))
+        if (caretTo !== null) editor.setPosition(at(caretTo))
         editor.focus()
-        // Top of the viewport, matching where the anchor was read from.
-        editor.setScrollTop(editor.getTopForPosition(pos.lineNumber, pos.column))
+        // Top of the viewport, matching where the anchor was read from. Set
+        // last: focus() can scroll to the cursor, which may be off screen.
+        const top = at(scrollTo)
+        editor.setScrollTop(editor.getTopForPosition(top.lineNumber, top.column))
       }))
     }
   }, [])
@@ -1073,6 +1103,7 @@ export function CodeEditor(): React.ReactElement {
             tabId={activeTab.id}
             supportsChunks={supportsChunks(docLang)}
             initialAnchor={visualAnchor}
+            initialCaret={visualCaret}
             onPromptAction={(id) => {
               const action = MD_ACTION_BY_ID[id]
               if (action) mdBackendRef.current.apply(action)

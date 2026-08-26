@@ -22,7 +22,9 @@ import { markdownSlashMenu } from '@/lib/completion/engine'
 import { MD_ACTION_BY_ID } from '@/lib/markdown/actions'
 import type { CompletionCandidate } from '@/lib/completion/types'
 import type { DocAnchor } from '@/lib/markdown/doc-position'
-import { anchorFromView, applyAnchorToView } from './anchor'
+import {
+  anchorFromView, caretAnchorFromView, setCaretAtAnchor, scrollAnchorToTop,
+} from './anchor'
 import { slashPlugin, type SlashSession, type SlashControl } from './slash'
 
 // Visual (WYSIWYG) mode.
@@ -39,8 +41,10 @@ import { slashPlugin, type SlashSession, type SlashControl } from './slash'
 
 export interface VisualEditorHandle {
   getMarkdown(): string
-  /** Where the caret is, in the form Source mode can honour. */
+  /** What is on screen, in the form Source mode can honour. */
   getAnchor(): DocAnchor | null
+  /** Where the cursor is. Only written back if the reader moved it. */
+  getCaretAnchor(): DocAnchor | null
   /** Selected text, for seeding an action's prompt dialog. */
   getSelectionText(): string
   applyAction(action: MdActionDef, values?: Record<string, string>): boolean
@@ -57,15 +61,20 @@ interface Props {
   onRunChunk: (chunkId: string, code: string, options: Record<string, string>) => void
   /** `.Rmd`/`.qmd` — offers the chunk actions in the `/` menu. */
   supportsChunks: boolean
-  /** Where Source mode was looking, so Visual opens at the same place. */
+  /** What Source mode had on screen, so Visual opens at the same place. */
   initialAnchor?: DocAnchor | null
+  /** Where Source mode's cursor was, so a toggle does not move it. */
+  initialCaret?: DocAnchor | null
   /** An action needing a prompt dialog (link) — the host owns those. */
   onPromptAction: (actionId: string) => void
 }
 
 export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
   function VisualEditor(
-    { initialValue, onChange, tabId, onRunChunk, supportsChunks, initialAnchor, onPromptAction },
+    {
+      initialValue, onChange, tabId, onRunChunk, supportsChunks,
+      initialAnchor, initialCaret, onPromptAction,
+    },
     ref,
   ) {
     const hostRef = useRef<HTMLDivElement>(null)
@@ -96,9 +105,10 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
     onPromptRef.current = onPromptAction
     const supportsChunksRef = useRef(supportsChunks)
     supportsChunksRef.current = supportsChunks
-    // Read once, at mount: the anchor is where Source mode was looking when the
-    // switch happened, not something that keeps tracking it.
+    // Read once, at mount: these are where Source mode was when the switch
+    // happened, not something that keeps tracking it.
     const anchorRef = useRef(initialAnchor ?? null)
+    const caretRef = useRef(initialCaret ?? null)
 
     const readMarkdownRef = useRef<() => string>(() => initialValue)
     const applyActionRef = useRef<(a: MdActionDef) => boolean>(() => false)
@@ -199,7 +209,11 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
             if (!ctx || disposed) return
             try {
               const view = ctx.get(editorViewCtx)
-              if (anchorRef.current) applyAnchorToView(view, anchorRef.current)
+              // Cursor first and scroll second, and never the other way round:
+              // the scroll is what the reader asked for, the cursor is only
+              // being carried over so it does not silently jump to the top.
+              if (caretRef.current) setCaretAtAnchor(view, caretRef.current)
+              if (anchorRef.current) scrollAnchorToTop(view, anchorRef.current)
               view.focus()
             } catch { /* torn down, or an empty document */ }
           }))
@@ -267,6 +281,11 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
         const ctx = ctxRef.current
         if (!ctx) return null
         try { return anchorFromView(ctx.get(editorViewCtx)) } catch { return null }
+      },
+      getCaretAnchor: () => {
+        const ctx = ctxRef.current
+        if (!ctx) return null
+        try { return caretAnchorFromView(ctx.get(editorViewCtx)) } catch { return null }
       },
       // The Monaco selection is meaningless here — the document on screen is a
       // ProseMirror doc — so the prompt dialog has to ask this side for it.

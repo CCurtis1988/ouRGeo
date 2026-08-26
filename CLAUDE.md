@@ -673,13 +673,25 @@ bug class on the Source↔Visual seam. Every Milkdown import is confined to
   paragraph they were reading. `contentStartOf` descends to the first positioned
   leaf so `# `, `- ` and a chunk's ```` ```{r label} ```` header don't count.
 
-  **Both ends read the VIEWPORT, not the caret** — Monaco's
+  **Two anchors travel, and they are independent.** The VIEW anchor drives
+  scrolling and is read from the viewport — Monaco's
   `getVisibleRanges()[0].startLineNumber`, and in Visual the first top-level
   block whose rect bottom is below the pane top (with the fraction scrolled past
-  mapped onto its character count, so a long chunk resumes mid-way). The caret
-  is wherever it was last put, which after any scrolling is not where the reader
-  is looking. The anchor is restored to the TOP of the destination viewport,
-  because that is where it was measured from.
+  mapped onto its character count, so a long chunk resumes mid-way). It is
+  restored to the TOP of the destination viewport, because that is where it was
+  measured from. Following the caret instead would land the reader wherever the
+  cursor happened to be left, which after any scrolling is not what they are
+  looking at.
+
+  The CARET anchor is carried separately and **written back only when the reader
+  moved it**: `entryCaret` is recorded on the way in and compared on the way
+  out. A mode toggle is not an edit, so an unchanged caret is left exactly where
+  it is rather than re-derived from an anchor — the anchor is exact to the
+  alphanumeric, not to the byte, so round-tripping an untouched cursor would
+  nudge it for no reason. Hence `setCaretAtAnchor` and `scrollAnchorToTop` are
+  separate calls; ProseMirror's `scrollIntoView()` flag could not be used for
+  the second even in principle, because it needs a transaction and therefore a
+  selection change.
 
   Both restores scroll by hand. Visual: two frames after `create()`, because the
   pane's scroll height is still settling and ProseMirror's `scrollIntoView()`
