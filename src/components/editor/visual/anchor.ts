@@ -14,19 +14,41 @@ import {
   countSignificant, advanceSignificant, DOC_START, type DocAnchor,
 } from '@/lib/markdown/doc-position'
 
-/** Where the selection head sits, as a document anchor. */
+/**
+ * What the reader is LOOKING AT, as a document anchor.
+ *
+ * Deliberately the viewport rather than the selection. The caret is wherever it
+ * was last put — often the top of the document, or somewhere the reader scrolled
+ * away from ten paragraphs ago — so restoring it lands them somewhere they are
+ * not. The first block still on screen is what they were reading.
+ *
+ * When that block is partly scrolled past, the fraction hidden above the fold
+ * maps onto its character count, so a long chunk resumes in the middle rather
+ * than at its first line.
+ */
 export function anchorFromView(view: EditorView): DocAnchor {
-  const { state } = view
-  const $pos = state.doc.resolve(state.selection.head)
-  if ($pos.depth === 0) return { block: $pos.index(0), chars: 0 }
+  const doc = view.state.doc
+  if (doc.childCount === 0) return DOC_START
 
-  const block = $pos.index(0)
-  // Content-relative offset: one past the position before the top-level node is
-  // its first content position.
-  const contentFrom = $pos.before(1) + 1
-  const node = state.doc.child(block)
-  const inside = Math.max(0, Math.min($pos.pos - contentFrom, node.content.size))
-  return { block, chars: countSignificant(node.textBetween(0, inside, '\n', '\n')) }
+  const pane = scrollParent(view.dom as HTMLElement)
+  const paneTop = pane ? pane.getBoundingClientRect().top : 0
+
+  let pos = 0
+  for (let i = 0; i < doc.childCount; i++) {
+    const node = doc.child(i)
+    const dom = view.nodeDOM(pos) as HTMLElement | null
+    pos += node.nodeSize
+    const rect = dom?.getBoundingClientRect?.()
+    if (!rect) continue
+    if (rect.bottom <= paneTop) continue // entirely above the fold
+
+    const hidden = rect.height > 0
+      ? Math.min(Math.max((paneTop - rect.top) / rect.height, 0), 1)
+      : 0
+    const text = node.textBetween(0, node.content.size, '\n', '\n')
+    return { block: i, chars: Math.round(countSignificant(text) * hidden) }
+  }
+  return { block: doc.childCount - 1, chars: 0 }
 }
 
 /** Nearest ancestor that actually scrolls — the pane Visual mode lives in. */
@@ -39,14 +61,16 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
 }
 
 /**
- * Put the selection at `anchor` and bring it into view.
+ * Put the selection at `anchor` and scroll it to the top of the pane.
  *
  * The scroll is done by hand rather than with ProseMirror's `scrollIntoView()`
  * transaction flag: this runs immediately after the editor is created, and at
  * that point the pane's scroll height is still settling, so the built-in scroll
  * lands on a box that has not finished growing and leaves the reader at the top.
- * Measuring coordinates and setting `scrollTop` ourselves is unambiguous, and
- * a third of the way down is where the eye expects to resume reading.
+ *
+ * The anchor goes to the TOP of the viewport, not the middle, because it was
+ * captured from the top of the other editor's viewport — putting it anywhere
+ * else would shift the document by half a screen on every toggle.
  */
 export function applyAnchorToView(view: EditorView, anchor: DocAnchor = DOC_START): void {
   const { state } = view
@@ -71,7 +95,6 @@ export function applyAnchorToView(view: EditorView, anchor: DocAnchor = DOC_STAR
   try {
     const caret = view.coordsAtPos(selection.head)
     const box = pane.getBoundingClientRect()
-    const delta = caret.top - box.top - pane.clientHeight / 3
-    pane.scrollTop = Math.max(0, pane.scrollTop + delta)
+    pane.scrollTop = Math.max(0, pane.scrollTop + (caret.top - box.top))
   } catch { /* position not rendered yet */ }
 }

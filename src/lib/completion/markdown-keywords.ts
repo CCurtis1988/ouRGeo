@@ -2,7 +2,7 @@
 // One source of truth: adding an action to the catalog gives you both a ribbon
 // button and a `/` entry.
 
-import { actionsFor, nextChunkLabel, type MdActionDef } from '@/lib/markdown/actions'
+import { actionsFor, nextChunkLabel, type MdActionDef, type MdActionGroup } from '@/lib/markdown/actions'
 import { expandSnippet } from './snippet'
 import type { CompletionCandidate } from './types'
 
@@ -54,6 +54,21 @@ export function mdActionNeedsHost(action: MdActionDef): boolean {
  * `docText` is needed so a chunk action can pre-fill its label — a labelled
  * chunk keeps a stable identity for its output.
  */
+/**
+ * Tint per group, so the list reads as five bands at a glance.
+ *
+ * The shape carries the meaning — that is the icon's job — and the colour
+ * carries the neighbourhood: headings, inline formatting, blocks, things you
+ * insert, and the two that reach into the live ouRGeo session.
+ */
+const GROUP_TINT: Record<MdActionGroup, string> = {
+  heading: '#4493f8', // geo-accent
+  text: '#bc8cff',
+  block: '#3fb950', // geo-success
+  insert: '#39c5cf',
+  ourgeo: '#f0883e',
+}
+
 export function mdSlashCandidates(docText: string, supportsChunks: boolean): CompletionCandidate[] {
   return actionsFor(supportsChunks).map((action, i) => {
     const { text, caret } = insertionFor(action, docText)
@@ -66,6 +81,9 @@ export function mdSlashCandidates(docText: string, supportsChunks: boolean): Com
       // Offset from the END of insertText, matching CompletionCandidate's contract.
       cursorOffset: caret - text.length,
       bias: i,
+      // The ribbon's own icon, so the row and the button look the same.
+      icon: action.icon,
+      iconTint: GROUP_TINT[action.group],
       // Keywords are matched by widening the label the fuzzy matcher sees; see
       // matchTargets below.
     }

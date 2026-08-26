@@ -80,11 +80,13 @@ export function CompletionPopup({
             onMouseEnter={() => onHover(i)}
           >
             <span
-              className="w-4 flex-shrink-0 text-center text-[13px] leading-none"
-              style={{ color: icon.color }}
+              className="flex w-4 flex-shrink-0 items-center justify-center text-[13px] leading-none"
+              style={{ color: c.iconTint ?? icon.color }}
               title={icon.tip}
             >
-              {icon.glyph}
+              {/* A drawn icon when the candidate has one (the markdown catalog
+                  shares the ribbon's), the kind's typographic glyph otherwise. */}
+              {c.icon ? <c.icon size={13} /> : icon.glyph}
             </span>
             <span className="flex-shrink-0 truncate">
               <HighlightedLabel label={c.label} matched={c.matched} selected={isSel} />

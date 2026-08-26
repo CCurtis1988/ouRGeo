@@ -1,3 +1,4 @@
+import type React from 'react'
 import type { ColumnInfo, RFormalArg, REnvironmentInfo } from '@/lib/r-client'
 
 /**
@@ -16,6 +17,9 @@ export type CompletionKind =
   | 'snippet' // a code snippet
   | 'keyword' // an R language keyword
   | 'markdown' // a markdown element from the `/` slash menu
+
+/** A lucide icon component, as the markdown catalog stores them. */
+export type CandidateIcon = React.ComponentType<{ className?: string; size?: number | string }>
 
 export interface CompletionCandidate {
   /** stable id (kind + name) for React keys */
@@ -36,6 +40,16 @@ export interface CompletionCandidate {
   cursorOffset?: number
   /** intrinsic priority within a match tier (lower sorts first) */
   bias?: number
+  /**
+   * A drawn icon, used instead of the kind's typographic glyph.
+   *
+   * The markdown catalog already carries one lucide icon per action for the
+   * ribbon; passing it through means a `/` row and its ribbon button show the
+   * same picture, and the twenty markdown entries stop being twenty identical
+   * pilcrows. `iconTint` groups them by colour.
+   */
+  icon?: CandidateIcon
+  iconTint?: string
   /** populated by the matcher: score + which chars matched (for highlight) */
   score?: number
   matched?: number[]

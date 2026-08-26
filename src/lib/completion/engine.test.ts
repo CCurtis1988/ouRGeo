@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getCompletions } from './engine'
+import { getCompletions, markdownSlashMenu } from './engine'
 import type { EngineDeps, EnvIndex, IndexedObject, IndexedPackage } from './types'
 import type { ColumnInfo, RFormalArg } from '@/lib/r-client'
 
@@ -226,5 +226,25 @@ describe('getCompletions — mode gating', () => {
     const [text, off] = cur('```{r}\ndf$|')
     const res = getCompletions(text, off, deps, 'rmarkdown')
     expect(res.candidates.map((c) => c.label)).toEqual(expect.arrayContaining(['elev', 'name']))
+  })
+})
+
+describe('slash menu icons', () => {
+  it('gives every markdown entry its own icon, tinted by group', () => {
+    // Twenty identical pilcrows told the reader nothing; the point of the row
+    // is that its picture is legible without reading the label.
+    const items = markdownSlashMenu('', true, '')
+    expect(items.length).toBeGreaterThan(15)
+    expect(items.every((c) => c.icon && c.iconTint)).toBe(true)
+    expect(new Set(items.map((c) => c.icon)).size).toBe(items.length)
+    // Grouped, not one colour per row.
+    const tints = new Set(items.map((c) => c.iconTint))
+    expect(tints.size).toBeGreaterThan(1)
+    expect(tints.size).toBeLessThan(items.length)
+  })
+
+  it('leaves R candidates on their typographic glyphs', () => {
+    const r = getCompletions('me', 2, deps)
+    expect(r.candidates.every((c) => c.icon === undefined)).toBe(true)
   })
 })

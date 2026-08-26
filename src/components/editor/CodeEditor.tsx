@@ -883,11 +883,13 @@ export function CodeEditor(): React.ReactElement {
     }
     visualBaseline.current = { body: normalize(body), original, frontMatter }
 
-    // The caret is an offset into the WHOLE file; the anchor is measured over
-    // the body Visual mode is given, so the front matter has to come off first.
+    // Anchor on what is ON SCREEN, not on the caret: the caret is wherever it
+    // was last put, which after scrolling is nowhere the reader is looking.
+    // Offsets here are into the WHOLE file, so the front matter comes off first.
     const editor = editorRef.current
-    const caret = editor?.getPosition()
-    const offset = caret ? model.getOffsetAt(caret) : 0
+    const visible = editor?.getVisibleRanges() ?? []
+    const topLine = visible.length > 0 ? visible[0].startLineNumber : 1
+    const offset = model.getOffsetAt({ lineNumber: topLine, column: 1 })
     setVisualAnchor(anchorFromSource(body, Math.max(0, offset - (original.length - body.length))))
 
     useEditorStore.getState().setTabViewMode(tab.id, 'visual')
@@ -926,17 +928,28 @@ export function CodeEditor(): React.ReactElement {
     useEditorStore.getState().setTabViewMode(tab.id, 'source')
 
     if (anchor) {
-      const { frontMatter, body } = splitFrontMatter(model.getValue())
-      const offset = sourceOffsetFromAnchor(body, anchor) + (frontMatter ? frontMatter.length : 0)
-      // The model swap and the Monaco re-show both land after this tick.
-      requestAnimationFrame(() => {
+      const full = model.getValue()
+      const { body } = splitFrontMatter(full)
+      // Measure the front matter by difference rather than by its own length:
+      // the blank separator line between it and the body is restored by
+      // joinFrontMatter and is not part of either string.
+      const offset = full.length - body.length + sourceOffsetFromAnchor(body, anchor)
+
+      // Two frames, and an explicit layout() between. Monaco spends Visual mode
+      // inside a `display:none` wrapper, so it has no width until React unhides
+      // it — and with wordWrap on, line heights depend on width. Scrolling
+      // before that relayout computes tops for a zero-width editor, which is
+      // what used to dump the reader at the end of the document.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
         const editor = editorRef.current
         if (!editor || editor.getModel() !== model) return
+        editor.layout()
         const pos = model.getPositionAt(Math.min(offset, model.getValueLength()))
         editor.setPosition(pos)
-        editor.revealPositionInCenter(pos)
         editor.focus()
-      })
+        // Top of the viewport, matching where the anchor was read from.
+        editor.setScrollTop(editor.getTopForPosition(pos.lineNumber, pos.column))
+      }))
     }
   }, [])
   const docLang = languageOf(activeTab)

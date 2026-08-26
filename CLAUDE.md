@@ -508,6 +508,10 @@ no `language` and default to `'r'`.
   | Source, over a selection | Monaco `onKeyDown` swallows the `/` | hands the action to the ribbon backend, which wraps/prefixes the selection |
   | Visual (both) | `visual/slash.ts`, a ProseMirror plugin | `applyVisualAction`, same as the ribbon button |
 
+  Rows carry the catalog's own lucide icon (`CompletionCandidate.icon`), tinted
+  per group by `GROUP_TINT`, so a `/` row and its ribbon button show the same
+  picture. R candidates keep the typographic glyphs from `icons.ts`.
+
   **Over a selection the `/` never reaches the document** — typing it would
   replace the selected lines, which is the opposite of the request. Because
   nothing can be typed, the keystrokes that would filter the list are
@@ -668,10 +672,22 @@ bug class on the Source↔Visual seam. Every Milkdown import is confined to
   approximate within one, which is the right trade for landing the reader on the
   paragraph they were reading. `contentStartOf` descends to the first positioned
   leaf so `# `, `- ` and a chunk's ```` ```{r label} ```` header don't count.
-  The Visual side scrolls the pane by hand rather than with ProseMirror's
-  `scrollIntoView()` flag: it runs two frames after `create()`, when the pane's
-  scroll height is still settling, and the built-in scroll no-ops on a box that
-  has not finished growing.
+
+  **Both ends read the VIEWPORT, not the caret** — Monaco's
+  `getVisibleRanges()[0].startLineNumber`, and in Visual the first top-level
+  block whose rect bottom is below the pane top (with the fraction scrolled past
+  mapped onto its character count, so a long chunk resumes mid-way). The caret
+  is wherever it was last put, which after any scrolling is not where the reader
+  is looking. The anchor is restored to the TOP of the destination viewport,
+  because that is where it was measured from.
+
+  Both restores scroll by hand. Visual: two frames after `create()`, because the
+  pane's scroll height is still settling and ProseMirror's `scrollIntoView()`
+  flag no-ops on a box that has not finished growing. Source: two frames plus an
+  explicit `editor.layout()`, because Monaco spends Visual mode inside a
+  `display:none` wrapper and has no width until React unhides it — and with
+  `wordWrap: 'on'` line heights depend on width, so scrolling before that
+  relayout computes tops for a zero-width editor.
 - Known gaps: `$…$` math renders as literal text; **footnotes have no node in
   Milkdown's commonmark+gfm schema**, so the ribbon dims them in Visual mode
   (`VISUAL_UNSUPPORTED`) and `roundtrip.ts` flags them as unsupported. That flag
