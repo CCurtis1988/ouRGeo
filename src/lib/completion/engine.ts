@@ -93,6 +93,25 @@ export function getCompletions(
   return { from: ctx.from, to: ctx.to, candidates, wants }
 }
 
+/**
+ * The `/` menu's candidates, filtered by what has been typed after the slash.
+ *
+ * `getCompletions` reaches the same list through the markdown analyzer, which
+ * needs a document and a caret offset. The two surfaces that have neither — a
+ * `/` pressed over a Monaco SELECTION, and Visual mode, where the document is a
+ * ProseMirror doc rather than text — come in here instead, so all three menus
+ * are the same catalog ranked the same way.
+ */
+export function markdownSlashMenu(
+  docText: string, supportsChunks: boolean, prefix: string,
+): CompletionCandidate[] {
+  return rank(
+    mdSlashCandidates(docText, supportsChunks),
+    { prefix },
+    mdMatchTerms(supportsChunks),
+  )
+}
+
 function pushColumns(
   out: CompletionCandidate[],
   frame: string,
@@ -190,7 +209,7 @@ function argumentCandidate(name: string, def: string): CompletionCandidate {
 }
 
 /** Filter by the typed prefix, then order by match quality, bias and length. */
-function rank(
+export function rank(
   raw: CompletionCandidate[],
   ctx: { prefix?: string },
   /** Extra terms to match against, beyond the label (slash-menu keywords). */

@@ -34,6 +34,8 @@ import { generateChunkBody } from '@/lib/markdown/chunk-codegen'
 import { mdActionNeedsHost } from '@/lib/completion/markdown-keywords'
 import { MdPromptDialog } from './MdPromptDialog'
 import { computeMdEdit } from '@/lib/markdown/apply-source'
+import { anchorFromSource, sourceOffsetFromAnchor, type DocAnchor } from '@/lib/markdown/doc-position'
+import { markdownSlashMenu } from '@/lib/completion/engine'
 import { scanChunks, chunkAtLine, runnableChunks } from '@/lib/markdown/chunks'
 import { reconcileChunks, toPrev, type IdentifiedChunk, type PrevChunk } from '@/lib/markdown/chunk-identity'
 import { MonacoChunkLayer } from './chunks/monacoChunkLayer'
@@ -134,6 +136,9 @@ export function CodeEditor(): React.ReactElement {
   // in and straight back out leaves the file byte-identical.
   const visualRef = useRef<VisualEditorHandle>(null)
   const visualBaseline = useRef<{ body: string; original: string; frontMatter: string } | null>(null)
+  // Where the reader was when they switched. Carried across in both directions
+  // so a mode toggle keeps its place instead of jumping to the top.
+  const [visualAnchor, setVisualAnchor] = useState<DocAnchor | null>(null)
   const [rtWarning, setRtWarning] = useState<RoundTripReport | null>(null)
   const [publishOpen, setPublishOpen] = useState(false)
   const chunksRef = useRef<IdentifiedChunk[]>([])
@@ -146,6 +151,10 @@ export function CodeEditor(): React.ReactElement {
   const compRef = useRef(comp)
   compRef.current = comp
   const [menuPos, setMenuPos] = useState<{ left: number; top: number; height: number } | null>(null)
+  // `/` pressed over a SELECTION. Nothing is typed into the document — the
+  // selection is what the chosen action applies to — so the characters that
+  // would normally filter the list are intercepted and accumulated here.
+  const slashOverSelection = useRef<{ filter: string } | null>(null)
 
   const queryCompletion = useCallback((manual = false) => {
     const editor = editorRef.current
@@ -167,6 +176,35 @@ export function CodeEditor(): React.ReactElement {
   }, [])
   const queryRef = useRef(queryCompletion)
   queryRef.current = queryCompletion
+
+  /**
+   * Open the `/` menu over the current selection, filtered by `filter`.
+   *
+   * The document is untouched: typing `/` over selected lines would replace
+   * them, which is the opposite of what the user asked for. The menu is anchored
+   * at the start of the selection, and accepting hands the action to the ribbon
+   * backend so it wraps or prefixes exactly as the toolbar button would.
+   */
+  const openSlashOverSelection = useCallback((filter: string) => {
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    const sel = editor?.getSelection()
+    if (!editor || !model || !sel) return
+    const anchorPos = sel.getStartPosition()
+    const vis = editor.getScrolledVisiblePosition(anchorPos)
+    const node = editor.getDomNode()
+    if (vis && node) {
+      const r = node.getBoundingClientRect()
+      const lh = editor.getOption(monaco.editor.EditorOption.lineHeight)
+      setMenuPos({ left: r.left + vis.left, top: r.top + vis.top, height: lh })
+    }
+    const items = markdownSlashMenu(
+      model.getValue(), supportsChunks(docLangRef.current), filter,
+    )
+    compRef.current.openMenu(items, model.getOffsetAt(anchorPos))
+  }, [])
+  const openSlashRef = useRef(openSlashOverSelection)
+  openSlashRef.current = openSlashOverSelection
 
   const applyAccept = useCallback((res: AcceptResult) => {
     const editor = editorRef.current
@@ -200,6 +238,27 @@ export function CodeEditor(): React.ReactElement {
     editor.focus()
     queryRef.current(false) // chain (e.g. args right after inserting `fn(`)
   }, [])
+  /**
+   * Finish an accepted completion.
+   *
+   * The selection-slash menu is the one case that does not insert text: it hands
+   * the chosen catalog entry to the same backend the ribbon buttons use, which
+   * is what makes selecting three lines and picking "Blockquote" quote all three
+   * rather than replace them.
+   */
+  const finishAccept = useCallback((res: AcceptResult) => {
+    if (!slashOverSelection.current) { applyRef.current(res); return }
+    slashOverSelection.current = null
+    const id = res.candidateId?.startsWith('markdown:')
+      ? res.candidateId.slice('markdown:'.length)
+      : null
+    const action = id ? MD_ACTION_BY_ID[id] : undefined
+    editorRef.current?.focus()
+    if (action) mdBackendRef.current.apply(action)
+  }, [])
+  const finishRef = useRef(finishAccept)
+  finishRef.current = finishAccept
+
   const applyRef = useRef(applyAccept)
   applyRef.current = applyAccept
 
@@ -570,20 +629,64 @@ export function CodeEditor(): React.ReactElement {
     // dismiss it on explicit caret moves / blur.
     editor.onKeyDown((e) => {
       const c = compRef.current
-      if (!c.state.open) return
       const K = monaco.KeyCode
       const stop = (): void => { e.preventDefault(); e.stopPropagation() }
+      const plain = !e.ctrlKey && !e.metaKey && !e.altKey
+
+      // `/` over a selection opens the menu instead of replacing the text.
+      if (
+        !c.state.open && plain && e.browserEvent.key === '/'
+        && isMarkdownDoc(docLangRef.current)
+        && !(editor.getSelection()?.isEmpty() ?? true)
+      ) {
+        stop()
+        slashOverSelection.current = { filter: '' }
+        openSlashRef.current('')
+        return
+      }
+
+      if (!c.state.open) return
+
+      // While that menu is up nothing may reach the document, so the keys that
+      // would filter the list are read here instead of from typed text.
+      const overSelection = slashOverSelection.current
+      if (overSelection) {
+        if (e.browserEvent.key === 'Backspace') {
+          stop()
+          if (overSelection.filter === '') { slashOverSelection.current = null; c.close(); return }
+          overSelection.filter = overSelection.filter.slice(0, -1)
+          openSlashRef.current(overSelection.filter)
+          return
+        }
+        if (
+          plain && e.browserEvent.key.length === 1 && e.browserEvent.key !== ' '
+          && ![K.Enter, K.Tab, K.Escape].includes(e.keyCode)
+        ) {
+          stop()
+          overSelection.filter += e.browserEvent.key
+          openSlashRef.current(overSelection.filter)
+          return
+        }
+      }
+
       if (e.keyCode === K.DownArrow) { stop(); c.move(1) }
       else if (e.keyCode === K.UpArrow) { stop(); c.move(-1) }
       else if (e.keyCode === K.Enter || e.keyCode === K.Tab) {
         stop()
         const res = c.accept()
-        if (res) applyRef.current(res)
-      } else if (e.keyCode === K.Escape) { stop(); c.close() }
-      else if ([K.LeftArrow, K.RightArrow, K.Home, K.End].includes(e.keyCode)) c.close()
+        if (res) finishRef.current(res)
+      } else if (e.keyCode === K.Escape) {
+        stop(); slashOverSelection.current = null; c.close()
+      } else if ([K.LeftArrow, K.RightArrow, K.Home, K.End].includes(e.keyCode)) {
+        slashOverSelection.current = null
+        c.close()
+      }
     })
-    editor.onMouseDown(() => compRef.current.close())
-    editor.onDidBlurEditorText(() => compRef.current.close())
+    editor.onMouseDown(() => { slashOverSelection.current = null; compRef.current.close() })
+    editor.onDidBlurEditorText(() => {
+      slashOverSelection.current = null
+      compRef.current.close()
+    })
 
     // Ctrl/Cmd+Space: manual trigger
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => queryRef.current(true))
@@ -779,6 +882,14 @@ export function CodeEditor(): React.ReactElement {
       if (shouldWarn(report)) { setRtWarning(report); return }
     }
     visualBaseline.current = { body: normalize(body), original, frontMatter }
+
+    // The caret is an offset into the WHOLE file; the anchor is measured over
+    // the body Visual mode is given, so the front matter has to come off first.
+    const editor = editorRef.current
+    const caret = editor?.getPosition()
+    const offset = caret ? model.getOffsetAt(caret) : 0
+    setVisualAnchor(anchorFromSource(body, Math.max(0, offset - (original.length - body.length))))
+
     useEditorStore.getState().setTabViewMode(tab.id, 'visual')
   }, [])
 
@@ -807,8 +918,26 @@ export function CodeEditor(): React.ReactElement {
         useEditorStore.getState().updateTabContent(tab.id, next)
       }
     }
+    // Land the caret where the reader was in Visual mode, and scroll to it —
+    // otherwise leaving Visual always drops them back at line 1.
+    const anchor = visualRef.current?.getAnchor() ?? null
     visualBaseline.current = null
+    setVisualAnchor(null)
     useEditorStore.getState().setTabViewMode(tab.id, 'source')
+
+    if (anchor) {
+      const { frontMatter, body } = splitFrontMatter(model.getValue())
+      const offset = sourceOffsetFromAnchor(body, anchor) + (frontMatter ? frontMatter.length : 0)
+      // The model swap and the Monaco re-show both land after this tick.
+      requestAnimationFrame(() => {
+        const editor = editorRef.current
+        if (!editor || editor.getModel() !== model) return
+        const pos = model.getPositionAt(Math.min(offset, model.getValueLength()))
+        editor.setPosition(pos)
+        editor.revealPositionInCenter(pos)
+        editor.focus()
+      })
+    }
   }, [])
   const docLang = languageOf(activeTab)
   const isMarkdown = isMarkdownDoc(docLang)
@@ -929,6 +1058,12 @@ export function CodeEditor(): React.ReactElement {
             ).body}
             onChange={() => { /* written back on exit; see exitVisual */ }}
             tabId={activeTab.id}
+            supportsChunks={supportsChunks(docLang)}
+            initialAnchor={visualAnchor}
+            onPromptAction={(id) => {
+              const action = MD_ACTION_BY_ID[id]
+              if (action) mdBackendRef.current.apply(action)
+            }}
             onRunChunk={(chunkId, code, options) => {
               void runChunkCodeRef.current(chunkId, code, options)
             }}
@@ -983,7 +1118,7 @@ export function CodeEditor(): React.ReactElement {
               lineHeight={menuPos.height}
               onPick={(i) => {
                 const res = comp.accept(i)
-                if (res) applyAccept(res)
+                if (res) finishRef.current(res)
               }}
               onHover={(i) => comp.setSelected(i)}
             />

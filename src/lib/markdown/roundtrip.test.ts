@@ -157,3 +157,23 @@ describe('joining front matter back on', () => {
     expect(joinFrontMatter('', '# Heading\n')).toBe('# Heading\n')
   })
 })
+
+describe('escapes and the entry guard', () => {
+  it('does not report a reformat for prose full of R identifiers', () => {
+    // Before the escape minimiser this warned on almost every real .Rmd: the
+    // serializer added a backslash to every underscore, so the guard correctly
+    // reported that entering Visual mode would rewrite the file.
+    const md = 'Plot with geom_line() over earthquake_url, roughly ~ 40 rows.\n'
+    const report = roundTripReport(md)
+    expect(report.equal).toBe(true)
+    expect(report.reformats).toBe(false)
+    expect(shouldWarn(report)).toBe(false)
+  })
+
+  it('stays idempotent when an escape really is load-bearing', () => {
+    const md = 'A _really_ emphatic point about geom_line().\n'
+    const once = normalize(md)
+    expect(normalize(once)).toBe(once)
+    expect(roundTripReport(md).equal).toBe(true)
+  })
+})

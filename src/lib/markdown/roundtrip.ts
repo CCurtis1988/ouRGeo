@@ -11,61 +11,23 @@
 // trailing spaces), which is expected and harmless. What must never change is
 // the document's STRUCTURE.
 
-import { unified } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkStringify from 'remark-stringify'
-import remarkGfm from 'remark-gfm'
 import type { Root, RootContent } from 'mdast'
+import { parseMarkdown, serializeMarkdown, structure } from './remark'
+import { minimizeEscapes } from './escapes'
 
-const parser = unified().use(remarkParse).use(remarkGfm)
-const stringifier = unified().use(remarkStringify, {
-  bullet: '-',
-  emphasis: '*',
-  strong: '*',
-  fences: true,
-  rule: '-',
-}).use(remarkGfm)
+export { parseMarkdown, serializeMarkdown }
 
-export function parseMarkdown(text: string): Root {
-  return parser.parse(text) as Root
-}
-
-export function serializeMarkdown(tree: Root): string {
-  return stringifier.stringify(tree)
-}
-
-/** Parse then re-serialize — one normalisation pass. */
+/**
+ * Parse then re-serialize — one normalisation pass, with the serializer's
+ * unnecessary backslashes taken back out.
+ *
+ * `minimizeEscapes` belongs here rather than only at the Visual-mode boundary:
+ * this is what the mode switch records as its baseline, and a baseline that
+ * still carried the escapes would never match the text Visual mode hands back,
+ * so a look-and-leave toggle would rewrite the file.
+ */
 export function normalize(text: string): string {
-  return serializeMarkdown(parseMarkdown(text))
-}
-
-/** Structural signature of a tree, ignoring source positions and cosmetics. */
-function structure(node: RootContent | Root): unknown {
-  const n = node as unknown as Record<string, unknown>
-  const kind = n.type as string
-  const kids = (n.children as RootContent[] | undefined)?.map(structure)
-  switch (kind) {
-    case 'text':
-    case 'inlineCode':
-      return [kind, n.value]
-    case 'code':
-      return [kind, n.lang ?? null, n.meta ?? null, n.value]
-    case 'html':
-      return [kind, n.value]
-    case 'heading':
-      return [kind, n.depth, kids]
-    case 'list':
-      return [kind, !!n.ordered, n.start ?? null, kids]
-    case 'listItem':
-      return [kind, n.checked ?? null, kids]
-    case 'link':
-    case 'image':
-      return [kind, n.url, n.title ?? null, kids]
-    case 'table':
-      return [kind, n.align ?? null, kids]
-    default:
-      return kids ? [kind, kids] : [kind, n.value ?? null]
-  }
+  return minimizeEscapes(serializeMarkdown(parseMarkdown(text)))
 }
 
 export interface RoundTripReport {
@@ -89,10 +51,14 @@ const UNSUPPORTED_KINDS = new Set(['html', 'footnoteDefinition', 'footnoteRefere
  * `equal === false` is the real warning: something structural would change.
  */
 export function roundTripReport(text: string): RoundTripReport {
+  // The passes run through `normalize`, not the bare serializer, because that
+  // is what the mode switch actually writes back — including the escape
+  // minimiser. Checking anything else would report on a document the user is
+  // never shown.
   const first = parseMarkdown(text)
-  const once = serializeMarkdown(first)
+  const once = normalize(text)
   const second = parseMarkdown(once)
-  const twice = serializeMarkdown(second)
+  const twice = normalize(once)
 
   const unsupported: RoundTripReport['unsupported'] = []
   const walk = (node: RootContent | Root): void => {

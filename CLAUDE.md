@@ -500,6 +500,22 @@ no `language` and default to `'r'`.
   Inside a chunk, `context-markdown.ts` slices the body and delegates to the R
   analyzer with shifted offsets, giving full R autocomplete in chunks.
 
+  Three surfaces, one catalog, ranked by one function (`markdownSlashMenu`):
+
+  | where | how it opens | what accepting does |
+  |---|---|---|
+  | Source, empty caret | the analyzer sees `/` in the text | replaces the typed `/query` with the action's text |
+  | Source, over a selection | Monaco `onKeyDown` swallows the `/` | hands the action to the ribbon backend, which wraps/prefixes the selection |
+  | Visual (both) | `visual/slash.ts`, a ProseMirror plugin | `applyVisualAction`, same as the ribbon button |
+
+  **Over a selection the `/` never reaches the document** — typing it would
+  replace the selected lines, which is the opposite of the request. Because
+  nothing can be typed, the keystrokes that would filter the list are
+  intercepted and accumulated instead (`slashOverSelection` in `CodeEditor`, the
+  selection branch of `handleKeyDown` in `slash.ts`). In Visual mode the plugin
+  detects the typed `/` in its `view().update` rather than in `handleKeyDown`,
+  so the character the user sees and the range deleted on accept always agree.
+
 ### Map chunks (`markdown/chunk-codegen.ts`)
 
 "Chunk: current map" and "Chunk: export current plot" generate real R from the
@@ -630,6 +646,32 @@ bug class on the Source↔Visual seam. Every Milkdown import is confined to
 - `joinFrontMatter` restores the blank line after the front matter: no markdown
   serializer emits a leading blank line, so without it every trip through Visual
   mode would shift the document up by one.
+- **Escapes are minimised at the serialization boundary** (`escapes.ts`).
+  remark-stringify escapes defensively: every `_`, `*` and `~` in a text node
+  comes back with a backslash, so a document that merely *visited* Visual mode
+  returned with `geom\_line()` where the author wrote `geom_line()` — which in
+  an R Markdown document is the difference between prose and nonsense.
+  `minimizeEscapes` removes an escape only when the document still parses to the
+  same tree without it, so `geom_line()` loses its backslashes (intraword `_` is
+  not emphasis) while `x\*y\*z` keeps them (unescaped it becomes emphasis).
+  Candidates are grouped by line and character and accepted whole, because
+  dropping one half of `\_id\_` leaves `\_id_` — same meaning today, a trap
+  tomorrow. It runs inside `normalize()`, not just at the Visual boundary: the
+  mode switch compares against that baseline, so a baseline that still carried
+  the escapes would make a look-and-leave toggle rewrite the file.
+- **Position survives the switch** (`doc-position.ts` + `visual/anchor.ts`).
+  There is no exact correspondence between a markdown offset and a ProseMirror
+  position — `**bold**` is eight characters in one and four in the other — so
+  the anchor is *top-level block index + alphanumerics into it*. Markdown syntax
+  is punctuation, so counting alphanumerics skips exactly the characters that
+  exist in one representation and not the other. Exact between blocks,
+  approximate within one, which is the right trade for landing the reader on the
+  paragraph they were reading. `contentStartOf` descends to the first positioned
+  leaf so `# `, `- ` and a chunk's ```` ```{r label} ```` header don't count.
+  The Visual side scrolls the pane by hand rather than with ProseMirror's
+  `scrollIntoView()` flag: it runs two frames after `create()`, when the pane's
+  scroll height is still settling, and the built-in scroll no-ops on a box that
+  has not finished growing.
 - Known gaps: `$…$` math renders as literal text; **footnotes have no node in
   Milkdown's commonmark+gfm schema**, so the ribbon dims them in Visual mode
   (`VISUAL_UNSUPPORTED`) and `roundtrip.ts` flags them as unsupported. That flag

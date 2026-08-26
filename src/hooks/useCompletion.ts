@@ -178,6 +178,27 @@ export function useCompletion() {
 
   const close = useCallback(() => setState((s) => (s.open ? CLOSED : s)), [])
 
+  /**
+   * Show a list the caller built, rather than one derived from text at a caret.
+   *
+   * The `/` menu opened over a SELECTION has no prefix in the document to
+   * analyze — the point is that nothing was typed — so the host ranks the
+   * markdown catalog itself and pushes the result in. `from`/`to` collapse to
+   * the caret: this menu never replaces text, it hands the chosen action to the
+   * ribbon backend, which applies it to the selection.
+   */
+  const openMenu = useCallback((candidates: CompletionCandidate[], at: number) => {
+    if (candidates.length === 0) { setState((s) => (s.open ? CLOSED : s)); return }
+    last.current = null
+    setState((prev) => ({
+      open: true,
+      candidates,
+      selected: prev.open && prev.selected < candidates.length ? prev.selected : 0,
+      from: at,
+      to: at,
+    }))
+  }, [])
+
   const move = useCallback((delta: number) => {
     setState((s) => {
       if (!s.open || s.candidates.length === 0) return s
@@ -211,5 +232,5 @@ export function useCompletion() {
     [state]
   )
 
-  return { state, query, close, move, setSelected, accept }
+  return { state, query, openMenu, close, move, setSelected, accept }
 }
