@@ -36,6 +36,15 @@ route <- function(req) {
       return(handle_plot_export(body))
     }
 
+    if (path == "/session/wd" && method == "GET") {
+      return(handle_wd_get())
+    }
+
+    if (path == "/session/setwd" && method == "POST") {
+      body <- parse_body(req)
+      return(handle_wd_set(body))
+    }
+
     if (path == "/health") {
       return(ok_response(message = "ok"))
     }

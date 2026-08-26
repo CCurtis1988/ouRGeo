@@ -15,6 +15,10 @@ interface SessionState {
   rStatus: RStatus
   rPort: number | null
   wsConnected: boolean
+  /** R's `getwd()`, kept live: the server broadcasts it whenever it moves. */
+  workingDir: string | null
+  /** `path.expand("~")`, so the display can shorten the home prefix. */
+  homeDir: string | null
   consoleHistory: ConsoleEntry[]
   consoleInputHistory: string[]
   isExecuting: boolean
@@ -27,6 +31,7 @@ interface SessionState {
   setRStatus: (status: RStatus) => void
   setRPort: (port: number | null) => void
   setWsConnected: (connected: boolean) => void
+  setWorkingDir: (path: string | null, home?: string | null) => void
   setExecuting: (v: boolean) => void
   addConsoleEntry: (type: ConsoleEntry['type'], text: string) => void
   clearConsole: () => void
@@ -41,6 +46,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   rStatus: 'connecting',
   rPort: null,
   wsConnected: false,
+  workingDir: null,
+  homeDir: null,
   consoleHistory: [],
   consoleInputHistory: [],
   isExecuting: false,
@@ -53,6 +60,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRStatus: (rStatus) => set({ rStatus }),
   setRPort: (rPort) => set({ rPort }),
   setWsConnected: (wsConnected) => set({ wsConnected }),
+  setWorkingDir: (workingDir, home) =>
+    set(home === undefined ? { workingDir } : { workingDir, homeDir: home }),
   setExecuting: (v) => set(v
     ? { isExecuting: true, executingStartTime: Date.now() }
     : { isExecuting: false, executingStartTime: null }

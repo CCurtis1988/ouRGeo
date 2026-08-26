@@ -86,6 +86,8 @@ they share `.ourgeo_env` and reference each other by name at call time.
 ```
 POST /session/init        — Load packages, check deps
 POST /session/reset       — Clear user objects (keep system_names), DB conns, proxies
+GET  /session/wd          — getwd() + path.expand("~"), for the console header
+POST /session/setwd       — Move R's working directory (validates, broadcasts)
 POST /r/execute           — Run arbitrary R code; captures PNG plots automatically
 POST /r/plot/export       — Re-render last plot at a specific size/format
 POST /r/plot-preview      — Render code to PNG for inline chart preview
@@ -129,6 +131,7 @@ The R server broadcasts JSON via `/console`. The renderer's `wsClient` calls mes
 | `widget`  | htmlwidget/help/vignette ready — `data.id` identifies the served file |
 | `env`     | `.GlobalEnv` changed — `data` is the rebuilt `.GlobalEnv` entry (change-detected; keeps the Environment panel + autocomplete live) |
 | `packages`| Installed/attached packages changed — `data.libraries` is the rebuilt library list (change-detected; keeps the Packages panel + `library()`/`require()` autocomplete live) |
+| `wd`      | Working directory moved — `data.path`. Fires for a picker change AND for a `setwd()` buried in user code, so the console header can never go stale |
 | `raster_layer_invalidated` | A registered raster map layer's backing R object changed or vanished — `data.layerId`; the renderer re-registers (fresh warp) or drops the layer |
 
 In `App.tsx`, `type === 'plot'` triggers `usePlottingStore.getState().addPlot(data)` and forwards to the plot popout window via IPC.
@@ -154,6 +157,34 @@ The UI is a single-page app with a toolbar + resizable panel system managed by `
 - Frontend adds `input` entries locally (immediate feedback); R server does NOT echo `> code`
 - `Ctrl+Enter` runs a single line from Monaco and advances cursor
 - `Shift+Enter` runs selected lines
+
+### Working directory (`src/lib/working-dir.ts`, `console/WorkingDirBar.tsx`)
+
+The directory is shown in the console header, beside "R Console" and the
+connection dot — next to where relative paths are typed, because that is what it
+governs. The path IS the control: clicking it opens the one menu that changes it
+(native folder picker), copies it, opens it, re-reads it, or jumps to a recent
+one (`working-dirs.json`, persisted, max 8).
+
+- **R owns the value.** The store is set from the server's own `getwd()`, never
+  from what the picker was told to do, and `broadcast_wd_if_changed()` runs
+  beside the env/package sweeps after every execution — so a `setwd()` typed
+  into the console moves the label exactly as the dialog does.
+- `POST /session/setwd` rather than `execute('setwd(…)')`, so a bad path is a
+  result the menu can show instead of stderr the user has to go and read. The
+  console still gets the `setwd()` line — every GUI operation echoes its R.
+- **R starts in the user's home directory** (`r-bridge.ts`), not in `r/`. The
+  cwd is what every relative path in the session means, and pointing it at
+  ouRGeo's own program directory aimed `ggsave()` at the install — inside
+  `resources/` in a packaged build. `server.R` is therefore spawned by ABSOLUTE
+  path: it resolves its module directory from `--file=`, which R reports
+  verbatim, so a bare `server.R` would normalize against the new cwd.
+- `elidePath` drops whole segments from the middle (`/home/…/Projects/ourgeo`),
+  never mid-word — a path cut at `/home/roos…` reads as a different directory.
+  Measured on a canvas in the element's own font, because `text-overflow`
+  removes the END, which is the part that names the directory. The measured box
+  needs `flex-1`: content-sized, it measures the elided string rather than the
+  space available, and the label shrinks once and never grows back.
 
 ## Key Stores (`src/store/`)
 

@@ -140,6 +140,7 @@ handle_chunk_execute <- function(body) {
   # Chunks create objects and attach packages like any other code — the
   # Environment panel and autocomplete must see them.
   broadcast_env_if_changed()
+  broadcast_wd_if_changed()
   broadcast_packages_if_changed()
 
   json_response(list(

@@ -1,3 +1,4 @@
+import { refreshWorkingDir } from '@/lib/working-dir'
 import { rClient } from './r-client'
 import { rehydrateRasterLayers } from './raster-layers'
 import { wsClient } from './ws-client'
@@ -65,6 +66,8 @@ export async function reconnectToR(): Promise<void> {
       useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', sessionResult.systemNames)
     }
     addConsoleEntry('info', 'R session ready.')
+    // A restart is a fresh R process, so its directory is R's default again.
+    void refreshWorkingDir()
 
     // Reconnect WebSocket to the new port (connect() handles closing the old socket)
     wsClient.connect(port)

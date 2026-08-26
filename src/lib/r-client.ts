@@ -181,6 +181,27 @@ class RClient {
     return res.data
   }
 
+  /** R's current working directory, plus the home path for display shortening. */
+  async getWorkingDir(): Promise<{ success: boolean; path?: string; home?: string }> {
+    const res = await this.http.get<{ success: boolean; path?: string; home?: string }>('/session/wd')
+    return res.data
+  }
+
+  /**
+   * Move R's working directory.
+   *
+   * A dedicated endpoint rather than `execute('setwd(…)')` so a bad path comes
+   * back as a result the dialog can show, instead of as console stderr the user
+   * has to go and read. The console still gets the equivalent `setwd()` line —
+   * every GUI operation in ouRGeo is echoed as the R that would do it.
+   */
+  async setWorkingDir(path: string): Promise<{ success: boolean; path?: string; error?: string }> {
+    const res = await this.http.post<{ success: boolean; path?: string; error?: string }>(
+      '/session/setwd', { path },
+    )
+    return res.data
+  }
+
   async health(): Promise<boolean> {
     try {
       await this.http.get('/health')

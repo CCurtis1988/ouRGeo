@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
 import { getTextareaCaretRect } from '@/lib/caret-coords'
+import { WorkingDirBar } from './WorkingDirBar'
 
 function EntryLine({ entry }: { entry: ConsoleEntry }): React.ReactElement {
   const textColor = {
@@ -201,12 +202,14 @@ export function Console(): React.ReactElement {
     <div className="flex flex-col h-full">
       {/* Console header */}
       <div className="flex items-center justify-between px-3 py-1 border-b border-geo-border flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-geo-muted">R Console</span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="flex-shrink-0 text-xs text-geo-muted">R Console</span>
           <div
-            className={cn('w-1.5 h-1.5 rounded-full', wsConnected ? 'bg-geo-success' : 'bg-geo-muted')}
+            className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', wsConnected ? 'bg-geo-success' : 'bg-geo-muted')}
             title={wsConnected ? 'Connected' : 'Disconnected'}
           />
+          {/* Where relative paths resolve, next to where they are typed. */}
+          <WorkingDirBar />
         </div>
         <div className="flex items-center gap-1">
           {/* Execution status dot */}

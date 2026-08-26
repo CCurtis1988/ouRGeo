@@ -3,6 +3,7 @@ import { EditorLayout } from './components/layout/EditorLayout'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import { rClient, type REnvironmentInfo, type RLibrary } from './lib/r-client'
 import { wsClient } from './lib/ws-client'
+import { refreshWorkingDir } from '@/lib/working-dir'
 import { useSessionStore } from './store/session'
 import { usePackagesStore } from './store/packages'
 import { usePlottingStore } from './store/plotting'
@@ -137,6 +138,7 @@ function MainApp(): React.ReactElement {
           useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', sessionResult.systemNames)
         }
         addEntry('info', 'R session ready.')
+        void refreshWorkingDir()
 
         // Startup restore is done — from here on, env/state changes mark the
         // project dirty (drives the exit/switch save prompt).
@@ -176,6 +178,10 @@ function MainApp(): React.ReactElement {
           }
           if (type === 'packages' && data && typeof data === 'object' && 'libraries' in (data as object)) {
             usePackagesStore.getState().setLibraries((data as { libraries: RLibrary[] }).libraries)
+            return
+          }
+          if (type === 'wd' && data && typeof data === 'object' && 'path' in (data as object)) {
+            useSessionStore.getState().setWorkingDir((data as { path: string }).path)
             return
           }
           if (type === 'widget' && data && typeof data === 'object' && 'id' in (data as object)) {

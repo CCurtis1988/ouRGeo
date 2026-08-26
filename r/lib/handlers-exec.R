@@ -186,6 +186,7 @@ handle_execute <- function(body) {
   # Push a scoped .GlobalEnv update to the UI if user objects changed, so the
   # Environment panel and autocomplete stay current without a manual refresh.
   broadcast_env_if_changed()
+  broadcast_wd_if_changed()
 
   # Likewise push a package-list update if code loaded/installed packages, so
   # the Packages panel and library()/require() autocomplete stay current.

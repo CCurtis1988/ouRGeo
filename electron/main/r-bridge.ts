@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process'
 import { join } from 'path'
+import { homedir } from 'os'
 import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 
@@ -63,10 +64,25 @@ class RBridge {
       const rscript = this.getRScriptPath()
       const rDir = this.getRDir()
 
-      console.log('[RBridge] Spawning R process:', rscript, 'server.R', '(cwd:', rDir + ')')
+      // server.R is passed as an ABSOLUTE path, and R starts in the user's home
+      // directory rather than in `r/`.
+      //
+      // The working directory is what every relative path in the session means
+      // — where read_csv("data.csv") looks, where ggsave() writes — so starting
+      // in ouRGeo's own program directory pointed all of them at the install.
+      // In a packaged build that is inside resources/, which the user has no
+      // business writing to and may not be able to. Home is where a desktop
+      // app's session belongs, and the console header now says so out loud.
+      //
+      // The absolute path matters: server.R resolves its own module directory
+      // from `--file=`, which R reports verbatim, so a bare "server.R" would be
+      // normalized against the new cwd and find nothing.
+      const script = join(rDir, 'server.R')
+      const home = homedir()
+      console.log('[RBridge] Spawning R process:', rscript, script, '(cwd:', home + ')')
 
-      this.process = spawn(rscript, ['server.R'], {
-        cwd: rDir,
+      this.process = spawn(rscript, [script], {
+        cwd: home,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: {
           ...process.env,
