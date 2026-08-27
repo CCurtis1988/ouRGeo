@@ -34,14 +34,26 @@ const OUTPUT_FORMAT: Record<KnitRequest['format'], string> = {
   pdf: 'pdf_document',
   word: 'word_document',
   // Publish target, matched to the forum's deliberately small renderer.
-  // markdown_strict is the closest fit, plus two extensions chosen on purpose:
-  // backtick fences because the forum understands them and indented code is
-  // ambiguous, and pipe_tables because WITHOUT a table extension pandoc falls
-  // back to raw <table> HTML — which the forum escapes and shows as tag soup.
-  // Pipe tables are at least parseable, and publish-markdown.ts turns them into
-  // aligned text in a code fence.
-  md: 'md_document(variant = "markdown_strict+backtick_code_blocks+pipe_tables", ' +
-      'preserve_yaml = FALSE)',
+  // markdown_strict is the closest fit, plus three extensions chosen on purpose:
+  //
+  //   backtick_code_blocks  the forum understands fences; indented code is
+  //                         ambiguous and it has no rule for it.
+  //   pipe_tables           without a table extension pandoc falls back to raw
+  //                         <table> HTML, which the forum escapes and shows as
+  //                         tag soup. The forum renders pipe tables directly.
+  //   implicit_figures      without it, ANY chunk carrying a fig.cap is written
+  //                         as a <figure> block — raw HTML again, and the strip
+  //                         pass then throws the figure away with it. With it,
+  //                         a captioned plot is `![caption](path)`, which the
+  //                         forum renders and whose caption becomes the alt
+  //                         text on the uploaded attachment.
+  //
+  // --wrap=none because pandoc otherwise hard-wraps at 72 columns, and the
+  // forum reflows: a wrapped list item continues on a line the renderer reads
+  // as a new paragraph, and a wrapped image caption splits `![...](...)` across
+  // two lines. Neither is recoverable after the fact.
+  md: 'md_document(variant = "markdown_strict+backtick_code_blocks+pipe_tables' +
+      '+implicit_figures", preserve_yaml = FALSE, pandoc_args = c("--wrap=none"))',
 }
 
 const EXTENSION: Record<KnitRequest['format'], string> = {

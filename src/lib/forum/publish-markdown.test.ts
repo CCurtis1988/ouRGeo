@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  collectLocalImages, rewriteImages, tablesToCodeBlocks, stripRawHtml,
+  collectLocalImages, rewriteImages, stripRawHtml,
   normalizeFences, indentedToFenced,
   preparePost, defaultTitle, FORUM_LIMITS,
 } from './publish-markdown'
@@ -49,28 +49,23 @@ describe('rewriteImages', () => {
   })
 })
 
-describe('tablesToCodeBlocks', () => {
-  it('turns a pipe table into aligned text in a fence', () => {
+describe('tables', () => {
+  // The forum renders pipe tables now, so the job here is to NOT touch them.
+  it('passes a pipe table through untouched', () => {
     const md = '| name | n |\n| --- | --- |\n| alpha | 1 |\n| b | 22 |\n'
-    const { text, count } = tablesToCodeBlocks(md)
-    expect(count).toBe(1)
-    expect(text).toBe('```\nname   n\nalpha  1\nb      22\n```\n')
+    expect(preparePost(md).body).toBe(md)
   })
 
-  it('leaves a table that is already inside a code fence alone', () => {
-    // Rewriting it would nest fences and break the block.
-    const md = '```\n| a | b |\n| --- | --- |\n| 1 | 2 |\n```\n'
-    expect(tablesToCodeBlocks(md).count).toBe(0)
+  it('does not warn about a table any more', () => {
+    const p = preparePost('| a | b |\n| --- | --- |\n| 1 | 2 |\n')
+    expect(p.errors).toEqual([])
+    expect(p.warnings).toEqual([])
   })
 
-  it('does not mistake a line containing a pipe for a table', () => {
-    const md = 'Use x |> f() to pipe.\n\nMore prose.\n'
-    expect(tablesToCodeBlocks(md).count).toBe(0)
-  })
-
-  it('handles two tables in one document', () => {
-    const md = '| a |\n| --- |\n| 1 |\n\ntext\n\n| b |\n| --- |\n| 2 |\n'
-    expect(tablesToCodeBlocks(md).count).toBe(2)
+  it('still strips a table pandoc could only express as raw HTML', () => {
+    const md = '<table>\n<tr><td>1</td></tr>\n</table>\n'
+    const p = preparePost(md)
+    expect(p.warnings.join(' ')).toContain('raw HTML')
   })
 })
 
@@ -121,12 +116,6 @@ describe('preparePost', () => {
 
   it('refuses an empty document', () => {
     expect(preparePost('   \n').errors.join(' ')).toContain('nothing to post')
-  })
-
-  it('warns about tables rather than blocking them', () => {
-    const p = preparePost('| a | b |\n| --- | --- |\n| 1 | 2 |\n')
-    expect(p.errors).toEqual([])
-    expect(p.warnings.join(' ')).toContain('table')
   })
 
   it('warns about headings the forum will flatten', () => {
@@ -211,9 +200,9 @@ describe('a real knitted document', () => {
     expect(prepared.body).toContain('```\n## Simple feature collection')
   })
 
-  it('turns the kable table into aligned text, and says so', () => {
-    expect(prepared.body).not.toMatch(/^\|/m)
-    expect(prepared.warnings.join(' ')).toContain('table')
+  it('leaves the kable table as a pipe table for the forum to render', () => {
+    expect(prepared.body).toMatch(/^\|/m)
+    expect(prepared.warnings.join(' ')).not.toContain('table')
   })
 
   it('finds the figure, absolute path and all', () => {

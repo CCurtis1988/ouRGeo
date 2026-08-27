@@ -2,19 +2,28 @@
 //
 // The forum's renderer (the site's assets/js/markdown.js) is deliberately
 // tiny and structurally XSS-safe: it escapes everything the user wrote before
-// emitting a single tag, so raw HTML is shown as text rather than rendered, and
-// it has no table rule at all. Its whole vocabulary is:
+// emitting a single tag, so raw HTML is shown as text rather than rendered.
+// Its whole vocabulary is:
 //
 //   headings (h1–h3), paragraphs, ul/ol, blockquote, hr, fenced and inline
-//   code, bold/italic/strike, links, and images with an http(s) src.
+//   code, bold/italic/strike, backslash escapes, pipe tables, links, and
+//   images with an http(s) src.
 //
 // Everything here exists to land inside that vocabulary. It is a pure text
 // transform with no DOM and no network, so every rule is unit-testable.
 
-/** Mirrors the site's config.js LIMITS and the CHECK constraints behind them. */
+/**
+ * Mirrors the site's config.js LIMITS and the CHECK constraints behind them.
+ *
+ * `bodyMax` is the one that moves. The authority is `threads_body_check` /
+ * `posts_body_check` in the site's db/schema.sql; this copy only exists so the
+ * dialog can refuse a document before knitting figures into the user's storage
+ * quota. Raise it here and it must be raised in both of the other two places,
+ * or the app will cheerfully post a body the database then rejects.
+ */
 export const FORUM_LIMITS = {
   titleMax: 140,
-  bodyMax: 12000,
+  bodyMax: 40000,
   imagesPerPost: 10,
 }
 
@@ -61,76 +70,17 @@ export function rewriteImages(md: string, urls: Map<string, string>): string {
 }
 
 // ── Tables ──────────────────────────────────────────────────────────────────
-
-const DELIM_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/
-
-function splitRow(line: string): string[] {
-  return line
-    .trim()
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map((c) => c.trim())
-}
-
-/** Render rows as space-aligned columns. */
-function alignTable(rows: string[][]): string[] {
-  const cols = Math.max(...rows.map((r) => r.length))
-  const width: number[] = []
-  for (let c = 0; c < cols; c++) {
-    width[c] = Math.max(...rows.map((r) => (r[c] ?? '').length))
-  }
-  return rows.map((r) =>
-    r
-      .map((cell, c) => (c === r.length - 1 ? cell : cell.padEnd(width[c])))
-      .join('  ')
-      .trimEnd()
-  )
-}
-
-/**
- * Rewrite pipe tables as aligned plain text inside a code fence.
- *
- * The forum has no table rule, so a pipe table left alone renders as a
- * paragraph of literal `|` characters joined by `<br>` — unreadable. A fenced
- * block is monospace, keeps the columns lined up, and is something the renderer
- * genuinely supports.
- *
- * Fenced regions are skipped: a table inside a code block is already code, and
- * rewriting it would nest fences.
- */
-export function tablesToCodeBlocks(md: string): { text: string; count: number } {
-  const lines = md.split('\n')
-  const out: string[] = []
-  let count = 0
-  let inFence = false
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    if (/^\s*```/.test(line)) { inFence = !inFence; out.push(line); continue }
-    if (inFence) { out.push(line); continue }
-
-    const isHeader = line.includes('|') && line.trim().length > 0
-    if (isHeader && i + 1 < lines.length && DELIM_RE.test(lines[i + 1]) && lines[i + 1].includes('-')) {
-      const rows: string[][] = [splitRow(line)]
-      let j = i + 2
-      for (; j < lines.length; j++) {
-        const body = lines[j]
-        if (!body.includes('|') || !body.trim()) break
-        rows.push(splitRow(body))
-      }
-      out.push('```')
-      out.push(...alignTable(rows))
-      out.push('```')
-      count++
-      i = j - 1
-      continue
-    }
-    out.push(line)
-  }
-
-  return { text: out.join('\n'), count }
-}
+//
+// Nothing to do. Pipe tables pass straight through to the forum, which renders
+// them as real <table> markup — which is why the knit variant asks pandoc for
+// the pipe_tables extension in the first place (electron/main/knit.ts).
+//
+// This used to flatten them into aligned text inside a code fence, because the
+// renderer had no table rule. It does now, and a kable() of a hundred rows is
+// far better as a scrolling table than as a wall of monospace.
+//
+// A table pandoc CANNOT express as a pipe table still arrives as raw <table>
+// HTML, and stripRawHtml below removes it with a warning, as before.
 
 // ── Code blocks ─────────────────────────────────────────────────────────────
 
@@ -246,15 +196,7 @@ export function preparePost(rawMarkdown: string): PreparedPost {
   const errors: string[] = []
 
   const fenced = indentedToFenced(normalizeFences(rawMarkdown))
-  const tables = tablesToCodeBlocks(fenced.text)
-  if (tables.count > 0) {
-    warnings.push(
-      `${tables.count} table${tables.count === 1 ? '' : 's'} converted to plain text — ` +
-      'the forum has no table formatting.'
-    )
-  }
-
-  const html = stripRawHtml(tables.text)
+  const html = stripRawHtml(fenced.text)
   if (html.count > 0) {
     warnings.push(
       `${html.count} line${html.count === 1 ? '' : 's'} of raw HTML removed — ` +
