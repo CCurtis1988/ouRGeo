@@ -27,6 +27,8 @@ import { useDatabaseStore } from '@/store/database'
 import { useSpatialStore } from '@/store/spatial'
 import { usePlottingStore } from '@/store/plotting'
 import { useThemeStore } from '@/store/theme'
+import { useUiStore, type DialogId } from '@/store/ui'
+import { HighlightOverlay } from './HighlightOverlay'
 import { cn } from '@/lib/utils'
 
 // When help is open the right column has a fixed width. This handler makes the
@@ -76,10 +78,16 @@ export function EditorLayout(): React.ReactElement {
   const toggleHelp = useHelpStore((s) => s.toggleOpen)
   const zoomIn = useThemeStore((s) => s.zoomIn)
   const zoomOut = useThemeStore((s) => s.zoomOut)
-  const [loadDataOpen, setLoadDataOpen] = useState(false)
-  const [connectorOpen, setConnectorOpen] = useState(false)
-  const [toolboxOpen, setToolboxOpen] = useState(false)
-  const [recordingDialogOpen, setRecordingDialogOpen] = useState(false)
+  // Dialog visibility lives in the ui store so anything outside this component
+  // — the AI assistant walking a user through a workflow, the database panel
+  // asking for Load Data — can open one. See src/store/ui.ts.
+  const openDialog = useUiStore((s) => s.openDialog)
+  const showDialog = useUiStore((s) => s.showDialog)
+  const hideDialog = useUiStore((s) => s.hideDialog)
+  const dialogToggle = useCallback(
+    (id: DialogId) => (o: boolean) => { if (o) showDialog(id); else hideDialog(id) },
+    [showDialog, hideDialog],
+  )
   const isRecording = useSessionStore((s) => s.isRecording)
   const recordingTargetTabId = useSessionStore((s) => s.recordingTargetTabId)
   const recordingReturnOutput = useSessionStore((s) => s.recordingReturnOutput)
@@ -227,9 +235,9 @@ export function EditorLayout(): React.ReactElement {
 
   const handleStartRecording = useCallback((targetTabId: string, destType: Parameters<typeof startRecording>[1], returnOutput: boolean) => {
     recordingHistoryLengthRef.current = useSessionStore.getState().consoleHistory.length
-    setRecordingDialogOpen(false)
+    hideDialog('recording')
     startRecording(targetTabId, destType, returnOutput)
-  }, [startRecording])
+  }, [startRecording, hideDialog])
 
   // Real-time: append new entries to recording tab as they arrive
   useEffect(() => {
@@ -324,8 +332,8 @@ export function EditorLayout(): React.ReactElement {
 
   // Open the Load Data dialog when the database panel requests it for a specific file
   useEffect(() => {
-    if (requestedLoadFile) setLoadDataOpen(true)
-  }, [requestedLoadFile])
+    if (requestedLoadFile) showDialog('load-data')
+  }, [requestedLoadFile, showDialog])
 
   // Ctrl+Shift+= / Ctrl+Shift+- zoom via IPC (intercepted in main process before Chromium)
   useEffect(() => {
@@ -367,6 +375,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={toggleEnv}
               title="Toggle Environment"
+              data-ourgeo-id="toolbar.environment"
             >
               <Layers className="w-3.5 h-3.5" />
             </Button>
@@ -379,6 +388,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={togglePackages}
               title="Toggle Packages"
+              data-ourgeo-id="toolbar.packages"
             >
               <Package className="w-3.5 h-3.5" />
             </Button>
@@ -388,6 +398,7 @@ export function EditorLayout(): React.ReactElement {
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
               onClick={handleOpen}
               title="Open File (Ctrl+O)"
+              data-ourgeo-id="toolbar.openFile"
             >
               <FolderOpen className="w-3.5 h-3.5" />
             </Button>
@@ -397,6 +408,7 @@ export function EditorLayout(): React.ReactElement {
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
               onClick={handleSave}
               title="Save (Ctrl+S)"
+              data-ourgeo-id="toolbar.save"
             >
               <Save className="w-3.5 h-3.5" />
             </Button>
@@ -406,6 +418,7 @@ export function EditorLayout(): React.ReactElement {
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
               onClick={handleSaveAs}
               title="Save As"
+              data-ourgeo-id="toolbar.saveAs"
             >
               <SaveAll className="w-3.5 h-3.5" />
             </Button>
@@ -413,8 +426,9 @@ export function EditorLayout(): React.ReactElement {
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
-              onClick={() => setLoadDataOpen(true)}
+              onClick={() => showDialog('load-data')}
               title="Load Data"
+              data-ourgeo-id="toolbar.loadData"
             >
               <FolderInput className="w-3.5 h-3.5" />
             </Button>
@@ -427,6 +441,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={toggleDb}
               title="Toggle Database Connections"
+              data-ourgeo-id="toolbar.databases"
             >
               <Database className="w-3.5 h-3.5" />
             </Button>
@@ -434,8 +449,9 @@ export function EditorLayout(): React.ReactElement {
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
-              onClick={() => setConnectorOpen(true)}
+              onClick={() => showDialog('data-connector')}
               title="Data Connector"
+              data-ourgeo-id="toolbar.dataConnector"
             >
               <Cloud className="w-3.5 h-3.5" />
             </Button>
@@ -443,8 +459,9 @@ export function EditorLayout(): React.ReactElement {
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
-              onClick={() => setToolboxOpen(true)}
+              onClick={() => showDialog('toolbox')}
               title="Toolbox"
+              data-ourgeo-id="toolbar.toolbox"
             >
               <Wrench className="w-3.5 h-3.5" />
             </Button>
@@ -457,6 +474,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={toggleAi}
               title="AI Assistant"
+              data-ourgeo-id="toolbar.ai"
             >
               <Bot className="w-3.5 h-3.5" />
             </Button>
@@ -467,8 +485,9 @@ export function EditorLayout(): React.ReactElement {
                 'h-6 w-6 p-0',
                 isRecording ? 'text-geo-error' : 'text-geo-muted hover:text-foreground'
               )}
-              onClick={isRecording ? handleStopRecording : () => setRecordingDialogOpen(true)}
+              onClick={isRecording ? handleStopRecording : () => showDialog('recording')}
               title={isRecording ? 'Stop Recording' : 'Record Console'}
+              data-ourgeo-id="toolbar.record"
             >
               <Circle className={cn('w-3.5 h-3.5', isRecording && 'fill-geo-error')} />
             </Button>
@@ -481,6 +500,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={toggleSpatial}
               title="Toggle Spatial Editor"
+              data-ourgeo-id="toolbar.spatial"
             >
               <Globe className="w-3.5 h-3.5" />
             </Button>
@@ -493,6 +513,7 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={togglePlot}
               title="Toggle Plotting Preview"
+              data-ourgeo-id="toolbar.plots"
             >
               <ImageIcon className="w-3.5 h-3.5" />
             </Button>
@@ -505,18 +526,20 @@ export function EditorLayout(): React.ReactElement {
               )}
               onClick={toggleHelp}
               title="Help"
+              data-ourgeo-id="toolbar.help"
             >
               <HelpCircle className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <SettingsDialog>
+          <SettingsDialog open={openDialog === 'settings'} onOpenChange={dialogToggle('settings')}>
             <Button
               variant="ghost"
               size="sm"
               className="h-6 w-6 p-0 text-geo-muted hover:text-foreground"
               title="Settings"
+              data-ourgeo-id="toolbar.settings"
             >
               <Settings className="w-3.5 h-3.5" />
             </Button>
@@ -674,20 +697,24 @@ export function EditorLayout(): React.ReactElement {
       </div>
 
       <LoadDataDialog
-        open={loadDataOpen}
+        open={openDialog === 'load-data'}
         onOpenChange={(o) => {
-          setLoadDataOpen(o)
-          if (!o) setRequestedLoadFile(null)
+          if (o) showDialog('load-data')
+          else { hideDialog('load-data'); setRequestedLoadFile(null) }
         }}
         initialFilePath={requestedLoadFile}
       />
-      <DataConnectorDialog open={connectorOpen} onOpenChange={setConnectorOpen} />
-      <ToolboxDialog open={toolboxOpen} onOpenChange={setToolboxOpen} />
+      <DataConnectorDialog
+        open={openDialog === 'data-connector'}
+        onOpenChange={dialogToggle('data-connector')}
+      />
+      <ToolboxDialog open={openDialog === 'toolbox'} onOpenChange={dialogToggle('toolbox')} />
       <RecordingDestinationDialog
-        open={recordingDialogOpen}
-        onOpenChange={setRecordingDialogOpen}
+        open={openDialog === 'recording'}
+        onOpenChange={dialogToggle('recording')}
         onConfirm={handleStartRecording}
       />
+      <HighlightOverlay />
     </div>
   )
 }

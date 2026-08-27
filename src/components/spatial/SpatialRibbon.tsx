@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { Plus, Lasso, MousePointer2, Check, Eye, EyeOff, Trash2, Pencil, ChevronDown, GripVertical, Settings2, Type, Map } from 'lucide-react'
 import { Button } from '../ui/button'
+import { useUiStore } from '@/store/ui'
 import { useSpatialStore } from '@/store/spatial'
 import { useGeometryEditStore, selectActiveSessionLayerIds, selectActiveSession } from '@/store/geometryEdit'
 import { useSelectionStore } from '@/store/selection'
@@ -77,7 +78,6 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
   const setSelectedLayerId = useSpatialStore((s) => s.setSelectedLayerId)
   const pendingGroups = usePendingEditGroups()
   const pendingCount = pendingGroups.reduce((n, g) => n + g.geometryCount + g.rowAddCount, 0)
-  const [saveEditsOpen, setSaveEditsOpen] = useState(false)
   const isEditMode = useGeometryEditStore((s) => s.isEditMode)
   const namedSessions = useGeometryEditStore((s) => s.namedSessions)
   const setEditMode = useGeometryEditStore((s) => s.setEditMode)
@@ -173,26 +173,35 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
   const setSelectMode = useSelectionStore((s) => s.setSelectMode)
   const setSelectToolActive = useSelectionStore((s) => s.setSelectToolActive)
 
-  const [contentsOpen, setContentsOpen] = useState(false)
+  // Dialog and popover visibility comes from the ui store, so the AI assistant
+  // (and anything else outside this component) can open the same surfaces the
+  // ribbon buttons open. See src/store/ui.ts.
+  const openDialog = useUiStore((s) => s.openDialog)
+  const dialogArg = useUiStore((s) => s.dialogArg)
+  const showDialog = useUiStore((s) => s.showDialog)
+  const hideDialog = useUiStore((s) => s.hideDialog)
+  const contentsOpen = openDialog === 'map-contents'
+  const selectOpen = openDialog === 'select-menu'
+  const settingsOpen = openDialog === 'map-settings'
+  const symbologyLayerId = openDialog === 'symbology' ? dialogArg : null
+  const labelLayerId = openDialog === 'labeling' ? dialogArg : null
+  const legendSettingsOpen = openDialog === 'legend-settings'
+  const northArrowSettingsOpen = openDialog === 'north-arrow-settings'
+  const basemapDialogOpen = openDialog === 'basemap'
+  const saveEditsOpen = openDialog === 'save-edits'
+
   const contentsRef = useRef<HTMLDivElement>(null)
-  const [selectOpen, setSelectOpen] = useState(false)
   const selectRef = useRef<HTMLDivElement>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
-  const [symbologyLayerId, setSymbologyLayerId] = useState<string | null>(null)
-  const [labelLayerId, setLabelLayerId] = useState<string | null>(null)
-  const [legendSettingsOpen, setLegendSettingsOpen] = useState(false)
-  const [northArrowSettingsOpen, setNorthArrowSettingsOpen] = useState(false)
-  const [basemapDialogOpen, setBasemapDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!contentsOpen) return
     function onPointerDown(e: PointerEvent) {
       if (contentsRef.current && !contentsRef.current.contains(e.target as Node))
-        setContentsOpen(false)
+        useUiStore.getState().hideDialog('map-contents')
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setContentsOpen(false)
+      if (e.key === 'Escape') useUiStore.getState().hideDialog('map-contents')
     }
     window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKey)
@@ -206,10 +215,10 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
     if (!settingsOpen) return
     function onPointerDown(e: PointerEvent) {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node))
-        setSettingsOpen(false)
+        useUiStore.getState().hideDialog('map-settings')
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setSettingsOpen(false)
+      if (e.key === 'Escape') useUiStore.getState().hideDialog('map-settings')
     }
     window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKey)
@@ -223,10 +232,10 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
     if (!selectOpen) return
     function onPointerDown(e: PointerEvent) {
       if (selectRef.current && !selectRef.current.contains(e.target as Node))
-        setSelectOpen(false)
+        useUiStore.getState().hideDialog('select-menu')
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setSelectOpen(false)
+      if (e.key === 'Escape') useUiStore.getState().hideDialog('select-menu')
     }
     window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKey)
@@ -249,6 +258,7 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
           className="h-6 w-6 p-0 text-geo-muted hover:text-foreground flex-shrink-0"
           onClick={() => setDialogOpen(true)}
           title="Add Features"
+            data-ourgeo-id="map.addFeatures"
         >
           <Plus className="w-3.5 h-3.5" />
         </Button>
@@ -277,8 +287,9 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                 'h-6 w-3 flex items-center justify-center rounded-r',
                 selectOpen ? 'text-foreground' : 'text-geo-muted hover:text-foreground'
               )}
-              onClick={() => setSelectOpen((o) => !o)}
+              onClick={() => selectOpen ? hideDialog('select-menu') : showDialog('select-menu')}
               title="Selection mode"
+            data-ourgeo-id="map.select"
             >
               <ChevronDown className={cn('w-3 h-3 transition-transform', selectOpen && 'rotate-180')} />
             </button>
@@ -295,7 +306,7 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                   onClick={() => {
                     setSelectMode(mode)
                     setSelectToolActive(true)
-                    setSelectOpen(false)
+                    useUiStore.getState().hideDialog('select-menu')
                   }}
                 >
                   <Icon className="w-3 h-3 text-geo-muted" />
@@ -310,8 +321,9 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0 text-geo-muted hover:text-foreground flex-shrink-0"
-          onClick={() => setBasemapDialogOpen(true)}
+          onClick={() => showDialog('basemap')}
           title="Change basemap"
+            data-ourgeo-id="map.basemap"
         >
           <Map className="w-3.5 h-3.5" />
         </Button>
@@ -346,7 +358,8 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-xs flex-shrink-0 text-geo-success hover:text-geo-success hover:bg-geo-success/10"
-              onClick={() => setSaveEditsOpen(true)}
+              onClick={() => showDialog('save-edits')}
+              data-ourgeo-id="map.saveEdits"
               title={`Unsaved edits: ${pendingGroups
                 .map((g) => `${g.displayName} (${g.geometryCount + g.rowAddCount})`)
                 .join(', ')} — click to save or discard per object`}
@@ -368,8 +381,9 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                   ? 'bg-geo-bg border-geo-border text-foreground'
                   : 'border-geo-border text-geo-muted hover:text-foreground hover:bg-geo-bg'
               )}
-              onClick={() => setContentsOpen((v) => !v)}
+              onClick={() => contentsOpen ? hideDialog('map-contents') : showDialog('map-contents')}
               title="Contents"
+            data-ourgeo-id="map.contents"
             >
               <span>
                 Contents{layers.length > 0 ? ` (${layers.length})` : ''}
@@ -399,8 +413,8 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                           layer={layer}
                           onClick={(e) => {
                             e.stopPropagation()
-                            setSymbologyLayerId(layer.id)
-                            setContentsOpen(false)
+                            showDialog('symbology', layer.id)
+                            useUiStore.getState().hideDialog('map-contents')
                           }}
                         />
                         <span
@@ -435,8 +449,8 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                             )}
                             onClick={(e) => {
                               e.stopPropagation()
-                              setLabelLayerId(layer.id)
-                              setContentsOpen(false)
+                              showDialog('labeling', layer.id)
+                              useUiStore.getState().hideDialog('map-contents')
                             }}
                             title="Label settings"
                           >
@@ -488,8 +502,9 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
               'h-6 w-6 p-0 flex-shrink-0',
               settingsOpen ? 'text-foreground' : 'text-geo-muted hover:text-foreground'
             )}
-            onClick={() => setSettingsOpen((v) => !v)}
+            onClick={() => settingsOpen ? hideDialog('map-settings') : showDialog('map-settings')}
             title="Map Settings"
+            data-ourgeo-id="map.settings"
           >
             <Settings2 className="w-3.5 h-3.5" />
           </Button>
@@ -500,13 +515,13 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                 label="Legend"
                 checked={showLegend}
                 onChange={setShowLegend}
-                onSettingsClick={() => { setSettingsOpen(false); setLegendSettingsOpen(true) }}
+                onSettingsClick={() => { showDialog('legend-settings') }}
               />
               <SettingsToggle
                 label="North Arrow"
                 checked={showNorthArrow}
                 onChange={setShowNorthArrow}
-                onSettingsClick={() => { setSettingsOpen(false); setNorthArrowSettingsOpen(true) }}
+                onSettingsClick={() => { showDialog('north-arrow-settings') }}
               />
             </div>
           )}
@@ -527,7 +542,7 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
             ? symbologyLayerId
             : null
         }
-        onClose={() => setSymbologyLayerId(null)}
+        onClose={() => hideDialog('symbology')}
       />
       <RasterSymbologyDialog
         layerId={
@@ -536,25 +551,25 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
             ? symbologyLayerId
             : null
         }
-        onClose={() => setSymbologyLayerId(null)}
+        onClose={() => hideDialog('symbology')}
       />
       <LabelingDialog
         layerId={labelLayerId}
-        onClose={() => setLabelLayerId(null)}
+        onClose={() => hideDialog('labeling')}
       />
       <LegendSettingsDialog
         open={legendSettingsOpen}
-        onClose={() => setLegendSettingsOpen(false)}
+        onClose={() => hideDialog('legend-settings')}
       />
       <NorthArrowSettingsDialog
         open={northArrowSettingsOpen}
-        onClose={() => setNorthArrowSettingsOpen(false)}
+        onClose={() => hideDialog('north-arrow-settings')}
       />
       <BasemapDialog
         open={basemapDialogOpen}
-        onClose={() => setBasemapDialogOpen(false)}
+        onClose={() => hideDialog('basemap')}
       />
-      <SaveEditsDialog open={saveEditsOpen} onOpenChange={setSaveEditsOpen} />
+      <SaveEditsDialog open={saveEditsOpen} onOpenChange={(o) => o ? showDialog('save-edits') : hideDialog('save-edits')} />
     </div>
   )
 }

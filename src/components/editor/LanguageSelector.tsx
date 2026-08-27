@@ -55,6 +55,7 @@ export function LanguageSelector({ tabId, language, disabled }: Props): React.Re
         onClick={toggle}
         disabled={disabled}
         title="Document type"
+        data-ourgeo-id="editor.language"
         className={cn(
           'flex items-center gap-0.5 h-6 px-1.5 rounded text-[11px] transition-colors',
           'text-geo-muted hover:text-foreground hover:bg-white/5',

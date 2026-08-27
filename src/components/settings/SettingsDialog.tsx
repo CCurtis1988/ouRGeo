@@ -156,11 +156,15 @@ function SubLabel({ children, className = '' }: { children: React.ReactNode; cla
 
 interface SettingsDialogProps {
   children: React.ReactNode
+  /** Controlled visibility. Omitted, the trigger owns it as before — passed,
+   *  the ui store does, so Settings can be opened from outside this tree. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function SettingsDialog({ children }: SettingsDialogProps): React.ReactElement {
+export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogProps): React.ReactElement {
   return (
-    <Dialog.Root>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>{children}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />

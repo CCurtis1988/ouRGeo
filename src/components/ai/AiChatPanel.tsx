@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock } from 'lucide-react'
+import { Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock, SlidersHorizontal } from 'lucide-react'
 import { Button } from '../ui/button'
 import { AiChatMessage } from './AiChatMessage'
 import { ModelSelectorPopup } from './ModelSelectorPopup'
 import { AutopilotWarningDialog } from './AutopilotWarningDialog'
+import { AiPermissionsDialog } from './AiPermissionsDialog'
+import { AiActionConfirmDialog } from './AiActionConfirmDialog'
 import { useAiStore } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useEditorStore } from '@/store/editor'
@@ -17,6 +19,8 @@ import { AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance } from '@/lib/a
 import { buildDocumentSkill } from '@/lib/ai-skill-documents'
 import { buildDocumentContext } from '@/lib/ai-doc-context'
 import { DOC_TOOLS, DOC_TOOL_NAMES, runDocTool, describeDocCall } from '@/lib/ai-doc-tools'
+import { UI_TOOLS, UI_TOOL_NAMES, runUiTool, describeUiCall } from '@/lib/ai-ui-tools'
+import { buildOurgeoCore } from '@/lib/ai-skill-ourgeo'
 import { cn } from '@/lib/utils'
 
 // ── Token usage bar ────────────────────────────────────────────────────────
@@ -79,6 +83,7 @@ export function AiChatPanel(): React.ReactElement {
   const [input, setInput] = useState('')
   const [modelPopupOpen, setModelPopupOpen] = useState(false)
   const [autopilotDialogOpen, setAutopilotDialogOpen] = useState(false)
+  const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [acSelected, setAcSelected] = useState(0)
   // Resolved context window (manual override → auto-detected → static → 128k)
@@ -167,6 +172,7 @@ export function AiChatPanel(): React.ReactElement {
     const envContext = buildEnvContext(currentEnvs)
     let systemPrompt = [
       AI_BASE_PROMPT,
+      buildOurgeoCore(),
       buildProvenanceRules(),
       // Documents are always in the prompt: the model has to know a .Rmd renders
       // in a session of its own before it writes one, not after the knit fails.
@@ -211,6 +217,9 @@ export function AiChatPanel(): React.ReactElement {
     // Document tools carry no switch: they write into a visible, undoable editor
     // tab and never touch disk or the R session.
     tools.push(...DOC_TOOLS)
+    // Interface tools are likewise unswitched: discovery and navigation are
+    // harmless, and everything that isn't is gated per action by its tier.
+    tools.push(...UI_TOOLS)
     if (webAccessEnabled) tools.push(...WEB_TOOLS)
 
     // Every tool re-checks its switch at call time: flipping one off mid-answer
@@ -231,6 +240,17 @@ export function AiChatPanel(): React.ReactElement {
       if (DOC_TOOL_NAMES.has(call.name)) {
         addConsoleEntry('info', describeDocCall(call.name, call.input))
         return truncateForModel(await runDocTool(call.name, call.input), 24000)
+      }
+      if (UI_TOOL_NAMES.has(call.name)) {
+        addConsoleEntry('info', describeUiCall(call.name, call.input))
+        // Autopilot is re-read at call time, so turning it off mid-answer stops
+        // the next action rather than waiting for the turn to end.
+        return truncateForModel(
+          await runUiTool(call.name, call.input, {
+            autoPilot: useAiStore.getState().autoPilotEnabled,
+          }),
+          24000,
+        )
       }
       if (WEB_TOOL_NAMES.has(call.name)) {
         if (!useAiStore.getState().webAccessEnabled) {
@@ -387,6 +407,15 @@ export function AiChatPanel(): React.ReactElement {
             <span>Autopilot {autoPilotEnabled ? 'ON' : 'OFF'}</span>
           </button>
 
+          <button
+            onClick={() => setPermissionsOpen(true)}
+            className="flex items-center gap-1 text-[10px] px-1.5 py-1 rounded text-geo-muted
+                       hover:text-foreground hover:bg-white/5 transition-colors"
+            title="Choose what the assistant may do in the interface"
+          >
+            <SlidersHorizontal className="w-3 h-3" />
+          </button>
+
           {/* Internet kill switch — with web off, the only route to the network
               left to the assistant is R code the user watches run in the console. */}
           <button
@@ -466,6 +495,9 @@ export function AiChatPanel(): React.ReactElement {
           )}
         </div>
       </div>
+
+      <AiPermissionsDialog open={permissionsOpen} onOpenChange={setPermissionsOpen} />
+      <AiActionConfirmDialog />
 
       {/* Autopilot warning dialog */}
       <AutopilotWarningDialog

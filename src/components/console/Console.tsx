@@ -243,6 +243,7 @@ export function Console(): React.ReactElement {
             className="h-6 w-6"
             onClick={clearConsole}
             title="Clear console"
+            data-ourgeo-id="console.clear"
           >
             <Trash2 className="w-3 h-3" />
           </Button>

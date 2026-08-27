@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import { loadAiPreferences, saveAiPreferences } from '@/lib/ai-preferences-persistence'
+import {
+  setTierOverrides, setTierOverride, clearTierOverrides, type TierOverrides,
+} from '@/lib/ai-actions/permissions'
+import { TIERS, type Tier } from '@/lib/ai-actions/types'
 
 // Cloud providers have bespoke transports; local providers are OpenAI-compatible
 // (except Ollama, which uses its native API). See LOCAL_PROVIDERS in ai-client.ts.
@@ -42,6 +46,9 @@ interface AiState {
    *  so the only route to the internet left is R code the user sees run in the
    *  console. */
   webAccessEnabled: boolean
+  /** Per-action permission overrides for the GUI actions, actionId → tier.
+   *  Sparse: only what the user changed. See lib/ai-actions/permissions.ts. */
+  actionTiers: Record<string, Tier>
   tokenUsage: { used: number; total: number }
   abortController: AbortController | null
 
@@ -57,6 +64,9 @@ interface AiState {
   setAutoPilot: (on: boolean) => void
   setAutopilotWarningDismissed: (v: boolean) => void
   setWebAccess: (on: boolean) => void
+  /** Move one action to a tier, or back to its default with null. */
+  setActionTier: (actionId: string, tier: Tier | null) => void
+  resetActionTiers: () => void
   setTokenUsage: (used: number, total: number) => void
   beginStream: () => AbortController
   currentModel: () => string
@@ -88,6 +98,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   autoPilotEnabled: false,
   autopilotWarningDismissed: false,
   webAccessEnabled: true,
+  actionTiers: {},
   tokenUsage: { used: 0, total: 200000 },
   abortController: null,
 
@@ -96,11 +107,19 @@ export const useAiStore = create<AiState>((set, get) => ({
   init: async () => {
     if (get().initialized) return
     const prefs = await loadAiPreferences()
+    // Drop anything that is not a valid tier, so a hand-edited preferences file
+    // cannot leave an action stuck in a state the dialog can't show.
+    const tiers: TierOverrides = {}
+    for (const [id, tier] of Object.entries(prefs.actionTiers ?? {})) {
+      if ((TIERS as string[]).includes(tier)) tiers[id] = tier as Tier
+    }
+    setTierOverrides(tiers)
     set({
       provider: prefs.provider as AiProvider,
       modelByProvider: prefs.modelByProvider,
       autopilotWarningDismissed: prefs.autopilotWarningDismissed,
       webAccessEnabled: prefs.webAccessEnabled,
+      actionTiers: tiers,
       initialized: true,
     })
   },
@@ -154,6 +173,20 @@ export const useAiStore = create<AiState>((set, get) => ({
   setWebAccess: (on) => {
     set({ webAccessEnabled: on })
     saveAiPreferences({ webAccessEnabled: on })
+  },
+
+  setActionTier: (actionId, tier) => {
+    // permissions.ts holds the map the tool layer reads at call time; the store
+    // mirrors it so the dialog re-renders and the file gets written.
+    const next = setTierOverride(actionId, tier)
+    set({ actionTiers: next })
+    saveAiPreferences({ actionTiers: next })
+  },
+
+  resetActionTiers: () => {
+    clearTierOverrides()
+    set({ actionTiers: {} })
+    saveAiPreferences({ actionTiers: {} })
   },
 
   setTokenUsage: (used, total) => set({ tokenUsage: { used, total } }),

@@ -131,7 +131,7 @@ export function SpatialEditor(): React.ReactElement {
   return (
     <div className="flex flex-col h-full bg-geo-bg">
       <SpatialRibbon onFitBounds={fitAllBounds} mapContainerRef={mapContainerRef} />
-      <div ref={mapContainerRef} className="flex-1 min-h-0 relative">
+      <div ref={mapContainerRef} data-ourgeo-id="map.canvas" className="flex-1 min-h-0 relative">
         <MapView ref={mapRef} />
         <div data-export-hide>
           <MapControls

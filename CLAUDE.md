@@ -463,6 +463,7 @@ Two independent switches in the AI panel footer decide which tools are attached:
 | **Autopilot** | `execute_r_code` — runs R in the live session | off | `ai.autoPilotEnabled` |
 | **Web** | `web_search`, `web_fetch` (`ai-web-tools.ts`) | **on** | `ai.webAccessEnabled` (persisted in `ai-preferences.json`) |
 | *(none)* | `read_document`, `write_document`, `edit_document` (`ai-doc-tools.ts`) | always | — |
+| *(per action)* | `list_ui_actions`, `run_ui_action`, `toolbox_tools`, `run_toolbox_tool`, `ourgeo_docs` (`ai-ui-tools.ts`) | attached always; each ACTION is tiered | `ai.actionTiers` (persisted) |
 
 A disabled switch is *absent* from the request rather than declined afterwards, and
 `runTool` in `AiChatPanel` re-reads the store at call time so flipping a switch off
@@ -518,6 +519,53 @@ Nothing in the prompt mentioned documents at all.
   `writeLines(c("…"))` through `execute_r_code` — a whole report's backticks and
   quotes escaped inside an R string literal, which is where a small local model
   comes apart, silently.
+
+### Driving the GUI (`src/lib/ai-actions/`, `ai-ui-tools.ts`, `ai-skill-ourgeo.ts`)
+
+The assistant can operate the application, so it can walk a user through a
+workflow in their own session instead of only describing one. ~90 actions in 12
+groups cover the panels, dialogs, editor, projects, data import, .Rgeo
+databases, environment, packages, help, the whole Spatial Editor, drawing, plots
+and settings — plus the 87 toolbox tools.
+
+- **A registry, not ninety tools.** `ai-actions/registry.ts` collects `UiAction`
+  data objects (id, group, summary, typed params, default tier, `run`). Five AI
+  tools cover the lot: search, run, toolbox search, toolbox run, docs. Ninety
+  tool definitions would not fit a local model's context, so discovery is a tool
+  call and the system prompt carries only the generated **id index**
+  (~400 tokens, `actionIndex()`), which a test proves resolves.
+- **Three tiers, user-editable.** `always` (screen only) / `autopilot` (touches R
+  or disk — the same switch as `execute_r_code`) / `confirm` (destructive: also a
+  modal). Defaults live on the action; the gear beside the Autopilot toggle opens
+  `AiPermissionsDialog`, and overrides persist **sparse** in `ai-preferences.json`
+  so shipped defaults stay live. The confirm modal blocks the tool call — closing
+  it is a "no", because the safe answer must be the one you get by doing nothing.
+- **Pointing, not only pressing.** `ui.highlight` rings a real control by
+  `data-ourgeo-id` and waits, so a tutorial teaches where the button is.
+  `HighlightOverlay` is `pointer-events-none` throughout — the ring must never
+  intercept the click it is asking for — and `ai-actions/targets.ts` is a closed
+  catalogue that a test checks against the attributes in the source.
+- **Dialog state moved to `src/store/ui.ts`.** Every dialog used to be a
+  `useState(false)` next to its button, which is right until something outside
+  the component needs to open one. `hideDialog(id)` is a no-op unless `id` is the
+  open dialog, so a closing dialog can never close its replacement.
+- **Geometry the assistant makes is staged, not written.** `draw.addFeature` goes
+  through the same pending-edit path as hand-drawn geometry: on the map, in the
+  Save Edits badge, written by the same batched R statement. That is the only
+  basis on which programmatic drawing is safe to offer.
+- **Five extractions** put shared logic where both the GUI and the assistant can
+  reach it, with the components still calling them: `add-spatial-layer.ts` (from
+  AddFeaturesDialog), `load-data-code.ts` (from LoadDataDialog), `map-export.ts`
+  (from markdown/chunk-codegen), `save-edits.ts` (from useSaveEdits), and dialog
+  state (above). `map.exportCode` and the Export dialogs therefore generate
+  identical R.
+- **Knowledge is progressive.** `buildOurgeoCore()` is ~1200 tokens in every
+  prompt — what ouRGeo is, the every-action-echoes-its-R rule, the layout, the
+  action index, and how to run a tutorial. The full reference (11 topics, written
+  from ourgeo.dev/docs pages plus what only this file knows) sits behind
+  `ourgeo_docs({topic})`.
+- **Never exposed:** the AI panel itself (an assistant that can close its own
+  panel can end the conversation), API keys, and posting to the forum.
 
 ## Markdown & R Markdown (v1.9)
 

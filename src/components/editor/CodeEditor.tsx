@@ -1041,13 +1041,13 @@ export function CodeEditor(): React.ReactElement {
               />
             )}
             {!isMarkdown && (
-            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => runCurrentLine()}>
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => runCurrentLine()} data-ourgeo-id="editor.runLine">
               <ChevronRight className="w-3 h-3" />
               Line
             </Button>
             )}
             {!isMarkdown && (
-            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={runAll}>
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={runAll} data-ourgeo-id="editor.runAll">
               <Play className="w-3 h-3" />
               Run All
             </Button>

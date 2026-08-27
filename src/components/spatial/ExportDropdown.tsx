@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { Download, ChevronDown, Image, Map, BarChart2 } from 'lucide-react'
 import { ExportImgDialog } from './ExportImgDialog'
 import { ExportCodeDialog } from './ExportCodeDialog'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
+import { useUiStore } from '@/store/ui'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { cn } from '@/lib/utils'
 
@@ -11,10 +12,19 @@ interface ExportDropdownProps {
 }
 
 export function ExportDropdown({ mapContainerRef }: ExportDropdownProps): React.ReactElement {
-  const [open, setOpen] = useState(false)
-  const [imgOpen, setImgOpen] = useState(false)
-  const [tmapOpen, setTmapOpen] = useState(false)
-  const [ggplotOpen, setGgplotOpen] = useState(false)
+  // Visibility lives in the ui store so the same four surfaces can be opened
+  // from outside the ribbon — see src/store/ui.ts.
+  const openDialog = useUiStore((s) => s.openDialog)
+  const showDialog = useUiStore((s) => s.showDialog)
+  const hideDialog = useUiStore((s) => s.hideDialog)
+  const open = openDialog === 'export-menu'
+  const imgOpen = openDialog === 'export-image'
+  const tmapOpen = openDialog === 'export-code-tmap'
+  const ggplotOpen = openDialog === 'export-code-ggplot'
+  const setOpen = (v: boolean): void => { if (v) showDialog('export-menu'); else hideDialog('export-menu') }
+  const setImgOpen = (v: boolean): void => { if (v) showDialog('export-image'); else hideDialog('export-image') }
+  const setTmapOpen = (v: boolean): void => { if (v) showDialog('export-code-tmap'); else hideDialog('export-code-tmap') }
+  const setGgplotOpen = (v: boolean): void => { if (v) showDialog('export-code-ggplot'); else hideDialog('export-code-ggplot') }
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Remember which generator the user reaches for. The R Markdown map chunk
@@ -31,10 +41,10 @@ export function ExportDropdown({ mapContainerRef }: ExportDropdownProps): React.
     if (!open) return
     function onPointerDown(e: PointerEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node))
-        setOpen(false)
+        useUiStore.getState().hideDialog('export-menu')
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') useUiStore.getState().hideDialog('export-menu')
     }
     window.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKey)
@@ -53,7 +63,8 @@ export function ExportDropdown({ mapContainerRef }: ExportDropdownProps): React.
             ? 'bg-geo-bg border-geo-border text-foreground'
             : 'border-geo-border text-geo-muted hover:text-foreground hover:bg-geo-bg'
         )}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
+        data-ourgeo-id="map.export"
         title="Export"
       >
         <Download className="w-3 h-3" />

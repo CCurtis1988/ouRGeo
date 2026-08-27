@@ -79,6 +79,7 @@ export function ProjectDropdown(): React.ReactElement {
         disabled={busy}
         onClick={() => setOpen((v) => !v)}
         title={STATUS_LABEL[rStatus] ?? rStatus}
+        data-ourgeo-id="project.dropdown"
         className={cn(
           'flex items-center gap-1.5 h-6 px-2 rounded text-xs transition-colors',
           'text-geo-muted hover:text-foreground hover:bg-white/5',

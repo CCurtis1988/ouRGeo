@@ -103,6 +103,7 @@ export function TabBar(): React.ReactElement {
           className="flex items-center justify-center w-7 h-8 text-geo-muted hover:text-foreground"
           onClick={() => addTab()}
           title="New blank .R file"
+          data-ourgeo-id="editor.newTab"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>

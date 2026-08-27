@@ -13,15 +13,14 @@
 // (tmap-codegen / ggplot-codegen), so a map written into a document and a map
 // exported from the dialog are the same code.
 
-import { useSpatialStore } from '@/store/spatial'
-import { useBasemapStore } from '@/store/basemap'
-import { useThemeStore } from '@/store/theme'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
 import { useMarkdownSettingsStore, type MapChunkEngine } from '@/store/markdownSettings'
-import { THEME_DEFAULT_BASEMAPS } from '@/lib/basemaps'
+import { mapCodeParams, hasVisibleLayers } from '@/lib/map-export'
 import { generateTmapCode } from '@/lib/tmap-codegen'
 import { generateGgplotCode } from '@/lib/ggplot-codegen'
 import type { MdActionDef } from './actions'
+
+export { hasVisibleLayers } from '@/lib/map-export'
 
 /** The concrete generator to use, resolving `auto` against the export dialogs. */
 export function resolveMapEngine(
@@ -29,38 +28,6 @@ export function resolveMapEngine(
 ): 'tmap' | 'ggplot' {
   if (setting === 'auto') return useSpatialSettingsStore.getState().lastExportMode
   return setting
-}
-
-/**
- * Snapshot of everything the map generators read, taken from the live stores.
- *
- * Mirrors ExportCodeDialog's `codeParams`, minus the dialog-only overrides:
- * `annotations` is left undefined so both generators fall back to the spatial
- * store's own legend/north-arrow settings — i.e. what is drawn on screen.
- */
-function mapCodeParams(): Parameters<typeof generateTmapCode>[0] {
-  const s = useSpatialStore.getState()
-  const overrideId = useBasemapStore.getState().overrideBasemapId
-  const theme = useThemeStore.getState().current
-  return {
-    layers: s.layers,
-    viewState: s.viewState,
-    viewBbox: s.viewBbox,
-    showLegend: s.showLegend,
-    legendSettings: s.legendSettings,
-    showNorthArrow: s.showNorthArrow,
-    northArrowSettings: s.northArrowSettings,
-    basemapId: overrideId ?? THEME_DEFAULT_BASEMAPS[theme] ?? 'carto-dark-matter',
-    // Static output: a knitted document can't host a Leaflet view, and the
-    // point of the chunk is a figure.
-    activeView: false,
-    tileZoom: Math.max(1, Math.min(18, Math.round(s.viewState.zoom))),
-  }
-}
-
-/** True when the map has something worth generating code for. */
-export function hasVisibleLayers(): boolean {
-  return useSpatialStore.getState().layers.some((l) => l.visible)
 }
 
 export interface MapChunkOptions {

@@ -143,6 +143,7 @@ export function WorkingDirBar(): React.ReactElement | null {
           type="button"
           onClick={() => setOpen((v) => !v)}
           title={`Working directory\n${workingDir}\n\nClick to change`}
+          data-ourgeo-id="console.workingDir"
           aria-label={`Working directory: ${workingDir}`}
           className={`flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-xs
             text-geo-muted transition-colors hover:bg-geo-bg hover:text-foreground

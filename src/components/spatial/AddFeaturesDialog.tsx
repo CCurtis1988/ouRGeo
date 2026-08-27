@@ -3,9 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Loader2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { rClient } from '@/lib/r-client'
-import { createRasterLayerInfo, rasterLayerDraft } from '@/lib/raster-layers'
+import { addSpatialLayers } from '@/lib/add-spatial-layer'
 import { useSpatialStore, SpatialObjectInfo } from '@/store/spatial'
-import { useGeometryEditStore } from '@/store/geometryEdit'
 
 interface AddFeaturesDialogProps {
   onLayersAdded: (bbox: [number, number, number, number] | null) => void
@@ -16,10 +15,6 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
   const setOpen = useSpatialStore((s) => s.setAddFeaturesDialogOpen)
   const availableObjects = useSpatialStore((s) => s.availableObjects)
   const setAvailableObjects = useSpatialStore((s) => s.setAvailableObjects)
-  const addLayer = useSpatialStore((s) => s.addLayer)
-  const addLayerToActiveSession = useGeometryEditStore((s) => s.addLayerToActiveSession)
-  const createNamedSession = useGeometryEditStore((s) => s.createNamedSession)
-  const activeSessionId = useGeometryEditStore((s) => s.activeSessionId)
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -60,62 +55,11 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
     const toAdd = availableObjects.filter((o) => selected.has(objectKey(o)))
     if (toAdd.length === 0) return
 
-    if (!activeSessionId) {
-      createNamedSession('Default')
-    }
-
     setLoading(true)
     setError(null)
-    let combinedBbox: [number, number, number, number] | null = null
-    const failures: string[] = []
-
-    for (const obj of toAdd) {
-      try {
-        let bbox: [number, number, number, number] | null = null
-
-        if (obj.class === 'SpatRaster') {
-          // Raster path: register with the tile engine — no GeoJSON, no
-          // geometry-edit session (rasters are not editable features).
-          const info = await createRasterLayerInfo(obj.name, obj.envName)
-          addLayer(rasterLayerDraft(obj.name, obj.envName, info))
-          bbox = info.bounds
-        } else {
-          const res = await rClient.getSpatialGeoJSON(obj.name, obj.envName)
-          if (!res.success || !res.geojson) {
-            failures.push(`${obj.name}: ${res.error ?? 'no geometry returned'}`)
-            continue
-          }
-
-          const geojson =
-            typeof res.geojson === 'string' ? JSON.parse(res.geojson) : res.geojson
-
-          const newLayerId = addLayer({
-            name: obj.name,
-            envName: obj.envName,
-            geometryType: obj.geometryType,
-            geojson,
-            colLib: (obj.class === 'sf' || obj.class === 'sfc' || obj.class === 'sfg') ? 'sf' : 'geos',
-            columnName: obj.sfColumn ?? 'geometry'
-          })
-          addLayerToActiveSession(newLayerId)
-          bbox = computeBbox(geojson)
-        }
-
-        if (bbox) {
-          if (!combinedBbox) {
-            combinedBbox = [...bbox]
-          } else {
-            combinedBbox[0] = Math.min(combinedBbox[0], bbox[0])
-            combinedBbox[1] = Math.min(combinedBbox[1], bbox[1])
-            combinedBbox[2] = Math.max(combinedBbox[2], bbox[2])
-            combinedBbox[3] = Math.max(combinedBbox[3], bbox[3])
-          }
-        }
-      } catch (e) {
-        failures.push(`${obj.name}: ${e instanceof Error ? e.message : String(e)}`)
-      }
-    }
-
+    // The add itself lives in src/lib/add-spatial-layer.ts, so the AI
+    // assistant adds layers through exactly this path.
+    const { failures, bbox } = await addSpatialLayers(toAdd)
     setLoading(false)
 
     // Surface failures instead of silently doing nothing; keep the dialog open
@@ -126,7 +70,7 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
     }
 
     setOpen(false)
-    onLayersAdded(combinedBbox)
+    onLayersAdded(bbox)
   }
 
   return (
@@ -225,49 +169,4 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
       </Dialog.Portal>
     </Dialog.Root>
   )
-}
-
-function computeBbox(
-  geojson: GeoJSON.FeatureCollection | GeoJSON.Feature | GeoJSON.Geometry
-): [number, number, number, number] | null {
-  const coords: number[][] = []
-
-  function extractCoords(obj: unknown) {
-    if (!obj || typeof obj !== 'object') return
-    const g = obj as Record<string, unknown>
-    if (g.type === 'FeatureCollection' && Array.isArray(g.features)) {
-      for (const f of g.features) extractCoords(f)
-    } else if (g.type === 'Feature' && g.geometry) {
-      extractCoords(g.geometry)
-    } else if (g.coordinates) {
-      flattenCoords(g.coordinates as unknown)
-    } else if (g.type === 'GeometryCollection' && Array.isArray(g.geometries)) {
-      for (const gg of g.geometries) extractCoords(gg)
-    }
-  }
-
-  function flattenCoords(c: unknown) {
-    if (!Array.isArray(c)) return
-    if (typeof c[0] === 'number') {
-      coords.push(c as number[])
-    } else {
-      for (const item of c) flattenCoords(item)
-    }
-  }
-
-  extractCoords(geojson)
-  if (coords.length === 0) return null
-
-  let minLng = Infinity,
-    minLat = Infinity,
-    maxLng = -Infinity,
-    maxLat = -Infinity
-  for (const [lng, lat] of coords) {
-    if (lng < minLng) minLng = lng
-    if (lat < minLat) minLat = lat
-    if (lng > maxLng) maxLng = lng
-    if (lat > maxLat) maxLat = lat
-  }
-
-  return [minLng, minLat, maxLng, maxLat]
 }

@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Search, Home, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { rClient } from '@/lib/r-client'
+import { useHelpStore } from '@/store/help'
 import { OURGEO_PANELS, type OurGeoPanel, type HelpView } from './helpData'
 import {
   HtmlViewer, HomeView, OurGeoView, OurGeoPanelView, ResultsView, DocView, PackageView,
@@ -127,6 +128,21 @@ export function HelpPanel(): React.ReactElement {
       setLoading(false)
     }
   }, [histIdx, history])
+
+  // Navigations asked for from outside the panel — the AI assistant opening
+  // documentation during a tutorial. The store carries the request; the fetch
+  // and the history stack stay here. See src/store/help.ts.
+  const requested = useHelpStore((s) => s.requested)
+  const clearRequest = useHelpStore((s) => s.clearRequest)
+  useEffect(() => {
+    if (!requested) return
+    clearRequest()
+    if (requested.kind === 'search') { setQuery(requested.query); void runSearch(requested.query) }
+    else if (requested.kind === 'doc') void navigateToDoc(requested.topic, requested.pkg)
+    else if (requested.kind === 'package') void navigateToPackage(requested.pkg)
+    else if (requested.kind === 'vignette') void navigateToVignette(requested.pkg, requested.name)
+    else navigate({ type: 'home' })
+  }, [requested]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function navigateToOurGeo() {
     navigate({ type: 'ourgeo' })

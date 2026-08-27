@@ -7,6 +7,14 @@ export interface AiPreferences {
   modelByProvider: Record<string, string>
   autopilotWarningDismissed: boolean
   webAccessEnabled: boolean
+  /**
+   * Per-action permission overrides, actionId → tier.
+   *
+   * SPARSE on purpose: only the actions the user actually moved. That keeps the
+   * registry's defaults live, so a later release can retighten one without
+   * overwriting a choice the user made, and with no migration.
+   */
+  actionTiers: Record<string, string>
 }
 
 const DEFAULTS: AiPreferences = {
@@ -28,6 +36,7 @@ const DEFAULTS: AiPreferences = {
   },
   autopilotWarningDismissed: false,
   webAccessEnabled: true,
+  actionTiers: {},
 }
 
 export async function loadAiPreferences(): Promise<AiPreferences> {
@@ -36,6 +45,7 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     modelByProvider?: unknown
     autopilotWarningDismissed?: unknown
     webAccessEnabled?: unknown
+    actionTiers?: unknown
   }>()
   return {
     provider: typeof data.provider === 'string' ? data.provider : DEFAULTS.provider,
@@ -49,6 +59,9 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     webAccessEnabled: typeof data.webAccessEnabled === 'boolean'
       ? data.webAccessEnabled
       : DEFAULTS.webAccessEnabled,
+    actionTiers: typeof data.actionTiers === 'object' && data.actionTiers
+      ? (data.actionTiers as Record<string, string>)
+      : {},
   }
 }
 
