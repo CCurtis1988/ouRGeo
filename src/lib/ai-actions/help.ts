@@ -11,7 +11,7 @@ import { ok, fail, argStr, type UiAction } from './types'
 
 export const helpActions: UiAction[] = [
   {
-    id: 'help.search',
+    id: 'help:search',
     group: 'help',
     tier: 'always',
     summary: 'Search R documentation and show the results in the Help panel.',
@@ -32,7 +32,7 @@ export const helpActions: UiAction[] = [
   },
 
   {
-    id: 'help.topic',
+    id: 'help:topic',
     group: 'help',
     tier: 'always',
     summary: 'Open one help page in the Help panel (the ?topic route).',
@@ -49,7 +49,7 @@ export const helpActions: UiAction[] = [
   },
 
   {
-    id: 'help.package',
+    id: 'help:package',
     group: 'help',
     tier: 'always',
     summary: 'Show a package overview — description, functions and vignettes.',
@@ -63,7 +63,7 @@ export const helpActions: UiAction[] = [
   },
 
   {
-    id: 'help.vignette',
+    id: 'help:vignette',
     group: 'help',
     tier: 'always',
     summary: 'Open a package vignette in the Help panel.',
@@ -90,7 +90,7 @@ export const helpActions: UiAction[] = [
   },
 
   {
-    id: 'help.home',
+    id: 'help:home',
     group: 'help',
     tier: 'always',
     summary: 'Return the Help panel to its home page.',

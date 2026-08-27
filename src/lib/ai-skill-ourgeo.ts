@@ -36,6 +36,12 @@ You can drive all of it. \`run_ui_action\` performs one interface action; \`list
 
 ${actionIndex()}
 
+**These are not R functions.** They exist only as \`run_ui_action\` calls — \`run_ui_action({ id: "map:addLayer", params: { object: "pts" } })\`. R has never heard of \`map:addLayer\`, and neither has any package. So:
+
+- Never write an action id into R code, a chunk, or a block for the user to run. It will fail with \`could not find function\`, and the user will think their installation is broken.
+- If you cannot perform an action — Autopilot is off, or the user declined — do not hand them the id. Tell them which **button** does it, and point at it with \`ui:highlight\`.
+- R code is for R: \`sf\`, \`terra\`, \`dplyr\`, \`ggplot2\`. The interface is for actions. They never mix in one block.
+
 \`toolbox_tools\` searches the 87 geoprocessing tools and \`run_toolbox_tool\` runs one (with \`dryRun\` to show the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
 
 Actions are tiered: navigation and reading are always allowed; anything touching R state or the filesystem needs Autopilot; destructive ones ask the user to confirm. The user can move any action between tiers from the gear beside the Autopilot switch. A refusal is an answer — report it and offer to point at the control instead.
@@ -44,9 +50,9 @@ Actions are tiered: navigation and reading are always allowed; anything touching
 
 This is what the interface access is for. When a user asks how to do something in ouRGeo:
 
-1. **Look before you speak.** \`ui.describe\` and \`map.status\` tell you what is actually open and loaded. Never describe a panel you have not read back.
+1. **Look before you speak.** \`ui:describe\` and \`map:status\` tell you what is actually open and loaded. Never describe a panel you have not read back.
 2. **One step at a time.** Say what the step does and why, do or point at it, then wait. Do not run six actions and summarise.
-3. **Point rather than press, when the point is teaching.** \`ui.highlight\` rings a real control and lets the user click it — they remember where it is. Do it for them when they asked you to do it, or when the step is incidental.
+3. **Point rather than press, when the point is teaching.** \`ui:highlight\` rings a real control and lets the user click it — they remember where it is. Do it for them when they asked you to do it, or when the step is incidental.
 4. **Show the R.** Every operation prints its code; refer to it. \`run_toolbox_tool\` with \`dryRun: true\` shows exactly what a dialog would produce, which is often the best thing to put in front of a learner.
 5. **Never invent the interface.** If you are not sure a button exists, read \`ourgeo_docs\` or search \`list_ui_actions\`. A confidently wrong instruction wastes more of the user's time than a lookup.`
 }
@@ -100,7 +106,7 @@ Raster tools skip the Data Viewer, because a SpatRaster is not tabular. Zonal St
 
   'data-import': `# Getting data in
 
-**Load Data** (toolbar) imports a file. The format is detected from the extension and the options change to match: delimited text (CSV, TSV, TXT), spreadsheets (Excel, ODS), columnar and binary (Parquet, Feather, JSON), statistical (SAS, SPSS, Stata), vector spatial (Shapefile, GeoJSON, KML, GeoPackage, any OGR format), and raster (GeoTIFF, NetCDF, JPEG2000, any GDAL format). Options cover delimiter, encoding, sheet, CRS override and reprojection. The AI action is \`data.load\`, and it emits the same code.
+**Load Data** (toolbar) imports a file. The format is detected from the extension and the options change to match: delimited text (CSV, TSV, TXT), spreadsheets (Excel, ODS), columnar and binary (Parquet, Feather, JSON), statistical (SAS, SPSS, Stata), vector spatial (Shapefile, GeoJSON, KML, GeoPackage, any OGR format), and raster (GeoTIFF, NetCDF, JPEG2000, any GDAL format). Options cover delimiter, encoding, sheet, CRS override and reprojection. The AI action is \`data:load\`, and it emits the same code.
 
 **Create data object** builds a data frame, matrix or vector by hand — good for lookup tables.
 
@@ -126,7 +132,7 @@ A GPU-accelerated MapLibre canvas tied to R objects. **A layer is a view onto an
 
 **Map Settings** holds the legend and north arrow. Both carry into exported code as real ggplot2/tmap components, not as decorations painted on top.
 
-**Export** has three destinations. *Export to IMG* captures the canvas at publication resolution. *Export to tmap* and *Export to ggplot* generate standalone R that reproduces what is on screen — basemap via maptiles, vector geoms with the symbology you set, rasters via \`geom_spatraster\` or \`tm_raster\`. The AI action \`map.exportCode\` calls the same generators.`,
+**Export** has three destinations. *Export to IMG* captures the canvas at publication resolution. *Export to tmap* and *Export to ggplot* generate standalone R that reproduces what is on screen — basemap via maptiles, vector geoms with the symbology you set, rasters via \`geom_spatraster\` or \`tm_raster\`. The AI action \`map:exportCode\` calls the same generators.`,
 
   drawing: `# Drawing and editing geometry
 
@@ -138,7 +144,7 @@ Edit Mode opens a dedicated ribbon with nine tools: select, draw, edit-vertices,
 
 **Precise input.** Coordinates can be typed: \`lng,lat\` for an absolute position, or \`d150 a45\` for a relative distance and bearing.
 
-**Edits stage; they do not apply.** Everything drawn accumulates as pending edits, counted in the ribbon's Save Edits badge. Save Edits writes them to the R object as one batched statement echoed to the console, or discards them and restores the previous geometry. Database-backed layers flush through the .Rgeo update path instead. This staging is also how the AI's \`draw.addFeature\` works: a geometry the assistant produces is reviewed exactly like one the user drew.`,
+**Edits stage; they do not apply.** Everything drawn accumulates as pending edits, counted in the ribbon's Save Edits badge. Save Edits writes them to the R object as one batched statement echoed to the console, or discards them and restores the previous geometry. Database-backed layers flush through the .Rgeo update path instead. This staging is also how the AI's \`draw:addFeature\` works: a geometry the assistant produces is reviewed exactly like one the user drew.`,
 
   projects: `# Projects and persistence
 

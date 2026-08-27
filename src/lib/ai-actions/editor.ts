@@ -55,7 +55,7 @@ const isResult = (v: unknown): v is ActionResult =>
 
 export const editorActions: UiAction[] = [
   {
-    id: 'editor.listTabs',
+    id: 'editor:listTabs',
     group: 'editor',
     tier: 'always',
     summary: 'List the open editor tabs, marking the active one.',
@@ -74,7 +74,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.openFile',
+    id: 'editor:openFile',
     group: 'editor',
     tier: 'autopilot',
     summary: 'Open a file from disk in the code editor (what the Open File button does).',
@@ -95,7 +95,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.newTab',
+    id: 'editor:newTab',
     group: 'editor',
     tier: 'autopilot',
     summary: 'Create a new empty document tab. Use write_document when you have content for it.',
@@ -124,7 +124,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.activateTab',
+    id: 'editor:activateTab',
     group: 'editor',
     tier: 'always',
     summary: 'Bring an open tab to the front.',
@@ -138,10 +138,10 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.closeTab',
+    id: 'editor:closeTab',
     group: 'editor',
     tier: 'autopilot',
-    summary: 'Close a tab. Unsaved changes in it are lost, so check editor.listTabs first.',
+    summary: 'Close a tab. Unsaved changes in it are lost, so check editor:listTabs first.',
     params: [{ name: 'name', type: 'string', description: 'Tab file name; omit for the active tab.' }],
     run: (args) => {
       const tab = requireTab(argStr(args, 'name'))
@@ -153,17 +153,17 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.save',
+    id: 'editor:save',
     group: 'editor',
     tier: 'autopilot',
-    summary: 'Save a tab to the file it came from. Fails for a tab that has no path — use editor.saveAs.',
+    summary: 'Save a tab to the file it came from. Fails for a tab that has no path — use editor:saveAs.',
     params: [{ name: 'name', type: 'string', description: 'Tab file name; omit for the active tab.' }],
     run: async (args) => {
       const tab = requireTab(argStr(args, 'name'))
       if (isResult(tab)) return tab
       if (!tab.filePath) {
         return fail(`"${tab.fileName}" has never been saved, so there is no path to save it to. ` +
-          'Use editor.saveAs with a path, or ask the user to press Ctrl+S and pick one.')
+          'Use editor:saveAs with a path, or ask the user to press Ctrl+S and pick one.')
       }
       await window.electronAPI.file.write(tab.filePath, tab.content)
       useEditorStore.getState().markTabSaved(tab.id, tab.filePath, tab.content)
@@ -172,7 +172,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.saveAs',
+    id: 'editor:saveAs',
     group: 'editor',
     // Writing to a path the assistant chose can overwrite a file the user cares
     // about, and nothing in the app undoes that.
@@ -194,7 +194,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.runTab',
+    id: 'editor:runTab',
     group: 'editor',
     tier: 'autopilot',
     summary: 'Run a whole document in the R console (the Run All button).',
@@ -217,7 +217,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.setLanguage',
+    id: 'editor:setLanguage',
     group: 'editor',
     tier: 'always',
     summary: 'Change a tab\'s document type (the editor toolbar\'s selector).',
@@ -238,7 +238,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.viewMode',
+    id: 'editor:viewMode',
     group: 'editor',
     tier: 'always',
     summary: 'Switch a markdown document between Source and Visual editing.',
@@ -261,7 +261,7 @@ export const editorActions: UiAction[] = [
   },
 
   {
-    id: 'editor.knit',
+    id: 'editor:knit',
     group: 'editor',
     tier: 'autopilot',
     summary:
@@ -284,7 +284,7 @@ export const editorActions: UiAction[] = [
       }
       if (tab.isDirty) {
         return fail(`"${tab.fileName}" has unsaved changes. Knit renders the file on disk, not the ` +
-          'buffer, so save it first (editor.save) or you will knit the previous version.')
+          'buffer, so save it first (editor:save) or you will knit the previous version.')
       }
       const format = argStr(args, 'format', 'html') || 'html'
       const session = useSessionStore.getState()

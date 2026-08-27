@@ -17,7 +17,7 @@ import { ok, fail, argStr, type UiAction } from './types'
 
 export const projectActions: UiAction[] = [
   {
-    id: 'project.status',
+    id: 'project:status',
     group: 'project',
     tier: 'always',
     summary: 'The current project: its name, path, whether it has unsaved changes, and the recents list.',
@@ -37,7 +37,7 @@ export const projectActions: UiAction[] = [
   },
 
   {
-    id: 'project.save',
+    id: 'project:save',
     group: 'project',
     tier: 'autopilot',
     summary: 'Save the current project in place. Not available for the scratch workspace.',
@@ -46,7 +46,7 @@ export const projectActions: UiAction[] = [
       const s = useProjectStore.getState()
       if (!s.path) {
         return fail('This is the scratch workspace, which cannot be saved in place. ' +
-          'Use project.saveAs to turn it into a real .ourgeoproj.')
+          'Use project:saveAs to turn it into a real .ourgeoproj.')
       }
       const saved = await saveCurrentProject()
       return saved ? ok(`Saved "${s.name}" to ${s.path}.`) : fail('Save failed.')
@@ -54,7 +54,7 @@ export const projectActions: UiAction[] = [
   },
 
   {
-    id: 'project.saveAs',
+    id: 'project:saveAs',
     group: 'project',
     tier: 'autopilot',
     summary: 'Save the session as a new .ourgeoproj bundle. Opens the system save dialog for the user to pick a location.',
@@ -68,7 +68,7 @@ export const projectActions: UiAction[] = [
   },
 
   {
-    id: 'project.open',
+    id: 'project:open',
     group: 'project',
     // Loading resets the R session and replaces every open tab and layer.
     tier: 'confirm',
@@ -88,7 +88,7 @@ export const projectActions: UiAction[] = [
   },
 
   {
-    id: 'project.new',
+    id: 'project:new',
     group: 'project',
     // Clears every user object in R.
     tier: 'confirm',

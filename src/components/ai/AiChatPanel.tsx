@@ -20,6 +20,7 @@ import { buildDocumentSkill } from '@/lib/ai-skill-documents'
 import { buildDocumentContext } from '@/lib/ai-doc-context'
 import { DOC_TOOLS, DOC_TOOL_NAMES, runDocTool, describeDocCall } from '@/lib/ai-doc-tools'
 import { UI_TOOLS, UI_TOOL_NAMES, runUiTool, describeUiCall } from '@/lib/ai-ui-tools'
+import { actionCallInCode, actionCodeRefusal } from '@/lib/ai-actions/action-code-guard'
 import { buildOurgeoCore } from '@/lib/ai-skill-ourgeo'
 import { cn } from '@/lib/utils'
 
@@ -230,6 +231,11 @@ export function AiChatPanel(): React.ReactElement {
           return 'Refused: the user turned Autopilot off. Do not run code — give the user code to run and wait for their output.'
         }
         const code = String(call.input.code ?? '')
+        // An interface action written as R is the model confusing the two
+        // namespaces. Correct it rather than letting R say "could not find
+        // function" — see lib/ai-actions/action-code-guard.ts.
+        const mistakenAction = actionCallInCode(code)
+        if (mistakenAction) return actionCodeRefusal(mistakenAction)
         addConsoleEntry('input', code)
         const res = await rClient.execute(code)
         // /r/execute returns console text at the top level (`output`), not res.result

@@ -7,7 +7,7 @@
 // can be reached with `execute_r_code`, which is exactly why these actions
 // exist.
 //
-// `map.exportCode` is the payoff: the same generators the Export dialogs use,
+// `map:exportCode` is the payoff: the same generators the Export dialogs use,
 // run against the same live snapshot, so "make me a map of this" produces the
 // R the user would have got by clicking Export.
 
@@ -71,14 +71,14 @@ function requireLayer(args: Args, key = 'layer'): SpatialLayer | ActionResult {
 
 export const mapActions: UiAction[] = [
   {
-    id: 'map.status',
+    id: 'map:status',
     group: 'map',
     tier: 'always',
     summary: 'What is on the map: layers, symbology, view, basemap, legend and north arrow.',
     params: [],
     run: () => {
       const s = useSpatialStore.getState()
-      if (!s.isOpen) return ok('The Spatial Editor is closed. Open it with ui.panel(panel=spatial).')
+      if (!s.isOpen) return ok('The Spatial Editor is closed. Open it with ui:panel(panel=spatial).')
       const lines: string[] = []
       lines.push(s.layers.length === 0
         ? 'No layers on the map.'
@@ -105,7 +105,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.listObjects',
+    id: 'map:listObjects',
     group: 'map',
     tier: 'always',
     summary: 'List the spatial objects in R that could be added to the map (sf, sfc, SpatRaster).',
@@ -115,7 +115,7 @@ export const mapActions: UiAction[] = [
       if (!res.success) return fail('Could not list spatial objects from R.')
       useSpatialStore.getState().setAvailableObjects(res.objects)
       if (res.objects.length === 0) {
-        return ok('No spatial objects in the R session yet. Import one with data.load, or read one in R.')
+        return ok('No spatial objects in the R session yet. Import one with data:load, or read one in R.')
       }
       const lines = res.objects.map((o) =>
         `${o.name} (${o.class}${o.geometryType ? `, ${o.geometryType}` : ''}` +
@@ -125,7 +125,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.addLayer',
+    id: 'map:addLayer',
     group: 'map',
     tier: 'autopilot',
     summary: 'Add an R spatial object to the map — the Add Features dialog, for one object.',
@@ -161,7 +161,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.removeLayer',
+    id: 'map:removeLayer',
     group: 'map',
     tier: 'autopilot',
     summary: 'Take a layer off the map. The R object it views is untouched.',
@@ -175,7 +175,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setLayerVisible',
+    id: 'map:setLayerVisible',
     group: 'map',
     tier: 'always',
     summary: 'Show or hide a layer.',
@@ -193,7 +193,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setLayerOpacity',
+    id: 'map:setLayerOpacity',
     group: 'map',
     tier: 'always',
     summary: 'Set a layer\'s overall opacity.',
@@ -211,7 +211,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.reorderLayers',
+    id: 'map:reorderLayers',
     group: 'map',
     tier: 'always',
     summary: 'Set the drawing order. Give every layer name, bottom of the list drawn on top.',
@@ -236,7 +236,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.selectLayer',
+    id: 'map:selectLayer',
     group: 'map',
     tier: 'always',
     summary: 'Make a layer the selected one, which is what the ribbon buttons act on.',
@@ -250,7 +250,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.listColumns',
+    id: 'map:listColumns',
     group: 'map',
     tier: 'always',
     summary: 'Columns available on a vector layer, with numeric/categorical type — what you can colour or label by.',
@@ -258,7 +258,7 @@ export const mapActions: UiAction[] = [
     run: (args) => {
       const layer = requireLayer(args)
       if (isResult(layer)) return layer
-      if (layer.kind === 'raster') return fail(`"${layer.name}" is a raster; it has bands, not columns. Use map.rasterInfo.`)
+      if (layer.kind === 'raster') return fail(`"${layer.name}" is a raster; it has bands, not columns. Use map:rasterInfo.`)
       const cols = getLayerDataColumns(layer)
       return cols.length > 0
         ? ok(`"${layer.name}" columns: ${cols.map((c) => `${c.name} (${c.type})`).join(', ')}.`)
@@ -267,7 +267,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setSymbology',
+    id: 'map:setSymbology',
     group: 'map',
     tier: 'autopilot',
     summary:
@@ -300,7 +300,7 @@ export const mapActions: UiAction[] = [
       const layer = requireLayer(args)
       if (isResult(layer)) return layer
       if (layer.kind === 'raster') {
-        return fail(`"${layer.name}" is a raster — use map.setRasterSymbology.`)
+        return fail(`"${layer.name}" is a raster — use map:setRasterSymbology.`)
       }
       const sym: LayerSymbology = { ...getEffectiveSym(layer) }
       const changed: string[] = []
@@ -343,7 +343,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.rasterInfo',
+    id: 'map:rasterInfo',
     group: 'map',
     tier: 'always',
     summary: 'Band statistics, dimensions and CRS of a raster layer or R SpatRaster.',
@@ -368,7 +368,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setRasterSymbology',
+    id: 'map:setRasterSymbology',
     group: 'map',
     tier: 'autopilot',
     summary: 'Style a raster layer: band, stretch and colour ramp. Re-registers the tiles.',
@@ -392,7 +392,7 @@ export const mapActions: UiAction[] = [
       const layer = requireLayer(args)
       if (isResult(layer)) return layer
       if (layer.kind !== 'raster' || !layer.raster) {
-        return fail(`"${layer.name}" is a vector layer — use map.setSymbology.`)
+        return fail(`"${layer.name}" is a vector layer — use map:setSymbology.`)
       }
       const cur = layer.raster.symbology
       const ramp = argStr(args, 'ramp') || cur.ramp
@@ -429,7 +429,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setLabels',
+    id: 'map:setLabels',
     group: 'map',
     tier: 'autopilot',
     summary: 'Label a vector layer by one of its columns.',
@@ -474,7 +474,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.zoomTo',
+    id: 'map:zoomTo',
     group: 'map',
     tier: 'always',
     summary: 'Zoom the map to a layer, to a bounding box, or to everything.',
@@ -509,7 +509,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setView',
+    id: 'map:setView',
     group: 'map',
     tier: 'always',
     summary: 'Move the map to a specific centre and zoom.',
@@ -531,7 +531,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.listBasemaps',
+    id: 'map:listBasemaps',
     group: 'map',
     tier: 'always',
     summary: 'Basemaps that need no API key.',
@@ -541,7 +541,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setBasemap',
+    id: 'map:setBasemap',
     group: 'map',
     tier: 'always',
     summary: 'Change the basemap. Pass "" to go back to the theme default.',
@@ -564,7 +564,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setLegend',
+    id: 'map:setLegend',
     group: 'map',
     tier: 'always',
     summary: 'Show, hide or reposition the legend. It carries through to exported code.',
@@ -595,7 +595,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.setNorthArrow',
+    id: 'map:setNorthArrow',
     group: 'map',
     tier: 'always',
     summary: 'Show, hide or restyle the north arrow. It carries through to exported code.',
@@ -629,7 +629,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.select',
+    id: 'map:select',
     group: 'map',
     tier: 'autopilot',
     summary:
@@ -656,7 +656,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.clearSelection',
+    id: 'map:clearSelection',
     group: 'map',
     tier: 'always',
     summary: 'Clear the feature selection.',
@@ -675,7 +675,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.exportCode',
+    id: 'map:exportCode',
     group: 'map',
     tier: 'autopilot',
     summary:
@@ -695,7 +695,7 @@ export const mapActions: UiAction[] = [
     run: async (args) => {
       if (!hasVisibleLayers()) {
         return fail('The map has no visible layers, so there is nothing to generate. ' +
-          'Add one with map.addLayer first.')
+          'Add one with map:addLayer first.')
       }
       const engine = (argStr(args, 'engine') || lastExportEngine()) as MapEngine
       if (!['tmap', 'ggplot'].includes(engine)) return fail('engine must be tmap or ggplot.')
@@ -736,7 +736,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.exportImage',
+    id: 'map:exportImage',
     group: 'map',
     tier: 'autopilot',
     summary: 'Save a picture of the map canvas exactly as it appears, including the basemap.',
@@ -749,7 +749,7 @@ export const mapActions: UiAction[] = [
       if (!path) return fail('path is required.')
       const container = document.querySelector<HTMLDivElement>('[data-ourgeo-id="map.canvas"]')
       if (!container) {
-        return fail('The map canvas is not on screen. Open the Spatial Editor with ui.panel first.')
+        return fail('The map canvas is not on screen. Open the Spatial Editor with ui:panel first.')
       }
       const { captureMapContainer, dataUriToBase64 } = await import('@/lib/export-canvas')
       const rect = container.getBoundingClientRect()
@@ -768,7 +768,7 @@ export const mapActions: UiAction[] = [
   },
 
   {
-    id: 'map.identify',
+    id: 'map:identify',
     group: 'map',
     tier: 'always',
     summary: 'Read the attributes of one feature by its row number, as clicking it would.',

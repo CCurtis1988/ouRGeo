@@ -49,7 +49,7 @@ export const RUN_UI_ACTION_TOOL: AiTool = {
   inputSchema: {
     type: 'object' as const,
     properties: {
-      id: { type: 'string', description: 'Action id, e.g. "map.addLayer".' },
+      id: { type: 'string', description: 'Action id, e.g. "map:addLayer".' },
       params: {
         type: 'object',
         description: 'Parameters for the action, as named in list_ui_actions.',
@@ -166,7 +166,7 @@ async function runAction(id: string, args: Args, opts: { autoPilot: boolean }): 
     })
     if (!allowed) {
       return `Refused: the user declined "${action.id}". Do not retry it. Say what you were going ` +
-        'to do and let them decide; you can point at the control with ui.highlight instead.'
+        'to do and let them decide; you can point at the control with ui:highlight instead.'
     }
   }
 

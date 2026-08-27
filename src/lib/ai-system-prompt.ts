@@ -50,7 +50,9 @@ export function buildToolGuidance({ autoPilot, webAccess }: ToolGuidanceOptions)
 You have the \`execute_r_code\` tool and can run R in the user's live session. Use it to inspect and compute rather than reasoning about what the data likely contains — that is how you satisfy the provenance rules above. Everything you run is echoed into the user's console, and that console is the audit trail your conclusions rest on: keep each call small and readable, and write code the user could have written themselves. Report what the call actually returned, including errors.`
     : `## Running R code — unavailable
 
-Autopilot is off, so you cannot execute anything yourself this turn. Give the user R code to run and ask for the output before drawing any conclusion that depends on it. Never assume what the output would have been, and never present an un-run result as if it were computed.`)
+Autopilot is off, so you cannot execute anything yourself this turn. Give the user R code to run and ask for the output before drawing any conclusion that depends on it. Never assume what the output would have been, and never present an un-run result as if it were computed.
+
+This applies to **R only**. Interface actions have no R form — never hand the user an action id as though it were code they could run. When an action is unavailable, name the button that does the same thing and point at it.`)
 
   parts.push(webAccess
     ? `## Web access — ON

@@ -27,7 +27,7 @@ function envOf(name: string): string | null {
 
 export const environmentActions: UiAction[] = [
   {
-    id: 'env.list',
+    id: 'env:list',
     group: 'environment',
     tier: 'always',
     summary: 'List the objects in the R environment, with class and dimensions.',
@@ -57,7 +57,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.view',
+    id: 'env:view',
     group: 'environment',
     tier: 'always',
     summary: 'Open an object in the Data Viewer, the way clicking it in the Environment panel does.',
@@ -80,7 +80,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.remove',
+    id: 'env:remove',
     group: 'environment',
     // rm() with no undo.
     tier: 'confirm',
@@ -99,7 +99,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.rename',
+    id: 'env:rename',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Rename an object in the R environment.',
@@ -119,7 +119,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.copy',
+    id: 'env:copy',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Copy an object into another environment.',
@@ -140,7 +140,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.move',
+    id: 'env:move',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Move an object to another environment.',
@@ -160,7 +160,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.create',
+    id: 'env:create',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Create a new R environment.',
@@ -177,7 +177,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.save',
+    id: 'env:save',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Save environment objects to an .RData file.',
@@ -195,7 +195,7 @@ export const environmentActions: UiAction[] = [
   },
 
   {
-    id: 'env.load',
+    id: 'env:load',
     group: 'environment',
     tier: 'autopilot',
     summary: 'Load an .RData file into an environment.',
@@ -217,7 +217,7 @@ export const environmentActions: UiAction[] = [
 
 export const packagesActions: UiAction[] = [
   {
-    id: 'packages.list',
+    id: 'packages:list',
     group: 'packages',
     tier: 'always',
     summary: 'List installed R packages and whether each is attached.',
@@ -247,7 +247,7 @@ export const packagesActions: UiAction[] = [
   },
 
   {
-    id: 'packages.load',
+    id: 'packages:load',
     group: 'packages',
     tier: 'autopilot',
     summary: 'Attach a package (library()), as ticking its box in the Packages panel does.',
@@ -261,7 +261,7 @@ export const packagesActions: UiAction[] = [
   },
 
   {
-    id: 'packages.unload',
+    id: 'packages:unload',
     group: 'packages',
     tier: 'autopilot',
     summary: 'Detach a package.',
@@ -275,7 +275,7 @@ export const packagesActions: UiAction[] = [
   },
 
   {
-    id: 'packages.install',
+    id: 'packages:install',
     group: 'packages',
     // Downloads and compiles code onto the user's machine.
     tier: 'confirm',
@@ -298,7 +298,7 @@ export const packagesActions: UiAction[] = [
   },
 
   {
-    id: 'packages.addLibraryPath',
+    id: 'packages:addLibraryPath',
     group: 'packages',
     tier: 'autopilot',
     summary: 'Add a directory to R\'s library paths.',

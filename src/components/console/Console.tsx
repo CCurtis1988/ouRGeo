@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useSessionStore, type ConsoleEntry } from '@/store/session'
 import { rClient } from '@/lib/r-client'
+import { actionCallInCode, actionCodeHint } from '@/lib/ai-actions/action-code-guard'
 import { cn } from '@/lib/utils'
 import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
@@ -101,6 +102,13 @@ export function Console(): React.ReactElement {
       // Output comes via WebSocket, but also handle direct response for errors
       if (!res.success && res.error) {
         addEntry('error', res.error)
+        // "could not find function map.addLayer" means an assistant handed over
+        // an interface action as if it were R. Say so, rather than leaving the
+        // user to conclude their R install is broken.
+        if (/could not find function/i.test(res.error)) {
+          const action = actionCallInCode(code)
+          if (action) addEntry('info', actionCodeHint(action))
+        }
       }
     } catch (err) {
       addEntry('error', String(err))

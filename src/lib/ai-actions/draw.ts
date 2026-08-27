@@ -6,10 +6,10 @@
 //     the user would put it in, so the assistant can say "now pick the polygon
 //     tool" with the tool already highlighted, or set up an exercise and hand
 //     over the mouse.
-//   * `draw.addFeature` / `draw.updateFeature` take whole GeoJSON geometries.
+//   * `draw:addFeature` / `draw:updateFeature` take whole GeoJSON geometries.
 //     They go through the same pending-edit staging as hand-drawn geometry:
 //     the feature appears on the map, the Save Edits badge counts it, and
-//     nothing reaches the R object until the user (or draw.saveEdits) commits —
+//     nothing reaches the R object until the user (or draw:saveEdits) commits —
 //     at which point it is written by the same batched R statement, echoed to
 //     the console.
 //
@@ -111,7 +111,7 @@ function stageGeometry(
 
 export const drawActions: UiAction[] = [
   {
-    id: 'draw.status',
+    id: 'draw:status',
     group: 'draw',
     tier: 'always',
     summary: 'Whether edit mode is on, which tool is active, and how many edits are staged.',
@@ -134,7 +134,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.start',
+    id: 'draw:start',
     group: 'draw',
     tier: 'autopilot',
     summary:
@@ -169,7 +169,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.tool',
+    id: 'draw:tool',
     group: 'draw',
     tier: 'always',
     summary: 'Arm a drawing tool, the way clicking it in the edit ribbon does.',
@@ -183,7 +183,7 @@ export const drawActions: UiAction[] = [
       }
       const g = useGeometryEditStore.getState()
       if (!g.isEditMode && !selectActiveSession(g)) {
-        return fail('There is no drawing session. Start one with draw.start first.')
+        return fail('There is no drawing session. Start one with draw:start first.')
       }
       g.setActiveTool(tool as typeof TOOL_IDS[number])
       return ok(`The "${tool}" tool is armed. The user draws on the map with it.`)
@@ -191,7 +191,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.curveMode',
+    id: 'draw:curveMode',
     group: 'draw',
     tier: 'always',
     summary: 'Draw true curves (CIRCULARSTRING) instead of straight segments, or back again.',
@@ -217,7 +217,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.stop',
+    id: 'draw:stop',
     group: 'draw',
     tier: 'always',
     summary: 'End the drawing session. Staged edits are kept — save or discard them separately.',
@@ -229,7 +229,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.addFeature',
+    id: 'draw:addFeature',
     group: 'draw',
     tier: 'autopilot',
     summary:
@@ -270,13 +270,13 @@ export const drawActions: UiAction[] = [
       return ok(
         `Staged a ${geometry.type} as feature ${newRow + 1} of "${layer.name}". ` +
         'It is on the map and counted in Save Edits, but not yet written to the R object — ' +
-        'use draw.saveEdits, or let the user press Save Edits.'
+        'use draw:saveEdits, or let the user press Save Edits.'
       )
     },
   },
 
   {
-    id: 'draw.updateFeature',
+    id: 'draw:updateFeature',
     group: 'draw',
     tier: 'autopilot',
     summary: 'Replace the geometry of an existing feature. Staged, not written, until edits are saved.',
@@ -300,7 +300,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.deleteFeatures',
+    id: 'draw:deleteFeatures',
     group: 'draw',
     // Deletes rows from the R object outright.
     tier: 'confirm',
@@ -326,7 +326,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.saveEdits',
+    id: 'draw:saveEdits',
     group: 'draw',
     // Writes to the user's R object.
     tier: 'confirm',
@@ -349,7 +349,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.discardEdits',
+    id: 'draw:discardEdits',
     group: 'draw',
     // Throws away work.
     tier: 'confirm',
@@ -372,7 +372,7 @@ export const drawActions: UiAction[] = [
   },
 
   {
-    id: 'draw.reviewEdits',
+    id: 'draw:reviewEdits',
     group: 'draw',
     tier: 'always',
     summary: 'Open the Save Edits dialog so the user can see and decide about the staged edits.',

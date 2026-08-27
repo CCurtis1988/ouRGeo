@@ -13,7 +13,7 @@ import { ok, fail, argStr, argNum, argBool, type UiAction } from './types'
 
 export const plotsActions: UiAction[] = [
   {
-    id: 'plots.list',
+    id: 'plots:list',
     group: 'plots',
     tier: 'always',
     summary: 'How many plots are in the history and which one is showing.',
@@ -26,7 +26,7 @@ export const plotsActions: UiAction[] = [
   },
 
   {
-    id: 'plots.show',
+    id: 'plots:show',
     group: 'plots',
     tier: 'always',
     summary: 'Show a particular plot from the history, and open the Plots panel.',
@@ -51,7 +51,7 @@ export const plotsActions: UiAction[] = [
   },
 
   {
-    id: 'plots.export',
+    id: 'plots:export',
     group: 'plots',
     tier: 'autopilot',
     summary: 'Re-render the current plot at a chosen size and write it to a file.',
@@ -86,7 +86,7 @@ export const plotsActions: UiAction[] = [
   },
 
   {
-    id: 'plots.popout',
+    id: 'plots:popout',
     group: 'plots',
     tier: 'always',
     summary: 'Open the current plot in its own window.',
@@ -106,7 +106,7 @@ export const plotsActions: UiAction[] = [
 
 export const sessionActions: UiAction[] = [
   {
-    id: 'session.clearConsole',
+    id: 'session:clearConsole',
     group: 'session',
     tier: 'always',
     summary: 'Clear the console display. The R session and its objects are untouched.',
@@ -118,7 +118,7 @@ export const sessionActions: UiAction[] = [
   },
 
   {
-    id: 'session.workingDir',
+    id: 'session:workingDir',
     group: 'session',
     tier: 'autopilot',
     summary:
@@ -142,7 +142,7 @@ export const sessionActions: UiAction[] = [
   },
 
   {
-    id: 'session.reset',
+    id: 'session:reset',
     group: 'session',
     // Deletes every user object in R.
     tier: 'confirm',
@@ -159,7 +159,7 @@ export const sessionActions: UiAction[] = [
   },
 
   {
-    id: 'session.record',
+    id: 'session:record',
     group: 'session',
     tier: 'autopilot',
     summary:
@@ -196,7 +196,7 @@ export const sessionActions: UiAction[] = [
 
 export const settingsActions: UiAction[] = [
   {
-    id: 'settings.get',
+    id: 'settings:get',
     group: 'settings',
     tier: 'always',
     summary: 'Read the settings that affect analysis: CRS defaults, map extent, snapping, map-chunk engine.',
@@ -218,7 +218,7 @@ export const settingsActions: UiAction[] = [
   },
 
   {
-    id: 'settings.spatial',
+    id: 'settings:spatial',
     group: 'settings',
     tier: 'autopilot',
     summary: 'Change a Spatial Editor setting. Pass only what you want to change.',
@@ -260,7 +260,7 @@ export const settingsActions: UiAction[] = [
   },
 
   {
-    id: 'settings.mapChunkEngine',
+    id: 'settings:mapChunkEngine',
     group: 'settings',
     tier: 'autopilot',
     summary: 'Which generator R Markdown map chunks use.',

@@ -89,39 +89,39 @@ beforeEach(() => {
 
 describe('panels and dialogs', () => {
   it('opens, closes and toggles a panel', async () => {
-    expect(await run('ui.panel', { panel: 'environment' })).toMatch(/Environment panel is now open/)
+    expect(await run('ui:panel', { panel: 'environment' })).toMatch(/Environment panel is now open/)
     expect(useEnvironmentStore.getState().isOpen).toBe(true)
 
-    await run('ui.panel', { panel: 'environment', state: 'toggle' })
+    await run('ui:panel', { panel: 'environment', state: 'toggle' })
     expect(useEnvironmentStore.getState().isOpen).toBe(false)
 
-    await run('ui.panel', { panel: 'environment', state: 'close' })
+    await run('ui:panel', { panel: 'environment', state: 'close' })
     expect(useEnvironmentStore.getState().isOpen).toBe(false)
   })
 
   it('names the valid panels when given a bad one', async () => {
-    const out = await run('ui.panel', { panel: 'nope' })
+    const out = await run('ui:panel', { panel: 'nope' })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('spatial')
   })
 
   it('opens a dialog', async () => {
-    await run('ui.openDialog', { dialog: 'toolbox' })
+    await run('ui:openDialog', { dialog: 'toolbox' })
     expect(useUiStore.getState().openDialog).toBe('toolbox')
-    await run('ui.closeDialog')
+    await run('ui:closeDialog')
     expect(useUiStore.getState().openDialog).toBeNull()
   })
 
   it('refuses to open symbology without a layer, and lists what is on the map', async () => {
     useSpatialStore.setState({ layers: [layer()] })
-    const out = await run('ui.openDialog', { dialog: 'symbology' })
+    const out = await run('ui:openDialog', { dialog: 'symbology' })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('cities')
   })
 
   it('opens symbology on a named layer, and opens the map to show it', async () => {
     useSpatialStore.setState({ layers: [layer()] })
-    await run('ui.openDialog', { dialog: 'symbology', layer: 'cities' })
+    await run('ui:openDialog', { dialog: 'symbology', layer: 'cities' })
     expect(useUiStore.getState().openDialog).toBe('symbology')
     expect(useUiStore.getState().dialogArg).toBe('l1')
     expect(useSpatialStore.getState().isOpen).toBe(true)
@@ -130,32 +130,32 @@ describe('panels and dialogs', () => {
 
 describe('highlighting', () => {
   it('points at a real control', async () => {
-    const out = await run('ui.highlight', { target: 'toolbar.toolbox', message: 'here' })
+    const out = await run('ui:highlight', { target: 'toolbar.toolbox', message: 'here' })
     expect(out).toContain('Toolbox')
     expect(useUiStore.getState().highlight).toEqual({ target: 'toolbar.toolbox', message: 'here' })
   })
 
   it('refuses an unknown control and lists the real ones', async () => {
-    const out = await run('ui.highlight', { target: 'toolbar.nonsense' })
+    const out = await run('ui:highlight', { target: 'toolbar.nonsense' })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('toolbar.toolbox')
     expect(useUiStore.getState().highlight).toBeNull()
   })
 
   it('clears', async () => {
-    await run('ui.highlight', { target: 'toolbar.help' })
-    await run('ui.clearHighlight')
+    await run('ui:highlight', { target: 'toolbar.help' })
+    await run('ui:clearHighlight')
     expect(useUiStore.getState().highlight).toBeNull()
   })
 })
 
-describe('ui.describe', () => {
+describe('ui:describe', () => {
   it('reports what is open rather than guessing', async () => {
     useEnvironmentStore.setState({ isOpen: true })
     useSpatialStore.setState({ layers: [layer(), layer({ id: 'l2', name: 'roads', visible: false })] })
     useEditorStore.setState({ tabs: [tab({ fileName: 'a.R', isDirty: true })], activeTabId: 't1' })
 
-    const out = await run('ui.describe')
+    const out = await run('ui:describe')
     expect(out).toContain('Environment')
     expect(out).toContain('a.R')
     expect(out).toContain('unsaved changes')
@@ -168,95 +168,95 @@ describe('map', () => {
   beforeEach(() => useSpatialStore.setState({ layers: [layer()], isOpen: true }))
 
   it('describes the map', async () => {
-    const out = await run('map.status')
+    const out = await run('map:status')
     expect(out).toContain('1 layer(s)')
     expect(out).toContain('cities')
   })
 
   it('hides and shows a layer by name', async () => {
-    await run('map.setLayerVisible', { layer: 'cities', visible: false })
+    await run('map:setLayerVisible', { layer: 'cities', visible: false })
     expect(useSpatialStore.getState().layers[0].visible).toBe(false)
-    await run('map.setLayerVisible', { layer: 'cities', visible: true })
+    await run('map:setLayerVisible', { layer: 'cities', visible: true })
     expect(useSpatialStore.getState().layers[0].visible).toBe(true)
   })
 
   it('lists the columns you can style or label by', async () => {
-    const out = await run('map.listColumns', { layer: 'cities' })
+    const out = await run('map:listColumns', { layer: 'cities' })
     expect(out).toContain('pop (numeric)')
     expect(out).toContain('region (categorical)')
   })
 
   it('styles a layer', async () => {
-    await run('map.setSymbology', { layer: 'cities', fillColor: '#ff0000', pointSize: 9 })
+    await run('map:setSymbology', { layer: 'cities', fillColor: '#ff0000', pointSize: 9 })
     const sym = useSpatialStore.getState().layers[0].symbology
     expect(sym?.fillColor).toBe('#ff0000')
     expect(sym?.pointSize).toBe(9)
   })
 
   it('colours a layer by a column, and refuses a column that is not there', async () => {
-    await run('map.setSymbology', { layer: 'cities', colorBy: 'pop', scale: 'viridis' })
+    await run('map:setSymbology', { layer: 'cities', colorBy: 'pop', scale: 'viridis' })
     expect(useSpatialStore.getState().layers[0].symbology?.fillColorBinding)
       .toEqual({ column: 'pop', type: 'numeric', scale: 'viridis' })
 
-    const out = await run('map.setSymbology', { layer: 'cities', colorBy: 'nope' })
+    const out = await run('map:setSymbology', { layer: 'cities', colorBy: 'nope' })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('pop')
   })
 
   it('labels a layer, and refuses without a column', async () => {
-    await run('map.setLabels', { layer: 'cities', column: 'region' })
+    await run('map:setLabels', { layer: 'cities', column: 'region' })
     expect(useSpatialStore.getState().layers[0].labelSettings)
       .toMatchObject({ enabled: true, field: 'region' })
 
     useSpatialStore.setState({ layers: [layer()] })
-    expect(await run('map.setLabels', { layer: 'cities' })).toMatch(/FAILED.*column/s)
+    expect(await run('map:setLabels', { layer: 'cities' })).toMatch(/FAILED.*column/s)
   })
 
   it('zooms to a layer, a bbox, or everything', async () => {
     const before = useSpatialStore.getState().fitTargetSignal
-    await run('map.zoomTo', { layer: 'cities' })
+    await run('map:zoomTo', { layer: 'cities' })
     expect(useSpatialStore.getState().fitTargetSignal).toBeGreaterThan(before)
 
-    await run('map.zoomTo', { bbox: [-1, -1, 1, 1] })
+    await run('map:zoomTo', { bbox: [-1, -1, 1, 1] })
     expect(useSpatialStore.getState().fitTarget).toEqual([-1, -1, 1, 1])
 
     const fit = useSpatialStore.getState().fitBoundsSignal
-    await run('map.zoomTo', { all: true })
+    await run('map:zoomTo', { all: true })
     expect(useSpatialStore.getState().fitBoundsSignal).toBeGreaterThan(fit)
   })
 
   it('changes the basemap and refuses an unknown one', async () => {
-    await run('map.setBasemap', { basemap: 'carto-dark-matter' })
+    await run('map:setBasemap', { basemap: 'carto-dark-matter' })
     expect(useBasemapStore.getState().overrideBasemapId).toBe('carto-dark-matter')
-    expect(await run('map.setBasemap', { basemap: 'not-a-basemap' })).toMatch(/FAILED/)
+    expect(await run('map:setBasemap', { basemap: 'not-a-basemap' })).toMatch(/FAILED/)
   })
 
   it('toggles the legend and north arrow', async () => {
-    await run('map.setLegend', { show: false })
+    await run('map:setLegend', { show: false })
     expect(useSpatialStore.getState().showLegend).toBe(false)
-    await run('map.setNorthArrow', { show: true, style: 'compass' })
+    await run('map:setNorthArrow', { show: true, style: 'compass' })
     expect(useSpatialStore.getState().showNorthArrow).toBe(true)
     expect(useSpatialStore.getState().northArrowSettings.style).toBe('compass')
   })
 
   it('reads one feature\'s attributes, and reports an out-of-range row', async () => {
-    expect(await run('map.identify', { layer: 'cities', index: 2 })).toContain('pop: 900')
-    expect(await run('map.identify', { layer: 'cities', index: 99 })).toMatch(/FAILED.*out of range/s)
+    expect(await run('map:identify', { layer: 'cities', index: 2 })).toContain('pop: 900')
+    expect(await run('map:identify', { layer: 'cities', index: 99 })).toMatch(/FAILED.*out of range/s)
   })
 
   it('names the layers when asked about one that is not there', async () => {
-    const out = await run('map.setLayerOpacity', { layer: 'nope', opacity: 0.5 })
+    const out = await run('map:setLayerOpacity', { layer: 'nope', opacity: 0.5 })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('cities')
   })
 
   it('refuses to generate map code for an empty map', async () => {
     useSpatialStore.setState({ layers: [] })
-    expect(await run('map.exportCode', { engine: 'tmap' })).toMatch(/FAILED.*no visible layers/s)
+    expect(await run('map:exportCode', { engine: 'tmap' })).toMatch(/FAILED.*no visible layers/s)
   })
 
   it('generates tmap code without running it', async () => {
-    const out = await run('map.exportCode', { engine: 'tmap' })
+    const out = await run('map:exportCode', { engine: 'tmap' })
     expect(out).toContain('tmap')
     expect(out).toContain('not run')
   })
@@ -268,22 +268,22 @@ describe('editor', () => {
       tabs: [tab({ id: 't1', fileName: 'a.R' }), tab({ id: 't2', fileName: 'b.Rmd', language: 'rmarkdown' })],
       activeTabId: 't2',
     })
-    const out = await run('editor.listTabs')
+    const out = await run('editor:listTabs')
     expect(out).toContain('a.R')
     expect(out).toContain('* "b.Rmd"')
     expect(out).toContain('R Markdown')
   })
 
   it('opens a file from disk', async () => {
-    await run('editor.openFile', { path: '/tmp/x.R' })
+    await run('editor:openFile', { path: '/tmp/x.R' })
     expect(useEditorStore.getState().tabs[0].filePath).toBe('/tmp/x.R')
   })
 
   it('refuses to save a tab that has never been saved, and says what to do', async () => {
     useEditorStore.setState({ tabs: [tab()], activeTabId: 't1' })
-    const out = await run('editor.save')
+    const out = await run('editor:save')
     expect(out).toMatch(/FAILED/)
-    expect(out).toContain('editor.saveAs')
+    expect(out).toContain('editor:saveAs')
   })
 
   it('refuses to knit an unsaved document', async () => {
@@ -291,7 +291,7 @@ describe('editor', () => {
       tabs: [tab({ fileName: 'r.Rmd', language: 'rmarkdown', isDirty: true, filePath: '/tmp/r.Rmd' })],
       activeTabId: 't1',
     })
-    const out = await run('editor.knit', { format: 'html' })
+    const out = await run('editor:knit', { format: 'html' })
     expect(out).toMatch(/FAILED/)
     expect(out).toMatch(/unsaved changes/)
   })
@@ -299,7 +299,7 @@ describe('editor', () => {
 
 describe('help', () => {
   it('drives the panel rather than answering from itself', async () => {
-    await run('help.topic', { topic: 'st_buffer', package: 'sf' })
+    await run('help:topic', { topic: 'st_buffer', package: 'sf' })
     expect(useHelpStore.getState().requested).toEqual({ kind: 'doc', topic: 'st_buffer', pkg: 'sf' })
     expect(useHelpStore.getState().isOpen).toBe(true)
   })
@@ -307,35 +307,35 @@ describe('help', () => {
 
 describe('plots', () => {
   it('reports an empty history rather than pretending', async () => {
-    expect(await run('plots.list')).toMatch(/No plots yet/)
-    expect(await run('plots.show')).toMatch(/FAILED/)
+    expect(await run('plots:list')).toMatch(/No plots yet/)
+    expect(await run('plots:show')).toMatch(/FAILED/)
   })
 
   it('shows one and opens the panel', async () => {
     usePlottingStore.setState({ plots: [{ dataUrl: 'a', plotId: 'p1' }, { dataUrl: 'b', plotId: 'p2' }], currentIndex: 1 })
-    expect(await run('plots.show', { index: 1 })).toContain('plot 1 of 2')
+    expect(await run('plots:show', { index: 1 })).toContain('plot 1 of 2')
     expect(usePlottingStore.getState().currentIndex).toBe(0)
     expect(usePlottingStore.getState().isOpen).toBe(true)
-    expect(await run('plots.show', { index: 5 })).toMatch(/FAILED.*out of range/s)
+    expect(await run('plots:show', { index: 5 })).toMatch(/FAILED.*out of range/s)
   })
 })
 
 describe('session', () => {
   it('clears the console without touching R', async () => {
     useSessionStore.setState({ consoleHistory: [{ id: '1', type: 'output', text: 'x', timestamp: 0 }] })
-    const out = await run('session.clearConsole')
+    const out = await run('session:clearConsole')
     expect(useSessionStore.getState().consoleHistory).toHaveLength(0)
     expect(out).toMatch(/Nothing in the R session changed/)
   })
 
   it('echoes setwd() to the console, the way the picker does', async () => {
-    await run('session.workingDir', { path: '/home/u/project' })
+    await run('session:workingDir', { path: '/home/u/project' })
     const inputs = useSessionStore.getState().consoleHistory.filter((e) => e.type === 'input')
     expect(inputs.at(-1)?.text).toBe('setwd("/home/u/project")')
   })
 
   it('will not record without a document to record into', async () => {
-    expect(await run('session.record', { state: 'start' })).toMatch(/FAILED.*No active document/s)
+    expect(await run('session:record', { state: 'start' })).toMatch(/FAILED.*No active document/s)
   })
 })
 
@@ -346,23 +346,23 @@ describe('drawing', () => {
   })
 
   it('reports that nothing is being edited', async () => {
-    const out = await run('draw.status')
+    const out = await run('draw:status')
     expect(out).toMatch(/Edit mode off/)
     expect(out).toMatch(/No staged edits/)
   })
 
   it('will not arm a tool with no session', async () => {
-    expect(await run('draw.tool', { tool: 'rectangle' })).toMatch(/FAILED.*draw\.start/s)
+    expect(await run('draw:tool', { tool: 'rectangle' })).toMatch(/FAILED.*draw:start/s)
   })
 
   it('starts a session and arms the tool', async () => {
-    await run('draw.start', { layer: 'cities', tool: 'add-point' })
+    await run('draw:start', { layer: 'cities', tool: 'add-point' })
     expect(useGeometryEditStore.getState().activeToolId).toBe('add-point')
-    expect(await run('draw.status')).toMatch(/Drawing on cities/)
+    expect(await run('draw:status')).toMatch(/Drawing on cities/)
   })
 
   it('stages a geometry instead of writing it, and says so', async () => {
-    const out = await run('draw.addFeature', {
+    const out = await run('draw:addFeature', {
       layer: 'cities', geometry: { type: 'Point', coordinates: [5, 5] },
     })
     expect(out).toContain('Staged')
@@ -373,26 +373,26 @@ describe('drawing', () => {
   })
 
   it('accepts a bare [lng, lat] as a point', async () => {
-    expect(await run('draw.addFeature', { layer: 'cities', geometry: [1, 2] })).toContain('Point')
+    expect(await run('draw:addFeature', { layer: 'cities', geometry: [1, 2] })).toContain('Point')
   })
 
   it('rejects something that is not geometry, with an example', async () => {
-    const out = await run('draw.addFeature', { layer: 'cities', geometry: 'over there' })
+    const out = await run('draw:addFeature', { layer: 'cities', geometry: 'over there' })
     expect(out).toMatch(/FAILED/)
     expect(out).toContain('coordinates')
   })
 
   it('has nothing to save when nothing is staged', async () => {
-    expect(await run('draw.saveEdits')).toMatch(/no staged edits/i)
+    expect(await run('draw:saveEdits')).toMatch(/no staged edits/i)
   })
 })
 
 describe('environment', () => {
   it('reports an empty environment plainly', async () => {
-    expect(await run('env.list')).toMatch(/No matching objects/)
+    expect(await run('env:list')).toMatch(/No matching objects/)
   })
 
   it('will not open an object that does not exist', async () => {
-    expect(await run('env.view', { name: 'ghost' })).toMatch(/FAILED/)
+    expect(await run('env:view', { name: 'ghost' })).toMatch(/FAILED/)
   })
 })

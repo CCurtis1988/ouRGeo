@@ -528,6 +528,16 @@ groups cover the panels, dialogs, editor, projects, data import, .Rgeo
 databases, environment, packages, help, the whole Spatial Editor, drawing, plots
 and settings — plus the 87 toolbox tools.
 
+- **Action ids use a colon: `map:addLayer`, not `map.addLayer`.** Dots are legal
+  in R names, so the dotted form is a syntactically perfect R call — and a local
+  model, asked for a tutorial, duly wrote `map.addLayer(object = "pts_buf")` and
+  told the user to run it. The colon cannot be mistaken for a function. The core
+  prompt says outright that these are not R functions, the Autopilot refusal no
+  longer reads as "hand them the code", and `action-code-guard.ts` catches the
+  mistake from either side: the model gets a redirect to `run_ui_action` instead
+  of running it, and a user who pastes one into the console gets an explanation
+  instead of `could not find function`. Highlight targets keep their dots —
+  they are string arguments, never confusable with a call.
 - **A registry, not ninety tools.** `ai-actions/registry.ts` collects `UiAction`
   data objects (id, group, summary, typed params, default tier, `run`). Five AI
   tools cover the lot: search, run, toolbox search, toolbox run, docs. Ninety
@@ -540,7 +550,7 @@ and settings — plus the 87 toolbox tools.
   `AiPermissionsDialog`, and overrides persist **sparse** in `ai-preferences.json`
   so shipped defaults stay live. The confirm modal blocks the tool call — closing
   it is a "no", because the safe answer must be the one you get by doing nothing.
-- **Pointing, not only pressing.** `ui.highlight` rings a real control by
+- **Pointing, not only pressing.** `ui:highlight` rings a real control by
   `data-ourgeo-id` and waits, so a tutorial teaches where the button is.
   `HighlightOverlay` is `pointer-events-none` throughout — the ring must never
   intercept the click it is asking for — and `ai-actions/targets.ts` is a closed
@@ -549,7 +559,7 @@ and settings — plus the 87 toolbox tools.
   `useState(false)` next to its button, which is right until something outside
   the component needs to open one. `hideDialog(id)` is a no-op unless `id` is the
   open dialog, so a closing dialog can never close its replacement.
-- **Geometry the assistant makes is staged, not written.** `draw.addFeature` goes
+- **Geometry the assistant makes is staged, not written.** `draw:addFeature` goes
   through the same pending-edit path as hand-drawn geometry: on the map, in the
   Save Edits badge, written by the same batched R statement. That is the only
   basis on which programmatic drawing is safe to offer.
@@ -557,7 +567,7 @@ and settings — plus the 87 toolbox tools.
   reach it, with the components still calling them: `add-spatial-layer.ts` (from
   AddFeaturesDialog), `load-data-code.ts` (from LoadDataDialog), `map-export.ts`
   (from markdown/chunk-codegen), `save-edits.ts` (from useSaveEdits), and dialog
-  state (above). `map.exportCode` and the Export dialogs therefore generate
+  state (above). `map:exportCode` and the Export dialogs therefore generate
   identical R.
 - **Knowledge is progressive.** `buildOurgeoCore()` is ~1200 tokens in every
   prompt — what ouRGeo is, the every-action-echoes-its-R rule, the layout, the

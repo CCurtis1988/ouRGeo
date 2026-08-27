@@ -1,7 +1,7 @@
 // Panels, dialogs, pointing, and the assistant's sense of where it is.
 //
 // The `always` tier lives almost entirely here: opening a panel changes nothing
-// but what is on screen, and `ui.describe` is how the assistant orients itself
+// but what is on screen, and `ui:describe` is how the assistant orients itself
 // before doing anything else — a model that has not looked will otherwise
 // happily narrate a Contents panel that is closed.
 //
@@ -63,7 +63,7 @@ const PANEL_IDS = Object.keys(PANELS) as PanelId[]
 
 export const uiActions: UiAction[] = [
   {
-    id: 'ui.panel',
+    id: 'ui:panel',
     group: 'ui',
     tier: 'always',
     summary: 'Open, close or toggle one of the side panels.',
@@ -87,7 +87,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.openDialog',
+    id: 'ui:openDialog',
     group: 'ui',
     tier: 'always',
     summary: 'Open a dialog, popover or menu — the same one its button opens.',
@@ -131,7 +131,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.closeDialog',
+    id: 'ui:closeDialog',
     group: 'ui',
     tier: 'always',
     summary: 'Close whichever dialog is open.',
@@ -144,7 +144,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.highlight',
+    id: 'ui:highlight',
     group: 'ui',
     tier: 'always',
     summary:
@@ -169,7 +169,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.clearHighlight',
+    id: 'ui:clearHighlight',
     group: 'ui',
     tier: 'always',
     summary: 'Stop pointing at a control.',
@@ -181,16 +181,16 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.listTargets',
+    id: 'ui:listTargets',
     group: 'ui',
     tier: 'always',
-    summary: 'List every control ui.highlight can point at.',
+    summary: 'List every control ui:highlight can point at.',
     params: [],
     run: () => ok('Controls you can point at:', targetListing()),
   },
 
   {
-    id: 'ui.theme',
+    id: 'ui:theme',
     group: 'ui',
     tier: 'always',
     summary: 'Switch the interface theme.',
@@ -211,7 +211,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.zoom',
+    id: 'ui:zoom',
     group: 'ui',
     tier: 'always',
     summary: 'Zoom the interface in or out (the Ctrl+Shift+= / Ctrl+Shift+- shortcuts).',
@@ -229,7 +229,7 @@ export const uiActions: UiAction[] = [
   },
 
   {
-    id: 'ui.describe',
+    id: 'ui:describe',
     group: 'ui',
     tier: 'always',
     summary:

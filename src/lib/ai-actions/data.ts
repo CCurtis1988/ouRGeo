@@ -1,6 +1,6 @@
 // Getting data in: files, the Data Connector, and .Rgeo databases.
 //
-// `data.load` emits the same R the Load Data dialog emits, through the same
+// `data:load` emits the same R the Load Data dialog emits, through the same
 // `buildLoadCode` — an import the assistant performs and an import the user
 // performs leave the identical line in the console.
 //
@@ -40,7 +40,7 @@ function dbListing(): string {
 
 export const dataActions: UiAction[] = [
   {
-    id: 'data.preview',
+    id: 'data:preview',
     group: 'data',
     tier: 'autopilot',
     summary: 'Read the first rows of a data file without importing it — the dialog\'s Preview.',
@@ -63,7 +63,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'data.load',
+    id: 'data:load',
     group: 'data',
     tier: 'autopilot',
     summary:
@@ -104,7 +104,7 @@ export const dataActions: UiAction[] = [
       if (res.output) session.addConsoleEntry('output', res.output)
 
       // Rasters have no tabular viewer — the console echo and the Environment
-      // panel carry them, and map.addLayer puts them on the map.
+      // panel carry them, and map:addLayer puts them on the map.
       if (!isRasterFormat(format)) {
         useEditorStore.getState().addObjectTab(
           varName, '.GlobalEnv', isSpatialFormat(format) ? 'sf' : 'data.frame', varName, 'data-viewer',
@@ -112,13 +112,13 @@ export const dataActions: UiAction[] = [
       }
       return ok(
         `Imported ${path} as "${varName}" (${format}).` +
-        (isRasterFormat(format) ? ' Use map.addLayer to put it on the map.' : ' Opened in the Data Viewer.')
+        (isRasterFormat(format) ? ' Use map:addLayer to put it on the map.' : ' Opened in the Data Viewer.')
       )
     },
   },
 
   {
-    id: 'data.connector',
+    id: 'data:connector',
     group: 'data',
     tier: 'always',
     summary:
@@ -137,7 +137,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.list',
+    id: 'db:list',
     group: 'data',
     tier: 'always',
     summary: 'List connected .Rgeo databases and the tables in them.',
@@ -152,7 +152,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.create',
+    id: 'db:create',
     group: 'data',
     tier: 'autopilot',
     summary: 'Create a new .Rgeo database file.',
@@ -165,7 +165,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.open',
+    id: 'db:open',
     group: 'data',
     tier: 'autopilot',
     summary: 'Connect to an .Rgeo database and list what is inside it.',
@@ -185,7 +185,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.close',
+    id: 'db:close',
     group: 'data',
     tier: 'autopilot',
     summary: 'Disconnect from an .Rgeo database.',
@@ -200,7 +200,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.connectObject',
+    id: 'db:connectObject',
     group: 'data',
     tier: 'autopilot',
     summary:
@@ -228,7 +228,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.import',
+    id: 'db:import',
     group: 'data',
     tier: 'autopilot',
     summary: 'Write an R object into an .Rgeo database.',
@@ -254,7 +254,7 @@ export const dataActions: UiAction[] = [
   },
 
   {
-    id: 'db.deleteObject',
+    id: 'db:deleteObject',
     group: 'data',
     // Removes data from a file on disk.
     tier: 'confirm',

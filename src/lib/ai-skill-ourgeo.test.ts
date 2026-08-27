@@ -21,11 +21,11 @@ describe('buildOurgeoCore', () => {
   it('carries an action index whose every id resolves', () => {
     // The index is generated from the registry, so this is really a guard
     // against it being replaced with a hand-written list that then rots.
-    const idPattern = /\b([a-z]+\.[a-zA-Z]+)\b/g
-    const ids = [...core.matchAll(idPattern)].map((m) => m[1])
-      .filter((id) => !id.startsWith('ourgeo.') && !id.includes('dplyr'))
+    const ids = [...core.matchAll(/\b([a-z]+:[a-zA-Z]+)\b/g)].map((m) => m[1])
     const known = ids.filter((id) => actionById(id))
     expect(known.length).toBeGreaterThan(50)
+    // Every colon-separated token in the index must be a real action.
+    expect(ids.length - known.length).toBe(0)
   })
 
   it('tells the model how to run a tutorial, not just what it can press', () => {
@@ -33,6 +33,15 @@ describe('buildOurgeoCore', () => {
     expect(core).toMatch(/One step at a time/)
     expect(core).toMatch(/Point rather than press/)
     expect(core).toMatch(/Never invent the interface/)
+  })
+
+  it('says the action ids are not R functions — the bug this text exists for', () => {
+    // A local model wrote `map.addLayer(object = "pts_buf")` into a tutorial and
+    // told the user to run it. R: could not find function "map.addLayer".
+    expect(core).toMatch(/These are not R functions/)
+    expect(core).toMatch(/could not find function/)
+    expect(core).toMatch(/run_ui_action\(\{ id: "map:addLayer"/)
+    expect(core).toMatch(/Never write an action id into R code/)
   })
 
   it('explains the permission tiers, so a refusal is not a surprise', () => {

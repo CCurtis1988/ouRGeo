@@ -59,9 +59,11 @@ export function checkAllowed(action: UiAction, opts: { autoPilot: boolean }): De
       allowed: false,
       reason: 'autopilot',
       message:
-        `Refused: "${action.id}" needs Autopilot, which is off. Tell the user what you wanted ` +
-        'to do and that they can switch Autopilot on in the AI panel, or ask them to do it ' +
-        'themselves — you can still point at the control with ui.highlight.',
+        `Refused: "${action.id}" needs Autopilot, which is off. Say what you wanted to do and ` +
+        'that they can switch Autopilot on in the AI panel, or name the button that does the ' +
+        'same thing and point at it with ui:highlight — you may still do that. Do NOT write ' +
+        'the action id out as R code for them to run: it is not a function, and it will only ' +
+        'produce "could not find function".',
     }
   }
   if (tier === 'confirm') return { allowed: false, reason: 'confirm' }

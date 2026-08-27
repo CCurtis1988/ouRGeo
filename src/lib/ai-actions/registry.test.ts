@@ -35,6 +35,15 @@ describe('registry integrity', () => {
     }
   })
 
+  it('separates the group with a colon, so an id is never valid R', () => {
+    // `map.addLayer(object = "x")` is a perfectly good R call, and a model in an
+    // R IDE will write one. `map:addLayer` cannot be mistaken for a function.
+    for (const a of ALL_ACTIONS) {
+      expect(a.id, a.id).toMatch(/^[a-z]+:[a-zA-Z]+$/)
+      expect(a.id, a.id).not.toContain('.')
+    }
+  })
+
   it('names actions by group prefix, so the index reads as a map of the app', () => {
     const prefixes: Record<string, string[]> = {
       ui: ['ui'], editor: ['editor'], project: ['project'], data: ['data', 'db'],
@@ -43,7 +52,7 @@ describe('registry integrity', () => {
     }
     for (const a of ALL_ACTIONS) {
       const allowed = prefixes[a.group]
-      expect(allowed.some((p) => a.id.startsWith(`${p}.`)), `${a.id} in group ${a.group}`).toBe(true)
+      expect(allowed.some((p) => a.id.startsWith(`${p}:`)), `${a.id} in group ${a.group}`).toBe(true)
     }
   })
 
@@ -52,7 +61,7 @@ describe('registry integrity', () => {
     for (const a of ALL_ACTIONS) {
       expect(a.id).not.toMatch(/\bai\b/i)
     }
-    const panelAction = actionById('ui.panel')
+    const panelAction = actionById('ui:panel')
     const panels = panelAction?.params.find((p) => p.name === 'panel')?.values ?? []
     expect(panels).not.toContain('ai')
     expect(DIALOG_IDS).not.toContain('ai')
@@ -71,20 +80,20 @@ describe('registry integrity', () => {
 
 describe('lookup and search', () => {
   it('finds an action by exact id and case-insensitively', () => {
-    expect(actionById('map.addLayer')?.id).toBe('map.addLayer')
-    expect(actionById('MAP.ADDLAYER')?.id).toBe('map.addLayer')
-    expect(actionById('nope.nothing')).toBeUndefined()
+    expect(actionById('map:addLayer')?.id).toBe('map:addLayer')
+    expect(actionById('MAP:ADDLAYER')?.id).toBe('map:addLayer')
+    expect(actionById('nope:nothing')).toBeUndefined()
   })
 
   it('searches ids, summaries and group labels', () => {
-    expect(searchActions('symbology').map((a) => a.id)).toContain('map.setSymbology')
+    expect(searchActions('symbology').map((a) => a.id)).toContain('map:setSymbology')
     expect(searchActions('', 'draw').every((a) => a.group === 'draw')).toBe(true)
     expect(searchActions('zzzznope')).toHaveLength(0)
   })
 
   it('renders parameters and the resolved tier in a listing', () => {
-    const listing = listActions('map.addLayer')
-    expect(listing).toContain('map.addLayer')
+    const listing = listActions('map:addLayer')
+    expect(listing).toContain('map:addLayer')
     expect(listing).toContain('[autopilot]')
     expect(listing).toContain('object')
     expect(listing).toContain('*required*')
@@ -159,8 +168,8 @@ describe('dialogs', () => {
     for (const id of DIALOG_IDS) expect(DIALOG_LABELS[id]).toBeTruthy()
   })
 
-  it('offers every dialog through ui.openDialog', () => {
-    const action = actionById('ui.openDialog') as UiAction
+  it('offers every dialog through ui:openDialog', () => {
+    const action = actionById('ui:openDialog') as UiAction
     expect(action.params.find((p) => p.name === 'dialog')?.values).toEqual(DIALOG_IDS)
   })
 })
