@@ -462,6 +462,7 @@ Two independent switches in the AI panel footer decide which tools are attached:
 |--------|---------|---------|-------|
 | **Autopilot** | `execute_r_code` — runs R in the live session | off | `ai.autoPilotEnabled` |
 | **Web** | `web_search`, `web_fetch` (`ai-web-tools.ts`) | **on** | `ai.webAccessEnabled` (persisted in `ai-preferences.json`) |
+| *(none)* | `read_document`, `write_document`, `edit_document` (`ai-doc-tools.ts`) | always | — |
 
 A disabled switch is *absent* from the request rather than declined afterwards, and
 `runTool` in `AiChatPanel` re-reads the store at call time so flipping a switch off
@@ -483,6 +484,40 @@ record of what the assistant did.
   shown, and an explicit "I can't" when the data isn't in the session.
   `buildToolGuidance` states the *current* switch positions so the model never
   claims a capability it wasn't given.
+
+### The document skill (`ai-skill-documents.ts`, `ai-doc-context.ts`, `ai-doc-tools.ts`)
+
+A local model once produced an excellent earthquake report in which every figure
+chunk was a bare session variable (`p1`, `combined_plot`), no chunk loaded the
+data, and every headline number was typed into the prose. All three are invisible
+from inside the model: running a chunk inline evaluates in the LIVE session and
+succeeds, and only the Knit button — a clean child `Rscript` — tells the truth.
+Nothing in the prompt mentioned documents at all.
+
+- `buildDocumentSkill({ hasDocumentTools })` is injected on **every** request,
+  between the provenance rules and the tool guidance. Its centre is the
+  self-containment rule (knit is a separate session, so every object must be built
+  by a chunk in the same document), inline `` `r …` `` for figures in prose, the
+  chunk options that silently produce wrong output (`results='asis'`, `print(p)`
+  in a loop), and the ouRGeo-specific traps — inline runs honour only a few
+  options, and `rmarkdown::render()` through `execute_r_code` renders in the live
+  global env, so it *passes on exactly the documents Knit cannot render*.
+- `buildDocumentContext(tabs, activeTabId)` adds an `## Open Documents` block
+  beside the env and console blocks: name, language, dirty state, outline, chunk
+  labels. `describeDocument()` is shared with the write tools and runs the cheap
+  static checks — duplicate label, unterminated fence, missing front matter, and a
+  runnable chunk whose whole body is one bare identifier.
+- **The document tools carry no switch and are not gated on Autopilot**, because
+  they write only into a visible editor tab — through `applyExternalContent`, the
+  store's external-update channel, after dropping a Visual-mode tab to Source
+  (Visual is seeded once and writes back on exit, so a write underneath it would
+  be lost). No disk, no R session: saving stays the user's action, and the whole
+  module is testable with no Electron. Every call is logged to the console via
+  `describeDocCall`, the same audit-trail rule the web tools follow.
+- They exist because the alternative was assembling a document out of
+  `writeLines(c("…"))` through `execute_r_code` — a whole report's backticks and
+  quotes escaped inside an R string literal, which is where a small local model
+  comes apart, silently.
 
 ## Markdown & R Markdown (v1.9)
 

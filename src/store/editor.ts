@@ -38,6 +38,12 @@ interface EditorStore {
   addTab(filePath?: string | null, content?: string, fileName?: string): string
   /** New untitled markdown/R Markdown document, seeded with starter content. */
   newMarkdownTab(language: Exclude<DocLanguage, 'r'>): string
+  /**
+   * A named, not-yet-on-disk document — what the AI's write_document creates.
+   * Named rather than "Untitled-N" so the model and the user refer to it by the
+   * same word, and file-backed only once the user saves it.
+   */
+  newDocumentTab(fileName: string, content: string, language?: DocLanguage): string
   /** Change an open tab's language (the editor toolbar's language selector). */
   setTabLanguage(id: string, language: DocLanguage): void
   /** Toggle a markdown tab between Source and Visual editing. */
@@ -130,6 +136,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     tab.savedContent = tab.content
     tab.isDirty = false
     set({ tabs: [...state.tabs, tab], activeTabId: tab.id, untitledCounter: counter })
+    return tab.id
+  },
+
+  newDocumentTab(fileName, content, language) {
+    const tab: TabState = {
+      id: crypto.randomUUID(),
+      filePath: null,
+      fileName,
+      content,
+      savedContent: '',
+      isDirty: content !== '',
+      type: 'code',
+      language: language ?? languageForPath(fileName),
+    }
+    set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id }))
     return tab.id
   },
 

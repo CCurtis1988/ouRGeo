@@ -6,6 +6,7 @@ import { ModelSelectorPopup } from './ModelSelectorPopup'
 import { AutopilotWarningDialog } from './AutopilotWarningDialog'
 import { useAiStore } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
+import { useEditorStore } from '@/store/editor'
 import { useEnvironmentStore } from '@/store/environment'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
@@ -13,6 +14,9 @@ import type { AiTool, ToolCall } from '@/lib/ai-client'
 import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
 import { WEB_TOOLS, WEB_TOOL_NAMES, runWebTool, describeWebCall } from '@/lib/ai-web-tools'
 import { AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance } from '@/lib/ai-system-prompt'
+import { buildDocumentSkill } from '@/lib/ai-skill-documents'
+import { buildDocumentContext } from '@/lib/ai-doc-context'
+import { DOC_TOOLS, DOC_TOOL_NAMES, runDocTool, describeDocCall } from '@/lib/ai-doc-tools'
 import { cn } from '@/lib/utils'
 
 // ── Token usage bar ────────────────────────────────────────────────────────
@@ -164,6 +168,9 @@ export function AiChatPanel(): React.ReactElement {
     let systemPrompt = [
       AI_BASE_PROMPT,
       buildProvenanceRules(),
+      // Documents are always in the prompt: the model has to know a .Rmd renders
+      // in a session of its own before it writes one, not after the knit fails.
+      buildDocumentSkill({ hasDocumentTools: true }),
       buildToolGuidance({ autoPilot: autoPilotEnabled, webAccess: webAccessEnabled }),
       envContext,
     ].filter(Boolean).join('\n\n')
@@ -171,6 +178,10 @@ export function AiChatPanel(): React.ReactElement {
     // hand plus their output — so it knows the session's recent history.
     const consoleContext = buildConsoleContext(useSessionStore.getState().consoleHistory)
     if (consoleContext) systemPrompt += `\n\n${consoleContext}`
+    // …and of the editor, so "write this up" can start from what is already open.
+    const editorState = useEditorStore.getState()
+    const docContext = buildDocumentContext(editorState.tabs, editorState.activeTabId)
+    if (docContext) systemPrompt += `\n\n${docContext}`
 
     // Fetch rich context for mentioned objects
     const mentioned = detectMentionedObjects(text, currentEnvs)
@@ -197,6 +208,9 @@ export function AiChatPanel(): React.ReactElement {
     // is off is invisible to the model rather than merely discouraged.
     const tools: AiTool[] = []
     if (autoPilotEnabled) tools.push(EXECUTE_R_TOOL)
+    // Document tools carry no switch: they write into a visible, undoable editor
+    // tab and never touch disk or the R session.
+    tools.push(...DOC_TOOLS)
     if (webAccessEnabled) tools.push(...WEB_TOOLS)
 
     // Every tool re-checks its switch at call time: flipping one off mid-answer
@@ -213,6 +227,10 @@ export function AiChatPanel(): React.ReactElement {
         if (res.output) addConsoleEntry('output', res.output)
         else if (res.error) addConsoleEntry('error', res.error)
         return truncateForModel(res.output || res.error || '(no output)')
+      }
+      if (DOC_TOOL_NAMES.has(call.name)) {
+        addConsoleEntry('info', describeDocCall(call.name, call.input))
+        return truncateForModel(await runDocTool(call.name, call.input), 24000)
       }
       if (WEB_TOOL_NAMES.has(call.name)) {
         if (!useAiStore.getState().webAccessEnabled) {
