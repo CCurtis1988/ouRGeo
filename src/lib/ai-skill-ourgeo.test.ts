@@ -44,6 +44,14 @@ describe('buildOurgeoCore', () => {
     expect(core).toMatch(/Never write an action id into R code/)
   })
 
+  it('says what to do when an action fails — the twenty-turn spiral this prevents', () => {
+    // Told only "Network Error" by map:addLayer, a local model rebuilt,
+    // simplified and reprojected the user's buffer eight times over.
+    expect(core).toMatch(/### When an action fails/)
+    expect(core).toMatch(/Retry the same call \*\*once\*\* at most/)
+    expect(core).toMatch(/Never work around a failed action by rebuilding, simplifying or renaming/)
+  })
+
   it('explains the permission tiers, so a refusal is not a surprise', () => {
     expect(core).toMatch(/Autopilot/)
     expect(core).toMatch(/confirm/i)
@@ -87,6 +95,11 @@ describe('the topic reference', () => {
   it('gets the knit contract right — the thing that most often catches people', () => {
     expect(OURGEO_TOPICS.documents).toMatch(/clean child Rscript/)
     expect(OURGEO_TOPICS.documents).toMatch(/pandoc/)
+  })
+
+  it('names the severed-connection failure, and says it is not about the data', () => {
+    expect(OURGEO_TOPICS.troubleshooting).toMatch(/connection to the R server was severed/)
+    expect(OURGEO_TOPICS.troubleshooting).toMatch(/never a reason to simplify geometry/)
   })
 
   it('says that a layer is a view onto an R object, not a copy', () => {

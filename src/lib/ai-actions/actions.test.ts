@@ -19,6 +19,7 @@ vi.mock('@/lib/r-client', () => ({
   rClient: {
     listEnvironments: vi.fn(async () => ({ success: true, environments: [] })),
     listSpatialObjects: vi.fn(async () => ({ success: true, objects: [] })),
+    getSpatialGeoJSON: vi.fn(async () => ({ success: true, geojson: '{"type":"FeatureCollection","features":[]}' })),
     execute: vi.fn(async () => ({ success: true, output: 'ok' })),
     searchHelp: vi.fn(async () => ({ success: true, result: { results: [] } })),
     getVignettes: vi.fn(async () => ({ success: true, result: { vignettes: [] } })),
@@ -394,5 +395,28 @@ describe('environment', () => {
 
   it('will not open an object that does not exist', async () => {
     expect(await run('env:view', { name: 'ghost' })).toMatch(/FAILED/)
+  })
+})
+
+// A severed connection is not a bad request. Told only "Network Error", a local
+// model decided the user's buffer geometry was at fault and spent twenty turns
+// simplifying and rebuilding it — see lib/transport-retry.ts.
+describe('map:addLayer when the connection drops', () => {
+  it('retries, then says the object is fine and to stop rather than rebuild it', async () => {
+    const severed = Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
+    const { rClient } = await import('@/lib/r-client')
+    vi.mocked(rClient.listSpatialObjects).mockResolvedValue({
+      success: true,
+      objects: [{ name: 'buf', envName: '.GlobalEnv', class: 'sf', geometryType: 'POLYGON' }],
+    } as Awaited<ReturnType<typeof rClient.listSpatialObjects>>)
+    vi.mocked(rClient.getSpatialGeoJSON).mockRejectedValue(severed)
+
+    const out = await run('map:addLayer', { object: 'buf' })
+    expect(vi.mocked(rClient.getSpatialGeoJSON)).toHaveBeenCalledTimes(3)
+    expect(out).toMatch(/transport failure/)
+    expect(out).toMatch(/"buf" is valid and unchanged/)
+    expect(out).toMatch(/Do not simplify geometry, rebuild the object/)
+    expect(out).not.toMatch(/Network Error/)
+    expect(useSpatialStore.getState().layers).toHaveLength(0)
   })
 })

@@ -27,6 +27,9 @@ import { BASEMAPS_BY_ID, FREE_BASEMAPS } from '@/lib/basemaps'
 import { DEFAULT_LABEL_SETTINGS } from '@/lib/label-utils'
 import { layerExtentBbox } from '@/lib/layer-bbox'
 import {
+  isTransportFailure, retryOnNetworkError, transportFailureForModel,
+} from '@/lib/transport-retry'
+import {
   ok, fail, argStr, argNum, argNumOrNull, argBool, argBbox, argList, argNumList,
   type UiAction, type ActionResult, type Args,
 } from './types'
@@ -137,7 +140,7 @@ export const mapActions: UiAction[] = [
     run: async (args) => {
       const name = argStr(args, 'object')
       if (!name) return fail('object is required.')
-      const listed = await rClient.listSpatialObjects()
+      const listed = await retryOnNetworkError(() => rClient.listSpatialObjects())
       const known = listed.success ? listed.objects : []
       const obj = known.find((o) => o.name === name && (!argStr(args, 'env') || o.envName === argStr(args, 'env')))
         ?? known.find((o) => o.name === name)
@@ -155,6 +158,9 @@ export const mapActions: UiAction[] = [
         return ok(`Added "${added.name}" to the map as a ${added.kind} layer` +
           `${added.bbox ? ` and zoomed to it` : ''}.`)
       } catch (e) {
+        if (isTransportFailure(e)) {
+          return fail(transportFailureForModel(`adding "${name}" to the map`, `"${name}"`))
+        }
         return fail(`Could not add "${name}": ${e instanceof Error ? e.message : String(e)}`)
       }
     },

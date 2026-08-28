@@ -27,6 +27,7 @@ import { useSessionStore } from '@/store/session'
 import { useEnvironmentStore } from '@/store/environment'
 import { usePackagesStore } from '@/store/packages'
 import { useDatabaseStore } from '@/store/database'
+import { retryOnNetworkError } from '@/lib/transport-retry'
 
 const PROJECT_VERSION = 1
 
@@ -72,31 +73,9 @@ function baseName(filePath: string): string {
   return file.replace(/\.ourgeoproj$/i, '')
 }
 
-// A transport-level failure (no HTTP response): connection refused/reset, or a
-// stale keep-alive socket the R server already closed and Chromium reused. The
-// load flow fires a burst of R calls right after the project:unpack IPC gap, so
-// the first can land on such a socket — surfacing as an axios "Network Error".
-// These are safe to retry (a retry opens a fresh connection); real HTTP errors
-// carry a `response` and must not be retried.
-function isTransientNetworkError(err: unknown): boolean {
-  const e = err as { code?: string; message?: string; response?: unknown } | undefined
-  if (!e || e.response) return false
-  return e.code === 'ERR_NETWORK' || /network error/i.test(e.message ?? '')
-}
-
-async function retryOnNetworkError<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
-  let lastErr: unknown
-  for (let i = 0; i < tries; i++) {
-    try {
-      return await fn()
-    } catch (err) {
-      lastErr = err
-      if (!isTransientNetworkError(err)) throw err
-      await new Promise((r) => setTimeout(r, 250))
-    }
-  }
-  throw lastErr
-}
+// The load flow fires a burst of R calls right after the project:unpack IPC
+// gap, so the first can land on a keep-alive socket the R server already
+// closed — see lib/transport-retry.ts for why that reads as "Network Error".
 
 // ── Collect / apply ───────────────────────────────────────────────────────────
 async function collectDatabases(): Promise<DbReconnectEntry[]> {

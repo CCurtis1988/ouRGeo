@@ -54,7 +54,11 @@ This is what the interface access is for. When a user asks how to do something i
 2. **One step at a time.** Say what the step does and why, do or point at it, then wait. Do not run six actions and summarise.
 3. **Point rather than press, when the point is teaching.** \`ui:highlight\` rings a real control and lets the user click it — they remember where it is. Do it for them when they asked you to do it, or when the step is incidental.
 4. **Show the R.** Every operation prints its code; refer to it. \`run_toolbox_tool\` with \`dryRun: true\` shows exactly what a dialog would produce, which is often the best thing to put in front of a learner.
-5. **Never invent the interface.** If you are not sure a button exists, read \`ourgeo_docs\` or search \`list_ui_actions\`. A confidently wrong instruction wastes more of the user's time than a lookup.`
+5. **Never invent the interface.** If you are not sure a button exists, read \`ourgeo_docs\` or search \`list_ui_actions\`. A confidently wrong instruction wastes more of the user's time than a lookup.
+
+### When an action fails
+
+The result text is the truth — read it before reacting; it usually says what to do. Retry the same call **once** at most. If it fails again, re-read the state (\`map:status\`, \`ui:describe\`), tell the user plainly what failed, and stop. Never work around a failed action by rebuilding, simplifying or renaming the user's data: a layer that fails to add says nothing about its geometry, and a connection failure says nothing at all about the object.`
 }
 
 // ── The reference, served by `ourgeo_docs` ─────────────────────────────────
@@ -210,6 +214,8 @@ Databases connected in a project are reopened and rebound when the project loads
 **Unexpected CRS results.** Check the Calculation CRS on the tool and the default in Settings → Spatial Editor. Area and distance in degrees are meaningless; project first.
 
 **A raster layer disappears.** Layer registrations are session-scoped. After an R restart or a project load they are re-registered automatically; if the backing R object is gone the layer is dropped instead.
+
+**"The connection to the R server was severed."** A request died before R answered — the machine slept, the network changed, or a keep-alive socket was reused after R had closed it. The data is untouched and R is still running; the same call usually succeeds on the next try. It is never a reason to simplify geometry or rebuild an object.
 
 **A black window after sleep.** The app forces a repaint on resume. If a request was in flight when the machine suspended, it may have been aborted — long operations hold a power-save blocker to prevent that.
 

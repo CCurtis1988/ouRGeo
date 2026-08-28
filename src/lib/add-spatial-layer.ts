@@ -13,6 +13,9 @@ import { rClient } from '@/lib/r-client'
 import { createRasterLayerInfo, rasterLayerDraft } from '@/lib/raster-layers'
 import { useSpatialStore } from '@/store/spatial'
 import { useGeometryEditStore } from '@/store/geometryEdit'
+import {
+  isTransientNetworkError, retryOnNetworkError, transportFailureMessage, TransportError,
+} from '@/lib/transport-retry'
 
 export type Bbox = [number, number, number, number]
 
@@ -95,7 +98,19 @@ export async function addSpatialLayer(obj: SpatialObjectRef): Promise<AddedLayer
     return { layerId, name: obj.name, kind: 'raster', bbox: info.bounds }
   }
 
-  const res = await rClient.getSpatialGeoJSON(obj.name, obj.envName)
+  // Reading the geometry is one HTTP round trip, and a severed connection
+  // reports only "Network Error" — which says nothing about the object and
+  // sent a local AI model off rebuilding perfectly good geometry. Retry it
+  // (a fresh socket is usually all it takes), then say what actually happened.
+  let res
+  try {
+    res = await retryOnNetworkError(() => rClient.getSpatialGeoJSON(obj.name, obj.envName))
+  } catch (e) {
+    if (isTransientNetworkError(e)) {
+      throw new TransportError(transportFailureMessage(`reading the geometry of "${obj.name}"`))
+    }
+    throw e
+  }
   if (!res.success || !res.geojson) {
     throw new Error(res.error ?? 'no geometry returned')
   }

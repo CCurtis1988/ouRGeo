@@ -574,6 +574,18 @@ and settings — plus the 87 toolbox tools.
   action index, and how to run a tutorial. The full reference (11 topics, written
   from ourgeo.dev/docs pages plus what only this file knows) sits behind
   `ourgeo_docs({topic})`.
+- **A severed connection is not a data problem** (`src/lib/transport-retry.ts`).
+  Axios reports *every* failure with no HTTP response — a stale keep-alive
+  socket, an OS suspend, a network change — as the bare string `Network Error`.
+  Told exactly that by `map:addLayer`, a local model concluded the *geometry*
+  was at fault and spent twenty turns simplifying, reprojecting and rebuilding
+  a perfectly good buffer. The module holds the predicate (raw axios shape or
+  an already-translated `TransportError`), the retry (a fresh socket usually
+  succeeds; an error carrying a `response` is R's considered answer and is
+  never retried), and the two sentences that replace `Network Error`: one for
+  the user, one for the model that says *retry once, then stop, and do not
+  touch the data*. Project load and raster registration already retried this
+  way; the vector layer path did not, which is how it surfaced.
 - **Never exposed:** the AI panel itself (an assistant that can close its own
   panel can end the conversation), API keys, and posting to the forum.
 

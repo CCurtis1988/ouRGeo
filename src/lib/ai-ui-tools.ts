@@ -17,6 +17,7 @@ import {
   findTool, searchTools, toolLine, describeTool, runToolboxTool, categoryListing,
 } from '@/lib/ai-actions/toolbox'
 import { OURGEO_TOPICS, topicListing, readTopic } from '@/lib/ai-skill-ourgeo'
+import { isTransportFailure, transportFailureForModel } from '@/lib/transport-retry'
 import { useUiStore } from '@/store/ui'
 import type { Values } from '@/components/toolbox/tools'
 
@@ -175,6 +176,10 @@ async function runAction(id: string, args: Args, opts: { autoPilot: boolean }): 
     const body = typeof result.data === 'string' && result.data ? `\n\n${result.data}` : ''
     return `${result.ok ? '' : 'Failed: '}${result.message}${body}`
   } catch (e) {
+    // A severed connection is not a bad request, and the difference matters:
+    // told only "Network Error", a local model spent twenty turns rebuilding
+    // the user's geometry hunting a fault that was never in the data.
+    if (isTransportFailure(e)) return transportFailureForModel(action.id)
     return `Error running ${action.id}: ${e instanceof Error ? e.message : String(e)}`
   }
 }
