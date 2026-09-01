@@ -7,3 +7,12 @@ declare module 'monaco-editor/esm/vs/basic-languages/markdown/markdown.js' {
   export const conf: MonacoNs.languages.LanguageConfiguration
   export const language: MonacoNs.languages.IMonarchLanguage
 }
+
+// The R grammar, imported only by `editor-themes-tokens.test.ts`: R is
+// contributed lazily, so a chunk body has nothing to delegate to unless the
+// grammar is installed synchronously.
+declare module 'monaco-editor/esm/vs/basic-languages/r/r.js' {
+  import type * as MonacoNs from 'monaco-editor'
+  export const conf: MonacoNs.languages.LanguageConfiguration
+  export const language: MonacoNs.languages.IMonarchLanguage
+}

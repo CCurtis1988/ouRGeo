@@ -14,6 +14,7 @@ import { helpActions } from './help'
 import { mapActions } from './map'
 import { drawActions } from './draw'
 import { plotsActions, sessionActions, settingsActions } from './session'
+import { themeActions } from './theme'
 import { GROUP_LABELS, describeAction, type GroupId, type UiAction } from './types'
 import { resolveTier } from './permissions'
 
@@ -30,6 +31,7 @@ export const ALL_ACTIONS: UiAction[] = [
   ...plotsActions,
   ...sessionActions,
   ...settingsActions,
+  ...themeActions,
 ]
 
 const BY_ID = new Map(ALL_ACTIONS.map((a) => [a.id, a]))

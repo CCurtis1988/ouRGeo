@@ -84,7 +84,9 @@ export const OURGEO_TOPICS: Record<string, string> = {
 
 **Help panel** — R documentation in-app and offline: search, back/forward, package pages and vignettes. Typing \`?something\` in the console opens it here.
 
-**Settings** — one scrollable dialog: Appearance (10 themes, interface scale), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).`,
+**Settings** — one scrollable dialog: Appearance (10 app themes, plus separate code-editor and markdown editor themes, interface scale, and the **Theme Studio** — where the user builds their own themes on all three axes, with an editor backdrop image, a card image, a default basemap, and import/export as \`.ourgeotheme.json\` files), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).
+
+A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`ui:listThemes\` to find out which ones exist — the parameter enums list only what ouRGeo ships.`,
 
   toolbox: `# The Toolbox
 
@@ -221,6 +223,102 @@ Databases connected in a project are reopened and rebound when the project loads
 
 Beyond these, ourgeo.dev/forum.html is the community forum.`,
 
+  themes: `# Themes — switching, and making one for the user
+
+## The three axes
+
+They are independent, and the separation is the whole design.
+
+| axis | what it owns | switch with |
+|---|---|---|
+| **App theme** | the interface: every panel, button, border and label; the editor's background; the artwork behind the code; the map's default basemap | \`ui:theme\` |
+| **Code theme** | syntax colours only — R in .R files, and every embedded language in an .Rmd chunk | \`ui:codeTheme\` |
+| **Markdown theme** | prose colours only — headings, links, quotes, inline code, in Source and Visual mode | \`ui:markdownTheme\` |
+
+**A code or markdown theme carries token colours and NOTHING else.** It has no background of its own; the surface the text sits on belongs to the app theme. So switching a syntax palette can never move the editor background or the scene art, and a palette is only legible in combination with some app theme's surface — which is why \`theme:inspect\` reports contrast against the app theme currently in use.
+
+Ten app themes, 26 code palettes and 16 markdown palettes ship. Each app theme names the code and markdown palettes it starts with; **switching the app theme resets both to those defaults**, because a dark syntax palette on a white background is not a coherent look. The user departs from the default afterwards, per app theme.
+
+## Switching
+
+\`ui:theme\`, \`ui:codeTheme\` and \`ui:markdownTheme\` take **any installed theme** — the ones that ship and the ones you or the user built, including one created a moment ago. Their option lists are resolved when you call them, not when ouRGeo was built, so a new theme is switchable immediately. They accept the theme's **id or its name** ("my-half-life-2" and "Half-Life 2" both work).
+
+\`theme:list\` when you do not already know the id — it names everything and marks what is in use. \`ui:codeTheme\` and \`ui:markdownTheme\` also take \`"default"\`, meaning "follow the app theme".
+
+**If a switch is refused, the theme genuinely is not there.** Read the ids in the refusal, or run \`theme:list\`. Do not conclude that switching to a theme you made is unsupported and send the user to click a button — it is supported, and \`theme:create\` with \`apply: true\` does both in one call.
+
+## Making one
+
+Themes the user builds live alongside the shipped ones and are ordinary themes from then on: selectable, exportable, usable as templates.
+
+**Everything starts as a copy.** There is no blank theme, deliberately — a theme has 16 interface colours or 9–11 token colours, and a model setting some of them from nothing produces something that clashes with the ones it forgot. Pick the shipped theme closest to what the user described and change what needs changing.
+
+    theme:list                                     -- what exists
+    theme:inspect   kind=system id=arctic          -- see its actual colours
+    theme:create    kind=system name="Warm Night" template=arctic apply=true
+    theme:setColors kind=system id=my-warm-night colors={"accent":"#e8905a", ...}
+
+\`apply: true\` switches to the new theme as it is made, which is usually what the user meant — and it means every later \`theme:setColors\` shows up on screen as you make it. Without it, switch when you are done with \`ui:theme theme="my-warm-night"\`.
+
+Build all three axes the same way, then point the app theme at the two palettes with \`theme:configure\` so selecting it applies the whole set:
+
+    theme:create    kind=code     name="Warm Syntax" template=gruvboxDark
+    theme:create    kind=markdown name="Warm Prose"  template=prose
+    theme:configure id=my-warm-night codeTheme=my-warm-syntax markdownTheme=my-warm-prose
+    ui:theme        theme=my-warm-night             -- applies all three
+
+**Shipped themes are read-only.** An ouRGeo update would overwrite an edit, and there would be nothing to reset to. \`theme:duplicate\` gives you an editable copy of any of them; the mutating actions refuse a shipped theme and say so.
+
+## What each colour paints
+
+An app theme has two sets, and six names appear in both — which is why they are separate parameters (\`colors\` and \`chrome\`) rather than one map.
+
+\`colors\` — the interface:
+
+- \`bg\` the deepest surface, behind panels and under the console
+- \`panel\` toolbars, side panels, dialogs, tab strips — most of what you see
+- \`border\` dividers and outlines
+- \`accent\` primary buttons, selection, focus rings, the R-ready dot
+- \`accentHover\` the accent under the pointer — a step lighter on a dark theme, darker on a light one
+- \`muted\` secondary labels, inactive tabs, most icons
+- \`success\` / \`warning\` / \`error\` connected, cautions, failures
+- \`fg\` primary text
+
+\`chrome\` — the editor surface, separate on purpose (the shipped themes give the editor a slightly different surface from the panels around it):
+
+- \`panel\` the editor background — this is the one that matters
+- \`bg\` the current-line highlight
+- \`border\` indent guides and the scrollbar thumb
+- \`accent\` the caret and the selection wash
+- \`muted\` inactive line numbers
+- \`fg\` plain editor text
+
+A code palette: \`fg\` (identifiers), \`comment\`, \`keyword\`, \`constant\` (TRUE/NA/NULL), \`string\`, \`number\`, \`operator\` (\`<-\`, \`%>%\`), \`fn\`, \`tag\` (roxygen \`@param\`), \`delimiter\`, \`error\`.
+
+A markdown palette: \`text\`, \`heading\`, \`emphasis\`, \`link\`, \`code\`, \`quote\`, \`meta\`, \`html\`, \`escape\`. \`text\` drives Visual mode only — Source-mode body prose is not targetable in Monaco and always takes the app theme's foreground.
+
+## Making one that is actually good
+
+- **Colours are \`"#rrggbb"\`.** \`"blue"\`, \`"rgb(…)"\` and eight-digit hex are refused. \`"#abc"\` is accepted and expanded.
+- **Contrast is the failure you cannot see.** \`theme:setColors\` reports the ratios back; anything under **4.5:1** for text on its background is too low. Watch \`fg\` on \`panel\`, \`muted\` on \`panel\`, and \`comment\` on the editor background — a comment colour a shade too close to the surface is the single most common way a hand-made code theme becomes unusable.
+- **Move a family together.** Changing \`bg\` and leaving \`panel\` and \`border\` behind gives a theme with two unrelated greys in it. Keep \`bg\` darkest, \`panel\` a step up, \`border\` a step up from that (reverse on a light theme).
+- **One accent.** \`accent\` and \`accentHover\` should be the same hue; \`success\`/\`warning\`/\`error\` stay recognisably green/amber/red whatever the theme, because they mean something.
+- **Say what you changed, in the user's terms.** "Warmed the panels and moved the accent to amber" is worth more than a list of hexes.
+
+## The rest of an app theme
+
+\`theme:configure\` sets the non-colour properties: its name; whether it counts as dark or light (this chooses Monaco's base theme, so get it right); the **code and markdown palettes it defaults to**; the **basemap** the Spatial Editor opens with; and how the backdrop image is painted.
+
+\`theme:setImage\` gives it artwork from a file on disk — \`slot="backdrop"\` for the image behind the code editor, \`slot="card"\` for its tile in the theme picker. PNG, JPEG, WebP, SVG, GIF or AVIF; 4 MB for a backdrop, 1 MB for a card. The picture is embedded in the theme, not referenced, so an exported theme carries its own artwork.
+
+A backdrop is painted **under the code**, so it has to stay out of the way: the shipped scenes are drawn to be grey-scaled at 15%. A photograph usually wants \`backdropGrayscale=false\` and a lower opacity. Wide 16:9 around 1600 × 900 fills the panel without the middle being cropped out. Both images are optional — with no backdrop the theme gets a scene generated from its own palette.
+
+## Files
+
+\`theme:export\` writes a \`.ourgeotheme.json\`; \`theme:import\` reads one. The file declares which axis it is for, so importing an app theme into the code-theme list is refused with a sentence naming what the file actually is. Pass \`kind\` to \`theme:import\` only when you want that check; omit it to accept whatever the file holds.
+
+The user can do all of this by hand in **Settings → Appearance → Theme Studio**. Point them there with \`ui:highlight\` on \`settings.themeStudio\` when the point is teaching rather than doing.`,
+
   packages: `# Which R package powers what
 
 - **sf** — vector geometry: reading, writing, predicates, overlays, projection. The default for spatial data.
@@ -253,6 +351,7 @@ export function topicListing(): string {
     shortcuts: 'keyboard shortcuts',
     troubleshooting: 'the common failures and what they mean',
     packages: 'which R package powers which feature',
+    themes: 'the three theme axes, switching, and building a theme for the user',
   }
   const lines = Object.keys(OURGEO_TOPICS).map((t) => `- ${t} — ${summaries[t] ?? ''}`)
   return `ouRGeo documentation topics (pass one as \`topic\`):\n${lines.join('\n')}`

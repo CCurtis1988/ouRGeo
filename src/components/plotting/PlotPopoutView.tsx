@@ -3,8 +3,11 @@ import { ChevronLeft, ChevronRight, Download, Maximize2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { ExportDialog } from './ExportDialog'
 import { rClient } from '@/lib/r-client'
-import { loadTheme, loadUiScale } from '@/lib/theme-persistence'
+import { loadTheme, loadUiScale, loadEditorThemes } from '@/lib/theme-persistence'
 import { applyTheme } from '@/lib/themes'
+import { loadCustomThemes } from '@/lib/custom-themes-persistence'
+import { installBundle } from '@/lib/custom-themes'
+import { applyEditorTheme } from '@/lib/editor-themes'
 import { applyUiScale } from '@/store/theme'
 import type { PlotPopoutState } from '@/store/plotting'
 
@@ -42,7 +45,18 @@ export function PlotPopoutView(): React.ReactElement {
   useEffect(() => {
     void (async () => {
       try {
-        applyTheme(await loadTheme())
+        // The popout is a second BrowserWindow with its own module graph, so
+        // it registers the user's themes for itself before resolving ids.
+        try {
+          installBundle(await loadCustomThemes())
+        } catch { /* ship-only themes are a fine fallback */ }
+        const themeId = await loadTheme()
+        applyTheme(themeId)
+        // No Monaco here, but an undefined custom property makes the whole
+        // declaration invalid at computed-value time — a silent inherit, not a
+        // fallback — so this window sets the editor vars too.
+        const { codeTheme, markdownTheme } = await loadEditorThemes(themeId)
+        applyEditorTheme(themeId, codeTheme, markdownTheme)
         applyUiScale(await loadUiScale())
       } catch {
         /* fall back to the stylesheet defaults */

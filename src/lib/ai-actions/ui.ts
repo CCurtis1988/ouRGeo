@@ -20,6 +20,8 @@ import { useSessionStore } from '@/store/session'
 import { useGeometryEditStore } from '@/store/geometryEdit'
 import { useThemeStore } from '@/store/theme'
 import { THEMES } from '@/lib/themes'
+import { CODE_THEMES, MARKDOWN_THEMES } from '@/lib/editor-themes'
+import { resolveThemeArg } from './theme'
 import { languageOf, labelFor } from '@/lib/markdown/doc-kind'
 import { TARGET_IDS, targetListing, findTarget } from './targets'
 import { ok, fail, argStr, argBool, type UiAction } from './types'
@@ -189,24 +191,102 @@ export const uiActions: UiAction[] = [
     run: () => ok('Controls you can point at:', targetListing()),
   },
 
+  // ── Switching themes ───────────────────────────────────────────────────
+  //
+  // `valuesAt`, not `values`. A theme the user built in the Theme Studio is
+  // registered while the app is running, so a list captured at module load can
+  // never contain it — and `validateArgs` runs BEFORE the action, so the call
+  // was refused at the boundary and the handler below, which resolves against
+  // the live registry, was never reached. Resolving the set on every call and
+  // every listing is what makes "build a theme, then switch to it" work.
+  //
+  // `resolveThemeArg` then accepts the LABEL as well as the id, because a model
+  // that has just named a theme "Half-Life 2" reaches for that name first.
+
   {
     id: 'ui:theme',
     group: 'ui',
     tier: 'always',
-    summary: 'Switch the interface theme.',
+    summary: 'Switch the interface theme — including one the user (or you) built in the Theme Studio. Also resets the code and markdown editor themes to that theme\'s defaults.',
     params: [
       {
-        name: 'theme', type: 'enum', values: Object.keys(THEMES), required: true,
-        description: 'Theme id.',
+        name: 'theme', type: 'enum', valuesAt: () => Object.keys(THEMES),
+        lenient: true, required: true,
+        description: 'Theme id, or its name. Themes built in the Theme Studio are listed here as soon as they exist; theme:list shows them with their ids.',
       },
     ],
     run: (args) => {
-      const id = argStr(args, 'theme')
-      if (!(id in THEMES)) {
-        return fail(`Unknown theme "${id}". Available: ${Object.keys(THEMES).join(', ')}.`)
+      const hit = resolveThemeArg(argStr(args, 'theme'), THEMES)
+      if (!hit) {
+        return fail(
+          `Unknown theme "${argStr(args, 'theme')}". Available: ${Object.keys(THEMES).join(', ')}.`,
+        )
       }
-      useThemeStore.getState().setTheme(id)
-      return ok(`Theme set to ${id}.`)
+      useThemeStore.getState().setTheme(hit.id)
+      return ok(
+        `Interface theme set to ${hit.label} (${hit.id}). Its code and markdown ` +
+        `palettes were applied with it: ${hit.defaultCodeTheme} and ${hit.defaultMarkdownTheme}.`,
+      )
+    },
+  },
+
+  {
+    id: 'ui:codeTheme',
+    group: 'ui',
+    tier: 'always',
+    summary: "Switch the code editor's syntax colours — including a palette built in the Theme Studio. Leaves the interface theme, the editor background and its artwork alone.",
+    params: [
+      {
+        name: 'theme', type: 'enum',
+        valuesAt: () => ['default', ...Object.keys(CODE_THEMES)],
+        lenient: true, required: true,
+        description: 'Code theme id or name, or "default" to follow the interface theme. Palettes built in the Theme Studio are listed here as soon as they exist.',
+      },
+    ],
+    run: (args) => {
+      const raw = argStr(args, 'theme')
+      const theme = useThemeStore.getState()
+      if (raw === 'default') {
+        const id = (THEMES[theme.current] ?? THEMES.dark).defaultCodeTheme
+        theme.setCodeTheme(id)
+        return ok(`Code editor theme set to the interface theme's default (${id}).`)
+      }
+      const hit = resolveThemeArg(raw, CODE_THEMES)
+      if (!hit) {
+        return fail(`Unknown code theme "${raw}". Available: default, ${Object.keys(CODE_THEMES).join(', ')}.`)
+      }
+      theme.setCodeTheme(hit.id)
+      return ok(`Code editor theme set to ${hit.label} (${hit.id}).`)
+    },
+  },
+
+  {
+    id: 'ui:markdownTheme',
+    group: 'ui',
+    tier: 'always',
+    summary: 'Switch the markdown editor\'s prose colours (headings, links, quotes, inline code) — including a palette built in the Theme Studio.',
+    params: [
+      {
+        name: 'theme', type: 'enum',
+        valuesAt: () => ['default', ...Object.keys(MARKDOWN_THEMES)],
+        lenient: true, required: true,
+        description: 'Markdown theme id or name, or "default" to follow the interface theme. Palettes built in the Theme Studio are listed here as soon as they exist.',
+      },
+    ],
+    run: (args) => {
+      const raw = argStr(args, 'theme')
+      const theme = useThemeStore.getState()
+      if (raw === 'default') {
+        const id = (THEMES[theme.current] ?? THEMES.dark).defaultMarkdownTheme
+        theme.setMarkdownTheme(id)
+        return ok(`Markdown editor theme set to the interface theme's default (${id}).`)
+      }
+      const hit = resolveThemeArg(raw, MARKDOWN_THEMES)
+      if (!hit) {
+        return fail(`Unknown markdown theme "${raw}". Available: default, ${Object.keys(MARKDOWN_THEMES).join(', ')}.`)
+      }
+      theme.setMarkdownTheme(hit.id)
+      return ok(`Markdown editor theme set to ${hit.label} (${hit.id}).`)
     },
   },
 

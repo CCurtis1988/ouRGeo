@@ -212,7 +212,7 @@ export const settingsActions: UiAction[] = [
         `Attribute popup on draw: ${sp.showAttributePopup ? 'on' : 'off'}.`,
         `Snapping: ${Object.entries(sp.snapSettings.kinds).filter(([, on]) => on).map(([k]) => k).join(', ') || 'off'} within ${sp.snapSettings.tolerancePx}px.`,
         `Map chunk engine for R Markdown: ${md.mapChunkEngine}.`,
-        `Theme: ${theme.current}; interface scale ${theme.uiScale}.`,
+        `Theme: ${theme.current} (code editor: ${theme.codeTheme}, markdown: ${theme.markdownTheme}); interface scale ${theme.uiScale}.`,
       ].join('\n'))
     },
   },

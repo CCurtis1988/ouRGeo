@@ -56,6 +56,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('dialog:saveExportFile', format),
     savePlot: (format: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:savePlot', format),
+    openTheme: (): Promise<string | null> => ipcRenderer.invoke('dialog:openTheme'),
+    saveTheme: (defaultName?: string): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:saveTheme', defaultName),
+    openThemeImage: (title?: string): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:openThemeImage', title),
     openProject: (): Promise<string | null> => ipcRenderer.invoke('dialog:openProject'),
     saveProject: (defaultName?: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:saveProject', defaultName)

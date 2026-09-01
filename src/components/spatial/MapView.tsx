@@ -17,7 +17,7 @@ import { useGeometryEditStore, selectActiveSession, selectActiveSessionLayerIds,
 import { useThemeStore } from '@/store/theme'
 import { useBasemapStore } from '@/store/basemap'
 import { useApiKeysStore } from '@/store/apiKeys'
-import { resolveBasemapStyle, THEME_DEFAULT_BASEMAPS } from '@/lib/basemaps'
+import { resolveBasemapStyle, themeDefaultBasemap } from '@/lib/basemaps'
 import type { SnapType } from '@/store/geometryEdit'
 import { useDrawInteractions } from '@/hooks/useDrawInteractions'
 import { DrawingLayer } from './DrawingLayer'
@@ -334,10 +334,17 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   const overrideId = useBasemapStore((s) => s.overrideBasemapId)
   const currentTheme = useThemeStore((s) => s.current)
   const apiKeys = useApiKeysStore((s) => s.keys)
+  // `themeRevision` moves when a user theme's contents change under a stable
+  // id — the Theme Studio's basemap dropdown would otherwise take effect only
+  // after switching themes and back.
+  const themeRevision = useThemeStore((s) => s.revision)
   const mapStyle = useMemo(() => {
-    const id = overrideId ?? THEME_DEFAULT_BASEMAPS[currentTheme] ?? 'carto-dark-matter'
+    const id = overrideId ?? themeDefaultBasemap(currentTheme)
     return resolveBasemapStyle(id, apiKeys)
-  }, [overrideId, currentTheme, apiKeys])
+    // `themeRevision` is a signal — `themeDefaultBasemap` reads the live theme
+    // registry, so the closure has no visible dependency on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overrideId, currentTheme, apiKeys, themeRevision])
   const globalViewState = useSpatialStore((s) => s.viewState)
   const globalSetViewState = useSpatialStore((s) => s.setViewState)
   const sessionViewState = useGeometryEditStore(selectActiveSessionViewState)

@@ -1,3 +1,5 @@
+import { THEMES } from './themes'
+
 const CARTO = 'https://basemaps.cartocdn.com/gl'
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
 
@@ -516,6 +518,20 @@ export const THEME_DEFAULT_BASEMAPS: Record<string, string> = {
   volcanic:       'carto-dark-matter-nolabels',
   arctic:         'carto-dark-matter',
   retroTerminal:  'carto-dark-matter-nolabels',
+}
+
+/**
+ * The basemap a theme opens with.
+ *
+ * User themes pick theirs in the Theme Studio and carry it on the ThemeDef;
+ * the shipped ones are listed above. Resolution goes through here rather than
+ * indexing `THEME_DEFAULT_BASEMAPS` directly so a user theme is not silently
+ * given Dark Matter regardless of what it asked for.
+ */
+export function themeDefaultBasemap(themeId: string): string {
+  const custom = THEMES[themeId]?.defaultBasemap
+  if (custom && custom in BASEMAPS_BY_ID) return custom
+  return THEME_DEFAULT_BASEMAPS[themeId] ?? 'carto-dark-matter'
 }
 
 /** Returns a MapLibre style URL string or an inline style object. */

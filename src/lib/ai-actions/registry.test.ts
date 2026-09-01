@@ -5,6 +5,7 @@ import { ALL_ACTIONS, actionById, searchActions, listActions, actionIndex } from
 import { UI_TARGETS, TARGET_IDS } from './targets'
 import { GROUP_LABELS, TIERS, type UiAction } from './types'
 import { DIALOG_IDS, DIALOG_LABELS } from '@/store/ui'
+import { paramValues } from './types'
 
 // The registry is the contract: an action that is not here does not exist, and
 // the model only ever learns about it through these fields. So the shape is
@@ -29,7 +30,8 @@ describe('registry integrity', () => {
       for (const p of a.params) {
         expect(p.description.length, `${a.id}.${p.name}`).toBeGreaterThan(3)
         if (p.type === 'enum') {
-          expect(p.values?.length, `${a.id}.${p.name} enum values`).toBeGreaterThan(0)
+          // `paramValues` resolves a dynamic set (themes) as well as a fixed one.
+          expect(paramValues(p)?.length, `${a.id}.${p.name} enum values`).toBeGreaterThan(0)
         }
       }
     }
@@ -49,6 +51,7 @@ describe('registry integrity', () => {
       ui: ['ui'], editor: ['editor'], project: ['project'], data: ['data', 'db'],
       environment: ['env'], packages: ['packages'], help: ['help'], map: ['map'],
       draw: ['draw'], plots: ['plots'], session: ['session'], settings: ['settings'],
+      theme: ['theme'],
     }
     for (const a of ALL_ACTIONS) {
       const allowed = prefixes[a.group]

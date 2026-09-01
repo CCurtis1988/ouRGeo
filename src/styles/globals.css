@@ -16,6 +16,33 @@
     --geo-error: 1 92% 63%;
     --geo-fg: 0 0% 93%;
 
+    /* Editor palettes (overridden at runtime by applyEditorTheme()). Unlike the
+       --geo-* tokens these are complete colour values, not HSL triples: they are
+       ports of themes authored in hex and every consumer only needs `color:`.
+       They must be declared here as well — an undefined custom property makes
+       the whole declaration invalid at computed-value time, which is a silent
+       inherit rather than a fallback. Defaults mirror the Dark app theme. */
+    --ourgeo-code-fg: #ededed;
+    --ourgeo-code-comment: #5c7a9e;
+    --ourgeo-code-keyword: #79c9d9;
+    --ourgeo-code-constant: #f0a070;
+    --ourgeo-code-string: #e6c47a;
+    --ourgeo-code-number: #f0a070;
+    --ourgeo-code-operator: #ededed;
+    --ourgeo-code-fn: #b088d8;
+    --ourgeo-code-tag: #79c9d9;
+    --ourgeo-code-delimiter: #ededed;
+    --ourgeo-code-error: #f85149;
+    --ourgeo-md-text: #ededed;
+    --ourgeo-md-heading: #79c9d9;
+    --ourgeo-md-emphasis: #ededed;
+    --ourgeo-md-link: #4493f8;
+    --ourgeo-md-code: #e6c47a;
+    --ourgeo-md-quote: #5c7a9e;
+    --ourgeo-md-meta: #5c7a9e;
+    --ourgeo-md-html: #79c9d9;
+    --ourgeo-md-escape: #f0a070;
+
     /* Dark mode by default */
     --background: 215 20% 7%;
     --foreground: 210 40% 90%;
@@ -161,13 +188,18 @@
    Visual mode looks like the rest of the app rather than a bare document. */
 .ourgeo-visual .ProseMirror {
   outline: none;
-  color: hsl(var(--foreground));
+  color: var(--ourgeo-md-text);
   min-height: 200px;
 }
 
 .ourgeo-visual .ProseMirror h1 { font-size: 1.35rem; font-weight: 600; margin: 1rem 0 .5rem; }
 .ourgeo-visual .ProseMirror h2 { font-size: 1.15rem; font-weight: 600; margin: .9rem 0 .45rem; }
 .ourgeo-visual .ProseMirror h3 { font-size: 1rem;    font-weight: 600; margin: .8rem 0 .4rem; }
+.ourgeo-visual .ProseMirror h1,
+.ourgeo-visual .ProseMirror h2,
+.ourgeo-visual .ProseMirror h3 { color: var(--ourgeo-md-heading); }
+.ourgeo-visual .ProseMirror strong,
+.ourgeo-visual .ProseMirror em { color: var(--ourgeo-md-emphasis); }
 .ourgeo-visual .ProseMirror p  { margin: .5rem 0; line-height: 1.6; }
 
 .ourgeo-visual .ProseMirror ul { list-style: disc;    padding-left: 1.4rem; margin: .5rem 0; }
@@ -175,9 +207,9 @@
 .ourgeo-visual .ProseMirror li { margin: .2rem 0; }
 
 .ourgeo-visual .ProseMirror blockquote {
-  border-left: 2px solid hsl(var(--geo-accent) / 0.5);
+  border-left: 2px solid var(--ourgeo-md-quote);
   padding-left: .75rem;
-  color: hsl(var(--geo-muted));
+  color: var(--ourgeo-md-quote);
   font-style: italic;
   margin: .6rem 0;
 }
@@ -188,7 +220,7 @@
   border-radius: 3px;
   padding: .05rem .25rem;
   font-size: .85em;
-  color: hsl(var(--geo-accent));
+  color: var(--ourgeo-md-code);
 }
 
 .ourgeo-visual .ProseMirror pre {
@@ -201,7 +233,7 @@
 }
 
 .ourgeo-visual .ProseMirror pre code {
-  background: none; border: none; padding: 0; color: hsl(var(--foreground));
+  background: none; border: none; padding: 0; color: var(--ourgeo-code-fg);
 }
 
 .ourgeo-visual .ProseMirror table {
@@ -221,11 +253,11 @@
 .ourgeo-visual .ProseMirror th { background: hsl(var(--geo-bg)); font-weight: 500; }
 .ourgeo-visual .ProseMirror hr {
   border: none;
-  border-top: 1px solid hsl(var(--geo-border));
+  border-top: 1px solid var(--ourgeo-md-meta);
   margin: 1rem 0;
 }
 
-.ourgeo-visual .ProseMirror a { color: hsl(var(--geo-accent)); text-decoration: underline; }
+.ourgeo-visual .ProseMirror a { color: var(--ourgeo-md-link); text-decoration: underline; }
 .ourgeo-visual .ProseMirror img { max-width: 100%; border-radius: 4px; }
 
 /* ── Chunks inside Visual mode ─────────────────────────────────────────────
@@ -305,8 +337,72 @@
 
 .ourgeo-visual .ProseMirror .ourgeo-vchunk-hl { cursor: text; }
 
+/* The editable layer is unhighlighted — ProseMirror holds the raw text — so at
+   least give it the code theme's foreground, or focusing a chunk drops it to
+   prose colour. */
+.ourgeo-visual .ProseMirror .ourgeo-vchunk-src { color: var(--ourgeo-code-fg); }
+
 .ourgeo-visual .ProseMirror .ourgeo-vchunk-out:empty { display: none; }
 .ourgeo-visual .ProseMirror .ourgeo-vchunk-out {
   border-top: 1px solid hsl(var(--geo-border));
   background: hsl(var(--geo-bg) / 0.5);
 }
+
+/* ── highlight.js, driven by the code theme ───────────────────────────────
+   Replaces the hard-coded `highlight.js/styles/github-dark.css` import that
+   used to live in main.tsx — which meant the light app theme rendered
+   GitHub-dark code. Unscoped on purpose: it covers both surfaces that use
+   hljs, the read-only <pre> behind each Visual-mode chunk and the AI chat's
+   rehype-highlight blocks, so both follow the code editor theme. No rule sets
+   a background; the surfaces keep their own. */
+.hljs { color: var(--ourgeo-code-fg); background: transparent; }
+
+.hljs-comment,
+.hljs-quote,
+.hljs-code,
+.hljs-formula { color: var(--ourgeo-code-comment); font-style: italic; }
+
+.hljs-keyword,
+.hljs-doctag,
+.hljs-type,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_,
+.hljs-selector-tag { color: var(--ourgeo-code-keyword); }
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-section,
+.hljs-name,
+.hljs-built_in,
+.hljs-symbol,
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-attr { color: var(--ourgeo-code-fn); }
+
+.hljs-number,
+.hljs-literal { color: var(--ourgeo-code-number); }
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition { color: var(--ourgeo-code-string); }
+
+.hljs-variable,
+.hljs-property,
+.hljs-params,
+.hljs-subst { color: var(--ourgeo-code-fg); }
+
+.hljs-operator,
+.hljs-punctuation,
+.hljs-tag,
+.hljs-char.escape_ { color: var(--ourgeo-code-operator); }
+
+.hljs-meta { color: var(--ourgeo-code-tag); }
+.hljs-deletion { color: var(--ourgeo-code-error); }
+.hljs-bullet,
+.hljs-link { color: var(--ourgeo-md-link); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }

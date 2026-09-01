@@ -8,6 +8,7 @@ import { DatabasePanel } from '../database/DatabasePanel'
 import { SpatialEditor } from '../spatial/SpatialEditor'
 import { PlottingPanel } from '../plotting/PlottingPanel'
 import { SettingsDialog } from '../settings/SettingsDialog'
+import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
 import { ProjectDropdown } from '../project/ProjectDropdown'
 import { LoadDataDialog } from '../editor/LoadDataDialog'
 import { RecordingDestinationDialog } from '../editor/RecordingDestinationDialog'
@@ -709,6 +710,13 @@ export function EditorLayout(): React.ReactElement {
         onOpenChange={dialogToggle('data-connector')}
       />
       <ToolboxDialog open={openDialog === 'toolbox'} onOpenChange={dialogToggle('toolbox')} />
+      {/* A sibling of Settings, not a child. Nesting it inside would put the
+          studio's focus trap under Settings' own, and closing the studio would
+          then have to decide whether Settings should still be there. */}
+      <ThemeStudioDialog
+        open={openDialog === 'theme-studio'}
+        onOpenChange={dialogToggle('theme-studio')}
+      />
       <RecordingDestinationDialog
         open={openDialog === 'recording'}
         onOpenChange={dialogToggle('recording')}

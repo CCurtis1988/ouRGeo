@@ -16,6 +16,38 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.10',
+    date: 'August 2026',
+    title: 'Make It Yours',
+    summary:
+      'The Theme Studio — build your own themes on all three axes, with your own artwork, and share them as files.',
+    highlights: [
+      'Theme Studio (Settings → Appearance): create app themes, code themes and markdown themes of your own, always by copying one that already works.',
+      'Every colour is editable and labelled with what it actually paints — ten interface colours and six editor-surface colours for an app theme — with live contrast warnings and a preview that updates as you type without touching the running app.',
+      'Bring your own artwork: a backdrop image behind the code editor with its own opacity and grey-scale, and a card image for the theme picker. Both are embedded in the theme, so it travels with its pictures.',
+      'An app theme also chooses the code and markdown palettes it starts with, and the basemap the Spatial Editor opens with under it.',
+      'Themes export and import as portable .ourgeotheme.json files — and a file meant for one axis can never land in another\u2019s list.',
+      'The AI assistant can build a theme to your description, check its own contrast, and switch you to it.',
+      'Fixed a settings-file race that could corrupt theme.json and quietly reset the app to the Dark theme on the next launch.',
+    ],
+  },
+  {
+    version: '1.9',
+    date: 'August 2026',
+    title: 'Markdown & R Markdown',
+    summary:
+      '.md, .Rmd and .qmd become first-class documents — written, run, knitted and published without leaving ouRGeo.',
+    highlights: [
+      'Markdown and R Markdown documents in the code editor, with a formatting ribbon, a slash-command menu, and full R autocomplete inside chunks.',
+      'Runnable chunks with inline output: run a chunk and its plots and printed results appear beneath it, right in the document.',
+      'A Visual mode that edits the rendered document directly and round-trips back to source without reformatting what you wrote.',
+      '“Chunk: current map” generates real tmap or ggplot2 code from the layers, symbology and view currently on the map — the same code the Export dialogs produce.',
+      'Knit to HTML, PDF or Word in a clean R session, with each format pre-disabled and explained when its dependencies (pandoc, LaTeX) are missing.',
+      'Publish an R Markdown document straight to the community forum as a new discussion, figures and all.',
+      'Separate code-editor and markdown editor themes: 26 syntax palettes and 16 prose palettes, chosen independently of the app theme.',
+    ],
+  },
+  {
     version: '1.8',
     date: 'July 2026',
     title: 'Raster & Imagery Connectors',

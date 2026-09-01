@@ -59,6 +59,9 @@ declare global {
         openWorkspaceFolder(): Promise<string | null>
         saveExportFile(format: string): Promise<string | null>
         savePlot(format: string): Promise<string | null>
+        openTheme(): Promise<string | null>
+        saveTheme(defaultName?: string): Promise<string | null>
+        openThemeImage(title?: string): Promise<string | null>
         openProject(): Promise<string | null>
         saveProject(defaultName?: string): Promise<string | null>
       }

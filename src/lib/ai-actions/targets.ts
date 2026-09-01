@@ -31,6 +31,7 @@ export const UI_TARGETS: UiTarget[] = [
   { id: 'toolbar.plots', label: 'Toggle Plotting Preview', where: 'top toolbar' },
   { id: 'toolbar.help', label: 'Help', where: 'top toolbar' },
   { id: 'toolbar.settings', label: 'Settings', where: 'top toolbar, far right' },
+  { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
 
   // Spatial editor ribbon.
   { id: 'map.addFeatures', label: 'Add Features', where: 'spatial editor ribbon' },

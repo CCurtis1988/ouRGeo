@@ -33,13 +33,56 @@ the whole analysis.
 - **Data Connector.** 14 web-API providers (Esri, OGC API–Features, WFS, WMS,
   WCS, STAC, CKAN, Socrata, ERDDAP, SDMX, OData, Macrostrat and more) with a
   visual query builder that emits reproducible import code.
+- **Themes you own.** Ten app themes, 26 code palettes and 16 markdown
+  palettes ship — and the **Theme Studio** lets you build your own on all three
+  axes: every interface and editor colour, your own backdrop image behind the
+  code, a card image for the picker, a default basemap, and import/export as
+  portable `.ourgeotheme.json` files.
 - **In-app AI assistant** with optional Autopilot, usable with cloud providers
-  or a fully local model.
+  or a fully local model — it can drive the interface, run the toolbox, write
+  R Markdown, and build a theme to your description.
 - **Publication export.** Generate complete `ggplot2` or `tmap` code from your
   on-screen map, including legend, north arrow, scale bar and graticules.
 - **Portable projects.** Save code, environment, layers and databases as a
   single `.ourgeoproj` bundle.
 - **No telemetry, no account, no cloud dependency.**
+
+## Theming
+
+Three independent axes, all in **Settings → Appearance**:
+
+| axis | what it colours |
+|---|---|
+| **App theme** | the whole interface, the editor's background, the artwork behind the code, the map's default basemap |
+| **Code theme** | syntax colours — R in `.R` files, and every embedded language in an `.Rmd` chunk |
+| **Markdown theme** | prose colours — headings, links, quotes, inline code, in Source and Visual mode |
+
+The separation is a guarantee, not a convenience: a code or markdown palette
+carries token colours and *nothing else*, so switching one can never move the
+editor background or the scene art behind it.
+
+**Settings → Appearance → Theme Studio…** opens the editor. Every theme starts
+as a copy of one that already works — pick the closest and change what you like:
+
+- Sixteen colours for an app theme (ten interface, six editor surface), each
+  labelled with what it actually paints, with live WCAG contrast warnings.
+- The code and markdown palettes the theme defaults to, and the basemap the
+  Spatial Editor opens with under it.
+- **Your own backdrop image** behind the code editor, with its own opacity and
+  grey-scale, plus a card image for the theme picker. PNG, JPEG, WebP, SVG, GIF
+  or AVIF; both optional, and the artwork is embedded in the theme so an
+  exported theme carries its own pictures.
+- A live preview that updates as you type and does not touch the running app
+  until you switch to the theme.
+
+Themes export to `.ourgeotheme.json` and import back. The file declares which
+axis it belongs to, so dropping an app theme into the code-theme list is
+refused with a sentence naming what the file actually is and which tab takes it.
+
+The AI assistant can do all of this too — ask it for "a warm low-contrast dark
+theme" and it will build one across all three axes, check its own contrast
+ratios, and switch you to it. A theme it makes is an ordinary theme: editable
+in the Studio, exportable, and usable as a template like any other.
 
 ## Documentation
 

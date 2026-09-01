@@ -23,8 +23,11 @@ import {
 } from './lib/project-persistence'
 import { UnsavedChangesDialog, confirmUnsaved } from './components/project/UnsavedChangesDialog'
 import { reconnectToR, pruneStaleObjectTabs } from './lib/reconnect-r'
-import { loadTheme, loadUiScale } from './lib/theme-persistence'
-import { applyTheme, THEMES } from './lib/themes'
+import { loadTheme, loadUiScale, loadEditorThemes } from './lib/theme-persistence'
+import { loadCustomThemes } from './lib/custom-themes-persistence'
+import { useCustomThemeStore } from './store/custom-themes'
+import { applyTheme } from './lib/themes'
+import { applyEditorTheme } from './lib/editor-themes'
 import { useThemeStore, applyUiScale } from './store/theme'
 import { loadSpatialSettings } from './lib/spatial-settings-persistence'
 import { useSpatialSettingsStore } from './store/spatialSettings'
@@ -68,14 +71,24 @@ function MainApp(): React.ReactElement {
       // Load the recent-projects list for the project dropdown
       try { await loadRecentProjects() } catch { /* no recents yet */ }
 
+      // Register the user's own themes BEFORE resolving the saved ids — a
+      // theme built in the Theme Studio is not in the registries until this
+      // runs, and `loadTheme`/`loadEditorThemes` validate against them.
+      try {
+        useCustomThemeStore.getState().init(await loadCustomThemes())
+      } catch { /* ship-only themes are a fine fallback */ }
+
       // Load and apply saved theme
       const savedTheme = await loadTheme()
+      const { codeTheme, markdownTheme } = await loadEditorThemes(savedTheme)
       applyTheme(savedTheme)
+      applyEditorTheme(savedTheme, codeTheme, markdownTheme)
       const savedScale = await loadUiScale()
       applyUiScale(savedScale)
       useThemeStore.setState({
         current: savedTheme,
-        monacoTheme: THEMES[savedTheme]?.monacoTheme ?? THEMES.dark.monacoTheme,
+        codeTheme,
+        markdownTheme,
         uiScale: savedScale,
       })
 

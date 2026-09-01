@@ -198,15 +198,58 @@ const SCENES: Record<string, SceneFn> = {
   },
 }
 
-/** Raw SVG markup for a theme's scene. Falls back to the Dark scene. */
+/** Raw SVG markup for a theme's scene, drawn in that theme's own colours.
+ *
+ *  A user theme has no scene of its own, so it borrows the drawing of the
+ *  shipped theme it was started from (`basedOn`) and gets it recoloured from
+ *  its own palette — which is why a theme built on Arctic reads as a snowfield
+ *  in the user's blues rather than as a blank card. */
 export function sceneSvg(themeId: string): string {
   const t = THEMES[themeId] ?? THEMES.dark
-  const fn = SCENES[themeId] ?? SCENES.dark
+  const fn = SCENES[themeId] ?? SCENES[t.basedOn ?? ''] ?? SCENES.dark
   const inner = fn(pal(t), themeId)
   return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">${inner}</svg>`
 }
 
-/** The scene as a data URI, usable in <img src> or CSS background-image. */
-export function sceneDataUri(themeId: string): string {
+/** The generated scene as a data URI. Ignores any uploaded artwork — callers
+ *  that want "whatever this theme shows" want `themeBackdropUri`. */
+export function generatedSceneUri(themeId: string): string {
   return `data:image/svg+xml,${encodeURIComponent(sceneSvg(themeId))}`
+}
+
+/** What is painted behind the code editor: the user's uploaded backdrop if
+ *  they set one, otherwise the generated scene. */
+export function sceneDataUri(themeId: string): string {
+  return THEMES[themeId]?.backgroundImage || generatedSceneUri(themeId)
+}
+
+/** What the theme's card shows in the App Theme picker: an uploaded icon
+ *  first, then the backdrop, then the generated scene. The fall-through is
+ *  what makes both uploads optional without ever leaving a card empty. */
+export function themeIconUri(themeId: string): string {
+  const t = THEMES[themeId]
+  return t?.iconImage || t?.backgroundImage || generatedSceneUri(themeId)
+}
+
+/** The full backdrop declaration for the code editor's art layer.
+ *
+ *  Opacity and grey-scale are part of the theme rather than of the component
+ *  because a photograph and a flat generated SVG do not want the same
+ *  treatment: the shipped scenes are designed to be greyed to 15%, and a
+ *  user's own artwork usually is not. */
+export function sceneBackdropStyle(themeId: string): {
+  backgroundImage: string
+  backgroundSize: string
+  backgroundPosition: string
+  filter: string
+  opacity: number
+} {
+  const t = THEMES[themeId]
+  return {
+    backgroundImage: `url("${sceneDataUri(themeId)}")`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    filter: (t?.backgroundGrayscale ?? true) ? 'grayscale(1)' : 'none',
+    opacity: t?.backgroundOpacity ?? 0.15,
+  }
 }

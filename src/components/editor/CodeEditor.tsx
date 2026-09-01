@@ -10,7 +10,11 @@ import { useSessionStore } from '@/store/session'
 import { useEditorStore } from '@/store/editor'
 import { useThemeStore } from '@/store/theme'
 import { THEMES } from '@/lib/themes'
-import { sceneDataUri } from '@/lib/themeScenes'
+import {
+  EDITOR_MONACO_THEME, buildMonacoTheme, resolveCodeTheme, resolveMarkdownTheme,
+  CODE_THEMES, MARKDOWN_THEMES,
+} from '@/lib/editor-themes'
+import { sceneBackdropStyle } from '@/lib/themeScenes'
 import { saveSessionDebounced } from '@/lib/session-persistence'
 import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
@@ -50,15 +54,13 @@ loader.config({ monaco })
 // match a `{r label}` chunk header, so chunk bodies would render as prose.
 registerRMarkdownLanguage(monaco)
 
-// Register all custom themes immediately — monaco is available via static import
-for (const t of Object.values(THEMES)) {
-  monaco.editor.defineTheme(t.monacoTheme, {
-    base: t.monacoThemeDef.base,
-    inherit: true,
-    rules: t.monacoThemeDef.rules,
-    colors: t.monacoThemeDef.colors,
-  })
-}
+// One theme, redefined whenever the app / code / markdown selection changes.
+// Defined here at module scope so the name exists before the first editor
+// mounts and can be passed as a constant `theme` prop.
+monaco.editor.defineTheme(EDITOR_MONACO_THEME, {
+  ...buildMonacoTheme(THEMES.dark, CODE_THEMES.dark, MARKDOWN_THEMES.dark),
+  inherit: true,
+})
 
 /** Strip the comment portion of a line (everything from # outside a string). */
 function stripComment(line: string, inStringAtLineStart = false): string {
@@ -382,12 +384,22 @@ export function CodeEditor(): React.ReactElement {
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const updateTabContent = useEditorStore((s) => s.updateTabContent)
   const externalContentUpdate = useEditorStore((s) => s.externalContentUpdate)
-  const monacoTheme = useThemeStore((s) => s.monacoTheme)
   const themeId = useThemeStore((s) => s.current)
+  const codeThemeId = useThemeStore((s) => s.codeTheme)
+  const markdownThemeId = useThemeStore((s) => s.markdownTheme)
   const uiScale = useThemeStore((s) => s.uiScale)
 
-  // Faint, grey-scaled themed scene painted behind the editor text.
-  const artUri = useMemo(() => sceneDataUri(themeId), [themeId])
+  // Faint, grey-scaled themed scene painted behind the editor text — or the
+  // backdrop image a user theme supplies, at whatever opacity it asks for.
+  // `themeRevision` is in the deps because editing the ACTIVE theme in the
+  // Theme Studio changes the artwork without changing its id.
+  const themeRevision = useThemeStore((s) => s.revision)
+  const artStyle = useMemo(
+    // `themeRevision` is a signal, not a value the closure reads — the lint
+    // rule cannot see that `sceneBackdropStyle` reaches into a live registry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => sceneBackdropStyle(themeId), [themeId, themeRevision],
+  )
 
   // Get or create a Monaco model for a tab
   const getOrCreateModel = useCallback((
@@ -506,10 +518,28 @@ export function CodeEditor(): React.ReactElement {
     }
   }, [tabs])
 
-  // Apply Monaco theme on change
+  // Rebuild the editor theme on change. `colors` comes from the app theme and
+  // the two palettes supply only token rules, so a code/markdown switch cannot
+  // move the editor background or the scene art painted behind it.
+  //
+  // Keep the deps at exactly these four: Monaco's StandaloneTheme takes the
+  // inherited base's `rules` array BY REFERENCE and pushes onto it on every
+  // resolve, so a redefine on a frequently-changing dependency would grow that
+  // shared array without bound. `revision` qualifies only because the Theme
+  // Studio commits its edits on a debounce — it previews live against its own
+  // inline styles, and the app sees one commit per pause, not one per drag.
   useEffect(() => {
-    monaco.editor.setTheme(monacoTheme)
-  }, [monacoTheme])
+    monaco.editor.defineTheme(EDITOR_MONACO_THEME, {
+      ...buildMonacoTheme(
+        THEMES[themeId] ?? THEMES.dark,
+        resolveCodeTheme(themeId, codeThemeId),
+        resolveMarkdownTheme(themeId, markdownThemeId),
+      ),
+      inherit: true,
+    })
+    // defineTheme already re-applies a live theme; this also covers first mount.
+    monaco.editor.setTheme(EDITOR_MONACO_THEME)
+  }, [themeId, codeThemeId, markdownThemeId, themeRevision])
 
   // ── Chunk execution ──────────────────────────────────────────────────────
   /** Execute chunk code and file the result under `chunkId`.
@@ -1122,18 +1152,12 @@ export function CodeEditor(): React.ReactElement {
           <div className="absolute inset-0 bg-geo-panel" />
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `url("${artUri}")`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              filter: 'grayscale(1)',
-              opacity: 0.15,
-            }}
+            style={artStyle}
           />
           <div className="absolute inset-0 ourgeo-editor-canvas">
           <MonacoEditor
             height="100%"
-            theme={monacoTheme}
+            theme={EDITOR_MONACO_THEME}
             options={{
               fontSize: Math.round(13 * uiScale),
               fontFamily: 'JetBrains Mono, Fira Code, monospace',

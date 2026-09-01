@@ -28,6 +28,7 @@ export type DialogId =
   | 'data-connector'
   | 'toolbox'
   | 'settings'
+  | 'theme-studio'
   | 'recording'
   // Spatial ribbon
   | 'map-contents'
@@ -47,7 +48,7 @@ export type DialogId =
   | 'export-code-ggplot'
 
 export const DIALOG_IDS: DialogId[] = [
-  'load-data', 'data-connector', 'toolbox', 'settings', 'recording',
+  'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'recording',
   'map-contents', 'map-settings', 'select-menu', 'symbology', 'raster-symbology',
   'labeling', 'basemap', 'legend-settings', 'north-arrow-settings', 'save-edits',
   'export-menu', 'export-image', 'export-code-tmap', 'export-code-ggplot',
@@ -59,6 +60,7 @@ export const DIALOG_LABELS: Record<DialogId, string> = {
   'data-connector': 'Data Connector',
   'toolbox': 'Toolbox',
   'settings': 'Settings',
+  'theme-studio': 'Theme Studio',
   'recording': 'Record Console',
   'map-contents': 'Contents',
   'map-settings': 'Map Settings',

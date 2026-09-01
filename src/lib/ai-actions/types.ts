@@ -38,7 +38,7 @@ export const TIER_LABELS: Record<Tier, string> = {
 
 export type GroupId =
   | 'ui' | 'editor' | 'project' | 'data' | 'environment' | 'packages'
-  | 'help' | 'map' | 'draw' | 'plots' | 'session' | 'settings'
+  | 'help' | 'map' | 'draw' | 'plots' | 'session' | 'settings' | 'theme'
 
 export const GROUP_LABELS: Record<GroupId, string> = {
   ui: 'Panels & dialogs',
@@ -53,6 +53,7 @@ export const GROUP_LABELS: Record<GroupId, string> = {
   plots: 'Plots',
   session: 'Session & console',
   settings: 'Settings',
+  theme: 'Themes',
 }
 
 export type ParamType = 'string' | 'number' | 'boolean' | 'enum' | 'strings' | 'numbers' | 'json'
@@ -63,10 +64,43 @@ export interface ParamDef {
   /** Written for the model: what it means, not what it is. */
   description: string
   required?: boolean
-  /** Allowed values for `enum`. */
+  /** Allowed values for `enum`, when the set is fixed. */
   values?: readonly string[]
+  /**
+   * Allowed values for an `enum` whose set is only known at call time.
+   *
+   * This exists because of themes, and the failure was total. A user's own
+   * theme is registered while the app runs, so `values: Object.keys(THEMES)`
+   * — evaluated once when the module loaded — could never contain it.
+   * `validateArgs` runs BEFORE the action does, so the assistant's call was
+   * rejected at the boundary with "must be one of: dark, bespin, …" and the
+   * `run` handler, which resolves against the live registry and would have
+   * worked, was never reached. A model reasonably concluded that switching to
+   * a theme it had just built was impossible.
+   *
+   * Resolved on every validation and every listing, so `list_ui_actions`
+   * shows the model what actually exists rather than what shipped.
+   */
+  valuesAt?: () => readonly string[]
+  /**
+   * The listed values are the known set, but the action resolves other
+   * spellings itself, so `validateArgs` does not gate on membership.
+   *
+   * For the theme switches this is the difference between working and not: a
+   * model that has just named a theme "Half-Life 2" passes that, and the id
+   * `my-half-life-2` is what the enum holds. Rejecting it centrally would put
+   * the same wall back one step further along — so the check moves into the
+   * action, which knows how to look a theme up by name and whose refusal
+   * message lists the real ids.
+   */
+  lenient?: true
   /** Shown in listings so the model knows what happens if it omits the param. */
   default?: string | number | boolean
+}
+
+/** The allowed values for a param right now — dynamic set if it has one. */
+export function paramValues(p: ParamDef): readonly string[] | undefined {
+  return p.valuesAt ? p.valuesAt() : p.values
 }
 
 export type Args = Record<string, unknown>
@@ -183,8 +217,9 @@ export function validateArgs(action: UiAction, args: Args): string | null {
       continue
     }
     if (missing) continue
-    if (p.type === 'enum' && p.values && !p.values.includes(String(raw))) {
-      problems.push(`"${p.name}" must be one of: ${p.values.join(', ')} — got "${String(raw)}"`)
+    const allowed = paramValues(p)
+    if (p.type === 'enum' && allowed && !p.lenient && !allowed.includes(String(raw))) {
+      problems.push(`"${p.name}" must be one of: ${allowed.join(', ')} — got "${String(raw)}"`)
     }
     if (p.type === 'number' && !Number.isFinite(Number(raw))) {
       problems.push(`"${p.name}" must be a number — got "${String(raw)}"`)
@@ -199,7 +234,12 @@ export function describeAction(action: UiAction, tier: Tier): string {
   const params = action.params.length === 0
     ? ''
     : ` — params: ${action.params.map((p) => {
-        const bits = [p.name, p.type === 'enum' && p.values ? `(${p.values.join('|')})` : `(${p.type})`]
+        const allowed = paramValues(p)
+        // A lenient enum gets a trailing ellipsis, so the model reads the list
+        // as the known options rather than as the only accepted strings.
+        const bits = [p.name, p.type === 'enum' && allowed
+          ? `(${allowed.join('|')}${p.lenient ? '|…' : ''})`
+          : `(${p.type})`]
         if (p.required) bits.push('*required*')
         return `${bits.join(' ')}: ${p.description}`
       }).join('; ')}`

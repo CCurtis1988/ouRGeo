@@ -191,6 +191,49 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePath
   })
 
+  // Theme dialogs. A theme file is plain JSON with an `ourgeoTheme` envelope
+  // naming its kind (system / code / markdown) — the renderer refuses a file
+  // whose kind does not match the editor it was dropped into, so the extension
+  // here is a convenience, never the check.
+  ipcMain.handle('dialog:openTheme', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import ouRGeo Theme',
+      filters: [
+        { name: 'ouRGeo Theme', extensions: ['ourgeotheme', 'json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  ipcMain.handle('dialog:saveTheme', async (_evt, defaultName?: string) => {
+    const result = await dialog.showSaveDialog({
+      title: 'Export ouRGeo Theme',
+      defaultPath: defaultName ? `${defaultName}.ourgeotheme.json` : undefined,
+      filters: [
+        { name: 'ouRGeo Theme', extensions: ['ourgeotheme.json', 'json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    return result.canceled ? null : result.filePath
+  })
+
+  // Theme artwork: a background image or a picker icon. The extension list is
+  // exactly what Chromium can paint from a data: URI in an <img>/background —
+  // no TIFF, no PDF, no HEIC.
+  ipcMain.handle('dialog:openThemeImage', async (_evt, title?: string) => {
+    const result = await dialog.showOpenDialog({
+      title: title ?? 'Choose Image',
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'avif'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
   // Project bundle dialogs (.ourgeoproj = zip of project.json + environment.RData)
   ipcMain.handle('dialog:openProject', async () => {
     const result = await dialog.showOpenDialog({
