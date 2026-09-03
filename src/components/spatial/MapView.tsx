@@ -14,6 +14,7 @@ import { parseFieldTemplate, resolveFont } from '@/lib/label-utils'
 import { rasterTileUrl } from '@/lib/raster-layers'
 import type { ColorBinding, SpatialLayer } from '@/store/spatial'
 import { useGeometryEditStore, selectActiveSession, selectActiveSessionLayerIds, selectActiveSessionViewState } from '@/store/geometryEdit'
+import { setMapView } from '@/lib/map-view'
 import { useThemeStore } from '@/store/theme'
 import { useBasemapStore } from '@/store/basemap'
 import { useApiKeysStore } from '@/store/apiKeys'
@@ -345,12 +346,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     // registry, so the closure has no visible dependency on it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideId, currentTheme, apiKeys, themeRevision])
+  // The read half of the rule in `lib/map-view.ts` — reactive, so it has to be
+  // hooks here rather than that module's getter. The WRITE half is `setMapView`,
+  // and the two must keep saying the same thing: a view written where the map
+  // does not read from is a move that silently never happens.
   const globalViewState = useSpatialStore((s) => s.viewState)
-  const globalSetViewState = useSpatialStore((s) => s.setViewState)
   const sessionViewState = useGeometryEditStore(selectActiveSessionViewState)
-  const setActiveSessionViewState = useGeometryEditStore((s) => s.setActiveSessionViewState)
   const viewState = sessionViewState ?? globalViewState
-  const setViewState = sessionViewState !== null ? setActiveSessionViewState : globalSetViewState
   const isEditMode = useGeometryEditStore((s) => s.isEditMode)
   const draggingVertex = useGeometryEditStore((s) => s.draggingVertex)
   const snapTarget = useGeometryEditStore((s) => s.snapTarget)
@@ -440,19 +442,29 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     getMap: () => mapRef.current?.getMap() ?? null,
   }))
 
+  /** Record the extent on screen — what both export codegens draw. */
+  const syncViewBbox = useCallback(() => {
+    const bounds = mapRef.current?.getBounds()
+    if (!bounds) return
+    useSpatialStore.getState().setViewBbox([
+      bounds.getWest(), bounds.getSouth(),
+      bounds.getEast(), bounds.getNorth(),
+    ])
+  }, [])
+
+  // A view set from OUTSIDE the map — `map:setView`, a restored project — moves
+  // the camera through props, and react-map-gl deliberately does NOT echo that
+  // back as a `move` event: it would be reporting our own state to us. So
+  // `onMove` never runs for it and nothing else would refresh the bbox, leaving
+  // the map showing Barcelona while an export wrote the extent it had before.
+  useEffect(() => { syncViewBbox() }, [viewState, syncViewBbox])
+
   const onMove = useCallback(
     (evt: { viewState: { longitude: number; latitude: number; zoom: number } }) => {
-      setViewState(evt.viewState)
-      useSpatialStore.getState().setViewState(evt.viewState)
-      const bounds = mapRef.current?.getBounds()
-      if (bounds) {
-        useSpatialStore.getState().setViewBbox([
-          bounds.getWest(), bounds.getSouth(),
-          bounds.getEast(), bounds.getNorth(),
-        ])
-      }
+      setMapView(evt.viewState)
+      syncViewBbox()
     },
-    [setViewState]
+    [syncViewBbox]
   )
 
   // Identify (info) — hit-test vectors + rasters under the click and open the
@@ -693,19 +705,9 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           if (!map.hasImage(iconId)) map.addImage(iconId, imageData)
         }
         // Capture initial bbox and zoom for code generators
-        const bounds = map.getBounds()
-        if (bounds) {
-          useSpatialStore.getState().setViewBbox([
-            bounds.getWest(), bounds.getSouth(),
-            bounds.getEast(), bounds.getNorth(),
-          ])
-        }
+        syncViewBbox()
         const center = map.getCenter()
-        useSpatialStore.getState().setViewState({
-          longitude: center.lng,
-          latitude: center.lat,
-          zoom: map.getZoom(),
-        })
+        setMapView({ longitude: center.lng, latitude: center.lat, zoom: map.getZoom() })
       }}
       onDblClick={handleDblClick}
       onMouseDown={handleMouseDown}

@@ -14,7 +14,7 @@ vi.mock('@/lib/ai-proxy-fetch', () => ({
   }),
 }))
 
-import { API_CATEGORY_ORDER, API_PROVIDERS, providersByCategory } from './registry'
+import { API_CATEGORY_ORDER, providerList, providersByCategory } from './registry'
 import { esriProvider } from './esri'
 import { esriImageProvider } from './esri-image'
 import { wcsProvider } from './wcs'
@@ -38,7 +38,7 @@ describe('registry', () => {
     expect(group?.providers.map((p) => p.id)).toEqual(['esri-image', 'wcs', 'wms', 'stac', 'erddap-grid'])
   })
   it('keeps every provider id unique', () => {
-    const ids = API_PROVIDERS.map((p) => p.id)
+    const ids = providerList().map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
   it('moved STAC out of Geospatial', () => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { ApiConnectorBrowser } from './ApiConnectorBrowser'
-import { API_PROVIDERS, providersByCategory } from '@/lib/api-connectors/registry'
+import { providerList, providersByCategory } from '@/lib/api-connectors/registry'
+import { usePluginRevision } from '@/store/plugins'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -10,8 +11,12 @@ interface Props {
 /** The "Web APIs" tab: a category-grouped provider picker on top, and the selected
  *  provider's connector browser below. */
 export function WebApisTab({ onClose }: Props): React.ReactElement {
-  const [providerId, setProviderId] = useState(API_PROVIDERS[0]?.id ?? '')
-  const provider = API_PROVIDERS.find((p) => p.id === providerId) ?? API_PROVIDERS[0] ?? null
+  // A plugin can add a provider while the app runs; the revision is what makes
+  // this component notice (the registry object's identity never changes).
+  usePluginRevision()
+  const providers = providerList()
+  const [providerId, setProviderId] = useState(providers[0]?.id ?? '')
+  const provider = providers.find((p) => p.id === providerId) ?? providers[0] ?? null
   const groups = providersByCategory()
 
   return (

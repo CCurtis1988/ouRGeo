@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type KeyboardEvent } from 'react'
 import { X, ChevronRight, Search } from 'lucide-react'
-import { CATEGORIES } from './tools'
+import { categoryList } from './tools'
 import { useEnvironmentStore } from '@/store/environment'
+import { usePluginRevision } from '@/store/plugins'
 import { rClient } from '@/lib/r-client'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import { ToolForm } from './toolboxBuilders'
@@ -12,12 +13,21 @@ interface ToolboxDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const ALL_TOOLS = CATEGORIES.flatMap(c => c.tools.map(t => ({ ...t, categoryLabel: c.label, categoryId: c.id })))
-
 export function ToolboxDialog({ open, onOpenChange }: ToolboxDialogProps) {
-  const [selectedToolId, setSelectedToolId] = useState<string>(CATEGORIES[0].tools[0].id)
+  // Read per render rather than at module load: a plugin can add a tool while
+  // the app is running, and a list captured once would never show it.
+  // `usePluginRevision` is the subscription that gets us re-rendered at all;
+  // `categoryList()` then returns a fresh array, which is what invalidates the
+  // memo below. Neither alone is enough.
+  usePluginRevision()
+  const categories = categoryList()
+  const allTools = useMemo(
+    () => categories.flatMap(c => c.tools.map(t => ({ ...t, categoryLabel: c.label, categoryId: c.id }))),
+    [categories],
+  )
+  const [selectedToolId, setSelectedToolId] = useState<string>(categories[0].tools[0].id)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(CATEGORIES.map(c => c.id))
+    () => new Set(categories.map(c => c.id))
   )
   const [environments, setEnvironments] = useState<REnvironmentInfo[]>([])
   const storeEnvs = useEnvironmentStore(s => s.environments)
@@ -100,7 +110,7 @@ export function ToolboxDialog({ open, onOpenChange }: ToolboxDialogProps) {
   }, [])
 
   const searchResults = searchQuery.trim()
-    ? ALL_TOOLS.filter(t => t.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? allTools.filter(t => t.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : []
 
   useEffect(() => { setSearchHighlighted(0) }, [searchQuery])
@@ -110,7 +120,7 @@ export function ToolboxDialog({ open, onOpenChange }: ToolboxDialogProps) {
     setSearchQuery('')
     setSearchOpen(false)
     // Expand the category that contains this tool
-    const tool = ALL_TOOLS.find(t => t.id === toolId)
+    const tool = allTools.find(t => t.id === toolId)
     if (tool) {
       setExpandedCategories(prev => {
         const next = new Set(prev)
@@ -135,7 +145,7 @@ export function ToolboxDialog({ open, onOpenChange }: ToolboxDialogProps) {
     }
   }
 
-  const selectedTool = CATEGORIES.flatMap(c => c.tools).find(t => t.id === selectedToolId)!
+  const selectedTool = allTools.find(t => t.id === selectedToolId)!
 
   function toggleCategory(id: string) {
     setExpandedCategories(prev => {
@@ -211,7 +221,7 @@ export function ToolboxDialog({ open, onOpenChange }: ToolboxDialogProps) {
               )}
             </div>
             <div className="flex-1 overflow-y-auto py-1">
-            {CATEGORIES.map(cat => (
+            {categories.map(cat => (
               <div key={cat.id}>
                 <button
                   className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-[#8b949e] hover:text-white transition-colors"

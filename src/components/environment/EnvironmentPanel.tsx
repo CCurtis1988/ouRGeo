@@ -43,11 +43,16 @@ export function EnvironmentPanel(): React.ReactElement {
     }
   }, [setEnvironments, setLoading, setError])
 
+  // Wait for R. This panel used to be mounted only by a user clicking its
+  // toolbar button, by which time R had long since connected; now the layout
+  // restores whatever was open at the last exit, so it can mount during
+  // startup and the first fetch would fail with "R client not initialized".
+  const rStatus = useSessionStore((s) => s.rStatus)
   useEffect(() => {
-    if (environments.length === 0) {
+    if (rStatus === 'ready' && environments.length === 0) {
       fetchEnvironments()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const logToConsole = (cmd: string) => {
     useSessionStore.getState().addConsoleEntry('input', cmd)

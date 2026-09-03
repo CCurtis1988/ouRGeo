@@ -5,6 +5,15 @@
 // corner of the screen. Every id here corresponds to a `data-ourgeo-id`
 // attribute in the source, which a test verifies — a renamed button breaks the
 // test rather than the tutorial.
+//
+// The toolbar half is DERIVED from `lib/layout/toolbar.ts` rather than written
+// out again. It used to be written out again, and that was fine only for as
+// long as the buttons were fourteen literal JSX blocks: now that the toolbar is
+// data, a hand-kept copy of it here would be a second list to forget — and the
+// failure mode is the assistant confidently pointing at a button that was
+// renamed or hidden.
+
+import { toolbarButtons } from '@/lib/layout/toolbar'
 
 export interface UiTarget {
   id: string
@@ -14,24 +23,11 @@ export interface UiTarget {
   where: string
 }
 
-export const UI_TARGETS: UiTarget[] = [
-  // Top toolbar, left to right.
-  { id: 'toolbar.environment', label: 'Toggle Environment', where: 'top toolbar' },
-  { id: 'toolbar.packages', label: 'Toggle Packages', where: 'top toolbar' },
-  { id: 'toolbar.openFile', label: 'Open File (Ctrl+O)', where: 'top toolbar' },
-  { id: 'toolbar.save', label: 'Save (Ctrl+S)', where: 'top toolbar' },
-  { id: 'toolbar.saveAs', label: 'Save As', where: 'top toolbar' },
-  { id: 'toolbar.loadData', label: 'Load Data', where: 'top toolbar' },
-  { id: 'toolbar.databases', label: 'Toggle Database Connections', where: 'top toolbar' },
-  { id: 'toolbar.dataConnector', label: 'Data Connector', where: 'top toolbar' },
-  { id: 'toolbar.toolbox', label: 'Toolbox', where: 'top toolbar' },
-  { id: 'toolbar.ai', label: 'AI Assistant', where: 'top toolbar' },
-  { id: 'toolbar.record', label: 'Record Console', where: 'top toolbar' },
-  { id: 'toolbar.spatial', label: 'Toggle Spatial Editor', where: 'top toolbar' },
-  { id: 'toolbar.plots', label: 'Toggle Plotting Preview', where: 'top toolbar' },
-  { id: 'toolbar.help', label: 'Help', where: 'top toolbar' },
+/** Everything except the toolbar, which is derived below. */
+const FIXED_TARGETS: UiTarget[] = [
   { id: 'toolbar.settings', label: 'Settings', where: 'top toolbar, far right' },
   { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
+  { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
 
   // Spatial editor ribbon.
   { id: 'map.addFeatures', label: 'Add Features', where: 'spatial editor ribbon' },
@@ -55,13 +51,30 @@ export const UI_TARGETS: UiTarget[] = [
   { id: 'project.dropdown', label: 'Project menu', where: 'top toolbar, far right' },
 ]
 
-export const TARGET_IDS: ReadonlySet<string> = new Set(UI_TARGETS.map((t) => t.id))
+/**
+ * The live catalogue — the toolbar as it is actually configured, then the rest.
+ *
+ * A function, not a const, for the same reason the action registry is: a
+ * plugin's toolbar button has to be pointable at, and a button the user has
+ * hidden has to stop being. Pointing at a control that is not on screen is
+ * exactly the failure the catalogue exists to prevent.
+ */
+export function uiTargets(): UiTarget[] {
+  const toolbar = toolbarButtons().map((b) => ({
+    id: b.targetId, label: b.label, where: 'top toolbar',
+  }))
+  return [...toolbar, ...FIXED_TARGETS]
+}
+
+export function hasTarget(id: string): boolean {
+  return uiTargets().some((t) => t.id === id)
+}
 
 export function findTarget(id: string): UiTarget | undefined {
-  return UI_TARGETS.find((t) => t.id === id)
+  return uiTargets().find((t) => t.id === id)
 }
 
 /** The catalogue as the model sees it in an error or a listing. */
 export function targetListing(): string {
-  return UI_TARGETS.map((t) => `${t.id} — ${t.label} (${t.where})`).join('\n')
+  return uiTargets().map((t) => `${t.id} — ${t.label} (${t.where})`).join('\n')
 }

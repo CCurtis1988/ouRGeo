@@ -8,6 +8,7 @@ import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
 import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
+import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
 
 async function loadSavedRPath(): Promise<void> {
   try {
@@ -137,6 +138,8 @@ app.whenReady().then(async () => {
   registerAiProxy(ipcMain)
   registerKnitHandlers(ipcMain)
   registerForumHandlers(ipcMain)
+  registerPluginHandlers(ipcMain)
+  registerEsbuildWasmHandler(ipcMain)
 
   // The renderer calls this after resolving the unsaved-changes prompt (Save or
   // Don't Save) to allow the intercepted window close to complete.

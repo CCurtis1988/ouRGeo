@@ -50,11 +50,16 @@ export function PackagePanel(): React.ReactElement {
     }
   }, [setLibraries, setLoading, setError])
 
+  // Wait for R. This panel used to be mounted only by a user clicking its
+  // toolbar button, by which time R had long since connected; now the layout
+  // restores whatever was open at the last exit, so it can mount during
+  // startup and the first fetch would fail with "R client not initialized".
+  const rStatus = useSessionStore((s) => s.rStatus)
   useEffect(() => {
-    if (libraries.length === 0) {
+    if (rStatus === 'ready' && libraries.length === 0) {
       fetchPackages()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dismiss context menu on outside click
   useEffect(() => {

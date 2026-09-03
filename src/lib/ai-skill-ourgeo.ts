@@ -44,6 +44,8 @@ ${actionIndex()}
 
 \`toolbox_tools\` searches the 87 geoprocessing tools and \`run_toolbox_tool\` runs one (with \`dryRun\` to show the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
 
+**You can also add capabilities ouRGeo does not have**, as a plugin: a data connector for an API it has never heard of, a geoprocessing tool, a panel. Read \`ourgeo_docs({topic: "extending"})\` before writing one — a plugin is usually pure JSON, and the mistakes are specific.
+
 Actions are tiered: navigation and reading are always allowed; anything touching R state or the filesystem needs Autopilot; destructive ones ask the user to confirm. The user can move any action between tiers from the gear beside the Autopilot switch. A refusal is an answer — report it and offer to point at the control instead.
 
 ### Running a tutorial
@@ -63,7 +65,7 @@ The result text is the truth — read it before reacting; it usually says what t
 
 // ── The reference, served by `ourgeo_docs` ─────────────────────────────────
 
-export const OURGEO_TOPICS: Record<string, string> = {
+const BUILTIN_TOPICS: Record<string, string> = {
   interface: `# The interface
 
 **Top toolbar**, left to right: Toggle Environment, Toggle Packages, Open File (Ctrl+O), Save (Ctrl+S), Save As, Load Data, Toggle Database Connections, Data Connector, Toolbox, AI Assistant, Record Console, Toggle Spatial Editor, Toggle Plotting Preview, Help. Settings is pinned far right, next to the project menu. A toggled-on panel's button turns blue.
@@ -86,7 +88,7 @@ export const OURGEO_TOPICS: Record<string, string> = {
 
 **Settings** — one scrollable dialog: Appearance (10 app themes, plus separate code-editor and markdown editor themes, interface scale, and the **Theme Studio** — where the user builds their own themes on all three axes, with an editor backdrop image, a card image, a default basemap, and import/export as \`.ourgeotheme.json\` files), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).
 
-A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`ui:listThemes\` to find out which ones exist — the parameter enums list only what ouRGeo ships.`,
+A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`theme:list\` to find out which ones exist — the parameter enums resolve live, but a listing is cheaper than a guess.`,
 
   toolbox: `# The Toolbox
 
@@ -335,6 +337,323 @@ The user can do all of this by hand in **Settings → Appearance → Theme Studi
 - **httpuv + later** — the R server ouRGeo talks to.
 - **png** — raster tile encoding.
 - **ggnewscale** — emitted only when a ggplot export needs two fill scales to coexist.`,
+  extending: `# Extending ouRGeo — plugins
+
+ouRGeo cannot be edited in place once it is installed. The interface ships as one compiled bundle inside a read-only archive, and there is no compiler on the user's machine to rebuild it. **Changing ouRGeo itself always means cloning the repository and building from source** — a real option, and the one to name when someone wants to change how an existing feature behaves.
+
+A **plugin** is the other route: new capabilities, added while the app is running. This is what you reach for when the user wants something ouRGeo does not do.
+
+## The three kinds, in the order you should prefer them
+
+| kind | what it is | trust needed |
+|---|---|---|
+| **Declarative** | JSON in the manifest: a data connector, a toolbox tool, an action, a docs topic | none — it is data |
+| **R** | a \`.R\` file sourced into the live session | the same as any R the user runs |
+| **Code** | a \`main.ts\` that runs inside ouRGeo | real: it runs with everything ouRGeo can do |
+
+**Reach for JSON first, and stay there.** A declarative plugin runs no code, so enabling it is not a decision the user has to weigh — and your success rate writing JSON against a schema is far higher than writing TypeScript against an API you have to remember. Write \`main.ts\` only when a schema genuinely cannot express the thing, and say plainly in the same breath why it was needed.
+
+## Where a plugin lives
+
+One folder per plugin, under ouRGeo's app data directory, holding \`ourgeo-plugin.json\` and whatever else it needs. You never handle paths: every plugin action takes a plugin id and a file name relative to that folder, and a path that tries to leave it is refused.
+
+## The workflow
+
+    plugin:list                                   -- what is already installed
+    plugin:scaffold id=noaa-tides name="NOAA Tides" permissions=["network"]
+    plugin:writeFile id=noaa-tides file=ourgeo-plugin.json content=<the whole manifest>
+    plugin:validate  id=noaa-tides                -- does it parse, what was dropped
+    plugin:enable    id=noaa-tides                -- asks the user
+
+\`plugin:scaffold\` writes a manifest with nothing in it. You then rewrite that file with the contributions — \`plugin:writeFile\` replaces the file whole, and **it validates a manifest before writing it**, so a manifest that would not parse is refused rather than saved (a saved broken manifest cannot be read back, which would cost you the ability to fix your own mistake).
+
+## Enabling is the consent moment, and it is not yours
+
+\`plugin:enable\` asks the user, every time. That is deliberate: writing a plugin changes nothing, and enabling one is when it starts affecting their session. If they decline, that is an answer — do not retry it, and do not work around it. Tell them what it would have added and leave it switched off; \`Settings → Plugins\` is where they can turn it on later.
+
+\`plugin:disable\` needs no permission at all. Switching something off is never the risky direction, and it is the first thing to try when the app is misbehaving.
+
+## What a manifest looks like
+
+    {
+      "id": "noaa-tides",
+      "name": "NOAA Tides",
+      "version": "1.0.0",
+      "description": "Water levels and predictions from NOAA CO-OPS.",
+      "permissions": ["network"],
+      "contributes": {
+        "connectors": [ ... ],
+        "toolboxTools": [ ... ],
+        "actions": [ ... ],
+        "docs": [ { "topic": "usage", "summary": "...", "body": "..." } ]
+      }
+    }
+
+\`id\` is lowercase and hyphenated, and it namespaces everything: an action \`quickSummary\` becomes \`noaa-tides:quickSummary\`, a tool becomes \`noaa-tides-<name>\`. A plugin can never shadow something ouRGeo ships — a contribution that tries is dropped, not preferred.
+
+**Ask for no permission you do not use.** \`network\` to fetch, \`r\` to run R, \`ui\` to open dialogs and panels. There is no filesystem permission because there is no filesystem: a plugin that needs disk writes R and runs it, where the user watches the code go past in their own console.
+
+## Always contribute a docs topic
+
+\`contributes.docs\` adds a topic to \`ourgeo_docs\`. A plugin that adds a connector and nothing else leaves the next assistant — or you, next session — guessing what it does from an id in a listing. One paragraph saying what it is for and how to use it costs nothing until someone opens it.
+
+## The reference
+
+- \`ourgeo_docs({topic: "plugin-connectors"})\` — the connector spec, field by field, and what it cannot express.
+- \`ourgeo_docs({topic: "plugin-tools"})\` — toolbox tools and actions as JSON.
+- \`ourgeo_docs({topic: "plugin-code"})\` — writing \`main.ts\`, and the rules it runs under.
+
+## When something does not work
+
+\`plugin:validate\` reports what was dropped and why. \`plugin:inspect\` shows the load error in full. A contribution that fails is dropped on its own — the rest of the plugin still loads — so "it installed but the tool is missing" is almost always a message waiting in one of those two.`,
+
+  'plugin-connectors': `# Writing a data connector
+
+A connector is a description of a JSON API's shape. ouRGeo compiles it into the same \`ApiProvider\` its fourteen shipped connectors implement, so a good spec is indistinguishable from a hand-written one in the Data Connector.
+
+## Probe first. Always.
+
+You cannot guess where a list lives in someone's JSON, and a wrong path compiles, installs, and produces an empty dropdown with nothing on screen to explain it.
+
+    connector:probe url="https://api.example.org/datasets?limit=1"
+
+It reports the shape: which key holds the array, what one item looks like, what type each value is. Probe every URL the spec will use — one per cascade level, one for metadata, one for preview.
+
+## The spec
+
+    {
+      "name": "stations",
+      "label": "NOAA Stations",
+      "category": "Scientific",
+      "description": "Tide and current stations from NOAA CO-OPS.",
+      "servers": [{ "id": "coops", "label": "CO-OPS", "baseUrl": "https://api.tidesandcurrents.noaa.gov" }],
+      "cascade": [
+        { "key": "station", "label": "Station",
+          "url": "{{baseUrl}}/mdapi/prod/webapi/stations.json",
+          "itemsPath": "stations", "valuePath": "id", "labelPath": "name", "hintPath": "state" }
+      ],
+      "metadata": {
+        "url": "{{baseUrl}}/api/prod/datagetter?station={sel.station}&format=json",
+        "fieldsFrom": "sampleRow", "rowsPath": "data",
+        "spatial": false, "queryable": true
+      },
+      "filterDialect": "params",
+      "preview": { "url": "...", "rowsPath": "data" },
+      "import": { "template": "{{var}} <- ourgeo_read_json(r\\"({{baseUrl}}/...)\\")" }
+    }
+
+**\`cascade\`** is the chain of dropdowns; the LAST level selects the thing that gets imported. A level either has \`options\` (a fixed list — use this for a menu of routes) or a \`url\` plus \`itemsPath\` / \`valuePath\` / \`labelPath\`. Later levels can use \`{sel.<earlier key>}\`.
+
+**\`metadata\`** describes the columns. Three ways, in order of preference: a literal \`fields\` array when the schema is fixed and known; \`fieldsPath\` when the API returns a schema; \`fieldsFrom: "sampleRow"\` with \`rowsPath\` when it does not, which infers columns and types from the first row. \`spatial: true\` means the import produces an \`sf\` object rather than a data frame.
+
+**\`filterDialect\`** turns the user's filters into whatever the server takes. Name one of \`odata\`, \`cql\`, \`esri\`, \`soql\`, \`params\` — or give a table of your own. Only the operators the dialect can actually write are offered to the user; an operator with no template would produce a filter the server silently ignores, which reads as ouRGeo losing their query.
+
+**\`import.template\`** is the R the Load button runs. It must contain \`{var}\`, or the import assigns to nothing and the user sees no object.
+
+## Placeholders: \`{x}\` is encoded, \`{{x}}\` is raw
+
+\`{sel.station}\` in a path needs URL-encoding; a filter clause going into a query string does too; a base URL and the R template do not. Getting this wrong works perfectly until the first dataset with a space in its name.
+
+Available: \`{baseUrl}\`, \`{sel.<key>}\`, \`{filter}\`, \`{limit}\`, \`{q}\`, \`{var}\`, \`{apiKey.<name>}\`.
+
+A query parameter whose value comes out empty is dropped from the URL, so an optional \`&$filter={filter}\` disappears when there are no filters rather than becoming \`&$filter=\`.
+
+## Test it against the real server
+
+    connector:test spec=<the spec object> server="https://api.example.org"
+
+It walks the cascade for real, reads metadata, previews rows, and prints the generated R — reporting which stage failed and why. A wrong \`itemsPath\` two levels down cannot be found any other way. Do this before \`plugin:enable\`.
+
+## What a spec cannot express
+
+Write these in code (\`main.ts\` + \`ctx.register.connector\`), or do not attempt them:
+
+- **XML capabilities documents** — WFS, WMS and WCS negotiate versions and parameter names by probing, and parse namespace-agnostic XML. That is a program.
+- **Adaptive probing** — halving a page size until the server copes.
+- **Cross-request derivation** — reprojecting an extent, discovering raster assets, estimating a download size.
+
+If the user's API is one of those, say so plainly and offer the code route rather than spending three turns describing it in JSON.
+
+## Adding a server to an existing connector
+
+Often the right answer, and much cheaper than a new connector. Many APIs are one of the families ouRGeo already speaks — CKAN, Socrata, OGC API–Features, ArcGIS REST, ERDDAP, OData. \`connector:list\` shows them; \`connector:addServer\` adds an endpoint and validates it by listing its first level. Check this before writing anything.`,
+
+  'plugin-tools': `# Toolbox tools and actions as JSON
+
+Neither needs code. Both are namespaced by the plugin id.
+
+## A toolbox tool
+
+    {
+      "name": "round-coords",
+      "label": "Round coordinates",
+      "description": "Reduce coordinate precision on an sf layer.",
+      "category": "spatial-sf",
+      "fields": [
+        { "id": "ds",     "label": "Dataset", "type": "dataset", "filter": "sf" },
+        { "id": "digits", "label": "Digits",  "type": "number",  "default": "3" },
+        { "id": "out",    "label": "Output name", "type": "output-name" }
+      ],
+      "rTemplate": "{{out}} <- sf::st_set_precision({{ds}}, 10^{digits})"
+    }
+
+**\`rTemplate\` is the whole tool.** \`{field}\` inserts the value QUOTED the way R needs it — a number bare, a logical bare, anything else as a double-quoted string with its quotes and backslashes escaped. \`{{field}}\` inserts it raw, which is what you want for a variable name, a column list, or an output name. Using \`{ds}\` where you meant \`{{ds}}\` produces \`"my_layer"\` — a string, not the object — and the tool fails with something unhelpful about a character vector.
+
+\`category\` is a shipped category id to append to (\`table\`, \`joins\`, \`aggregate\`, \`typestring\`, \`spatial-sf\`, \`spatial-geos\`, \`spatial-raster\`) or a new one your plugin declares with \`categoryLabel\`. Prefer a shipped one: a category with a single tool in it is a worse place to find that tool.
+
+Field types: \`dataset\` (with \`filter\`: \`sf\` / \`geos\` / \`raster\` / \`any\`), \`column\` (with \`datasetField\`), \`band\`, \`text\`, \`number\`, \`select\` (with \`options\`), \`checkbox\`, \`output-name\`.
+
+## An action
+
+    {
+      "name": "quickSummary",
+      "summary": "Summarise a data frame in the session with summary().",
+      "tier": "autopilot",
+      "params": [{ "name": "object", "type": "string", "description": "The object to summarise.", "required": true }],
+      "run": { "kind": "r", "code": "summary({{object}})" }
+    }
+
+Three forms of \`run\`:
+
+- **\`{ "kind": "r", "code": "..." }\`** — runs R, with the same \`{param}\` / \`{{param}}\` quoting rule as a tool. Echoed to the console, like every other operation in ouRGeo.
+- **\`{ "kind": "sequence", "steps": [{ "id": "map:addLayer", "params": {...} }] }\`** — runs existing actions in order. Each step is validated and tier-checked exactly as if you had called it, so composition cannot be used to get past a permission.
+- **\`{ "kind": "js", "export": "..." }\`** — registered from code, not from the manifest.
+
+\`tier\` defaults to \`autopilot\`. Use \`always\` only if the action reads and changes nothing; use \`confirm\` for anything destructive.
+
+## A toolbar button
+
+    { "name": "fetch", "label": "Fetch tides", "icon": "Waves", "action": "fetchLatest" }
+
+\`icon\` is a lucide icon name; an unknown one falls back to a dot rather than failing the button. \`action\` names one of your own actions — the click runs it through the same registry the assistant uses, so its tier still applies.`,
+
+  'plugin-code': `# When a plugin needs code
+
+Only when a schema cannot express it: a bespoke filter dialect, an XML capabilities document, a panel with its own interface. Everything else belongs in the manifest, where it needs no trust decision and you are far more likely to get it right.
+
+## The shape
+
+\`main.ts\` — TypeScript and JSX are compiled when the plugin loads.
+
+    export function activate(ctx: any): void {
+      ctx.register.action({
+        name: 'hello',
+        summary: 'Say hello in the console.',
+        tier: 'autopilot',
+        run: { kind: 'r', code: 'cat("hello\\n")' },
+      })
+    }
+
+\`activate\` runs when the plugin is enabled. Everything reachable comes through \`ctx\`.
+
+## What ctx has
+
+- \`ctx.register.{action, connector, toolboxTool, panel, toolbarButton, docs}\`
+- \`ctx.r.execute(code)\` and \`ctx.r.source(file)\` — with the \`r\` permission
+- \`ctx.http.fetch(url, init)\` — with the \`network\` permission
+- \`ctx.ui.React\`, \`showDialog\`, \`openPanel\`, \`notify\` — with the \`ui\` permission
+- \`ctx.read.{layers, objects, tabs, workingDir, rReady}\` — read-only
+- \`ctx.plugin.storage\` — a JSON file of the plugin's own
+- \`ctx.log\`
+
+A permission you did not ask for is **absent**, not refused: without \`network\` there is no \`ctx.http\` at all.
+
+## What is not there, and why
+
+**No filesystem.** Not a restricted one — none. A plugin that needs disk writes R and runs it, where the user watches the code in their own console. That is the rule the whole application follows, not a limitation to route around.
+
+**No \`window.electronAPI\`**, and no \`fetch\`, \`require\`, \`process\`, \`localStorage\` or \`XMLHttpRequest\` — those names are blanked out while the plugin runs. Reaching for them is a bug in the plugin, not an obstacle to work around. Use \`ctx\`.
+
+## Imports
+
+\`import ... from 'ourgeo'\` gives you the host. Relative imports of your own files work — put them in the plugin folder. **There is no node_modules**: a bare import of anything else fails with a message saying so. Write what you need, or do without it.
+
+## The rules that matter
+
+1. **\`activate\` must not throw.** A plugin that takes the renderer down disables itself on the next launch and the user sees an app that appeared to break for no reason. Wrap anything that can fail.
+2. **Do not block \`activate\`.** It runs during startup. Register your contributions and return; do the work when something calls them.
+3. **Everything you do should be visible.** R through \`ctx.r\` is echoed to the console; \`ctx.http\` is logged. Do not find a quieter route.
+4. **Never ask the user for a credential.** If a connector needs a key, it comes from \`{apiKey.<name>}\` in a template, which reads Settings → Data API Keys.`,
+
+  layout: `# The workspace layout
+
+Four zones. **left**, **centre**, **right**, **bottom**. Each holds an ordered list of panels; the centre takes whatever the others leave.
+
+Any panel can go in any zone — the editor, the console, the map, the plots, the chat, Help, the Environment, Packages, Databases — and a plugin's panel is an ordinary panel from the moment it registers.
+
+## Read before you rearrange
+
+    layout:describe
+
+It says where every panel is, how big each zone is, and what is closed. The user may already have the arrangement they are asking for, and "put the map on the left" from someone whose map is closed is a different request from one whose map is open.
+
+## Moving and sizing
+
+    layout:movePanel     panel=spatial zone=left
+    layout:setPanelSize  panel=spatial percent=70
+    layout:evenPanels    zone=left
+    layout:setZoneSize   zone=right size=500
+    layout:setZoneMode   zone=right mode=tabs
+    layout:reset
+
+\`layout:movePanel\` also **opens** the panel — being asked to move something and leaving it invisible is not the request.
+
+A zone is either **split** (panels share the space, side by side or stacked, per \`axis\`) or **tabs** (one at a time). Tabs are how a user gets full height for a panel without closing the others; suggest it when they want more room rather than telling them to close something.
+
+**A zone's own size is pixels; a panel's size inside it is a percentage.** The two are different things: \`layout:setZoneSize\` sets how wide the left column is against the window, \`layout:setPanelSize\` sets how much of that column one panel gets against its neighbours.
+
+Panels sharing a zone **start equal** — two take half each, three a third each, and that is what every zone comes back to when ouRGeo is restarted or when \`layout:evenPanels\` is called. So "the Environment panel is tiny" is usually not a sizing request at all: check \`layout:describe\` first, because they may have dragged it, or the zone itself may be too narrow. The result message says the share the panel actually ended up with, which can be less than you asked for — a panel will not shrink below its minimum height on screen. The centre has no size of its own.
+
+## The toolbar
+
+    layout:setToolbarButtons order=["help","save"] hidden=["record"]
+
+Buttons you do not list keep their place, so you can move one without describing the whole toolbar. Pass \`hidden=[]\` to show everything again.
+
+## Presets
+
+    layout:savePreset  name="Mapping"
+    layout:applyPreset name="Mapping"
+
+Worth offering unprompted when a user has just spent a while arranging things, and worth saving *before* you rearrange anything substantial on their behalf.
+
+## The way out
+
+\`layout:reset\` puts everything back where ouRGeo ships it. Offer it before the user starts dragging things back by hand — and if you have made a mess, offer it immediately rather than trying to reverse your own moves one at a time.`,
+}
+
+/** The topics ouRGeo ships. */
+export const BUILTIN_OURGEO_TOPICS: Readonly<Record<string, string>> = BUILTIN_TOPICS
+
+/**
+ * The LIVE topic registry — shipped topics plus whatever plugins registered.
+ *
+ * This is how a plugin teaches the assistant about ITSELF. A plugin that adds
+ * a connector and nothing else leaves the model to guess what it does from an
+ * id in a listing; a plugin that adds a topic can explain its own workflow in
+ * the same voice as the rest of the documentation, and pay for it only when
+ * the model opens it.
+ *
+ * Same contract as the other registries: `registerPluginTopics` is the only
+ * writer, a shipped key can never be shadowed, and React does not subscribe.
+ */
+export const OURGEO_TOPICS: Record<string, string> = { ...BUILTIN_TOPICS }
+
+const PLUGIN_SUMMARIES: Record<string, string> = {}
+
+export function registerPluginTopics(
+  topics: { topic: string; summary: string; body: string }[],
+): void {
+  for (const key of Object.keys(OURGEO_TOPICS)) {
+    if (!(key in BUILTIN_TOPICS)) delete OURGEO_TOPICS[key]
+  }
+  for (const key of Object.keys(PLUGIN_SUMMARIES)) delete PLUGIN_SUMMARIES[key]
+  for (const t of topics) {
+    const key = t.topic.trim().toLowerCase()
+    if (!key || key in BUILTIN_TOPICS) continue
+    OURGEO_TOPICS[key] = t.body
+    PLUGIN_SUMMARIES[key] = t.summary
+  }
 }
 
 /** Topic names, for when the model calls `ourgeo_docs` with nothing. */
@@ -352,8 +671,14 @@ export function topicListing(): string {
     troubleshooting: 'the common failures and what they mean',
     packages: 'which R package powers which feature',
     themes: 'the three theme axes, switching, and building a theme for the user',
+    extending: 'plugins — adding capabilities ouRGeo does not ship with',
+    'plugin-connectors': 'writing a data connector for an API as JSON',
+    'plugin-tools': 'toolbox tools, actions and toolbar buttons as JSON',
+    'plugin-code': 'when a plugin needs real code, and the rules it runs under',
+    layout: 'the four zones, moving and sizing panels, the toolbar, presets',
   }
-  const lines = Object.keys(OURGEO_TOPICS).map((t) => `- ${t} — ${summaries[t] ?? ''}`)
+  const lines = Object.keys(OURGEO_TOPICS)
+    .map((t) => `- ${t} — ${summaries[t] ?? PLUGIN_SUMMARIES[t] ?? ''}`)
   return `ouRGeo documentation topics (pass one as \`topic\`):\n${lines.join('\n')}`
 }
 

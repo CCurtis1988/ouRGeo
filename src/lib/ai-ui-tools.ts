@@ -10,7 +10,7 @@
 // identically.
 
 import type { AiTool } from '@/lib/ai-client'
-import { ALL_ACTIONS, actionById, listActions, actionIndex } from '@/lib/ai-actions/registry'
+import { actionIds, actionById, listActions, actionIndex } from '@/lib/ai-actions/registry'
 import { checkAllowed, resolveTier } from '@/lib/ai-actions/permissions'
 import { validateArgs, GROUP_LABELS, type Args } from '@/lib/ai-actions/types'
 import {
@@ -276,5 +276,6 @@ export function describeUiCall(name: string, input: Record<string, unknown>): st
   return `AI: ${name}`
 }
 
-/** Every action id, for tests and the permissions dialog. */
-export const ACTION_IDS = ALL_ACTIONS.map((a) => a.id)
+/** Every action id, for tests and the permissions dialog. A function, not
+ *  a const: plugins add actions after this module has loaded. */
+export { actionIds }

@@ -168,6 +168,12 @@ export const sessionActions: UiAction[] = [
     params: [
       { name: 'state', type: 'enum', values: ['start', 'stop'], required: true, description: 'Which.' },
       { name: 'tab', type: 'string', description: 'For start: the document to record into; defaults to the active one.' },
+      {
+        name: 'destination', type: 'enum', values: ['current', 'new', 'saved'], default: 'current',
+        description:
+          'For start: "current" records into an open document; "new" opens a fresh one first; ' +
+          '"saved" records into a file-backed document and offers to save it when you stop.',
+      },
       { name: 'includeOutput', type: 'boolean', default: false, description: 'For start: also capture console output.' },
     ],
     run: (args) => {
@@ -178,18 +184,62 @@ export const sessionActions: UiAction[] = [
         return ok('Stopped recording.')
       }
       if (session.isRecording) return ok('Recording is already running.')
+
       const editor = useEditorStore.getState()
       const wanted = argStr(args, 'tab')
+      const dest = argStr(args, 'destination', 'current')
+
+      // "new" is the one destination that does not need a document to already
+      // exist — it makes one. Doing this before the lookup below means "record
+      // this session" works from a cold start, which is when a user is most
+      // likely to ask for it.
+      if (dest === 'new') {
+        const id = editor.addTab(null, '', wanted || undefined)
+        session.startRecording(id, 'new', argBool(args, 'includeOutput'))
+        const made = useEditorStore.getState().tabs.find((t) => t.id === id)
+        return ok(`Recording the console into a new document, "${made?.fileName ?? 'untitled'}".`)
+      }
+
       const tab = wanted
         ? editor.tabs.find((t) => t.fileName === wanted && t.type === 'code')
         : editor.getActiveTab()
       if (!tab || tab.type !== 'code') {
         return fail(wanted
           ? `No open document called "${wanted}" to record into.`
-          : 'No active document to record into. Open or create one first.')
+          : 'No active document to record into. Open one, or pass destination="new".')
       }
-      session.startRecording(tab.id, 'current', argBool(args, 'includeOutput'))
-      return ok(`Recording the console into "${tab.fileName}".`)
+
+      // "saved" is not a different way of recording — it is a promise to offer
+      // a save when it stops, which only means anything for a document that is
+      // already on disk. Say so rather than silently recording into a scratch
+      // buffer the user then loses.
+      if (dest === 'saved' && !tab.filePath) {
+        return fail(
+          `"${tab.fileName}" has never been saved, so there is no file to write back to. ` +
+          'Save it first, or use destination="current".')
+      }
+
+      session.startRecording(tab.id, dest === 'saved' ? 'saved' : 'current', argBool(args, 'includeOutput'))
+      return ok(`Recording the console into "${tab.fileName}"` +
+        `${dest === 'saved' ? ', and it will offer to save when you stop' : ''}.`)
+    },
+  },
+
+  {
+    id: 'session:recordingStatus',
+    group: 'session',
+    tier: 'always',
+    summary:
+      'Whether console recording is running, and into which document. Read this before starting ' +
+      'or stopping one — recording is invisible from anywhere else you can look.',
+    params: [],
+    run: () => {
+      const session = useSessionStore.getState()
+      if (!session.isRecording) return ok('Console recording is off.')
+      const tab = useEditorStore.getState().tabs.find((t) => t.id === session.recordingTargetTabId)
+      return ok(
+        `Console recording is ON, into "${tab?.fileName ?? 'a document that has since been closed'}"` +
+        `${session.recordingReturnOutput ? ', capturing output as comments too' : ''}.`)
     },
   },
 ]

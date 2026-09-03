@@ -11,7 +11,7 @@
 // "this is the R that button would produce" — and what makes the toolbox useful
 // even with Autopilot off.
 
-import { CATEGORIES, ALL_TOOLS, type ToolDef, type Values, type DatasetMeta } from '@/components/toolbox/tools'
+import { categoryList, toolList, type ToolDef, type Values, type DatasetMeta } from '@/components/toolbox/tools'
 import { rClient } from '@/lib/r-client'
 import { useEnvironmentStore } from '@/store/environment'
 import { useEditorStore } from '@/store/editor'
@@ -19,21 +19,21 @@ import { useSessionStore } from '@/store/session'
 
 export function findTool(id: string): ToolDef | undefined {
   const want = id.trim().toLowerCase()
-  return ALL_TOOLS.find((t) => t.id === id)
-    ?? ALL_TOOLS.find((t) => t.id.toLowerCase() === want)
-    ?? ALL_TOOLS.find((t) => t.label.toLowerCase() === want)
+  return toolList().find((t) => t.id === id)
+    ?? toolList().find((t) => t.id.toLowerCase() === want)
+    ?? toolList().find((t) => t.label.toLowerCase() === want)
 }
 
 /** Category label for a tool, for listings. */
 function categoryOf(tool: ToolDef): string {
-  return CATEGORIES.find((c) => c.tools.some((t) => t.id === tool.id))?.label ?? ''
+  return categoryList().find((c) => c.tools.some((t) => t.id === tool.id))?.label ?? ''
 }
 
 /** Search by id, label, description and category. */
 export function searchTools(query: string, category?: string): ToolDef[] {
   const q = query.trim().toLowerCase()
   const cat = (category ?? '').trim().toLowerCase()
-  return ALL_TOOLS.filter((t) => {
+  return toolList().filter((t) => {
     if (cat && !categoryOf(t).toLowerCase().includes(cat)) return false
     if (!q) return true
     return t.id.toLowerCase().includes(q)
@@ -163,5 +163,5 @@ export async function runToolboxTool(
 
 /** Category listing, for the model's first orientation. */
 export function categoryListing(): string {
-  return CATEGORIES.map((c) => `${c.label} (${c.tools.length} tools)`).join('\n')
+  return categoryList().map((c) => `${c.label} (${c.tools.length} tools)`).join('\n')
 }

@@ -81,6 +81,8 @@ beforeEach(() => {
   useSessionStore.setState({ consoleHistory: [] })
   useHelpStore.setState({ isOpen: false, requested: null })
   useBasemapStore.setState({ overrideBasemapId: null })
+  // No named session by default: with one, the map's view belongs to it.
+  useGeometryEditStore.setState({ namedSessions: [], activeSessionId: null })
   vi.stubGlobal('window', {
     electronAPI: {
       file: { read: vi.fn(async () => 'x <- 1'), write: vi.fn(async () => undefined) },
@@ -224,6 +226,33 @@ describe('map', () => {
     const fit = useSpatialStore.getState().fitBoundsSignal
     await run('map:zoomTo', { all: true })
     expect(useSpatialStore.getState().fitBoundsSignal).toBeGreaterThan(fit)
+  })
+
+  it('moves the view the map actually renders from, not just the mirror', async () => {
+    // The bug this pins: adding any layer creates a "Default" named session,
+    // and from then on MapView renders `sessionViewState ?? globalViewState`.
+    // `map:setView` used to write only the spatial store, so an assistant
+    // touring a user around Spain reported seven successful moves and the map
+    // never moved once. Both stores now, every time — see lib/map-view.ts.
+    useGeometryEditStore.getState().createNamedSession('Default')
+    await run('map:setView', { longitude: 2.1734, latitude: 41.4036, zoom: 16 })
+
+    const edit = useGeometryEditStore.getState()
+    const active = edit.namedSessions.find((ns) => ns.id === edit.activeSessionId)
+    expect(active?.viewState).toMatchObject({ longitude: 2.1734, latitude: 41.4036, zoom: 16 })
+    expect(useSpatialStore.getState().viewState).toMatchObject({ longitude: 2.1734, zoom: 16 })
+  })
+
+  it('reads the shown view for the parts it was not given', async () => {
+    useGeometryEditStore.getState().createNamedSession('Default')
+    await run('map:setView', { longitude: 10, latitude: 50, zoom: 7 })
+    const out = await run('map:setView', { longitude: 11, latitude: 51 })
+    expect(out).toContain('zoom 7')
+  })
+
+  it('says when the map it just moved is not on screen', async () => {
+    useSpatialStore.setState({ isOpen: false })
+    expect(await run('map:setView', { longitude: 0, latitude: 0, zoom: 3 })).toContain('closed')
   })
 
   it('changes the basemap and refuses an unknown one', async () => {

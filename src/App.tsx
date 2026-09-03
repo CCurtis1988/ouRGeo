@@ -9,6 +9,9 @@ import { usePackagesStore } from './store/packages'
 import { usePlottingStore } from './store/plotting'
 import { useWidgetsStore } from './store/widgets'
 import { loadSession, setupSessionAutosave, saveSessionImmediate } from './lib/session-persistence'
+import { flushLayout } from './store/layout'
+import { loadPlugins } from './lib/plugins/loader'
+import { APP_VERSION } from './components/settings/versionHistory'
 import { loadPlots, setupPlotsAutosave } from './lib/plots-persistence'
 import { setupPlotPopoutSync } from './lib/plot-popout-sync'
 import { PlotPopoutView } from './components/plotting/PlotPopoutView'
@@ -70,6 +73,18 @@ function MainApp(): React.ReactElement {
 
       // Load the recent-projects list for the project dropdown
       try { await loadRecentProjects() } catch { /* no recents yet */ }
+
+      // Plugins BEFORE the theme and layout restores below. A plugin can
+      // contribute a theme and a panel, and both of those are resolved by id
+      // against a registry — a saved id whose plugin has not loaded yet reads
+      // as missing, and the restore quietly falls back to a default.
+      try {
+        await loadPlugins(APP_VERSION)
+      } catch (e) {
+        // Never fatal. ouRGeo without plugins is still ouRGeo; ouRGeo that
+        // will not start because of one is not.
+        console.error('[Plugins] Failed to load:', e)
+      }
 
       // Register the user's own themes BEFORE resolving the saved ids — a
       // theme built in the Theme Studio is not in the registries until this
@@ -262,6 +277,9 @@ function MainApp(): React.ReactElement {
           if (!saved) return // Save As dialog cancelled → abort quit
         }
         saveSessionImmediate()
+        // Awaited: confirmQuit destroys the window, and an in-flight write to
+        // layout.json does not survive that.
+        await flushLayout()
         await window.electronAPI.app.confirmQuit()
       })()
     })

@@ -73,8 +73,18 @@ describe('run_ui_action', () => {
   })
 
   it('reports a bad enum value with the allowed ones', async () => {
-    const out = await runUiTool('run_ui_action', { id: 'ui:panel', params: { panel: 'kitchen' } }, ON)
+    // A fixed enum is rejected centrally, before the action runs.
+    const out = await runUiTool('run_ui_action', { id: 'ui:panel', params: { panel: 'spatial', state: 'sideways' } }, ON)
     expect(out).toContain('must be one of')
+    expect(out).toContain('toggle')
+  })
+
+  it('lets a lenient enum reach the action, which names the real options', async () => {
+    // `panel` is lenient so the user's own words work — "Spatial Editor" as
+    // well as `spatial`. The check therefore lives in the action, and its
+    // refusal has to carry the list `validateArgs` would have given.
+    const out = await runUiTool('run_ui_action', { id: 'ui:panel', params: { panel: 'kitchen' } }, ON)
+    expect(out).toContain('Unknown panel')
     expect(out).toContain('spatial')
   })
 

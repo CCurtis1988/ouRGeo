@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -40,6 +40,7 @@
     "axios": "^1.7.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "esbuild-wasm": "^0.25.12",
     "flatbush": "^4.6.2",
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",

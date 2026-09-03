@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildOurgeoCore, OURGEO_TOPICS, topicListing, readTopic } from './ai-skill-ourgeo'
 import { actionById } from './ai-actions/registry'
+import { BUILTIN_GROUP_LABELS } from './ai-actions/types'
 
 // The core prompt is on every request for every provider, so its size is a
 // running cost and its claims are what the model will repeat to the user.
@@ -58,8 +59,36 @@ describe('buildOurgeoCore', () => {
   })
 
   it('stays inside its budget — this is on every request', () => {
-    // ~4 chars per token: 6000 chars ≈ 1500 tokens, index included.
-    expect(core.length).toBeLessThan(6000)
+    // ~4 chars per token: 7000 chars ≈ 1750 tokens, action index included.
+    //
+    // Raised from 6000 when the layout and plugin groups landed — 23 ids the
+    // model genuinely needs, plus two sentences telling it plugins exist at
+    // all (without which it would never open the topic that explains them).
+    // This is a budget to defend, not a number to keep nudging: everything
+    // here is paid for on every single request, including by a local model
+    // with a 32k window. New material belongs in an `ourgeo_docs` topic
+    // unless the model cannot act correctly without knowing it up front.
+    expect(core.length).toBeLessThan(7000)
+  })
+})
+
+describe('every action a topic names is real', () => {
+  // A topic that names an action which does not exist sends the model down a
+  // dead end and costs the user a turn — and it is the failure most likely to
+  // creep in, because the docs and the registry are edited months apart.
+  it('resolves every group:action token in every topic', () => {
+    // Scoped to the SHIPPED groups. A topic legitimately shows an example id
+    // from an imaginary plugin (`noaa-tides:quickSummary`), and there is no
+    // way for that to resolve — but `ui:somethingMadeUp` must never appear.
+    const groups = new Set(Object.keys(BUILTIN_GROUP_LABELS))
+    const bad: string[] = []
+    for (const [topic, body] of Object.entries(OURGEO_TOPICS)) {
+      for (const m of body.matchAll(/(?<![\w-])([a-z][a-zA-Z]*):([a-zA-Z][a-zA-Z]*)(?![\w-])/g)) {
+        if (!groups.has(m[1])) continue
+        if (!actionById(m[0])) bad.push(`${topic}: ${m[0]}`)
+      }
+    }
+    expect(bad).toEqual([])
   })
 })
 

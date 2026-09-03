@@ -1224,7 +1224,7 @@ const addLinearize = (tools: ToolDef[]): ToolDef[] =>
     return out
   })
 
-export const CATEGORIES: Category[] = [
+const BUILTIN_CATEGORIES: Category[] = [
   { id: 'table', label: 'Table Operations', tools: tableOps },
   { id: 'joins', label: 'Joins & Combine', tools: joinsOps },
   { id: 'aggregate', label: 'Aggregate & Reshape', tools: aggregateOps },
@@ -1236,4 +1236,69 @@ export const CATEGORIES: Category[] = [
   { id: 'spatial-raster', label: 'Spatial — Raster', tools: rasterOps },
 ]
 
-export const ALL_TOOLS: ToolDef[] = CATEGORIES.flatMap(c => c.tools)
+/** The categories ouRGeo ships. */
+export const BUILTIN_TOOL_CATEGORIES: readonly Category[] = BUILTIN_CATEGORIES
+
+const BUILTIN_CATEGORY_IDS = new Set(BUILTIN_CATEGORIES.map(c => c.id))
+const BUILTIN_TOOL_IDS = new Set(BUILTIN_CATEGORIES.flatMap(c => c.tools).map(t => t.id))
+
+let liveCategories: Category[] = BUILTIN_CATEGORIES
+
+/**
+ * The live category list — shipped first, then plugin-contributed.
+ *
+ * A function rather than a const because a plugin can add a tool while the app
+ * runs, and the Toolbox dialog, `toolbox_tools` and `run_toolbox_tool` all have
+ * to see it. Same contract as the theme and action registries: only
+ * `registerPluginTools` writes, and React reads `usePluginStore` to re-render.
+ */
+export function categoryList(): Category[] {
+  return liveCategories
+}
+
+/** Every tool in the live registry, flattened. */
+export function toolList(): ToolDef[] {
+  return liveCategories.flatMap(c => c.tools)
+}
+
+/**
+ * Replace every plugin-contributed tool with `categories`, in one pass.
+ *
+ * A plugin may add tools to a shipped category (they are appended, so the
+ * built-ins keep their order) or declare a category of its own. Tool ids are
+ * global — `run_toolbox_tool` takes one with no category — so a plugin tool
+ * that collides with a shipped id is dropped rather than allowed to shadow it.
+ */
+export function registerPluginTools(categories: Category[]): void {
+  const seenTools = new Set<string>()
+  const extraByCategory = new Map<string, ToolDef[]>()
+  const newCategories: Category[] = []
+
+  for (const cat of categories) {
+    const tools = cat.tools.filter(t => {
+      if (BUILTIN_TOOL_IDS.has(t.id) || seenTools.has(t.id)) return false
+      seenTools.add(t.id)
+      return true
+    })
+    if (tools.length === 0) continue
+    if (BUILTIN_CATEGORY_IDS.has(cat.id)) {
+      extraByCategory.set(cat.id, [...(extraByCategory.get(cat.id) ?? []), ...tools])
+    } else {
+      const existing = newCategories.find(c => c.id === cat.id)
+      if (existing) existing.tools.push(...tools)
+      else newCategories.push({ ...cat, tools: [...tools] })
+    }
+  }
+
+  if (extraByCategory.size === 0 && newCategories.length === 0) {
+    liveCategories = BUILTIN_CATEGORIES
+    return
+  }
+  liveCategories = [
+    ...BUILTIN_CATEGORIES.map(c => {
+      const extra = extraByCategory.get(c.id)
+      return extra ? { ...c, tools: [...c.tools, ...extra] } : c
+    }),
+    ...newCategories,
+  ]
+}

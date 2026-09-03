@@ -39,8 +39,20 @@ export const TIER_LABELS: Record<Tier, string> = {
 export type GroupId =
   | 'ui' | 'editor' | 'project' | 'data' | 'environment' | 'packages'
   | 'help' | 'map' | 'draw' | 'plots' | 'session' | 'settings' | 'theme'
+  | 'layout' | 'plugin' | 'connector'
 
-export const GROUP_LABELS: Record<GroupId, string> = {
+/**
+ * A group contributed by a plugin.
+ *
+ * Namespaced rather than open, so a plugin can never claim `map` and quietly
+ * file its actions among the shipped ones — and so a reader of a listing can
+ * tell at a glance which half of the application an action came from.
+ */
+export type PluginGroupId = `plugin.${string}`
+
+export type AnyGroupId = GroupId | PluginGroupId
+
+const BUILTIN_GROUPS: Record<GroupId, string> = {
   ui: 'Panels & dialogs',
   editor: 'Editor & files',
   project: 'Projects',
@@ -54,6 +66,48 @@ export const GROUP_LABELS: Record<GroupId, string> = {
   session: 'Session & console',
   settings: 'Settings',
   theme: 'Themes',
+  layout: 'Workspace layout',
+  plugin: 'Plugins',
+  connector: 'Data connectors',
+}
+
+/** The groups ouRGeo ships, in the order the model reads them. */
+export const BUILTIN_GROUP_LABELS: Readonly<Record<GroupId, string>> = BUILTIN_GROUPS
+
+/**
+ * The LIVE group labels: the shipped groups plus whatever plugins registered.
+ *
+ * Mutable on purpose, on the same contract as `THEMES` in lib/themes.ts — only
+ * `registerPluginGroups` writes to it, the object identity never changes, and
+ * React must therefore not subscribe to it (components read `usePluginStore`
+ * and call the list functions).
+ *
+ * Insertion order is load-bearing: `actionIndex()` walks these keys, so
+ * shipped capabilities always come first in the model's index and a plugin
+ * cannot push them down the prompt.
+ */
+export const GROUP_LABELS: Record<string, string> = { ...BUILTIN_GROUPS }
+
+/**
+ * Replace every plugin group in the registry with `labels`, in one pass.
+ *
+ * Deleting first is what makes this idempotent: the plugin store re-registers
+ * the whole set whenever a plugin is enabled or removed, so a group whose
+ * plugin is gone has to leave. Shipped ids are never touched.
+ */
+export function registerPluginGroups(labels: Record<string, string>): void {
+  for (const id of Object.keys(GROUP_LABELS)) {
+    if (!(id in BUILTIN_GROUPS)) delete GROUP_LABELS[id]
+  }
+  for (const [id, label] of Object.entries(labels)) {
+    if (id in BUILTIN_GROUPS) continue
+    GROUP_LABELS[id] = label
+  }
+}
+
+/** A group's label, falling back to its id so a listing is never blank. */
+export function groupLabel(id: string): string {
+  return GROUP_LABELS[id] ?? id
 }
 
 export type ParamType = 'string' | 'number' | 'boolean' | 'enum' | 'strings' | 'numbers' | 'json'
@@ -115,7 +169,7 @@ export interface ActionResult {
 
 export interface UiAction {
   id: string
-  group: GroupId
+  group: AnyGroupId
   /** One line. Shown in `list_ui_actions` and in the permissions dialog. */
   summary: string
   params: ParamDef[]

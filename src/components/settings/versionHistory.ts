@@ -16,6 +16,25 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.11',
+    date: 'September 2026',
+    title: 'Make It Do More',
+    summary:
+      'Plugins, and a workspace that goes where you put it — ouRGeo can now gain capabilities it did not ship with, without being rebuilt.',
+    highlights: [
+      'Plugins (Settings \u2192 Plugins): data connectors, geoprocessing tools, actions, toolbar buttons, panels and documentation, added while the app is running. Most are pure JSON and run no code at all.',
+      'Ask the AI assistant for one in prose \u2014 "add a connector for this API" \u2014 and it probes the API, writes the spec, tests it against the real server, and asks you to turn it on.',
+      'A plugin that ships code is compiled on the spot, runs with ouRGeo\u2019s own privileges, and arrives switched OFF. Enabling one is a decision you make, the way you decide to run install.packages().',
+      'Plugins export and import as portable .ourgeoplugin files. One that fails to load is reported and skipped, never fatal \u2014 and one that takes the app down disables itself on the next launch rather than leaving you locked out.',
+      'A workspace you arrange: four zones \u2014 left, centre, right and bottom \u2014 and any panel can go in any of them, split or tabbed, at whatever size you like. Drag a panel by the grip in its corner.',
+      'Panels sharing a zone share it evenly \u2014 two take half each, three a third each \u2014 until you drag a divider between them. Double-click a divider to even them out again, and every zone starts each session evenly shared.',
+      'Your arrangement is remembered between sessions, and you can save several as named presets and switch between them.',
+      'Toolbar buttons can be reordered and hidden, and the assistant can rearrange all of it on request \u2014 with layout:reset always the way back.',
+      'Fixed: when the assistant moved the map for you \u2014 zooming from landmark to landmark on a tour \u2014 the view never changed. Every map:setView now moves the map you are looking at, and the export extent follows it.',
+      'Console recording gained a destination: the assistant can now record into a new document, or into a saved file that offers to write itself back when you stop.',
+    ],
+  },
+  {
     version: '1.10',
     date: 'August 2026',
     title: 'Make It Yours',

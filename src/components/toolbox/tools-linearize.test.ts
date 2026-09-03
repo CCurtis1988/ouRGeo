@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { CATEGORIES, ALL_TOOLS, maybeLinearize, LINEARIZE_FIELD } from './tools'
+import { categoryList, toolList, maybeLinearize, LINEARIZE_FIELD } from './tools'
 import { SELECTION_CATEGORIES } from './selection-tools'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
 
-const spatialSf = CATEGORIES.find((c) => c.id === 'spatial-sf')!
-const spatialGeos = CATEGORIES.find((c) => c.id === 'spatial-geos')!
+const spatialSf = categoryList().find((c) => c.id === 'spatial-sf')!
+const spatialGeos = categoryList().find((c) => c.id === 'spatial-geos')!
 const spatialSel = SELECTION_CATEGORIES.find((c) => c.id === 'spatial')!
 
 describe('linearize checkbox coverage', () => {
@@ -20,7 +20,7 @@ describe('linearize checkbox coverage', () => {
   })
 
   it('non-spatial tools do not get the checkbox', () => {
-    const table = CATEGORIES.find((c) => c.id === 'table')!
+    const table = categoryList().find((c) => c.id === 'table')!
     for (const tool of table.tools) {
       expect(tool.fields.some((f) => f.id === 'linearize')).toBe(false)
     }
@@ -28,9 +28,9 @@ describe('linearize checkbox coverage', () => {
 })
 
 describe('linearize codegen', () => {
-  const buffer = ALL_TOOLS.find((t) => t.id === 'sf-buffer')!
+  const buffer = toolList().find((t) => t.id === 'sf-buffer')!
   const filter = spatialSel.tools.find((t) => t.id === 'sel-st-intersects')!
-  const geosBuf = ALL_TOOLS.find((t) => t.id === 'geos-buffer')!
+  const geosBuf = toolList().find((t) => t.id === 'geos-buffer')!
 
   it('checked → dataset refs wrapped in ourgeo_linearize()', () => {
     // calccrs 'native' isolates the linearize wrapping from the CRS wrapper
@@ -50,7 +50,7 @@ describe('linearize codegen', () => {
   })
 
   it('length tool emits unqualified st_length (sfarc masks sf::st_length)', () => {
-    const len = ALL_TOOLS.find((t) => t.id === 'sf-add-length')!
+    const len = toolList().find((t) => t.id === 'sf-add-length')!
     const code = len.buildCode({ ds: 'roads', colname: 'len', out: 'roads' })
     expect(code).toContain('as.numeric(st_length(geometry))')
     expect(code).not.toContain('sf::st_length')

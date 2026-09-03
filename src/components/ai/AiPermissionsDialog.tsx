@@ -3,9 +3,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, ChevronRight, Search, RotateCcw } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useAiStore } from '@/store/ai'
-import { ALL_ACTIONS } from '@/lib/ai-actions/registry'
+import { actionList } from '@/lib/ai-actions/registry'
+import { usePluginRevision } from '@/store/plugins'
 import { resolveTier } from '@/lib/ai-actions/permissions'
-import { GROUP_LABELS, TIERS, type GroupId, type Tier, type UiAction } from '@/lib/ai-actions/types'
+import { TIERS, groupLabel, type Tier, type UiAction } from '@/lib/ai-actions/types'
 import { cn } from '@/lib/utils'
 
 /**
@@ -68,19 +69,22 @@ export function AiPermissionsDialog({
   const setActionTier = useAiStore((s) => s.setActionTier)
   const resetActionTiers = useAiStore((s) => s.resetActionTiers)
   const [query, setQuery] = useState('')
-  const [collapsed, setCollapsed] = useState<Set<GroupId>>(new Set())
+  // Plugin actions belong in this dialog too — the user grants them tiers the
+  // same way. The revision is how the list learns a plugin was enabled.
+  const revision = usePluginRevision()
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const byGroup = new Map<GroupId, UiAction[]>()
-    for (const a of ALL_ACTIONS) {
+    const byGroup = new Map<string, UiAction[]>()
+    for (const a of actionList()) {
       if (q && !a.id.toLowerCase().includes(q) && !a.summary.toLowerCase().includes(q)) continue
       const list = byGroup.get(a.group) ?? []
       list.push(a)
       byGroup.set(a.group, list)
     }
     return byGroup
-  }, [query])
+  }, [query, revision])
 
   const changedCount = Object.keys(actionTiers).length
 
@@ -149,7 +153,7 @@ export function AiPermissionsDialog({
                                text-foreground hover:bg-white/5 rounded"
                   >
                     <ChevronRight className={cn('w-3 h-3 transition-transform', !isCollapsed && 'rotate-90')} />
-                    {GROUP_LABELS[group]}
+                    {groupLabel(group)}
                     <span className="text-[10px] text-geo-muted">({actions.length})</span>
                   </button>
                   {!isCollapsed && actions.map((a) => {

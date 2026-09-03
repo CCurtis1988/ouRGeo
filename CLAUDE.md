@@ -15,6 +15,10 @@ npm run build      # Production build
 npm run package    # Build + package with electron-builder
 ```
 
+House conventions for anyone (or any agent) changing this repository are in
+[`docs/AGENTS.md`](docs/AGENTS.md); `.claude/skills/ourgeo-feature/` loads them
+automatically alongside the existing `run-ourgeo` driver skill.
+
 TypeScript is the primary correctness check — run `npm run typecheck` from the repo root (it builds both the `tsconfig.node.json` and `tsconfig.web.json` projects). Run `npm run lint` for ESLint (flat config in `eslint.config.mjs`). A Vitest suite (`npm run test`, jsdom for component tests) covers codegen and a few components.
 
 ## R Dependencies
@@ -39,6 +43,11 @@ extra packages are required; the idiomatic clients `RSocrata`, `esri2sf`, `rstac
 `rerddap`, `rsdmx` are optional alternatives, not used by the generated code.
 
 ## Architecture
+
+**One runtime dependency exists only for plugins**: `esbuild-wasm` (~13 MB),
+which compiles a plugin's TypeScript/JSX in the renderer at load time. It is
+loaded by dynamic `import()` and its wasm is read over IPC, so a session with no
+code plugins never touches it. Nothing else in the app compiles anything.
 
 ### Three-process model
 
@@ -200,12 +209,18 @@ one (`working-dirs.json`, persisted, max 8).
 | `theme.ts` | App theme, code + markdown editor themes, UI scale |
 | `ai.ts` | AI chat panel state |
 | `help.ts` | Help panel state |
+| `layout.ts` | Zones, panel placement and sizes, toolbar order, presets |
+| `plugins.ts` | Installed plugins, and the revision every live registry re-renders on |
 
 ### State persistence (`src/lib/*-persistence.ts`)
 
 Debounced autosave survives sleep and a renderer reload/crash. Two lifetimes:
 
-- **Kept between sessions** — `session-persistence` → `session.json` = **code tabs
+- **Kept between sessions** — `layout-persistence` → `layout.json` (zones, panel
+  placement and sizes, toolbar order, saved presets) and `plugins-persistence` →
+  `plugins.json` (which plugins are enabled, plus the crash marker); both are
+  preferences and must never join the `will-quit` delete list.
+  `session-persistence` → `session.json` = **code tabs
   only** (open `.R` files + untitled scratch; file-backed tabs re-read from disk
   on load). This is the one thing deliberately left across restarts.
 - **Session-scoped (wiped on clean exit)** — `workspace-persistence` writes
@@ -586,6 +601,21 @@ and settings — plus the 87 toolbox tools.
   the user, one for the model that says *retry once, then stop, and do not
   touch the data*. Project load and raster registration already retried this
   way; the vector layer path did not, which is how it surfaced.
+- **The map's view is not where it looks like it is** (`src/lib/map-view.ts`).
+  The Spatial Editor has *named sessions* — map workspaces, each owning a set
+  of layers AND its own extent — so `MapView` renders
+  `sessionViewState ?? globalViewState`, and `add-spatial-layer.ts` creates a
+  "Default" session the first time any layer is added. From that moment
+  `useSpatialStore.viewState` is a mirror the map writes and never reads.
+  `map:setView` wrote the mirror: asked for a tour of Spain, the assistant put
+  the landmarks on the map and then moved the mirror seven times — every call
+  reported success, the console logged every one, and the map never moved.
+  `mapView()` / `setMapView()` state the precedence once and both writers use
+  it (MapView's `onMove`, and anything asking the map to move).
+  Related: react-map-gl deliberately does NOT echo a prop-driven camera change
+  back as a `move` event, so `onMove` never runs for one — MapView refreshes
+  `viewBbox` from an effect on `viewState` as well, or the map would show
+  Barcelona while an export wrote the extent before it.
 - **Never exposed:** the AI panel itself (an assistant that can close its own
   panel can end the conversation), API keys, and posting to the forum.
 
@@ -1024,6 +1054,222 @@ the `theme` group is authoring: `theme:list`, `theme:inspect`, `theme:create`,
   axes and the no-background invariant, the create-from-a-template workflow,
   what each colour paints, and the palette-building rules (move a family
   together, one accent hue, keep the semantic colours semantic).
+
+## Workspace layout (v1.11)
+
+Four zones — `left`, `center`, `right`, `bottom` — each an ordered list of
+panels sharing one axis, either **split** or **tabs**. Any panel goes in any
+zone, including the editor and the console.
+
+Panel sizes used to be five `useState`s in `EditorLayout` (never persisted) and
+panel position was decided by which JSX block a panel had been written into.
+That is fine right up until something outside the component needs to read or
+change it — the same argument that moved dialog state into `store/ui.ts`, and it
+applies twice over now the assistant is expected to rearrange the workspace on
+request.
+
+- **`src/lib/layout/model.ts` is pure and React-free.** `movePanel`,
+  `setZoneSize`, `setZoneMode`, `normalize` — every operation returns a new
+  layout, so a caller can *preview* a move (which is what the drag indicator
+  does) without committing. Tested with no DOM, like `computeMdEdit`.
+- **NOT a nested split tree.** A tree is the general model, but every operation
+  becomes recursive, `normalize` becomes hard to reason about, and — deciding
+  argument — an assistant driving it would have to describe a path through the
+  tree rather than name a zone. "Put the map on the left" has to keep working
+  when a local model says it. The cost is one arrangement the old layout had:
+  Help sitting *above* the plot/map/chat row. That was a special case written
+  out three times; Help is now a panel in the right zone like any other, and
+  `tabs` mode gives it the full height back.
+- **`normalize` carries the invariants**, and they are the safety story: the
+  editor is never homeless (a layout that lost it puts it back in `center`) and
+  never closed; a panel is never in two zones (two placements means two MapLibre
+  instances writing to one store); unknown panel ids — a plugin the user removed
+  — are dropped; sizes clamp to each panel's `min`; `active` always names an
+  open panel in that zone. Run on load, on import, and after every operation the
+  store did not originate.
+- **Registries, not JSX.** `layout/panel-meta.ts` (id, label, min, default zone)
+  and `layout/toolbar.ts` (the 14 buttons, previously 14 copy-pasted `<Button>`
+  blocks) are data. `ai-actions/targets.ts` DERIVES its `toolbar.*` entries from
+  the latter rather than listing them again.
+- **`panel-meta.ts` and `panel-render.ts` are separate from `panels.tsx`** for
+  one reason: the component half imports `CodeEditor` → Monaco, which touches
+  `window` at import time. The first version had `ai-actions/ui.ts` reaching
+  panels through the .tsx, and eight node-environment test files died on
+  `ReferenceError: window is not defined`. Anything that only reasons about the
+  layout imports the meta module.
+- **The feature stores still own `isOpen`.** `usePlottingStore.addPlot` opens
+  the plots panel when a plot arrives; `useHelpStore` opens itself on `?lm`.
+  `store/layout.ts` MIRRORS them — one subscription per panel, one direction —
+  so there is exactly one writer per panel. `init` is the one moment the
+  direction reverses, pushing a restored `layout.json` into the stores; getting
+  that backwards loads the file and then immediately overwrites it with seven
+  `false`s, so the workspace comes back empty every launch while the file on
+  disk says otherwise.
+- **Inside a zone, a panel's size is a SHARE, not pixels.** The first version
+  gave every panel a px size with the last one `flex-1`, so opening Environment
+  and Packages together left the first on a fixed 260px and the second with
+  everything else — and no arithmetic in a pure model could have evened that
+  out, because the model cannot know how tall the column is. Weights sidestep
+  the measurement: equal weights ARE an even split, at any height, for any
+  number of panels (`flex-grow: w; flex-basis: 0`), and the browser divides.
+  Minimums stay in px and are enforced where px exist, as `min-height` on the
+  panel. `InnerDivider` measures its own two DOM siblings on mousedown — the
+  only place the pixels exist — and `splitPanels` re-weights just that pair,
+  keeping their combined share, so a drag moves one boundary and no other.
+  Double-clicking a divider calls `evenPanels`.
+- **Shares are deliberately NOT persisted** (`forgetWeights`, applied by
+  `saveLayoutFile`): every zone opens shared equally, whatever was dragged
+  yesterday. Where a panel lives and how wide its column is are the
+  arrangement, and those persist as before. A *preset* keeps its shares —
+  applying one is a deliberate in-session act, and "restore that arrangement"
+  means all of it.
+- **Zone sizes are clamped at render, not in the model.** The stored px size is
+  the user's and is never rewritten, but a measured ceiling keeps the centre
+  above a floor — what the old layout did by hand with
+  `max = min(innerWidth * 2/3, innerWidth - 380)`. Without it a stored 240px
+  console on a short window leaves fifty pixels to type in, and three open
+  panels leave the editor none.
+- `layout.json` sits with `theme.json` on the **preference** side of the userData
+  split, never in the `will-quit` delete list. The flush on quit is a single
+  `write`, not a `merge`: a merge is a read-modify-write across two IPC calls and
+  the renderer is destroyed as soon as it calls `app:confirm-quit`, so the layout
+  was silently never saved on exit while `session.json` always was.
+- Actions: `layout:describe / movePanel / setPanelSize / evenPanels /
+  setZoneSize / setZoneMode / showTab / setToolbarButtons / savePreset /
+  applyPreset / listPresets / deletePreset / reset`. `setPanelSize` takes a
+  **percent** of the zone, not pixels, and refuses a panel that is alone in its
+  zone by naming `setZoneSize` — silently doing nothing there would leave the
+  model telling the user it had made the map bigger. All `always` except the two that write
+  disk — moving a panel is undoable by moving it back, and gating it behind
+  Autopilot would mean the user most likely to want the interface adjusted for
+  them is the one who cannot have it.
+
+## Plugins (v1.11)
+
+ouRGeo cannot be edited in place once installed: the renderer ships as one
+minified bundle inside a read-only asar (AppImage is squashfs; deb/nsis are
+root-owned), and `typescript`, `vite` and `esbuild` are devDependencies that
+never ship. Changing ouRGeo itself will always mean cloning and building.
+
+A **plugin** is the other route — capabilities added while the app runs. It was
+unusually cheap to build because every blocker was already absent: the CSP in
+`src/index.html` already permits `script-src 'unsafe-eval' blob:`; every
+extension point is already a data object plus one function; and
+`custom-themes.ts` was already a working "seed a mutable registry, validate each
+user entry, drop the bad ones, never let a user id shadow a shipped one" loader.
+
+### Three kinds, in order of preference
+
+1. **Declarative JSON** — connectors, toolbox tools, actions, toolbar buttons,
+   docs topics. No code, so no trust decision, and a model writing JSON against
+   a schema succeeds far more often than one writing JS against a remembered API.
+2. **R** — files `source()`d into the live session, echoed to the console.
+3. **Code** — `main.ts`, compiled at load. The exception, not the default.
+
+Themes and saved layouts are deliberately NOT contributable: both already have
+an import path a plugin gains nothing over, and both would need an answer to
+"what happens to the user's own when the plugin is removed" that neither
+registry is built to give.
+
+### The pieces
+
+- `lib/plugins/manifest.ts` — validation, following `classifyThemeFile`: a
+  refusal names the FIELD and the way out; one bad contribution is dropped
+  rather than the whole plugin; a `manifestVersion` from the future is refused
+  rather than half-read.
+- `lib/plugins/compile.ts` — **`esbuild-wasm`**, in `dependencies` (13 MB), and
+  the only new dependency. Loaded by dynamic `import()` so it costs nothing at
+  startup, and its wasm arrives via `plugins:esbuildWasm` IPC as base64 — a
+  `fetch` of a sibling file from a `file://` page under `default-src 'self'` is
+  blocked, silently. Output is an **IIFE with a `globalName`**, not an ES
+  module: the sandbox runs it inside `new Function`, which needs a statement
+  list. There is no filesystem in the browser build, so imports resolve from
+  the file map read over IPC — which is also the containment. Bundles cache to
+  `<plugin>/.build/<hash>.js`.
+- `lib/plugins/sandbox.ts` — a **soft** sandbox: the bundle runs in a function
+  whose parameters shadow `electronAPI`, `require`, `process`, `fetch`,
+  `localStorage` and friends. It stops accidents and casual reach-arounds, not
+  intent — `({}).constructor.constructor` walks straight out, and only a Worker
+  or a cross-origin frame would change that, neither of which can touch the DOM.
+  The real control is **consent**, and the docs say so in those words rather
+  than implying a safety this does not provide.
+- `lib/plugins/host-api.tsx` — one frozen `ctx`. **No filesystem at all** (a
+  plugin that needs disk writes R, where the user watches it run) and no
+  `electronAPI`. Permissions gate by ABSENCE: without `network` there is no
+  `ctx.http`, because a method that exists and always refuses is one a model
+  keeps calling. Frozen shallowly per namespace — the first version deep-froze
+  and walked into React's module namespace, freezing the mutable `current` refs
+  and killing the renderer with an error pointing nowhere near here.
+- `lib/plugins/loader.ts` — read, compile, run, then register EVERYTHING in one
+  pass and bump the revision once (the registries replace their plugin half
+  wholesale, so a partial pass drops the plugins already loaded). Reloading
+  everything rather than diffing is deliberate: a plugin contributes to six
+  registries, and a correct incremental update would cost more than a reload.
+- **The crash guard.** The plugin's id is written to `plugins.json` BEFORE
+  `activate` and cleared after. Finding it there at startup means that plugin
+  took the app down; ouRGeo disables it, skips every plugin this launch, and
+  says so. Without it, one bad plugin means an app that dies on launch and a
+  Plugin Manager that can only be reached from inside the app that dies.
+- `electron/main/plugins.ts` — `plugins:*` IPC. These exist rather than reusing
+  `file:read`/`file:write` for one reason: **every path is confined to the
+  plugins directory**. Plugin authoring is something the assistant does on the
+  user's behalf, and `file:write` takes an unchecked absolute path.
+
+### The registries went live
+
+`ALL_ACTIONS` → `actionList()`, `API_PROVIDERS` → `providerList()`,
+`CATEGORIES` → `categoryList()`, `OURGEO_TOPICS` → live, plus the panel and
+toolbar registries. Same contract as `THEMES`: one writer, object identity never
+changes, React subscribes to `usePluginStore.revision` instead. `GroupId` gained
+`plugin.${string}`, and `GROUP_LABELS` became a live map whose insertion order
+is what the model reads — shipped groups always first.
+
+### Declarative connectors (`api-connectors/declarative.ts`)
+
+`compileProvider(spec)` builds a real `ApiProvider` from JSON. Comparing the
+fourteen shipped providers was the argument: outside the OGC XML trio they are
+the same program — fetch JSON, read a path out of it, serialise the shared
+`Query` into one of five dialects, emit an R one-liner. `DIALECTS` holds those
+five (`odata`, `cql`, `esri`, `soql`, `params`) as tables of per-operator
+templates; a test asserts the `odata` table reproduces the hand-written
+`buildODataFilter` byte for byte across seven filter shapes, and that a spec for
+the shipped OData provider generates identical R. `{x}` is URL-encoded and
+`{{x}}` is raw — a cascade id in a path and a filter clause in a query string
+need opposite treatment — and a query parameter whose value comes out empty is
+dropped, because `&$filter=` is not the same request as no filter.
+
+**What it deliberately cannot express**, and the docs say so, so a model does
+not spend three turns trying: XML capabilities documents (WFS/WMS/WCS negotiate
+versions by probing), adaptive probing (Esri's halving page size), and
+cross-request derivation (extent reprojection, STAC asset discovery). Those
+register a provider from code.
+
+### The AI surface
+
+`plugin:*` (list, inspect, readFile, scaffold, writeFile, validate, reload,
+enable, disable, delete, export, import) and `connector:*` (list, inspect, open,
+addServer, removeServer, probe, test).
+
+- **`plugin:enable` is `confirm` and that is the whole trust model.** Writing a
+  plugin changes nothing; enabling one is when code starts running.
+  `plugin:disable` is `always` — switching something off is never the risky
+  direction, and it is the first thing to try when the app misbehaves.
+- **`plugin:writeFile` validates a manifest before writing it.** A saved broken
+  manifest cannot be read back, which would cost the assistant the ability to
+  fix its own mistake through `plugin:readFile`.
+- **`connector:probe` and `connector:test` are the difference** between a model
+  that can write a connector and one that writes a working one. A wrong
+  `itemsPath` compiles, installs, and produces an empty dropdown with nothing on
+  screen to explain it; probe reports the JSON's shape, and test walks the
+  cascade against a real server and says which stage failed.
+- Docs live in `ourgeo_docs`: `extending`, `plugin-connectors`, `plugin-tools`,
+  `plugin-code`, `layout`. Two sentences in `buildOurgeoCore()` tell the model
+  plugins exist at all — without which it would never open the topic. The core
+  budget moved 6000 → 7000 chars for those plus 23 new action ids; it is a
+  budget to defend, not a number to nudge.
+- A test walks every topic for `group:action` tokens and asserts they resolve.
+  It found `ui:listThemes` in the `interface` topic on its first run — an action
+  that has never existed.
 
 ## Design Tokens
 

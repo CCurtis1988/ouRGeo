@@ -29,6 +29,11 @@ let page = null
 const SESSION_FILES = [
   'session.json', 'console.json', 'spatial-layers.json', 'spatial-ui.json',
   'object-tabs.json', 'plots.json',
+  // `layout.json` is a PREFERENCE, not session state — the app deliberately
+  // keeps it between runs. It is wiped here anyway, because `launch clean`
+  // promises a deterministic starting UI and a layout carried over from the
+  // last run means panels are open that this run never opened.
+  'layout.json',
 ]
 
 function userDataDir() {

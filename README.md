@@ -40,7 +40,16 @@ the whole analysis.
   portable `.ourgeotheme.json` files.
 - **In-app AI assistant** with optional Autopilot, usable with cloud providers
   or a fully local model — it can drive the interface, run the toolbox, write
-  R Markdown, and build a theme to your description.
+  R Markdown, rearrange your workspace, build a theme to your description, and
+  **write plugins that add capabilities ouRGeo does not ship with**.
+- **A workspace you arrange.** Four zones — left, centre, right and bottom —
+  and any panel can go in any of them, split or tabbed, at whatever size you
+  like. Panels sharing a zone share it equally — two take half each, three a
+  third each — until you drag a divider; double-click one to even them out
+  again. Save an arrangement as a preset and switch between them.
+- **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
+  panels and documentation, added while the app is running — no rebuild, and
+  usually no code at all.
 - **Publication export.** Generate complete `ggplot2` or `tmap` code from your
   on-screen map, including legend, north arrow, scale bar and graticules.
 - **Portable projects.** Save code, environment, layers and databases as a
@@ -84,6 +93,37 @@ theme" and it will build one across all three axes, check its own contrast
 ratios, and switch you to it. A theme it makes is an ordinary theme: editable
 in the Studio, exportable, and usable as a template like any other.
 
+## Extending ouRGeo
+
+ouRGeo can gain capabilities it did not ship with, without being rebuilt.
+
+**A plugin** is a folder with a manifest. Most are pure JSON: a data connector
+for an API nobody has written one for, a geoprocessing tool, an action, a
+documentation topic the assistant then knows about. A plugin can also ship an
+R file that is sourced into your session, or TypeScript that ouRGeo compiles
+when it loads — but the JSON path covers the common cases, and needs no trust
+decision from you at all.
+
+**Ask for one in prose.** "Add a connector for the NOAA tides API" is a
+request the assistant can carry out: it probes the API to learn its shape,
+writes the spec, tests it against the real server, and asks you to turn it on.
+What it produces is an ordinary plugin — editable, exportable as a
+`.ourgeoplugin` file, and removable from **Settings → Plugins**.
+
+> **A plugin that ships code runs inside ouRGeo, with everything ouRGeo can
+> do.** ouRGeo confines a plugin's file access and hides the application's
+> internals from it, but that is a guard against accidents, not against intent.
+> Enable one the way you would run `install.packages()`: because you know where
+> it came from. Plugins arrive switched **off**, and a declarative plugin —
+> the common case — runs no code at all.
+
+**Changing ouRGeo itself is a different thing**, and it is not possible on an
+installed copy: the interface ships as one compiled bundle inside a read-only
+archive, and nothing on your machine can rebuild it. For that, clone the
+repository and run it from source — see [Development](#development) below, and
+[docs/AGENTS.md](docs/AGENTS.md) for the house style if you are pointing an AI
+coding agent at it.
+
 ## Documentation
 
 Full end-user documentation lives at
@@ -91,7 +131,9 @@ Full end-user documentation lives at
 interface reference, the complete toolbox catalogue with every parameter, data
 import and connector guides, and the map/drawing/export reference.
 
-For the codebase architecture, see [CLAUDE.md](CLAUDE.md).
+For the codebase architecture, see [CLAUDE.md](CLAUDE.md). For the conventions
+a change to this repository should follow — by a person or an agent — see
+[docs/AGENTS.md](docs/AGENTS.md).
 
 ## Requirements
 

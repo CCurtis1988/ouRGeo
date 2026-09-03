@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
-  Palette, Paintbrush, Cpu, Globe, Map, KeyRound, Bot, FileText,
+  Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -153,6 +153,29 @@ function SettingsSection({
  *  in `EditorLayout`), so Settings is closed on the way — leaving it open
  *  behind a second modal would stack two focus traps and leave the user with a
  *  dialog they cannot reach behind one they can. */
+/** The way into the Plugin Manager. A sibling of this dialog, like the Theme
+ *  Studio, and for the same focus-trap reason. */
+function PluginManagerLink(): React.ReactElement {
+  const showDialog = useUiStore((s) => s.showDialog)
+  return (
+    <button
+      onClick={() => showDialog('plugins')}
+      data-ourgeo-id="settings.plugins"
+      className="mt-2 w-full flex items-center gap-2 rounded-md border border-geo-border
+        px-2.5 py-2 text-left hover:border-geo-accent group transition-colors"
+    >
+      <Puzzle className="w-3.5 h-3.5 text-geo-muted group-hover:text-geo-accent shrink-0" />
+      <span className="flex-1 min-w-0">
+        <span className="block text-xs text-foreground">Plugins…</span>
+        <span className="block text-[10px] text-geo-muted leading-snug">
+          Capabilities added to ouRGeo without rebuilding it — data connectors, toolbox tools,
+          panels. Install, enable and remove them here.
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function ThemeStudioLink(): React.ReactElement {
   const showDialog = useUiStore((s) => s.showDialog)
   return (
@@ -325,6 +348,14 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
               description="AI provider and model configuration"
             >
               <AiProviderSettings />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={Puzzle}
+              title="Plugins"
+              description="Capabilities added to ouRGeo without rebuilding it"
+            >
+              <PluginManagerLink />
             </SettingsSection>
           </div>
         </Dialog.Content>

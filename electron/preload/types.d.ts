@@ -114,6 +114,21 @@ declare global {
         cancel(id: string): Promise<boolean>
         onProgress(id: string, cb: (text: string) => void): () => void
       }
+      plugins: {
+        dir(): Promise<string>
+        list(): Promise<{ id: string; dir: string; hasManifest: boolean }[]>
+        readFile(relative: string): Promise<string>
+        writeFile(relative: string, content: string): Promise<void>
+        readBinary(relative: string): Promise<string>
+        listFiles(relative: string): Promise<string[]>
+        delete(relative: string): Promise<void>
+        reveal(relative: string): Promise<void>
+        pack(id: string, outPath: string): Promise<void>
+        unpack(zipPath: string): Promise<string>
+        cacheRead(id: string, key: string): Promise<string | null>
+        cacheWrite(id: string, key: string, code: string): Promise<void>
+        esbuildWasm(): Promise<string>
+      }
       app: {
         getDataPath(): Promise<string>
         onUiZoom(callback: (direction: 'in' | 'out') => void): void

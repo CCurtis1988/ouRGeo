@@ -26,6 +26,7 @@ import { ALL_SCALE_KEYS } from '@/lib/color-scales'
 import { BASEMAPS_BY_ID, FREE_BASEMAPS } from '@/lib/basemaps'
 import { DEFAULT_LABEL_SETTINGS } from '@/lib/label-utils'
 import { layerExtentBbox } from '@/lib/layer-bbox'
+import { mapView, setMapView } from '@/lib/map-view'
 import {
   isTransportFailure, retryOnNetworkError, transportFailureForModel,
 } from '@/lib/transport-retry'
@@ -525,14 +526,22 @@ export const mapActions: UiAction[] = [
       { name: 'zoom', type: 'number', description: 'Zoom level, 0 (world) to ~20 (street).' },
     ],
     run: (args) => {
-      const s = useSpatialStore.getState()
+      // Through `setMapView`, never `useSpatialStore.setViewState`: once any
+      // layer is on the map the view belongs to the active named session, and
+      // the spatial store is a mirror nothing renders from. See lib/map-view.ts.
+      const current = mapView()
       const view = {
-        longitude: argNum(args, 'longitude', s.viewState.longitude),
-        latitude: argNum(args, 'latitude', s.viewState.latitude),
-        zoom: argNum(args, 'zoom', s.viewState.zoom),
+        longitude: argNum(args, 'longitude', current.longitude),
+        latitude: argNum(args, 'latitude', current.latitude),
+        zoom: argNum(args, 'zoom', current.zoom),
       }
-      s.setViewState(view)
-      return ok(`Map centred on ${view.latitude.toFixed(4)}, ${view.longitude.toFixed(4)} at zoom ${view.zoom}.`)
+      setMapView(view)
+      const where = `Map centred on ${view.latitude.toFixed(4)}, ${view.longitude.toFixed(4)} at zoom ${view.zoom}.`
+      // Moving a map nobody can see is the one way this still does nothing
+      // visible, so say so rather than letting it read as a move that failed.
+      return useSpatialStore.getState().isOpen
+        ? ok(where)
+        : ok(`${where} The Spatial Editor is closed, so it is not on screen — open it with ui:panel (panel=spatial).`)
     },
   },
 

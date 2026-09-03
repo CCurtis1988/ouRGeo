@@ -9,12 +9,10 @@
 // assistant that can close its own panel can end the conversation it is having.
 
 import { useUiStore, DIALOG_IDS, DIALOG_LABELS, type DialogId } from '@/store/ui'
-import { useEnvironmentStore } from '@/store/environment'
-import { usePackagesStore } from '@/store/packages'
-import { useDatabaseStore } from '@/store/database'
 import { useSpatialStore } from '@/store/spatial'
-import { usePlottingStore } from '@/store/plotting'
-import { useHelpStore } from '@/store/help'
+import { useLayoutStore } from '@/store/layout'
+import { panelInfoList, panelLabels, resolvePanelName, type PanelInfo } from '@/lib/layout/panel-meta'
+import { describeLayout, isOpen } from '@/lib/layout/model'
 import { useEditorStore } from '@/store/editor'
 import { useSessionStore } from '@/store/session'
 import { useGeometryEditStore } from '@/store/geometryEdit'
@@ -23,45 +21,31 @@ import { THEMES } from '@/lib/themes'
 import { CODE_THEMES, MARKDOWN_THEMES } from '@/lib/editor-themes'
 import { resolveThemeArg } from './theme'
 import { languageOf, labelFor } from '@/lib/markdown/doc-kind'
-import { TARGET_IDS, targetListing, findTarget } from './targets'
+import { hasTarget, targetListing, findTarget } from './targets'
 import { ok, fail, argStr, argBool, type UiAction } from './types'
 
-type PanelId = 'environment' | 'packages' | 'databases' | 'spatial' | 'plots' | 'help'
+// The panels `ui:panel` will open and close.
+//
+// Derived from the panel registry rather than listed again — a plugin's panel
+// is togglable the moment it is registered — but the AI panel is filtered out
+// deliberately, and the editor with it. An assistant that can close its own
+// panel can end the conversation it is having, and one that can close the
+// editor can leave the user with nowhere to type.
+const UNTOGGLABLE = new Set(['ai', 'editor'])
 
-const PANELS: Record<PanelId, { label: string; isOpen: () => boolean; toggle: () => void }> = {
-  environment: {
-    label: 'Environment',
-    isOpen: () => useEnvironmentStore.getState().isOpen,
-    toggle: () => useEnvironmentStore.getState().toggleOpen(),
-  },
-  packages: {
-    label: 'Packages',
-    isOpen: () => usePackagesStore.getState().isOpen,
-    toggle: () => usePackagesStore.getState().toggleOpen(),
-  },
-  databases: {
-    label: 'Databases',
-    isOpen: () => useDatabaseStore.getState().isOpen,
-    toggle: () => useDatabaseStore.getState().toggleOpen(),
-  },
-  spatial: {
-    label: 'Spatial Editor',
-    isOpen: () => useSpatialStore.getState().isOpen,
-    toggle: () => useSpatialStore.getState().toggleOpen(),
-  },
-  plots: {
-    label: 'Plots',
-    isOpen: () => usePlottingStore.getState().isOpen,
-    toggle: () => usePlottingStore.getState().toggleOpen(),
-  },
-  help: {
-    label: 'Help',
-    isOpen: () => useHelpStore.getState().isOpen,
-    toggle: () => useHelpStore.getState().toggleOpen(),
-  },
+function togglablePanels(): PanelInfo[] {
+  return panelInfoList().filter((p) => !UNTOGGLABLE.has(p.id))
 }
 
-const PANEL_IDS = Object.keys(PANELS) as PanelId[]
+function panelIds(): string[] {
+  return togglablePanels().map((p) => p.id)
+}
+
+/** Resolve a panel the user named, refusing the two that are not togglable. */
+function resolvePanel(want: string): PanelInfo | undefined {
+  const hit = resolvePanelName(want)
+  return hit && !UNTOGGLABLE.has(hit.id) ? hit : undefined
+}
 
 export const uiActions: UiAction[] = [
   {
@@ -70,20 +54,24 @@ export const uiActions: UiAction[] = [
     tier: 'always',
     summary: 'Open, close or toggle one of the side panels.',
     params: [
-      { name: 'panel', type: 'enum', values: PANEL_IDS, required: true, description: 'Which panel.' },
+      {
+        name: 'panel', type: 'enum', valuesAt: panelIds, lenient: true, required: true,
+        description: 'Which panel — its id or the name on its button.',
+      },
       {
         name: 'state', type: 'enum', values: ['open', 'close', 'toggle'], default: 'open',
         description: 'What to do with it.',
       },
     ],
     run: (args) => {
-      const id = argStr(args, 'panel') as PanelId
-      const panel = PANELS[id]
-      if (!panel) return fail(`Unknown panel "${id}". Valid panels: ${PANEL_IDS.join(', ')}.`)
-      const want = argStr(args, 'state', 'open')
-      const isOpen = panel.isOpen()
-      const shouldOpen = want === 'toggle' ? !isOpen : want !== 'close'
-      if (shouldOpen !== isOpen) panel.toggle()
+      const want = argStr(args, 'panel')
+      const panel = resolvePanel(want)
+      if (!panel) return fail(`Unknown panel "${want}". Valid panels: ${panelIds().join(', ')}.`)
+      const layoutStore = useLayoutStore.getState()
+      const open = isOpen(layoutStore.layout, panel.id)
+      const state = argStr(args, 'state', 'open')
+      const shouldOpen = state === 'toggle' ? !open : state !== 'close'
+      if (shouldOpen !== open) layoutStore.setPanelOpen(panel.id, shouldOpen)
       return ok(`${panel.label} panel is now ${shouldOpen ? 'open' : 'closed'}.`)
     },
   },
@@ -158,7 +146,7 @@ export const uiActions: UiAction[] = [
     ],
     run: (args) => {
       const target = argStr(args, 'target')
-      if (!TARGET_IDS.has(target)) {
+      if (!hasTarget(target)) {
         return fail(`Unknown control "${target}". Controls you can point at:\n${targetListing()}`)
       }
       const info = findTarget(target)
@@ -320,7 +308,11 @@ export const uiActions: UiAction[] = [
     ],
     run: (args) => {
       const verbose = argBool(args, 'verbose')
-      const openPanels = PANEL_IDS.filter((p) => PANELS[p].isOpen()).map((p) => PANELS[p].label)
+      const layout = useLayoutStore.getState().layout
+      const labels = panelLabels()
+      const shown = panelInfoList()
+        .filter((p) => !UNTOGGLABLE.has(p.id) && isOpen(layout, p.id))
+        .map((p) => p.label)
       const editor = useEditorStore.getState()
       const active = editor.getActiveTab()
       const spatial = useSpatialStore.getState()
@@ -329,7 +321,7 @@ export const uiActions: UiAction[] = [
       const dialog = useUiStore.getState().openDialog
 
       const lines = [
-        `Panels open: ${openPanels.length ? openPanels.join(', ') : 'none (editor and console only)'}.`,
+        `Panels open: ${shown.length ? shown.join(', ') : 'none (editor and console only)'}.`,
         dialog ? `Dialog open: ${DIALOG_LABELS[dialog]}.` : 'No dialog open.',
         active
           ? `Active document: "${active.fileName}" (${labelFor(languageOf(active))}${active.isDirty ? ', unsaved changes' : ''}).`
@@ -343,8 +335,19 @@ export const uiActions: UiAction[] = [
       ]
       const pending = Object.values(spatial.pendingGeometryEdits).reduce((n, e) => n + e.length, 0)
       if (pending > 0) lines.push(`${pending} unsaved geometry edit(s) staged.`)
+      // Recording is invisible from anywhere else the assistant can look, and
+      // starting a second one or stopping the user's is worse than asking.
+      if (session.isRecording) {
+        const target = editor.tabs.find((t) => t.id === session.recordingTargetTabId)
+        lines.push(`Console recording is ON, into "${target?.fileName ?? 'a closed document'}"` +
+          `${session.recordingReturnOutput ? ', capturing output too' : ''}.`)
+      } else {
+        lines.push('Console recording is off.')
+      }
       if (verbose) {
         lines.push(`Tabs: ${editor.tabs.map((t) => t.fileName).join(', ')}.`)
+        lines.push('Layout:')
+        lines.push(describeLayout(layout, panelInfoList(), labels))
       }
       return ok(lines.join('\n'))
     },

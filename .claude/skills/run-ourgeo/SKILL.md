@@ -67,7 +67,7 @@ Screenshots land in `/tmp/ourgeo-shots/` (override with `SCREENSHOT_DIR`).
 
 | command | what it does |
 |---|---|
-| `launch [clean]` | launch the app; `clean` first wipes the persisted session so tabs are deterministic |
+| `launch [clean]` | launch the app; `clean` first wipes the persisted session AND `layout.json`, so tabs and open panels are deterministic |
 | `ready` | block until the console prints "R session ready" |
 | `open <path>` | stub the native Open dialog and click Open — the normal way to load a file |
 | `stub-open <path>` / `stub-save <path>` | stub a native dialog without clicking |
@@ -109,9 +109,17 @@ These are things that actually bit, not generic advice.
   first — this has previously manifested as an orphaned R process grabbing port
   9222 and breaking CDP-based tooling.
 
-- **The app restores its last session on launch.** Without `launch clean` you
-  inherit whatever tabs the previous run left, and assertions about tab lists
-  become nondeterministic.
+- **The app restores its last session AND its layout on launch.** Without
+  `launch clean` you inherit whatever tabs and open panels the previous run
+  left. Panel state is the easier one to miss: `layout.json` is a preference the
+  app keeps deliberately, so a panel you opened three runs ago is still open.
+
+- **`ss` times out when anything on screen animates.** Playwright waits for a
+  stable frame; the map's render loop and a panel's loading spinner both keep
+  it from getting one, so the screenshot fails while the app is perfectly fine.
+  It is intermittent — the same panels screenshot happily once they settle.
+  Read the DOM with `eval` instead, and trust `errors` for whether anything is
+  actually broken.
 
 - **Use DOM `.click()`, not `locator.click()`.** The editor pane layers an
   absolutely-positioned background and themed artwork behind a transparent Monaco

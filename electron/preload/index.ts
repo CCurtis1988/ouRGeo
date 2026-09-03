@@ -128,6 +128,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal: (url: string): Promise<void> =>
       ipcRenderer.invoke('shell:openExternal', url)
   },
+  // Plugin files. Every path is relative to the plugins folder and the main
+  // process refuses to leave it — see electron/main/plugins.ts. That is the
+  // reason these exist instead of the generic `file.*` calls: the assistant
+  // authors plugins, and `file.write` takes an unchecked absolute path.
+  plugins: {
+    dir: (): Promise<string> => ipcRenderer.invoke('plugins:dir'),
+    list: (): Promise<{ id: string; dir: string; hasManifest: boolean }[]> =>
+      ipcRenderer.invoke('plugins:list'),
+    readFile: (relative: string): Promise<string> => ipcRenderer.invoke('plugins:readFile', relative),
+    writeFile: (relative: string, content: string): Promise<void> =>
+      ipcRenderer.invoke('plugins:writeFile', relative, content),
+    readBinary: (relative: string): Promise<string> => ipcRenderer.invoke('plugins:readBinary', relative),
+    listFiles: (relative: string): Promise<string[]> => ipcRenderer.invoke('plugins:listFiles', relative),
+    delete: (relative: string): Promise<void> => ipcRenderer.invoke('plugins:delete', relative),
+    reveal: (relative: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', relative),
+    pack: (id: string, outPath: string): Promise<void> => ipcRenderer.invoke('plugins:pack', id, outPath),
+    unpack: (zipPath: string): Promise<string> => ipcRenderer.invoke('plugins:unpack', zipPath),
+    cacheRead: (id: string, key: string): Promise<string | null> =>
+      ipcRenderer.invoke('plugins:cacheRead', id, key),
+    cacheWrite: (id: string, key: string, code: string): Promise<void> =>
+      ipcRenderer.invoke('plugins:cacheWrite', id, key, code),
+    esbuildWasm: (): Promise<string> => ipcRenderer.invoke('plugins:esbuildWasm')
+  },
+
   app: {
     getDataPath: (): Promise<string> => ipcRenderer.invoke('app:getDataPath'),
     onUiZoom: (callback: (direction: 'in' | 'out') => void) => {
