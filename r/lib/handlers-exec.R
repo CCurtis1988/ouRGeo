@@ -74,6 +74,20 @@ handle_session_init <- function() {
     sf::st_crs(if (lat >= 0) 32600L + zone else 32700L + zone)
   }, envir = .GlobalEnv)
 
+  # These live in .GlobalEnv so the code ouRGeo generates can call them, but
+  # they are ouRGeo's own, not the user's — and system_names was snapshotted at
+  # startup (server.R), before this handler ran, so nothing knew that.
+  # Consequences, all three real: they were listed in the Environment panel as
+  # if the user had written them; they were copied into every project bundle by
+  # a save that had asked for user objects only; and /session/reset, which
+  # removes every name that is not a system name, DELETED them the moment a
+  # project was opened — so the next planar toolbox tool emitted
+  # `ourgeo_calc_crs()` into a session that no longer had it.
+  .ourgeo_env$system_names <- union(
+    .ourgeo_env$system_names %||% character(0),
+    c("ourgeo_db_collect", "rgeo_materialize", "ourgeo_linearize", "ourgeo_calc_crs")
+  )
+
   json_response(list(
     success = TRUE,
     message = "R session ready",

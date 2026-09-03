@@ -280,6 +280,11 @@ export async function loadProjectFromPath(path: string): Promise<boolean> {
     if (envRDataPath) {
       try {
         const res = await retryOnNetworkError(() => rClient.envLoad(envRDataPath as string, '.GlobalEnv'))
+        // What comes back is what the panel should treat as NOT the user's own
+        // — for a bundle written with excludeSystem that is normally nothing,
+        // and for one written before ouRGeo knew its own helpers, just those.
+        // It is not "the things this file restored": flagging those hid the
+        // entire environment a project had just loaded. See handle_env_load.
         if (res.rdataLoadedNames?.length) {
           useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', res.rdataLoadedNames)
         }

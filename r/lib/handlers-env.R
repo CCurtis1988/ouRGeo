@@ -215,13 +215,20 @@ handle_env_load <- function(body) {
       assign(nm, get(nm, envir = tmp), envir = target)
     }
 
-    # No metadata → conservative default: all objects treated as rdata-loaded
-    if (length(rdata_loaded_out) == 0 && length(loaded_names) > 0) {
-      rdata_loaded_out <- loaded_names
-    } else {
-      # Only return names actually present in the file
-      rdata_loaded_out <- intersect(rdata_loaded_out, loaded_names)
-    }
+    # What the panel should treat as NOT the user's own work: whatever the file
+    # itself recorded, plus anything that is one of this server's own functions.
+    #
+    # This used to be "no metadata in the file → treat ALL of it as non-user",
+    # and that is how opening a project left the Environment panel blank. A
+    # project bundle is written with excludeSystem, so it holds nothing but
+    # user objects — and therefore has no metadata to record, since there was
+    # nothing to record. Every object it restored came back flagged, the
+    # panel's "Hide non-user objects" filter hid the lot, and `ls()` in the
+    # console listed everything the panel said was not there.
+    rdata_loaded_out <- union(
+      intersect(rdata_loaded_out, loaded_names),
+      intersect(loaded_names, .ourgeo_env$system_names %||% character(0))
+    )
 
     json_response(list(success = TRUE, rdataLoadedNames = as.list(rdata_loaded_out)))
   }, error = function(e) {

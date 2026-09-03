@@ -262,6 +262,25 @@ source()d functions).
   plus DB conns + proxies), hydrate UI stores, `/env/load`, then `/db/reconnect`
   (reopens each `.Rgeo` and rebinds its `dplyr::tbl` proxies, since the restored
   tbl objects hold stale connections). **New** → reset + restore scratch tabs.
+- **`system_names` is the line between ouRGeo's objects and the user's**, and
+  three things read it: `/env/save excludeSystem` (what goes in a bundle),
+  `/session/reset` (what gets wiped), and the Environment panel's "Hide
+  non-user objects" filter (fed by `systemNames` from `/session/init` and by
+  `rdataLoadedNames` from `/env/load`). It is snapshotted at the END of
+  `server.R` — so anything assigned into `.GlobalEnv` *later* is invisible to
+  it, which is what happened to the four helpers `/session/init` defines for
+  generated code (`ourgeo_calc_crs`, `ourgeo_linearize`, `ourgeo_db_collect`,
+  `rgeo_materialize`): listed in the panel as the user's, copied into every
+  bundle, and deleted by the reset that opens a project — after which a planar
+  toolbox tool emitted `ourgeo_calc_crs()` into a session that no longer had
+  it. `handle_session_init` now unions them in.
+- **`/env/load` flags what is NOT the user's**, and its old "no metadata in the
+  file → treat all of it as non-user" default is why opening a project left the
+  Environment panel blank while `ls()` listed everything: a bundle is written
+  with `excludeSystem`, so it holds nothing but user objects and therefore
+  carries no metadata to say so, and every object it restored came back flagged
+  and hidden. The flag is now the file's own metadata ∪ this session's
+  `system_names`, and nothing else.
 - **Dirty tracking**: env/spatial/plots/object-tab changes mark a *named*
   project dirty (`enableDirtyTracking` after startup; suppressed during load/new).
   On window close the main process fires `app:before-quit`; the renderer shows

@@ -30,6 +30,8 @@ export const VERSION_HISTORY: ReleaseNote[] = [
       'Panels sharing a zone share it evenly \u2014 two take half each, three a third each \u2014 until you drag a divider between them. Double-click a divider to even them out again, and every zone starts each session evenly shared.',
       'Your arrangement is remembered between sessions, and you can save several as named presets and switch between them.',
       'Toolbar buttons can be reordered and hidden, and the assistant can rearrange all of it on request \u2014 with layout:reset always the way back.',
+      'Fixed: opening a project restored its R objects but showed an empty Environment panel \u2014 everything the bundle loaded was being treated as though it were ouRGeo\u2019s own rather than yours.',
+      'Fixed: the helper functions ouRGeo defines for generated code no longer end up in your project bundles, in your Environment panel, or deleted the moment you open a project.',
       'Fixed: when the assistant moved the map for you \u2014 zooming from landmark to landmark on a tour \u2014 the view never changed. Every map:setView now moves the map you are looking at, and the export extent follows it.',
       'Console recording gained a destination: the assistant can now record into a new document, or into a saved file that offers to write itself back when you stop.',
     ],
