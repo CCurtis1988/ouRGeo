@@ -24,6 +24,23 @@ const electronBin = process.platform === 'darwin'
 let app = null
 let page = null
 
+/** R servers that were already running when this driver launched the app.
+ *
+ *  The sweep on quit used to be `pkill -f server.R`, which is every R server on
+ *  the machine — including the one belonging to a developer's own `npm run dev`
+ *  session sitting open in another window. Killing that wipes their live R
+ *  environment (r-bridge restarts the process, so nothing looks broken until
+ *  they go looking for their objects). Only servers that appeared after our
+ *  launch can be ours. */
+let preexistingR = new Set()
+
+function rServerPids() {
+  try {
+    return execSync("pgrep -f 'server\\.R' 2>/dev/null").toString().trim().split(/\s+/)
+      .filter(Boolean)
+  } catch { return [] }   // pgrep exits 1 when nothing matches
+}
+
 /** Session/workspace files ouRGeo restores on launch. Clearing them makes a run
  *  deterministic — otherwise you inherit whatever tabs the last session left. */
 const SESSION_FILES = [
@@ -55,6 +72,8 @@ const COMMANDS = {
       }
       console.log('cleared session files in', dir)
     }
+
+    preexistingR = new Set(rServerPids())
 
     if (!fs.existsSync(path.join(APP_DIR, 'out/main/index.js'))) {
       console.log('ERROR: out/main/index.js missing — run `npm run build` first')
@@ -269,8 +288,12 @@ const COMMANDS = {
     if (app) await app.close().catch(() => {})
     app = null; page = null
     // The R server is a child of Electron but can outlive a hard kill. A stray
-    // one holds a random port and confuses the next run.
-    try { execSync("pkill -f 'server\\.R' 2>/dev/null") } catch { /* none running */ }
+    // one holds a random port and confuses the next run. Ours only — see
+    // `preexistingR`.
+    for (const pid of rServerPids()) {
+      if (preexistingR.has(pid)) continue
+      try { process.kill(Number(pid)) } catch { /* already gone */ }
+    }
   },
 
   help() { console.log('commands:', Object.keys(COMMANDS).join(', ')) },

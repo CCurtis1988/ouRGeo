@@ -105,7 +105,9 @@ These are things that actually bit, not generic advice.
 
 - **Stray R servers outlive a hard kill.** `server.R` is a child of Electron but
   can survive; a leftover one holds a random port and confuses the next run.
-  `quit` sweeps them. If a run behaves strangely, check `pgrep -af server.R`
+  `quit` sweeps the ones that appeared after `launch` — never a server that was
+  already running, which is how a driver run used to kill the R session of a
+  developer's own `npm run dev` window and silently wipe their environment. If a run behaves strangely, check `pgrep -af server.R`
   first — this has previously manifested as an orphaned R process grabbing port
   9222 and breaking CDP-based tooling.
 
