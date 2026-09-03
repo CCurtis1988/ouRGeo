@@ -80,13 +80,13 @@ const BUILTIN_TOPICS: Record<string, string> = {
 
 **R console** — a real prompt below the editor. Shift+Enter for a newline, arrow keys for history, live streaming output, colour-coded errors. Plots are captured automatically into the Plots panel. The header shows the working directory; clicking it opens the menu that changes it. "Clear console" clears the display only — the session keeps its objects.
 
-**Data Viewer** — opens as a tab, not a sidebar. Sortable grid; sf geometry columns show alongside attributes. Add Column and a per-column type dropdown edit in place.
+**Data Viewer** — opens as a tab, not a sidebar. Sortable grid; sf geometry columns show alongside attributes. Add Column and a per-column type dropdown edit in place. Anything carrying geometry also gets **Add to Map** in the header, which sends it to the Spatial Editor — and asks first if it is already a layer there.
 
 **Plots panel** — plot history with previous/next, an Active View mode for live previews, a ggplot2 chart builder, and Export at publication resolution.
 
 **Help panel** — R documentation in-app and offline: search, back/forward, package pages and vignettes. Typing \`?something\` in the console opens it here.
 
-**Settings** — one scrollable dialog: Appearance (10 app themes, plus separate code-editor and markdown editor themes, interface scale, and the **Theme Studio** — where the user builds their own themes on all three axes, with an editor backdrop image, a card image, a default basemap, and import/export as \`.ourgeotheme.json\` files), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).
+**Settings** — one scrollable dialog: Appearance (10 app themes, plus separate code-editor and markdown editor themes, interface scale, and the **Theme Studio** — where the user builds their own themes on all three axes, with an editor backdrop image, a card image, a default basemap, and import/export as \`.ourgeotheme.json\` files), Workspace (panel dragging on/off, saved arrangements with import/export as \`.ourgeolayout.json\`, and Restore default arrangement), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).
 
 A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`theme:list\` to find out which ones exist — the parameter enums resolve live, but a listing is cheaper than a guess.`,
 
@@ -130,7 +130,7 @@ A GPU-accelerated MapLibre canvas tied to R objects. **A layer is a view onto an
 
 **Add Features** pulls vector and raster objects out of the R environment. Vectors arrive as GeoJSON; rasters are registered with a tile engine (warped to EPSG:3857, served as styled 256px XYZ PNG tiles), which is why a large raster stays responsive.
 
-**Contents** lists the layers: visibility, order, removal, and the way in to symbology and labels.
+**Contents** lists the layers: visibility, order, removal, and the way in to symbology and labels. Right-click a layer for **Open in data editor**, which opens its attribute table as a tab (a raster has bands rather than rows, so it says so instead). The three panels move objects between each other both ways: the Environment panel and the data viewer send to the map, Contents sends back.
 
 **Symbology.** Vector layers style fill and border colour, line width, marker shape, halo and opacity — each either uniform or driven by a column. Raster layers choose singleband, RGB composite or categorical, with a stretch (min-max, percent clip, standard deviations, custom) and a colour ramp.
 
@@ -580,6 +580,12 @@ A permission you did not ask for is **absent**, not refused: without \`network\`
 Four zones. **left**, **centre**, **right**, **bottom**. Each holds an ordered list of panels; the centre takes whatever the others leave.
 
 Any panel can go in any zone — the editor, the console, the map, the plots, the chat, Help, the Environment, Packages, Databases — and a plugin's panel is an ordinary panel from the moment it registers.
+
+By hand, the user drags the small grip in a panel's top-right corner (it appears on hover) and drops it on the zone they want; every zone shows insertion slots while a drag is in progress, and an empty zone appears as a dashed strip along its edge. **Settings → Workspace** holds the same ground: the switch for those grips, the list of saved arrangements (apply, export, delete), Import, and Restore default arrangement.
+
+    layout:setPanelDrag  enabled=false
+
+turns the grips off. It removes the GESTURE only — the arrangement is untouched and every action here still works, so this is never a reason to tell a user you cannot move a panel.
 
 ## Read before you rearrange
 

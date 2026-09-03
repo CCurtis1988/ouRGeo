@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import * as Dialog from '@radix-ui/react-dialog'
-import { RefreshCw, Filter, ListFilter, MousePointer2, Database, Pencil, Plus, Locate, Maximize2 } from 'lucide-react'
+import { RefreshCw, Filter, ListFilter, MousePointer2, Database, Pencil, Plus, Locate, Maximize2, Map as MapIcon } from 'lucide-react'
 import { Button } from '../ui/button'
 import { ContextMenu } from '../ui/context-menu'
 import { rClient, type ColumnInfo } from '@/lib/r-client'
@@ -17,11 +17,16 @@ import {
   unregisterDataViewerCellUpdate,
   type DataViewerCellUpdate,
 } from '@/lib/data-viewer-refresh'
-import { useSpatialStore } from '@/store/spatial'
+import { useSpatialStore, type SpatialLayer } from '@/store/spatial'
 import { useSelectionStore } from '@/store/selection'
 import { useAddFeature } from '@/hooks/useAddFeature'
 import { useShallow } from 'zustand/react/shallow'
 import { SelectionQueryDialog } from '@/components/spatial/SelectionQueryDialog'
+import { AlreadyOnMapDialog } from '@/components/spatial/AlreadyOnMapDialog'
+import {
+  dbSpatialRefFor, focusMapLayer, mapLayersForObject, sendDbObjectToMap, sendObjectToMap,
+} from '@/lib/spatial-link'
+import { SF_CLASSES } from '@/lib/validators'
 import { ColumnTypeDropdown } from './ColumnTypeDropdown'
 import { AddColumnDialog } from './AddColumnDialog'
 import {
@@ -116,6 +121,11 @@ export function DataFrameView({
   const selectedIndices = useSelectionStore(useShallow((s) => s.selections[selKey] ?? EMPTY))
   const hasSelection = selectedIndices.length > 0
   const matchingLayer = spatialLayers.find((l) => l.name === accessPath && l.envName === envName) ?? null
+
+  // Layers already showing this dataset, resolved when the button is pressed
+  // rather than watched: the answer is only needed at that moment, and holding
+  // it in state would mean deciding what to do when it changes underneath.
+  const [alreadyOnMap, setAlreadyOnMap] = useState<SpatialLayer[]>([])
   const selectionAnchorRef = useRef<number | null>(null)
   const selectionFromClickRef = useRef(false)
   const fitMapToBbox = useSpatialStore((s) => s.fitMapToBbox)
@@ -137,6 +147,40 @@ export function DataFrameView({
     ensureOpen()
     fitMapToBbox(bbox)
   }, [matchingLayer, ensureOpen, fitMapToBbox])
+
+  // Put this dataset on the map. The .Rgeo case has to go the other way round
+  // from the in-memory one — a lazy tbl has no geometry in the session to read
+  // — so the proxy is looked up first and decides which path runs.
+  const sendToMap = useCallback(async () => {
+    const geom = columns.find((c) => isGeomColumn(c.type))
+    try {
+      const dbRef = dbSpatialRefFor(environments, accessPath, envName)
+      if (dbRef) {
+        await sendDbObjectToMap(dbRef)
+        return
+      }
+      // The library follows the GEOMETRY COLUMN, not the object's class: a
+      // plain data.frame can carry an sfc column, and calling that one geos
+      // would send every edit saved from the map through the wrong writer.
+      const klass = SF_CLASSES.includes(cls)
+        ? cls
+        : geom?.type.startsWith('sfc_') ? 'sf' : cls
+      await sendObjectToMap({
+        name: accessPath, envName, class: klass, sfColumn: geom?.name ?? null,
+      })
+    } catch (e) {
+      addEntry('error', `Could not add ${accessPath} to the map: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [accessPath, envName, cls, columns, environments, addEntry])
+
+  const handleSendToMap = useCallback(() => {
+    const existing = mapLayersForObject({ name: accessPath, envName })
+    if (existing.length > 0) {
+      setAlreadyOnMap(existing)
+      return
+    }
+    void sendToMap()
+  }, [accessPath, envName, sendToMap])
 
   const fetchChunk = useCallback(
     async (offset: number, sync = false) => {
@@ -968,6 +1012,11 @@ export function DataFrameView({
   // First geometry column (if any) powers the ＋ Add Feature button and cell pencils
   const geomCol = columns.find((c) => isGeomColumn(c.type)) ?? null
 
+  // Anything with geometry can go on the map: an sf object, and equally a
+  // database-backed tbl or a plain data.frame carrying an sfc column — the
+  // Environment panel only ever offered this for the first kind.
+  const isSpatialDataset = geomCol !== null || SF_CLASSES.includes(cls)
+
   // When showOnlySelected is active, map virtual positions to actual row indices
   const effectiveIndices = (showOnlySelected && hasSelection) ? selectedIndices : null
   const effectiveTotalRows = effectiveIndices ? effectiveIndices.length : totalRows
@@ -1001,13 +1050,13 @@ export function DataFrameView({
     <div className="flex flex-col h-full">
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1 border-b border-geo-border flex-shrink-0">
-        <span className="text-xs text-geo-muted flex items-center gap-1.5">
+        <span className="text-xs text-geo-muted flex items-center gap-1.5 min-w-0 truncate">
           {cls === 'tbl_dbi' && (
             <Database className="w-3 h-3 text-geo-accent" />
           )}
           {name} — {cls === 'tbl_dbi' ? 'database tbl (lazy)' : cls} — {totalRows} x {columns.length}
         </span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {hasSelection && (
             <span className="text-xs text-geo-accent flex items-center gap-1 mr-1">
               {selectedIndices.length} selected
@@ -1069,6 +1118,19 @@ export function DataFrameView({
                 <Maximize2 className="w-3 h-3" />
               </Button>
             </>
+          )}
+          {isSpatialDataset && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs gap-1 text-geo-muted hover:text-foreground"
+              title="Add this dataset to the spatial editor as a layer"
+              data-ourgeo-id="dataViewer.addToMap"
+              onClick={handleSendToMap}
+            >
+              <MapIcon className="w-3 h-3" />
+              Add to Map
+            </Button>
           )}
           {geomCol && (
             <Button
@@ -1443,6 +1505,13 @@ export function DataFrameView({
           onClose={() => setRowHeaderMenu(null)}
         />
       )}
+      <AlreadyOnMapDialog
+        name={alreadyOnMap.length > 0 ? accessPath : null}
+        count={alreadyOnMap.length}
+        onCancel={() => setAlreadyOnMap([])}
+        onShowExisting={() => { focusMapLayer(alreadyOnMap[0].id); setAlreadyOnMap([]) }}
+        onAddAgain={() => { setAlreadyOnMap([]); void sendToMap() }}
+      />
       <SelectionQueryDialog
         open={queryDialogOpen}
         onClose={() => setQueryDialogOpen(false)}

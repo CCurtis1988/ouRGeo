@@ -5,10 +5,13 @@ import { ContextMenu, type ContextMenuItem } from '../ui/context-menu'
 import { useSessionStore } from '@/store/session'
 import { useEditorStore } from '@/store/editor'
 import { useDatabaseStore, type OpenDb } from '@/store/database'
-import { useSpatialStore } from '@/store/spatial'
-import { useGeometryEditStore } from '@/store/geometryEdit'
+import { type SpatialLayer } from '@/store/spatial'
 import { rClient } from '@/lib/r-client'
 import { SaveConflictDialog, type SaveConflictDecision } from '../database/SaveConflictDialog'
+import { AlreadyOnMapDialog } from '../spatial/AlreadyOnMapDialog'
+import {
+  focusMapLayer, mapLayersForObject, sendDbObjectToMap, sendObjectToMap,
+} from '@/lib/spatial-link'
 import {
   VIEWABLE_DATA_CLASSES,
   VIEWABLE_VECTOR_CLASSES,
@@ -17,7 +20,6 @@ import {
   isViewable,
   isTabularExportable,
   isVectorExportable,
-  inferGeometryType,
 } from '@/lib/validators'
 
 function basenameRgeo(p: string): string {
@@ -122,6 +124,7 @@ export function EnvironmentItem({
     existingNames: string[]
     resolve: (d: SaveConflictDecision) => void
   } | null>(null)
+  const [alreadyOnMap, setAlreadyOnMap] = useState<SpatialLayer[]>([])
   const workspaceFolder = useDatabaseStore((s) => s.workspaceFolder)
   const renameRef = useRef<HTMLInputElement>(null)
   const copyRef = useRef<HTMLInputElement>(null)
@@ -228,72 +231,40 @@ export function EnvironmentItem({
     }
   }
 
-  const handleSendToSpatial = async () => {
+  // Both sends go through src/lib/spatial-link.ts, so an object put on the map
+  // from here, from the data viewer's Add to Map button or by the AI assistant
+  // arrives as the same layer, bound to the same session, with the map moved
+  // to it the same way.
+  const sendToSpatial = async () => {
     const proxy = obj.rgeoProxy
-    if (!proxy) return
-    const spatial = useSpatialStore.getState()
-    const editStore = useGeometryEditStore.getState()
-
-    const newLayerId = spatial.addLayer({
-      name: obj.name,
-      envName: '',
-      geometryType: proxy.geometryType ?? 'GEOMETRY',
-      geojson: { type: 'FeatureCollection', features: [] },
-      colLib: 'sf',
-      columnName: proxy.geometryColumn ?? 'geometry',
-      tileSource: {
-        handle: proxy.handle,
-        name: proxy.name,
-        geometryColumn: proxy.geometryColumn ?? 'geometry',
-        pkColumn: proxy.pkColumn ?? 'rowid',
-        crs: proxy.crs ?? null
+    try {
+      if (proxy) {
+        await sendDbObjectToMap({
+          name: obj.name,
+          handle: proxy.handle,
+          proxyName: proxy.name,
+          geometryType: proxy.geometryType,
+          geometryColumn: proxy.geometryColumn,
+          pkColumn: proxy.pkColumn,
+          crs: proxy.crs
+        })
+      } else {
+        await sendObjectToMap({ name: obj.name, envName, class: obj.class })
       }
-    })
-
-    if (!editStore.activeSessionId) editStore.createNamedSession('Default')
-    editStore.addLayerToActiveSession(newLayerId)
-
-    spatial.ensureOpen()
-
-    // Db-backed layers start with empty geojson, so requestFitBounds alone
-    // would have nothing to fit. Resolve the dataset's full bbox first so
-    // the editor lands on the data; tiles populate from there.
-    const bboxRes = await rClient.datasetBbox({ handle: proxy.handle, name: proxy.name })
-    if (bboxRes.success && bboxRes.bbox) {
-      spatial.setLayerFullBbox(newLayerId, bboxRes.bbox)
-    }
-    spatial.requestFitBounds()
-  }
-
-  const handleSendSfToSpatial = async () => {
-    const spatial = useSpatialStore.getState()
-    const editStore = useGeometryEditStore.getState()
-
-    const res = await rClient.getSpatialGeoJSON(obj.name, envName)
-    if (!res.success || !res.geojson) {
+    } catch (e) {
       useSessionStore
         .getState()
-        .addConsoleEntry('error', res.error ?? `Failed to load GeoJSON for ${obj.name}`)
+        .addConsoleEntry('error', `Could not add ${obj.name} to the map: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const handleSendToSpatial = () => {
+    const existing = mapLayersForObject({ name: obj.name, envName: obj.rgeoProxy ? '' : envName })
+    if (existing.length > 0) {
+      setAlreadyOnMap(existing)
       return
     }
-
-    const geojson =
-      typeof res.geojson === 'string' ? JSON.parse(res.geojson) : res.geojson
-
-    const newLayerId = spatial.addLayer({
-      name: obj.name,
-      envName,
-      geometryType: inferGeometryType(geojson),
-      geojson,
-      colLib: obj.class === 'sf' || obj.class === 'sfc' ? 'sf' : 'geos',
-      columnName: 'geometry'
-    })
-
-    if (!editStore.activeSessionId) editStore.createNamedSession('Default')
-    editStore.addLayerToActiveSession(newLayerId)
-
-    spatial.ensureOpen()
-    spatial.requestFitBounds()
+    void sendToSpatial()
   }
 
   const handleExport = async (format: 'csv' | 'txt' | 'xlsx' | 'r') => {
@@ -366,10 +337,7 @@ export function EnvironmentItem({
     ...(isViewable(obj.class)
       ? [{ label: 'View/Edit', onClick: handleViewEdit }]
       : []),
-    ...(isInMemorySf
-      ? [{ label: 'Send to spatial editor', onClick: handleSendSfToSpatial }]
-      : []),
-    ...(isSpatialProxy
+    ...(isInMemorySf || isSpatialProxy
       ? [{ label: 'Send to spatial editor', onClick: handleSendToSpatial }]
       : []),
     { label: 'Remove', onClick: handleRemove },
@@ -534,6 +502,14 @@ export function EnvironmentItem({
           onResolve={(d) => conflictPrompt.resolve(d)}
         />
       )}
+
+      <AlreadyOnMapDialog
+        name={alreadyOnMap.length > 0 ? obj.name : null}
+        count={alreadyOnMap.length}
+        onCancel={() => setAlreadyOnMap([])}
+        onShowExisting={() => { focusMapLayer(alreadyOnMap[0].id); setAlreadyOnMap([]) }}
+        onAddAgain={() => { setAlreadyOnMap([]); void sendToSpatial() }}
+      />
     </>
   )
 }

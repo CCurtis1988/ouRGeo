@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
-  Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText,
+  Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -15,6 +15,7 @@ import { AttributePopupToggle } from './AttributePopupToggle'
 import { CrsSettings } from './CrsSettings'
 import { AiProviderSettings } from './AiProviderSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
+import { LayoutSettings } from './LayoutSettings'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useUiStore } from '@/store/ui'
 
@@ -279,6 +280,14 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
                 and inline code, in both Source and Visual mode.
               </p>
               <MarkdownThemePicker />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={LayoutGrid}
+              title="Workspace"
+              description="Panel arrangement — dragging, saved layouts, and the way back"
+            >
+              <LayoutSettings />
             </SettingsSection>
 
             <SettingsSection

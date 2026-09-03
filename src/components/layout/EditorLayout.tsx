@@ -21,7 +21,7 @@ import { zoneVisible, type PanelId, type ZoneId } from '@/lib/layout/model'
 import { resolveToolbar, type ToolbarButtonDef } from '@/lib/layout/toolbar'
 import { actionById } from '@/lib/ai-actions/registry'
 import { HighlightOverlay } from './HighlightOverlay'
-import { Zone } from './Zone'
+import { Zone, EmptyZoneTarget } from './Zone'
 import { startDragResize } from './resize'
 import { useElementSize } from './useElementSize'
 import { cn } from '@/lib/utils'
@@ -238,7 +238,7 @@ export function EditorLayout(): React.ReactElement {
   )
 
   return (
-    <div className="flex flex-col h-full w-full bg-geo-bg" onDragEnd={() => setDrag(null)}>
+    <div className="flex flex-col h-full w-full bg-geo-bg">
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-9 border-b border-geo-border flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -276,29 +276,29 @@ export function EditorLayout(): React.ReactElement {
 
       {/* Body: left | (centre over bottom) | right */}
       <div ref={bodyRef} className="flex flex-1 min-h-0">
-        {leftOpen && (
+        {leftOpen ? (
           <>
             <Zone zone="left" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.left} />
             {zoneDivider('left', 'x', 1)}
           </>
-        )}
+        ) : drag && <EmptyZoneTarget zone="left" />}
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <Zone zone="center" layout={layout} drag={drag} setDrag={setDrag} />
-          {bottomOpen && (
+          {bottomOpen ? (
             <>
               {zoneDivider('bottom', 'y', -1)}
               <Zone zone="bottom" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.bottom} />
             </>
-          )}
+          ) : drag && <EmptyZoneTarget zone="bottom" />}
         </div>
 
-        {rightOpen && (
+        {rightOpen ? (
           <>
             {zoneDivider('right', 'x', -1)}
             <Zone zone="right" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.right} />
           </>
-        )}
+        ) : drag && <EmptyZoneTarget zone="right" />}
       </div>
 
       <LoadDataDialog

@@ -18,7 +18,7 @@ import {
   describeLayout, zoneOf, isOpen, openPanels, shareOf, ZONE_IDS, ZONE_LABELS,
   type PanelId, type ZoneId,
 } from '@/lib/layout/model'
-import { ok, fail, argStr, argNum, argList, type UiAction } from './types'
+import { ok, fail, argStr, argNum, argBool, argList, type UiAction } from './types'
 
 function resolvePanel(want: string): { id: PanelId; label: string } | null {
   const hit = resolvePanelName(want)
@@ -340,6 +340,25 @@ export const layoutActions: UiAction[] = [
       }
       await useLayoutStore.getState().deletePreset(name)
       return ok(`Deleted the layout "${name}".`)
+    },
+  },
+
+  {
+    id: 'layout:setPanelDrag',
+    group: 'layout',
+    tier: 'always',
+    summary:
+      'Turn the drag-to-rearrange grip in each panel’s corner on or off. Off removes the GESTURE only — ' +
+      'the arrangement is untouched, and layout:movePanel still works. Settings → Workspace has the same switch.',
+    params: [
+      { name: 'enabled', type: 'boolean', required: true, description: 'true to allow dragging panels, false to switch the grips off.' },
+    ],
+    run: (args) => {
+      const enabled = argBool(args, 'enabled', true)
+      useLayoutStore.getState().setDragEnabled(enabled)
+      return ok(enabled
+        ? 'Panels can be dragged by the grip in their top-right corner.'
+        : 'Panel drag grips are off. Panels can still be moved from Settings → Workspace, or with layout:movePanel.')
     },
   },
 

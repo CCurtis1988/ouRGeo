@@ -219,6 +219,33 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePath
   })
 
+  // Layout dialogs. A `.ourgeolayout.json` holds one or more named workspace
+  // arrangements under an `ourgeoLayout` envelope; the renderer identifies the
+  // file from that envelope, so the extension here is a convenience only.
+  ipcMain.handle('dialog:openLayout', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import Workspace Layout',
+      filters: [
+        { name: 'ouRGeo Layout', extensions: ['ourgeolayout', 'json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  ipcMain.handle('dialog:saveLayout', async (_evt, defaultName?: string) => {
+    const result = await dialog.showSaveDialog({
+      title: 'Export Workspace Layout',
+      defaultPath: defaultName ? `${defaultName}.ourgeolayout.json` : undefined,
+      filters: [
+        { name: 'ouRGeo Layout', extensions: ['ourgeolayout.json', 'json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    return result.canceled ? null : result.filePath
+  })
+
   // Theme artwork: a background image or a picker icon. The extension list is
   // exactly what Chromium can paint from a data: URI in an <img>/background —
   // no TIFF, no PDF, no HEIC.

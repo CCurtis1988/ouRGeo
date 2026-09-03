@@ -228,3 +228,20 @@ describe('layout:reset', () => {
     expect(openPanels(layout(), 'center')).toEqual(['editor'])
   })
 })
+
+describe('layout:setPanelDrag', () => {
+  it('switches the corner grips off without touching the arrangement', async () => {
+    await run('layout:movePanel', { panel: 'spatial', zone: 'left' })
+
+    expect(await run('layout:setPanelDrag', { enabled: false })).toContain('off')
+    expect(useLayoutStore.getState().dragEnabled).toBe(false)
+    // The point of the switch: the gesture goes, the layout stays, and the
+    // actions still work — otherwise turning it off would strand the user.
+    expect(zoneOf(layout(), 'spatial')).toBe('left')
+    await run('layout:movePanel', { panel: 'spatial', zone: 'bottom' })
+    expect(zoneOf(layout(), 'spatial')).toBe('bottom')
+
+    await run('layout:setPanelDrag', { enabled: true })
+    expect(useLayoutStore.getState().dragEnabled).toBe(true)
+  })
+})

@@ -28,6 +28,10 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'toolbar.settings', label: 'Settings', where: 'top toolbar, far right' },
   { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
+  { id: 'settings.panelDrag', label: 'Drag panels to rearrange them', where: 'Settings → Workspace' },
+  { id: 'settings.layoutName', label: 'Name this arrangement', where: 'Settings → Workspace' },
+  { id: 'settings.layoutImport', label: 'Import…', where: 'Settings → Workspace' },
+  { id: 'settings.layoutReset', label: 'Restore default arrangement', where: 'Settings → Workspace' },
 
   // Spatial editor ribbon.
   { id: 'map.addFeatures', label: 'Add Features', where: 'spatial editor ribbon' },
@@ -38,6 +42,10 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'map.export', label: 'Export', where: 'spatial editor ribbon' },
   { id: 'map.saveEdits', label: 'Save Edits', where: 'spatial editor ribbon, when edits are staged' },
   { id: 'map.canvas', label: 'The map itself', where: 'spatial editor' },
+  { id: 'map.addAgain', label: 'Add again', where: 'the "Already on the map" prompt' },
+
+  // Data viewer.
+  { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },
 
   // Editor toolbar and console.
   { id: 'editor.runLine', label: 'Line (Ctrl+Enter)', where: 'editor toolbar' },

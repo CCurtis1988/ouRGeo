@@ -32,7 +32,10 @@ import {
   type LayoutState, type PanelId, type ZoneAxis, type ZoneId, type ZoneMode, type ToolbarState,
 } from '@/lib/layout/model'
 import { panelInfoList } from '@/lib/layout/panel-meta'
-import { loadLayout, saveLayoutFile, loadPresets, type LayoutPreset } from '@/lib/layout-persistence'
+import {
+  loadLayout, saveLayoutFile, loadPresets, loadDragEnabled, type LayoutPreset,
+} from '@/lib/layout-persistence'
+import { buildLayoutFile, layoutFileName, parseLayoutFile } from '@/lib/layout/layout-file'
 import { useEnvironmentStore } from './environment'
 import { usePackagesStore } from './packages'
 import { useDatabaseStore } from './database'
@@ -84,8 +87,8 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
  * layout.json stayed absent until something was dragged.
  */
 function save(): Promise<void> {
-  const { layout, presets } = useLayoutStore.getState()
-  return saveLayoutFile(layout, presets)
+  const { layout, presets, dragEnabled } = useLayoutStore.getState()
+  return saveLayoutFile(layout, presets, dragEnabled)
 }
 
 function scheduleSave(): void {
@@ -112,6 +115,9 @@ export function flushLayout(): Promise<void> {
 interface LayoutStoreState {
   layout: LayoutState
   presets: LayoutPreset[]
+  /** Whether the corner grips are live. Off leaves the layout entirely to
+   *  Settings and the assistant — the arrangement is unchanged either way. */
+  dragEnabled: boolean
   /** False until `init()` has read layout.json — the render uses the defaults
    *  meanwhile rather than flashing an empty workspace. */
   loaded: boolean
@@ -136,9 +142,18 @@ interface LayoutStoreState {
   setToolbar: (patch: Partial<ToolbarState>) => void
   reset: () => void
 
+  setDragEnabled: (on: boolean) => void
+
   savePreset: (name: string) => Promise<void>
   applyPreset: (name: string) => boolean
   deletePreset: (name: string) => Promise<void>
+  /** Write one saved arrangement to a file the user picks. Resolves to the
+   *  path, or null if they cancelled. */
+  exportPreset: (name: string) => Promise<string | null>
+  /** Read arrangements from a file the user picks, adding them to the list. */
+  importPresets: () => Promise<
+    { ok: true; names: string[] } | { ok: false; error: string } | null
+  >
 }
 
 export const useLayoutStore = create<LayoutStoreState>((set, get) => {
@@ -154,13 +169,16 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
   return {
     layout: defaultLayout(panelInfoList()),
     presets: [],
+    dragEnabled: true,
     loaded: false,
 
     init: async () => {
       if (get().loaded) return
-      const [stored, presets] = await Promise.all([loadLayout(), loadPresets()])
+      const [stored, presets, dragEnabled] = await Promise.all([
+        loadLayout(), loadPresets(), loadDragEnabled(),
+      ])
       const base = normalize(stored ?? defaultLayout(panelInfoList()), panelInfoList())
-      set({ layout: base, presets, loaded: true })
+      set({ layout: base, presets, dragEnabled, loaded: true })
       // Restore, then hand ownership back: every subsequent change flows
       // feature store → mirror. Panels that opened themselves while the file
       // was being read (the console printing a plot on startup) are picked up
@@ -212,6 +230,8 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       apply(() => fresh)
     },
 
+    setDragEnabled: (on) => { set({ dragEnabled: on }); scheduleSave() },
+
     savePreset: async (name) => {
       const presets = [
         ...get().presets.filter((p) => p.name.toLowerCase() !== name.trim().toLowerCase()),
@@ -235,6 +255,42 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       const presets = get().presets.filter((p) => p.name.toLowerCase() !== name.trim().toLowerCase())
       set({ presets })
       await save()
+    },
+
+    exportPreset: async (name) => {
+      const hit = get().presets.find((p) => p.name.toLowerCase() === name.trim().toLowerCase())
+      if (!hit) return null
+      const path = await window.electronAPI.dialog.saveLayout(layoutFileName(hit.name))
+      if (!path) return null
+      await window.electronAPI.file.write(path, buildLayoutFile([hit]))
+      return path
+    },
+
+    importPresets: async () => {
+      const path = await window.electronAPI.dialog.openLayout()
+      if (!path) return null
+      let text: string
+      try {
+        text = await window.electronAPI.file.read(path)
+      } catch {
+        return { ok: false, error: 'That file could not be read.' }
+      }
+      const parsed = parseLayoutFile(text)
+      if (!parsed.ok) return parsed
+      // Normalized on the way IN, not on apply: a file from another machine can
+      // name a panel this ouRGeo has never heard of (a plugin the user does not
+      // have), and the invariants are cheaper to enforce once than on every use.
+      const incoming = parsed.presets.map((p) => ({
+        name: p.name, layout: normalize(p.layout, panelInfoList()),
+      }))
+      const names = incoming.map((p) => p.name.toLowerCase())
+      const presets = [
+        ...get().presets.filter((p) => !names.includes(p.name.toLowerCase())),
+        ...incoming,
+      ]
+      set({ presets })
+      await save()
+      return { ok: true, names: incoming.map((p) => p.name) }
     },
   }
 })

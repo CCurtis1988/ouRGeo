@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { Plus, Lasso, MousePointer2, Check, Eye, EyeOff, Trash2, Pencil, ChevronDown, GripVertical, Settings2, Type, Map } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useUiStore } from '@/store/ui'
@@ -16,6 +16,10 @@ import { NorthArrowSettingsDialog } from './NorthArrowSettingsDialog'
 import { BasemapDialog } from './BasemapDialog'
 import { ExportDropdown } from './ExportDropdown'
 import { LayerPreview } from './LayerPreview'
+import { ContextMenu } from '../ui/context-menu'
+import { useEnvironmentStore } from '@/store/environment'
+import { useSessionStore } from '@/store/session'
+import { openLayerInDataViewer, viewerTargetForLayer } from '@/lib/spatial-link'
 import { rClient } from '@/lib/r-client'
 import { cn } from '@/lib/utils'
 
@@ -124,6 +128,12 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
     const orphaned = removeLayerFromActiveSession(layerId)
     if (orphaned) removeSpatialLayer(layerId)
   }
+
+  // Right-click on a Contents row. The layer id, not the layer: the list is
+  // rebuilt on every store change, and a captured object would go stale the
+  // moment something else edited the layer under the open menu.
+  const [layerMenu, setLayerMenu] = useState<{ x: number; y: number; layerId: string } | null>(null)
+  const environments = useEnvironmentStore((s) => s.environments)
 
   const dragLayerId = useRef<string | null>(null)
   const dragOverLayerId = useRef<string | null>(null)
@@ -404,6 +414,11 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
                         key={layer.id}
                         data-layer-id={layer.id}
                         onClick={() => setSelectedLayerId(layer.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setSelectedLayerId(layer.id)
+                          setLayerMenu({ x: e.clientX, y: e.clientY, layerId: layer.id })
+                        }}
                         className={cn(
                           'flex items-center gap-2 px-2 py-1.5 hover:bg-geo-bg group cursor-pointer',
                           selectedLayerId === layer.id && 'bg-geo-bg/60'
@@ -534,6 +549,33 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
           <SessionManagerDropdown />
         </div>
       )}
+
+      {layerMenu && (() => {
+        const layer = allLayers.find((l) => l.id === layerMenu.layerId)
+        if (!layer) return null
+        const target = viewerTargetForLayer(layer, environments)
+        return (
+          <ContextMenu
+            x={layerMenu.x}
+            y={layerMenu.y}
+            items={[
+              target.ok
+                ? {
+                    label: 'Open in data editor',
+                    onClick: () => {
+                      const res = openLayerInDataViewer(layer)
+                      // Re-checked inside, because the environment can change
+                      // between drawing this menu and clicking it.
+                      if (!res.ok) useSessionStore.getState().addConsoleEntry('error', res.reason)
+                      hideDialog('map-contents')
+                    },
+                  }
+                : { label: `Open in data editor — ${target.short}`, disabled: true },
+            ]}
+            onClose={() => setLayerMenu(null)}
+          />
+        )
+      })()}
 
       <SymbologyDialog
         layerId={

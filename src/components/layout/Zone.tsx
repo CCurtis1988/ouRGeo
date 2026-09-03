@@ -17,11 +17,67 @@ import { useLayoutStore } from '@/store/layout'
 import { startDragResize } from './resize'
 import { cn } from '@/lib/utils'
 
-/** The drag in progress, if any — lifted to EditorLayout so a panel can be
- *  dragged from one zone into another. */
-export interface PanelDrag {
-  panel: PanelId
-  set: (d: PanelId | null) => void
+/**
+ * Start moving a panel, on mouse events rather than HTML5 drag-and-drop.
+ *
+ * It WAS drag-and-drop: `draggable` on the grip, `onDrop` on the zones. The
+ * drop logic was right and is unchanged — but the gesture never reached it.
+ * Pressing the grip and dragging did nothing at all, which is the worst way for
+ * a control to fail: the tooltip says "Move Environment", the cursor says grab,
+ * and the panel sits where it is. The Contents list in the spatial editor has
+ * always reordered layers on plain mouse events, in this same app, so that is
+ * the pattern to follow rather than a second attempt at native dnd.
+ *
+ * The 4px threshold is what keeps a plain CLICK from entering drag mode — the
+ * tab-strip buttons carry this handler as well as an onClick, and without it
+ * every click on a tab would flash the drop targets across the whole window.
+ *
+ * **The drop is committed HERE, not in the zone that was dropped on**, and that
+ * is not a stylistic choice. Each zone's overlay used to end the drag itself:
+ * every one of them heard the mouseup, the one holding the slot moved the
+ * panel, the rest cleared the drag. But React flushes a state update from a
+ * discrete native event SYNCHRONOUSLY, so the first zone to hear the mouseup —
+ * the left one, always, since effects register in tree order — cleared the drag
+ * mid-dispatch, unmounted every overlay, and took the remaining listeners with
+ * it. The zone actually under the cursor never ran. The gesture worked
+ * perfectly when the mouseup was synthesized from a script, because that update
+ * was merely batched; only a real one from a human hand failed.
+ */
+function startPanelDrag(
+  panel: PanelId, setDrag: (p: PanelId | null) => void,
+): (e: React.MouseEvent) => void {
+  return (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()          // or the pointer selects text as it travels
+    const x0 = e.clientX, y0 = e.clientY
+    let started = false
+
+    const onMove = (ev: MouseEvent): void => {
+      if (started) return
+      if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return
+      started = true
+      setDrag(panel)
+    }
+    const onUp = (ev: MouseEvent): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      if (started) {
+        const slot = slotUnder(ev.clientX, ev.clientY)
+        if (slot) useLayoutStore.getState().movePanel(panel, slot.zone, slot.index)
+      }
+      setDrag(null)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+}
+
+/** The insertion slot under the pointer, wherever it is. */
+function slotUnder(x: number, y: number): { zone: ZoneId; index: number } | null {
+  const el = (document.elementFromPoint(x, y) as HTMLElement | null)
+    ?.closest('[data-drop-zone]') as HTMLElement | null
+  if (!el?.dataset.dropZone) return null
+  return { zone: el.dataset.dropZone as ZoneId, index: Number(el.dataset.dropIndex) }
 }
 
 interface Props {
@@ -35,6 +91,10 @@ interface Props {
 }
 
 export function Zone({ zone, layout, drag, setDrag, maxSize }: Props): React.ReactElement | null {
+  // Settings → Workspace can switch the grips off. The layout itself is
+  // untouched by that: what it disables is the GESTURE, not rearranging, which
+  // stays available from Settings and from the assistant.
+  const dragEnabled = useLayoutStore((s) => s.dragEnabled)
   const state = layout.zones[zone]
   const ids = openPanels(layout, zone)
   if (ids.length === 0) return null
@@ -74,14 +134,14 @@ export function Zone({ zone, layout, drag, setDrag, maxSize }: Props): React.Rea
               )}
               style={state.mode === 'tabs' ? undefined : innerSize(isRow, state.weights[id], def.min)}
             >
-              {state.mode === 'split' && <PanelGrip def={def} setDrag={setDrag} />}
+              {state.mode === 'split' && dragEnabled && <PanelGrip def={def} setDrag={setDrag} />}
               {render()}
             </div>
           </React.Fragment>
         )
       })}
 
-      {drag && <DropTargets zone={zone} ids={ids} isRow={isRow} drag={drag} setDrag={setDrag} />}
+      {drag && <DropTargets zone={zone} ids={ids} isRow={isRow} />}
     </div>
   )
 }
@@ -131,10 +191,8 @@ function PanelGrip(
 ): React.ReactElement {
   return (
     <div
-      draggable
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(def.id) }}
-      onDragEnd={() => setDrag(null)}
-      title={`Move ${def.label}`}
+      onMouseDown={startPanelDrag(def.id, setDrag)}
+      title={`Move ${def.label} — drag into another zone`}
       data-ourgeo-id={`panel.grip.${def.id}`}
       className="absolute top-0 right-0 z-20 h-4 w-4 flex items-center justify-center
         cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100
@@ -150,6 +208,7 @@ function TabStrip(
   { zone: ZoneId; ids: PanelId[]; active: PanelId; setDrag: (p: PanelId | null) => void },
 ): React.ReactElement {
   const setActivePanel = useLayoutStore((s) => s.setActivePanel)
+  const dragEnabled = useLayoutStore((s) => s.dragEnabled)
   return (
     <div className="flex items-center gap-px h-6 flex-shrink-0 bg-geo-bg border-b border-geo-border overflow-x-auto"
       data-ourgeo-id={`zone.tabs.${zone}`}
@@ -160,9 +219,7 @@ function TabStrip(
         return (
           <button
             key={id}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(id) }}
-            onDragEnd={() => setDrag(null)}
+            onMouseDown={dragEnabled ? startPanelDrag(id, setDrag) : undefined}
             onClick={() => setActivePanel(id)}
             className={cn(
               'px-2 h-6 text-[11px] whitespace-nowrap transition-colors',
@@ -235,42 +292,85 @@ function InnerDivider(
 }
 
 /**
- * While a panel is being dragged, every zone shows insertion slots.
+ * A zone with nothing in it, offered as a drop target while a panel is moving.
  *
- * An overlay rather than drop handlers on the panels themselves: a panel's own
+ * An empty zone renders as nothing at all, which is right until you have just
+ * dragged the last panel out of one: the left column then has no pixels, so
+ * there is nowhere to aim, and a panel can be moved out of a zone but never
+ * back into it. This strip exists only during a drag and only for a zone that
+ * is empty, so it costs nothing the rest of the time.
+ *
+ * The highlight is plain CSS `:hover` — the pointer is genuinely over this
+ * element (there is no native drag in flight to suppress it), so no JS needs to
+ * track it.
+ */
+export function EmptyZoneTarget({ zone }: { zone: ZoneId }): React.ReactElement {
+  const vertical = zone === 'left' || zone === 'right'
+  return (
+    <div
+      data-drop-zone={zone}
+      data-drop-index={0}
+      title={`Drop here to move the panel to the ${ZONE_LABELS[zone].toLowerCase()}`}
+      className={cn(
+        'flex-shrink-0 z-30 border-dashed border-geo-accent/40 bg-geo-accent/5',
+        'hover:bg-geo-accent/25 transition-colors cursor-grabbing',
+        vertical ? 'w-8 border-x' : 'h-8 border-y',
+      )}
+    />
+  )
+}
+
+/**
+ * While a panel is being dragged, every zone shows insertion slots — and does
+ * nothing else. The slots are hit-tested by `startPanelDrag`, from their
+ * `data-drop-zone` attributes; all this tracks is which one to light up.
+ *
+ * An overlay rather than handlers on the panels themselves: a panel's own
  * content (the map, Monaco) swallows pointer events and would never see the
  * drop. The overlay only exists during a drag, so nothing intercepts a click
  * the rest of the time.
+ *
+ * Each zone hit-tests for itself, from the window's mousemove — which is why
+ * no shared "where is the pointer" state is needed anywhere. Every mounted
+ * overlay sees the mouseup; only the one holding the slot under the cursor
+ * moves anything.
  */
 function DropTargets(
-  { zone, ids, isRow, drag, setDrag }:
-  { zone: ZoneId; ids: PanelId[]; isRow: boolean; drag: PanelId; setDrag: (p: PanelId | null) => void },
+  { zone, ids, isRow }: { zone: ZoneId; ids: PanelId[]; isRow: boolean },
 ): React.ReactElement {
-  const movePanel = useLayoutStore((s) => s.movePanel)
   const [over, setOver] = React.useState<number | null>(null)
   const slots = ids.length + 1
 
-  const drop = (index: number) => (e: React.DragEvent): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    setOver(null)
-    setDrag(null)
-    movePanel(drag, zone, index)
-  }
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      const slot = slotUnder(e.clientX, e.clientY)
+      setOver(slot && slot.zone === zone ? slot.index : null)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [zone])
 
   return (
-    <div className={cn('absolute inset-0 z-30 flex', isRow ? 'flex-row' : 'flex-col')}>
+    <div
+      className={cn(
+        'absolute inset-0 z-30 flex cursor-grabbing',
+        // The zone lights up as a whole, because the thing being chosen is
+        // WHICH ZONE — the slot within it is the fine adjustment, and with
+        // only a hairline to look for the gesture read as doing nothing.
+        'ring-1 ring-inset ring-geo-accent/30 bg-geo-accent/5',
+        isRow ? 'flex-row' : 'flex-col',
+      )}
+    >
       {Array.from({ length: slots }, (_, i) => (
         <div
           key={i}
+          data-drop-zone={zone}
+          data-drop-index={i}
           className="flex-1 flex items-center justify-center"
-          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(i) }}
-          onDragLeave={() => setOver((o) => (o === i ? null : o))}
-          onDrop={drop(i)}
         >
           <div
             className={cn(
-              'transition-colors',
+              'transition-colors rounded-full',
               isRow ? 'w-1 h-full' : 'h-1 w-full',
               over === i ? 'bg-geo-accent' : 'bg-geo-accent/0',
             )}

@@ -288,6 +288,48 @@ source()d functions).
   `app:confirm-quit` — code/.R tabs are always flushed regardless of choice.
 - Recent projects (max 5) persist in `recent-projects.json` (never deleted).
 
+## Moving an object between panels (`src/lib/spatial-link.ts`)
+
+The Environment panel, the data viewer and the Spatial Editor show the same R
+objects from three angles, and each direction between them lives here.
+
+- **The two directions share one question — "is this object already on the
+  map?" — so they have to answer it the same way.** `layerShowsObject` is that
+  answer, and the case it exists for is the **empty `envName`**: a
+  database-backed layer has no R environment (`addDbSpatialLayer`), so a strict
+  comparison says a `.Rgeo` dataset the user just sent to the map is not on the
+  map and offers to add it again. An empty environment on either side matches on
+  the name alone — which errs towards ASKING, and the answer feeds a prompt
+  rather than a refusal, so that is the right way for it to be wrong.
+- **"In the current view" means what Contents lists**, not every layer in the
+  store: `SpatialRibbon` filters to the active named session's layers when there
+  is one. `layersInView` states that, so the prompt can never claim a duplicate
+  the user cannot see.
+- **`AlreadyOnMapDialog` has three answers, not two.** A second layer from one
+  object is legitimate (two symbologies of one roads layer) and far more often a
+  user who forgot the layer was there — and nothing about the click distinguishes
+  them. *Show existing layer* is the answer the forgetful case wants and the only
+  one the old flow could not express. It is shared by the data viewer's **Add to
+  Map** and the Environment panel's **Send to spatial editor**, so the same
+  gesture gets the same question wherever it starts.
+- **Map → table needs no dedupe of its own**: `addObjectTab` already keys on
+  access path + environment and activates the tab it finds. `viewerTargetForLayer`
+  decides *what* to open, refusing only a raster (bands, not rows — it names the
+  symbology editor instead) and a class with no table view. When the environment
+  listing has not caught up — a layer added seconds ago, an object reached
+  through an expression — it opens anyway rather than refuse something that
+  works; the data viewer reports a genuinely missing object itself, with a Retry.
+- **Opening a panel is not showing it.** Both directions call
+  `useLayoutStore.setActivePanel`, because in a tabbed zone the panel can open
+  behind whatever tab is in front of it, and a table that opened where the user
+  cannot see it is indistinguishable from a button that did nothing.
+- `add-spatial-layer.ts` gained `addDbSpatialLayer`, lifted out of
+  `EnvironmentItem`, so a `.Rgeo` dataset put on the map from the panel, from
+  the data viewer or by the assistant is the same layer with the same tile
+  source; and `addSpatialLayer` now infers `geometryType` from the geometry
+  rather than leaving it `'Unknown'` for callers that (unlike Add Features)
+  never asked `/spatial/list`.
+
 ## Raster Layers (v1.7)
 
 Rasters are first-class end-to-end. `SpatialLayer` is discriminated by
@@ -1142,20 +1184,60 @@ request.
   arrangement, and those persist as before. A *preset* keeps its shares —
   applying one is a deliberate in-session act, and "restore that arrangement"
   means all of it.
+- **The panel grip drags on mouse events, not HTML5 drag-and-drop**
+  (`Zone.tsx`). It was dnd, and pressing the grip did nothing at all — the
+  worst way for a control to fail, since the tooltip and the cursor both say it
+  should work. Two things were wrong and only one was the dnd: **the drop was
+  committed by the zone that was dropped on**, and every zone's overlay heard
+  the mouseup. React flushes a state update from a discrete native event
+  SYNCHRONOUSLY, so the first zone to hear it — the left one, always, because
+  effects register in tree order — cleared the drag mid-dispatch, unmounted
+  every overlay and took the remaining listeners with it. The zone under the
+  cursor never ran. It worked perfectly from a script, because a synthesized
+  event's update is merely batched: only a real hand could fail it. The drop
+  now happens in `startPanelDrag`, once, hit-testing `data-drop-zone`
+  attributes; the overlays only light up. Same pattern as the Contents list's
+  layer reorder, which has always worked.
+- **An empty zone is a drop target only while dragging** (`EmptyZoneTarget`).
+  A zone with no panels renders as nothing, which is right until you drag the
+  last panel out of one — the column then has no pixels, and a panel could be
+  moved out of a zone but never back into it.
 - **Zone sizes are clamped at render, not in the model.** The stored px size is
   the user's and is never rewritten, but a measured ceiling keeps the centre
   above a floor — what the old layout did by hand with
   `max = min(innerWidth * 2/3, innerWidth - 380)`. Without it a stored 240px
   console on a short window leaves fifty pixels to type in, and three open
   panels leave the editor none.
+- **Settings → Workspace** (`LayoutSettings.tsx`) is the third way to reach the
+  arrangement, and the one that shows you what you have. The grip is a gesture
+  and the assistant is a conversation; neither lists the arrangements you saved,
+  and neither is where a user looks after moving something by accident — which
+  is why **Restore default arrangement** sits with the list rather than
+  anywhere else.
+  - **`dragEnabled` disables the GESTURE, not rearranging.** `layout:movePanel`,
+    the presets and Restore all still work with the grips off, and the stored
+    layout is untouched — otherwise switching it off would strand a user in
+    whatever arrangement they had. It lives in `layout.json` beside the layout
+    and the presets, and an absent or unreadable value means ON: a preference
+    file that failed to load must not quietly take a feature away.
+  - **Arrangements export as `.ourgeolayout.json`** (`layout/layout-file.ts`),
+    following the theme format for the same reason: an envelope that says what
+    the file IS, so a file picked by mistake is answered by naming it (a theme,
+    `theme.json`, a plugin manifest, a project manifest) rather than complaining
+    about a missing property. ouRGeo's own `layout.json` is the likeliest
+    mis-pick and is also a real arrangement, so it is READ, under the name
+    "Imported layout". A format version from the future is refused; an
+    arrangement whose `LAYOUT_VERSION` is stale is dropped. Imports are
+    `normalize`d on the way in, because a file from another machine can name a
+    panel this ouRGeo has never heard of.
 - `layout.json` sits with `theme.json` on the **preference** side of the userData
   split, never in the `will-quit` delete list. The flush on quit is a single
   `write`, not a `merge`: a merge is a read-modify-write across two IPC calls and
   the renderer is destroyed as soon as it calls `app:confirm-quit`, so the layout
   was silently never saved on exit while `session.json` always was.
 - Actions: `layout:describe / movePanel / setPanelSize / evenPanels /
-  setZoneSize / setZoneMode / showTab / setToolbarButtons / savePreset /
-  applyPreset / listPresets / deletePreset / reset`. `setPanelSize` takes a
+  setZoneSize / setZoneMode / showTab / setToolbarButtons / setPanelDrag /
+  savePreset / applyPreset / listPresets / deletePreset / reset`. `setPanelSize` takes a
   **percent** of the zone, not pixels, and refuses a panel that is alone in its
   zone by naming `setZoneSize` — silently doing nothing there would leave the
   model telling the user it had made the map bigger. All `always` except the two that write

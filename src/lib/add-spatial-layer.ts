@@ -10,6 +10,7 @@
 // a second, subtly different code path.
 
 import { rClient } from '@/lib/r-client'
+import { inferGeometryType } from '@/lib/validators'
 import { createRasterLayerInfo, rasterLayerDraft } from '@/lib/raster-layers'
 import { useSpatialStore } from '@/store/spatial'
 import { useGeometryEditStore } from '@/store/geometryEdit'
@@ -119,7 +120,11 @@ export async function addSpatialLayer(obj: SpatialObjectRef): Promise<AddedLayer
   const layerId = spatial.addLayer({
     name: obj.name,
     envName: obj.envName,
-    geometryType: obj.geometryType ?? 'Unknown',
+    // The Add Features dialog knows the geometry type already (it comes from
+    // /spatial/list); the Environment panel and the data viewer do not, so it
+    // is read back off the geometry rather than left as 'Unknown' — the legend
+    // and the symbology editor both key off it.
+    geometryType: obj.geometryType ?? inferGeometryType(geojson),
     geojson,
     colLib: (obj.class === 'sf' || obj.class === 'sfc' || obj.class === 'sfg') ? 'sf' : 'geos',
     columnName: obj.sfColumn ?? 'geometry',
@@ -152,4 +157,63 @@ export async function addSpatialLayers(objs: SpatialObjectRef[]): Promise<{
     }
   }
   return { added, failures, bbox }
+}
+
+/**
+ * A database-backed dataset, as the Environment panel and the data viewer see
+ * it: the R variable plus the `rgeoProxy` that says which .Rgeo table it is a
+ * lazy view onto.
+ */
+export interface DbSpatialRef {
+  /** The R variable the user is looking at. */
+  name: string
+  handle: string
+  /** The dataset's name inside the .Rgeo file, which need not match. */
+  proxyName: string
+  geometryType?: string | null
+  geometryColumn?: string | null
+  pkColumn?: string
+  crs?: string | null
+}
+
+/**
+ * Add one database-backed dataset to the map.
+ *
+ * Nothing is fetched here: the layer starts with an empty FeatureCollection and
+ * fills in from `/dataset/tile` as the map moves (DbSpatialTileLoader). That is
+ * also why the extent has to be asked for separately — `requestFitBounds` would
+ * otherwise have no features to fit and leave the user staring at the whole
+ * world while their data sat in one county.
+ */
+export async function addDbSpatialLayer(ref: DbSpatialRef): Promise<AddedLayer> {
+  const spatial = useSpatialStore.getState()
+
+  const layerId = spatial.addLayer({
+    name: ref.name,
+    // Deliberately empty: a database layer is not a view onto an object in an
+    // R environment, and `envName` is what every "is this object on the map?"
+    // check compares. See `layerShowsObject` in spatial-link.ts.
+    envName: '',
+    geometryType: ref.geometryType ?? 'GEOMETRY',
+    geojson: { type: 'FeatureCollection', features: [] },
+    colLib: 'sf',
+    columnName: ref.geometryColumn ?? 'geometry',
+    tileSource: {
+      handle: ref.handle,
+      name: ref.proxyName,
+      geometryColumn: ref.geometryColumn ?? 'geometry',
+      pkColumn: ref.pkColumn ?? 'rowid',
+      crs: ref.crs ?? null,
+    },
+  })
+
+  const edit = useGeometryEditStore.getState()
+  if (!edit.activeSessionId) edit.createNamedSession('Default')
+  useGeometryEditStore.getState().addLayerToActiveSession(layerId)
+
+  const bboxRes = await rClient.datasetBbox({ handle: ref.handle, name: ref.proxyName })
+  const bbox = bboxRes.success && bboxRes.bbox ? bboxRes.bbox : null
+  if (bbox) spatial.setLayerFullBbox(layerId, bbox)
+
+  return { layerId, name: ref.name, kind: 'vector', bbox }
 }

@@ -62,6 +62,8 @@ declare global {
         openTheme(): Promise<string | null>
         saveTheme(defaultName?: string): Promise<string | null>
         openThemeImage(title?: string): Promise<string | null>
+        openLayout(): Promise<string | null>
+        saveLayout(defaultName?: string): Promise<string | null>
         openProject(): Promise<string | null>
         saveProject(defaultName?: string): Promise<string | null>
       }

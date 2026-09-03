@@ -44,12 +44,21 @@ the whole analysis.
   **write plugins that add capabilities ouRGeo does not ship with**.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
-  like. Panels sharing a zone share it equally — two take half each, three a
+  like: drag the grip in a panel's top-right corner and drop it wherever you
+  want it. Settings → Workspace saves arrangements by name, exports and imports
+  them as `.ourgeolayout.json` files, switches the drag grips off if you would
+  rather they weren't there, and restores the shipped default in one click. Panels sharing a zone share it equally — two take half each, three a
   third each — until you drag a divider; double-click one to even them out
   again. Save an arrangement as a preset and switch between them.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
   panels and documentation, added while the app is running — no rebuild, and
   usually no code at all.
+- **One dataset, three views.** The Environment panel, the data viewer and the
+  map are the same objects seen from three angles, and any of them gets you to
+  the others: **Add to Map** in the data viewer's header sends a table to the
+  spatial editor, and right-clicking a layer in **Contents** opens its attribute
+  table. Sending something that is already on the map asks first, and offers to
+  show you the layer you already have.
 - **Publication export.** Generate complete `ggplot2` or `tmap` code from your
   on-screen map, including legend, north arrow, scale bar and graticules.
 - **Portable projects.** Save code, environment, layers and databases as a

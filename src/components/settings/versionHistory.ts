@@ -34,6 +34,10 @@ export const VERSION_HISTORY: ReleaseNote[] = [
       'Fixed: the helper functions ouRGeo defines for generated code no longer end up in your project bundles, in your Environment panel, or deleted the moment you open a project.',
       'Fixed: when the assistant moved the map for you \u2014 zooming from landmark to landmark on a tour \u2014 the view never changed. Every map:setView now moves the map you are looking at, and the export extent follows it.',
       'Console recording gained a destination: the assistant can now record into a new document, or into a saved file that offers to write itself back when you stop.',
+      'Settings \u2192 Workspace: save the panel arrangement by name and switch between arrangements, export and import them as .ourgeolayout.json files, turn the drag grips off if you would rather they weren\u2019t there, and restore the shipped default in one click.',
+      'Fixed: the grip in a panel\u2019s corner did nothing when you dragged it \u2014 dropping a panel into another zone now works, and an empty zone offers itself as a target so a panel can always be moved back.',
+      'Move a dataset between panels from wherever you are: Add to Map in the data viewer\u2019s header sends a table to the spatial editor, and right-clicking a layer in Contents opens its attribute table.',
+      'Sending an object that is already on the map now asks first \u2014 and offers to show you the layer you already have instead of adding a second copy of it.',
     ],
   },
   {

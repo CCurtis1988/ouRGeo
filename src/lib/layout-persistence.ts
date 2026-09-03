@@ -15,6 +15,7 @@ const store = createJsonFileStore('layout.json', 'Layout')
 interface PersistShape {
   layout?: unknown
   presets?: unknown
+  dragEnabled?: unknown
 }
 
 /**
@@ -59,8 +60,10 @@ export interface LayoutPreset {
  * `file.write`) always was. The file has exactly these two keys and one owner,
  * so there is nothing for a merge to preserve.
  */
-export async function saveLayoutFile(layout: LayoutState, presets: LayoutPreset[]): Promise<void> {
-  await store.write({ layout: forgetWeights(layout), presets })
+export async function saveLayoutFile(
+  layout: LayoutState, presets: LayoutPreset[], dragEnabled: boolean,
+): Promise<void> {
+  await store.write({ layout: forgetWeights(layout), presets, dragEnabled })
 }
 
 export async function loadPresets(): Promise<LayoutPreset[]> {
@@ -72,3 +75,15 @@ export async function loadPresets(): Promise<LayoutPreset[]> {
 }
 
 
+
+/**
+ * Whether panels can be dragged by their corner grip.
+ *
+ * Defaults to ON, and an unreadable or absent value means ON: the grip is how
+ * the workspace is arranged by hand, and a preference file that failed to load
+ * should not quietly take a feature away.
+ */
+export async function loadDragEnabled(): Promise<boolean> {
+  const data = await store.read<PersistShape>()
+  return data.dragEnabled !== false
+}
