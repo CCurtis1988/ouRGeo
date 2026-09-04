@@ -1,5 +1,5 @@
 import type {
-  InitialExtentMode, UserExtent, SnapSettings, ExportCodeMode, MapTargetMode
+  InitialExtentMode, UserExtent, SnapSettings, ExportCodeMode
 } from '@/store/spatialSettings'
 import {
   DEFAULT_USER_EXTENT,
@@ -18,7 +18,6 @@ export async function loadSpatialSettings(): Promise<{
   calcCrs: string
   defaultCrs: string
   lastExportMode: ExportCodeMode
-  mapTarget: MapTargetMode
 }> {
   const data = await store.read<{
     initialExtentMode?: unknown
@@ -27,7 +26,6 @@ export async function loadSpatialSettings(): Promise<{
     calcCrs?: unknown
     defaultCrs?: unknown
     lastExportMode?: unknown
-    mapTarget?: unknown
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userExtent?: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,10 +61,8 @@ export async function loadSpatialSettings(): Promise<{
   const defaultCrs =
     typeof data.defaultCrs === 'string' && data.defaultCrs.trim() ? data.defaultCrs.trim() : '4326'
   const lastExportMode: ExportCodeMode = data.lastExportMode === 'ggplot' ? 'ggplot' : 'tmap'
-  const mapTarget: MapTargetMode = data.mapTarget === 'last' ? 'last' : 'ask'
   return {
-    mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs, lastExportMode,
-    mapTarget
+    mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs, lastExportMode
   }
 }
 
@@ -84,7 +80,6 @@ export async function saveSpatialSettings(
     showAttributePopup: showAttributePopup ?? state.showAttributePopup,
     calcCrs: state.calcCrs,
     defaultCrs: state.defaultCrs,
-    lastExportMode: state.lastExportMode,
-    mapTarget: state.mapTarget
+    lastExportMode: state.lastExportMode
   })
 }

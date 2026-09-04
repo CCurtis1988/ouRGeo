@@ -14,7 +14,6 @@ import { inferGeometryType } from '@/lib/validators'
 import { createRasterLayerInfo, rasterLayerDraft } from '@/lib/raster-layers'
 import { useSpatialStore } from '@/store/spatial'
 import { useGeometryEditStore } from '@/store/geometryEdit'
-import type { PanelId } from '@/lib/layout/model'
 import {
   isTransientNetworkError, retryOnNetworkError, transportFailureMessage, TransportError,
 } from '@/lib/transport-retry'
@@ -67,24 +66,6 @@ export function unionBbox(a: Bbox | null, b: Bbox | null): Bbox | null {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]
 }
 
-/**
- * The named session a layer should join, on the map it was aimed at.
- *
- * Every "put this object on the map" path ends here, and with two maps the
- * question it answers stops being rhetorical. It takes a PANEL rather than
- * reading the active session, because the target is chosen before the map is
- * focused — a user picking "Spatial Editor 2" from the send dialog has not
- * clicked in it, and `activeSessionId` is still the other map's.
- */
-function targetSessionId(panelId?: PanelId): string | null {
-  const geo = useGeometryEditStore.getState()
-  const panel = panelId ?? geo.focusedSpatialPanel
-  const existing = geo.activeByPanel[panel]
-  if (existing && geo.namedSessions.some((ns) => ns.id === existing)) return existing
-  geo.createNamedSession('Default', panel)
-  return useGeometryEditStore.getState().activeByPanel[panel] ?? null
-}
-
 export interface AddedLayer {
   layerId: string
   name: string
@@ -107,7 +88,7 @@ export interface SpatialObjectRef {
  * Throws on failure — callers report it their own way (the dialog collects
  * failures into one message, the AI action turns it into a tool result).
  */
-export async function addSpatialLayer(obj: SpatialObjectRef, panelId?: PanelId): Promise<AddedLayer> {
+export async function addSpatialLayer(obj: SpatialObjectRef): Promise<AddedLayer> {
   const spatial = useSpatialStore.getState()
 
   if (obj.class === 'SpatRaster') {
@@ -149,14 +130,15 @@ export async function addSpatialLayer(obj: SpatialObjectRef, panelId?: PanelId):
     columnName: obj.sfColumn ?? 'geometry',
   })
 
-  const sessionId = targetSessionId(panelId)
-  if (sessionId) useGeometryEditStore.getState().addLayerToSession(sessionId, layerId)
+  const edit = useGeometryEditStore.getState()
+  if (!edit.activeSessionId) edit.createNamedSession('Default')
+  useGeometryEditStore.getState().addLayerToActiveSession(layerId)
 
   return { layerId, name: obj.name, kind: 'vector', bbox: computeBbox(geojson) }
 }
 
 /** Add several objects, collecting per-object failures rather than aborting. */
-export async function addSpatialLayers(objs: SpatialObjectRef[], panelId?: PanelId): Promise<{
+export async function addSpatialLayers(objs: SpatialObjectRef[]): Promise<{
   added: AddedLayer[]
   failures: string[]
   bbox: Bbox | null
@@ -167,7 +149,7 @@ export async function addSpatialLayers(objs: SpatialObjectRef[], panelId?: Panel
 
   for (const obj of objs) {
     try {
-      const layer = await addSpatialLayer(obj, panelId)
+      const layer = await addSpatialLayer(obj)
       added.push(layer)
       bbox = unionBbox(bbox, layer.bbox)
     } catch (e) {
@@ -203,7 +185,7 @@ export interface DbSpatialRef {
  * otherwise have no features to fit and leave the user staring at the whole
  * world while their data sat in one county.
  */
-export async function addDbSpatialLayer(ref: DbSpatialRef, panelId?: PanelId): Promise<AddedLayer> {
+export async function addDbSpatialLayer(ref: DbSpatialRef): Promise<AddedLayer> {
   const spatial = useSpatialStore.getState()
 
   const layerId = spatial.addLayer({
@@ -225,8 +207,9 @@ export async function addDbSpatialLayer(ref: DbSpatialRef, panelId?: PanelId): P
     },
   })
 
-  const sessionId = targetSessionId(panelId)
-  if (sessionId) useGeometryEditStore.getState().addLayerToSession(sessionId, layerId)
+  const edit = useGeometryEditStore.getState()
+  if (!edit.activeSessionId) edit.createNamedSession('Default')
+  useGeometryEditStore.getState().addLayerToActiveSession(layerId)
 
   const bboxRes = await rClient.datasetBbox({ handle: ref.handle, name: ref.proxyName })
   const bbox = bboxRes.success && bboxRes.bbox ? bboxRes.bbox : null

@@ -23,7 +23,6 @@ import { resolveToolbar, type ToolbarButtonDef } from '@/lib/layout/toolbar'
 import { actionById } from '@/lib/ai-actions/registry'
 import { HighlightOverlay } from './HighlightOverlay'
 import { Zone, EmptyZoneTarget, ContentDragLabel } from './Zone'
-import { ChooseMapDialog } from '../spatial/ChooseMapDialog'
 import { startDragResize } from './resize'
 import { useElementSize } from './useElementSize'
 import { cn } from '@/lib/utils'
@@ -340,7 +339,6 @@ export function EditorLayout(): React.ReactElement {
       {/* Asked when an object is sent to the map and the workspace has two of
           them. A sibling, like the other dialogs, because the four places that
           send an object must all ask the same question. */}
-      <ChooseMapDialog />
       <HighlightOverlay />
       {/* Above every panel, so a tab dragged between two editors is not clipped
           by the one it is leaving. */}

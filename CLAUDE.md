@@ -1624,28 +1624,32 @@ revealing device labels, and without it the microphone picker is a list of
 blanks. macOS additionally needs `NSMicrophoneUsageDescription` in
 electron-builder's `mac.extendInfo`, and is asked up front so a blocked
 microphone is visible before the first click.
-
-## Two editors, one map (v1.12.4)
+## Two editors (v1.12.5)
 
 The code editor can exist more than once. Nothing else can: every other panel
-is a window onto one global thing — one console, one environment listing — and
-a second copy would be two views fighting over one store. The editor owns a SET
-(its tabs), which is precisely what makes a second one useful and what makes
-the split well-defined.
+is a window onto one global thing — one console, one environment listing, one
+map — and a second copy would be two views fighting over one store. The editor
+owns a SET (its tabs), which is precisely what makes a second one useful and
+what makes the split well-defined.
 
 **The Spatial Editor owns a set too — named map sessions — and briefly had the
-same cap.** It went back to 1, and this section keeps the machinery it needed
-because the model is written over `basePanelId` rather than against the editor:
-`maxInstances: 4` on the `spatial` entry in `panel-meta.ts` is all it would take
-to have it again. What was not worth carrying for it was the *rest*: a second
-tile stream and a bbox per map (`DbSpatialTileLoader` reads one shared
-`viewBbox`), a second extent that the export codegen and the project bundle
-must not read from the wrong one, and a third answer — a dialog — to every
-"send this object to the map". Everything under *"The map had more to unpick"*
-and *"Which map? is a promise"* below is built and correct and currently
-DORMANT: `mapPanels(layout).length` is 1, so `chooseMapPanel` returns that map
-without asking, `MapTargetPicker` renders nothing, and the session-drag targets
-never appear.
+same cap. It was built, and then taken out again.** Worth recording, because
+the reasoning is the reason not to reach for it lightly: a second map is a
+second MapLibre context and a second tile stream against a `viewBbox` that is
+one value (`DbSpatialTileLoader` reads it), a second extent that the export
+codegen and the project bundle must not read from the wrong one, per-focus
+mounting for the ribbon, the hotkeys, the draft sync and the three popups so
+that none of them fire twice, and a third answer — a dialog — to every "send
+this object to the map". What remains here is the *panel* machinery, which is
+written over `basePanelId` rather than against the editor and cost nothing to
+keep general; the map-side half is gone from the tree, so bringing two maps
+back means writing it again, not flipping `maxInstances`.
+
+One consequence outlives it: `layout.json`, a saved preset or a `.ourgeoproj`
+written while two maps were possible can still name `spatial#2`. `normalize`
+refuses it, `reconcilePanelContent` brings any orphaned tabs home, and named
+map sessions were never persisted, so nothing is lost. Pinned by
+`panel-meta.test.ts`.
 
 ### Instances are a naming scheme, not a new model
 
@@ -1728,77 +1732,19 @@ orphans back in the original panel.
 
 ### What each store had to grow
 
-- `TabState.panelId` and `NamedSession.panelId`, both **absent meaning the
-  original** — the same backwards-compatibility tolerance `language` needed, so
-  a session or bundle written before this reads back unchanged, and a tab moved
-  to the second editor and back is byte-identical to one that never left.
-- `activeTabId` and `activeSessionId` **stay single values**, because almost
-  everything that asks — Save, Knit, the document tools, every drawing tool and
-  hotkey — means "the one in front of me". What a second panel needs is
-  `activeByPanel`, which is what each panel RENDERS: switching focus to the
-  other editor must not disturb the tab this one is showing.
-- `focusedEditor` / `focusedSpatialPanel`: where a new tab opens, and which map
-  a drawing tool draws on. Set from `Zone`'s **mousedown capture**
-  (`lib/panel-focus.ts`), so focus has moved before the click does whatever it
-  was for — a click that begins a drawing must land in the map it was aimed at.
-  `PanelSlot` draws a focus ring, but only when there is more than one panel of
-  that kind: with one editor the question has no answer worth showing.
-
-### The map had more to unpick than the editor (dormant)
-
-Kept because the cap is one line away from moving back. Only three things in the Spatial Editor were ever per-panel; everything else is
-per-*focus* and is mounted **only on the focused map** — `GeometryEditRibbon`,
-`DrawContextMenu`, the three popups, `useDrawHotkeys`, `useDraftLayerSync` and
-`DbSpatialTileLoader`. Two of each would double-handle every keystroke, write
-the same geometry twice and fetch every tile twice for a bbox that is not even
-its own. The ribbon's dialogs are gated the same way: `openDialog` names one
-open dialog for the whole app, which is right, but with two ribbons mounted
-both would show it.
-
-- **`src/lib/panel-layers.ts` is the new rule and the one behaviour change
-  outside this feature's own surface.** The map used to draw every layer,
-  filtering to the session only while a drawing was in flight; `layerIds`
-  narrowed the Contents list and nothing else. Two maps would therefore be
-  copies of each other. So ownership became real: a layer owned by a session is
-  drawn on that session's map and nowhere else, and **a layer owned by no
-  session is drawn on every map**. The second half is what keeps it from being
-  a regression — rasters have never joined a session, and neither have the Data
-  Connector's raster imports. **This one is not dormant**: with a single map it
-  reduces to "the canvas draws the active session's layers plus the unowned
-  ones", so switching sessions now changes what is drawn and not only what the
-  Contents list names — which is what that list always implied.
-- **The fit signals carry a target panel** (`fitTargetPanel`). Sending a layer
-  to the second map and having the first jump to it is a move the user did not
-  ask for, in a panel they were not looking at, and it loses wherever that map
-  was pointed. `null` still means every map, which is the "fit to layers"
-  gesture.
-- **Only the focused map mirrors its view outwards.** `setMapView(view, panel)`
-  writes that panel's session always, but `useSpatialStore.viewState` and
-  `viewBbox` are single values that the export codegen and the project bundle
-  read — a background map reporting where it happens to be pointed would set
-  the extent of a figure generated from the other one.
-
-### "Which map?" is a promise (dormant)
-
-With one map, `chooseMapPanel` short-circuits to it and none of this is
-reached. It is kept whole rather than deleted-and-rewritten, and the reasoning
-is why. `src/lib/map-target.ts` + `src/store/mapTarget.ts` + `ChooseMapDialog`. Four
-places send an object to the map (the Environment panel, the data viewer, the
-assistant, the connectors); a dialog in each would be four dialogs that drift,
-and a setting alone would take the choice away from anyone who wants to decide
-per object. So `chooseMapPanel` parks a request in a store, the dialog renders
-it, and the answer resolves the promise the caller is already awaiting. Closing
-it answers `null` — the safe answer is the one you get by doing nothing.
-
-It asks by default because **getting it wrong is invisible**: the layer is
-added, the call reports success, the console logs it, and the map the user is
-looking at does not change, which is indistinguishable from the button having
-done nothing. Settings → Spatial Editor offers "use the map I last worked in"
-instead, and that section renders nothing at all when there is only one map.
-
-The Add Features dialog does NOT ask: it was opened from one map's ribbon, and
-that is the answer. It is gated on `addFeaturesPanel` for the same reason the
-ribbon's dialogs are gated on focus.
+- `TabState.panelId`, **absent meaning the original** — the same
+  backwards-compatibility tolerance `language` needed, so a `session.json` or a
+  bundle written before this reads back unchanged, and a tab moved to the
+  second editor and back is byte-identical to one that never left.
+- `activeTabId` **stays a single value**, because almost everything that asks —
+  Save, Knit, the document tools — means "the one in front of me". What a
+  second panel needs is `activeByPanel`, which is what each panel RENDERS:
+  switching focus to the other editor must not disturb the tab this one is
+  showing.
+- `focusedEditor`: where a new tab opens. Set from `Zone`'s **mousedown
+  capture** (`lib/panel-focus.ts`), so focus has moved before the click does
+  whatever it was for. `PanelSlot` draws a focus ring, but only when there is
+  more than one editor: with one, the question has no answer worth showing.
 
 ### Moving content between panels
 
@@ -1809,13 +1755,12 @@ HTML5 dnd), a 4px threshold so a plain click on a tab still selects it, and
 dropped on — React flushes a discrete native event's update synchronously, so
 the first overlay to clear the drag would unmount the rest mid-dispatch.
 
-Two shapes, one gesture. A tab strip is a strip, so tabs drag. Sessions live in
-a dropdown, which is drawn *above* the map that would be the drop target — so
-the drag closes it, and it closes on **drag start, not on press**: closing on
-mousedown unmounts the row and the click that was only ever meant to switch
-sessions never reaches its handler (`onStart`, not `onPress`). Both also carry
-an explicit **Move to** — a drag hidden inside a dropdown is undiscoverable,
-and a drag inside a scrolling tab strip is easy to start by accident.
+A tab strip is a strip, so tabs drag, and the strip also carries an explicit
+**Move to** in the tab's own context menu — a drag inside a scrolling tab strip
+is easy to start by accident, and easy to miss if nobody tells you it is there.
+`ContentKind` stays a union with one member rather than collapsing to a
+boolean, because the drop targets key off it (`data-dock-kind`): a panel that
+accepted anything dragged near it is the failure the type exists to prevent.
 
 ### Two smaller consequences
 

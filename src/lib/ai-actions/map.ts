@@ -27,10 +27,6 @@ import { BASEMAPS_BY_ID, FREE_BASEMAPS } from '@/lib/basemaps'
 import { DEFAULT_LABEL_SETTINGS } from '@/lib/label-utils'
 import { layerExtentBbox } from '@/lib/layer-bbox'
 import { mapView, setMapView } from '@/lib/map-view'
-import { useLayoutStore } from '@/store/layout'
-import { useGeometryEditStore } from '@/store/geometryEdit'
-import { mapPanels } from '@/lib/panel-content'
-import { panelInfo, resolvePanelName } from '@/lib/layout/panel-meta'
 import {
   isTransportFailure, retryOnNetworkError, transportFailureForModel,
 } from '@/lib/transport-retry'
@@ -141,13 +137,6 @@ export const mapActions: UiAction[] = [
       { name: 'object', type: 'string', required: true, description: 'Name of the sf / sfc / SpatRaster object.' },
       { name: 'env', type: 'string', default: '.GlobalEnv', description: 'Environment it lives in.' },
       { name: 'zoomTo', type: 'boolean', default: true, description: 'Zoom the map to the new layer.' },
-      {
-        name: 'map', type: 'enum', valuesAt: () => mapPanels(useLayoutStore.getState().layout),
-        lenient: true,
-        description:
-          'Which Spatial Editor, when the workspace has more than one. Omit for the map the user '
-          + 'last worked in.',
-      },
     ],
     run: async (args) => {
       const name = argStr(args, 'object')
@@ -162,25 +151,12 @@ export const mapActions: UiAction[] = [
       }
       const spatial = useSpatialStore.getState()
       spatial.ensureOpen()
-      // Which map. The assistant is told rather than asked: a modal raised in
-      // the middle of a tool call would block the answer it is composing, and
-      // the honest fallback — the map the user last worked in — is the same
-      // one the "last used" setting picks.
-      const maps = mapPanels(useLayoutStore.getState().layout)
-      const wanted = argStr(args, 'map')
-      const target = wanted
-        ? maps.find((p) => p === resolvePanelName(wanted)?.id)
-        : useGeometryEditStore.getState().focusedSpatialPanel
-      if (wanted && !target) {
-        return fail(`No Spatial Editor called "${wanted}". Maps: ${maps.join(', ')}.`)
-      }
-      const where = maps.length > 1 ? ` on ${panelInfo(target!)?.label ?? target}` : ''
       try {
-        const added = await addSpatialLayer(obj as SpatialObjectRef, target)
+        const added = await addSpatialLayer(obj as SpatialObjectRef)
         if (argBool(args, 'zoomTo', true) && added.bbox) {
-          useSpatialStore.getState().fitMapToBbox(added.bbox, target)
+          useSpatialStore.getState().fitMapToBbox(added.bbox)
         }
-        return ok(`Added "${added.name}"${where} as a ${added.kind} layer` +
+        return ok(`Added "${added.name}" to the map as a ${added.kind} layer` +
           `${added.bbox ? ` and zoomed to it` : ''}.`)
       } catch (e) {
         if (isTransportFailure(e)) {

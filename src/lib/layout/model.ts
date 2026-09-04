@@ -488,11 +488,12 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
   //
   //    An extra instance is NOT independently closable, and that is a rule
   //    worth stating rather than an omission: the toolbar has one button per
-  //    panel, so a second map that could be closed on its own could only be
-  //    reopened by finding it in Settings — and a map holding sessions that is
-  //    invisible and unreachable is the worst state this feature can produce.
-  //    Closing the map closes every map; removing one is the other gesture,
-  //    and it hands its sessions to a map that is still there.
+  //    panel, so a second editor that could be closed on its own could only be
+  //    reopened by finding it in Settings — and a panel holding the user's
+  //    documents that is invisible and unreachable is the worst state this
+  //    feature can produce. Closing the editor closes every editor; removing
+  //    one is the other gesture, and it hands its documents to one that is
+  //    still there.
   const open: Record<PanelId, boolean> = {}
   for (const p of panels) open[p.id] = next.open[p.id] ?? p.defaultOpen
   for (const p of placed) {

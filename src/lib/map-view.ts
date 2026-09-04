@@ -20,20 +20,11 @@
 
 import { useSpatialStore } from '@/store/spatial'
 import { useGeometryEditStore, type ViewState } from '@/store/geometryEdit'
-import type { PanelId } from '@/lib/layout/model'
 
-/**
- * The view the map is showing right now — the one to read before nudging it.
- *
- * "The map" is the FOCUSED one once a workspace has two of them. Anything
- * asking this question from outside — `map:setView`, an export, the assistant —
- * means the map the user is working in, which is the same map its answer will
- * be applied to.
- */
-export function mapView(panelId?: PanelId): ViewState {
-  const geo = useGeometryEditStore.getState()
-  const panel = panelId ?? geo.focusedSpatialPanel
-  const active = geo.namedSessions.find((ns) => ns.id === geo.activeByPanel[panel])
+/** The view the map is showing right now — the one to read before nudging it. */
+export function mapView(): ViewState {
+  const { namedSessions, activeSessionId } = useGeometryEditStore.getState()
+  const active = namedSessions.find((ns) => ns.id === activeSessionId)
   return active?.viewState ?? useSpatialStore.getState().viewState
 }
 
@@ -50,13 +41,8 @@ export function mapView(panelId?: PanelId): ViewState {
  * props reach MapLibre on the next render. It is not a request that the map
  * may or may not honour, and there is no animation to wait for.
  */
-export function setMapView(view: ViewState, panelId?: PanelId): void {
+export function setMapView(view: ViewState): void {
   const edit = useGeometryEditStore.getState()
-  const panel = panelId ?? edit.focusedSpatialPanel
-  if (edit.activeByPanel[panel]) edit.setPanelViewState(panel, view)
-  // The spatial store's `viewState` is one value and the export codegen, the
-  // project bundle and the extent readouts all read it — so only the FOCUSED
-  // map mirrors into it. A second map reporting where it happens to be pointed
-  // would otherwise decide the extent of an export from the first.
-  if (panel === edit.focusedSpatialPanel) useSpatialStore.getState().setViewState(view)
+  if (edit.activeSessionId) edit.setActiveSessionViewState(view)
+  useSpatialStore.getState().setViewState(view)
 }

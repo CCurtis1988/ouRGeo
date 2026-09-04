@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 /** Which kind of content a panel accepts on a drag — nothing, for most of them. */
 function dockKind(id: PanelId): ContentKind | null {
   const base = basePanelId(id)
-  return base === 'editor' ? 'tab' : base === 'spatial' ? 'session' : null
+  return base === 'editor' ? 'tab' : null
 }
 
 /**
@@ -239,7 +239,7 @@ function ContentDropTarget(
       )}
     >
       <span className="px-2 py-1 rounded bg-geo-panel/90 border border-geo-border text-[11px] text-foreground">
-        {over ? `Move ${kind === 'tab' ? 'document' : 'session'} to ${label}` : label}
+        {over ? `Move ${kind === 'tab' ? 'document' : kind} to ${label}` : label}
       </span>
     </div>
   )

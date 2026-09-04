@@ -19,13 +19,7 @@ import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { useEnvironmentStore } from '@/store/environment'
 import { useSpatialStore, type SpatialLayer } from '@/store/spatial'
-import {
-  useGeometryEditStore, selectPanelSession, PRIMARY_MAP,
-} from '@/store/geometryEdit'
-import { mapPanels } from '@/lib/panel-content'
-import { layersOnPanel } from '@/lib/panel-layers'
-import { chooseMapPanel } from '@/lib/map-target'
-import type { PanelId } from '@/lib/layout/model'
+import { useGeometryEditStore, selectActiveSessionLayerIds } from '@/store/geometryEdit'
 import { layerExtentBbox } from '@/lib/layer-bbox'
 import { isViewable } from '@/lib/validators'
 import type { REnvironmentInfo } from '@/lib/r-client'
@@ -75,36 +69,11 @@ export function layersForObject(layers: SpatialLayer[], ref: ObjectRef): Spatial
   return layers.filter((l) => layerShowsObject(l, ref))
 }
 
-/**
- * Layers currently on show that come from this object — on ANY map.
- *
- * "Already on the map" has to mean "anywhere the user can see it" once there
- * are two maps, or sending an object to the second one and then to the first
- * would never prompt, and the user would end up with the same layer twice
- * without ever being asked.
- */
+/** Layers currently on show that come from this object. */
 export function mapLayersForObject(ref: ObjectRef): SpatialLayer[] {
-  const geo = useGeometryEditStore.getState()
-  const all = useSpatialStore.getState().layers
-  const panels = mapPanels(useLayoutStore.getState().layout)
-  const shown = new Map<string, SpatialLayer>()
-  for (const p of panels.length > 0 ? panels : [PRIMARY_MAP]) {
-    const session = selectPanelSession(geo, p)
-    for (const l of layersOnPanel(all, geo.namedSessions, session?.layerIds ?? null)) {
-      shown.set(l.id, l)
-    }
-  }
-  return layersForObject([...shown.values()], ref)
-}
-
-/** The map drawing this layer: the one whose session owns it, else the
- *  focused one — an unowned layer is on all of them. */
-export function panelShowingLayer(layerId: string): PanelId {
-  const geo = useGeometryEditStore.getState()
-  for (const p of mapPanels(useLayoutStore.getState().layout)) {
-    if (selectPanelSession(geo, p)?.layerIds.includes(layerId)) return p
-  }
-  return geo.focusedSpatialPanel
+  const layers = useSpatialStore.getState().layers
+  const ids = selectActiveSessionLayerIds(useGeometryEditStore.getState())
+  return layersForObject(layersInView(layers, ids), ref)
 }
 
 // ── Map → data viewer ──────────────────────────────────────────────────────
@@ -238,49 +207,31 @@ export function dbSpatialRefFor(
 // ── Data viewer / Environment → map ────────────────────────────────────────
 
 /** Open the spatial editor, select the layer, and put it in view. */
-export function focusMapLayer(layerId: string, panelId?: PanelId): void {
+export function focusMapLayer(layerId: string): void {
   const spatial = useSpatialStore.getState()
-  const panel = panelId ?? panelShowingLayer(layerId)
   spatial.ensureOpen()
   // Opening a panel is not the same as showing it: in a tabbed zone the map
   // can open behind whatever tab is in front of it.
-  useLayoutStore.getState().setActivePanel(panel)
-  // The map that is about to move is also the one drawing tools should act on
-  // — otherwise the user is looking at map 2 and drawing into map 1.
-  useGeometryEditStore.getState().focusSpatialPanel(panel)
+  useLayoutStore.getState().setActivePanel('spatial')
   spatial.setSelectedLayerId(layerId)
   const layer = spatial.layers.find((l) => l.id === layerId)
   const bbox = layer ? layerExtentBbox(layer) : null
   // A layer with no extent yet (database tiles still loading) falls back to
   // fitting everything, which at least moves the map to where the data is.
-  // Aimed at ONE map: the other keeps whatever extent it was showing.
-  if (bbox) spatial.fitMapToBbox(bbox, panel)
-  else spatial.requestFitBounds(panel)
+  if (bbox) spatial.fitMapToBbox(bbox)
+  else spatial.requestFitBounds()
 }
 
-/**
- * Add an R spatial object to the map and take the user to it.
- *
- * Resolves to null when the workspace has two maps and the user dismissed the
- * question of which one — a cancel, not a failure, so callers report nothing.
- */
-export async function sendObjectToMap(
-  obj: SpatialObjectRef, panelId?: PanelId,
-): Promise<AddedLayer | null> {
-  const panel = panelId ?? await chooseMapPanel(obj.name)
-  if (!panel) return null
-  const added = await addSpatialLayer(obj, panel)
-  focusMapLayer(added.layerId, panel)
+/** Add an R spatial object to the map and take the user to it. */
+export async function sendObjectToMap(obj: SpatialObjectRef): Promise<AddedLayer> {
+  const added = await addSpatialLayer(obj)
+  focusMapLayer(added.layerId)
   return added
 }
 
 /** Add a database-backed dataset to the map and take the user to it. */
-export async function sendDbObjectToMap(
-  ref: DbSpatialRef, panelId?: PanelId,
-): Promise<AddedLayer | null> {
-  const panel = panelId ?? await chooseMapPanel(ref.name)
-  if (!panel) return null
-  const added = await addDbSpatialLayer(ref, panel)
-  focusMapLayer(added.layerId, panel)
+export async function sendDbObjectToMap(ref: DbSpatialRef): Promise<AddedLayer> {
+  const added = await addDbSpatialLayer(ref)
+  focusMapLayer(added.layerId)
   return added
 }

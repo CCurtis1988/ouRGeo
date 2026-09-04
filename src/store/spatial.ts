@@ -303,10 +303,7 @@ interface SpatialState {
   setViewState: (vs: { longitude: number; latitude: number; zoom: number }) => void
   setIsLoadingFeatures: (loading: boolean) => void
   setAvailableObjects: (objects: SpatialObjectInfo[]) => void
-  /** Which map asked for the Add Features dialog. With two Spatial Editors
-   *  mounted, a bare boolean opens the dialog in BOTH of them. */
-  addFeaturesPanel: string | null
-  setAddFeaturesDialogOpen: (open: boolean, panelId?: string) => void
+  setAddFeaturesDialogOpen: (open: boolean) => void
   ensureOpen: () => void
   updateLayerFeature: (layerId: string, featureIndex: number, geometry: GeoJSON.Geometry | null) => void
   appendLayerFeature: (layerId: string, geometry: GeoJSON.Geometry) => void
@@ -315,21 +312,12 @@ interface SpatialState {
   updateLabelSettings: (layerId: string, settings: LabelSettings) => void
   reorderLayers: (orderedIds: string[]) => void
   fitBoundsSignal: number
-  requestFitBounds: (panelId?: string) => void
+  requestFitBounds: () => void
   // Fit the map to an explicit 4326 bbox (data viewer "zoom to row/selection/
   // extent"). The signal bumps so SpatialEditor re-fits even to the same bbox.
   fitTarget: [number, number, number, number] | null
   fitTargetSignal: number
-  /**
-   * Which Spatial Editor the pending fit is aimed at; null means all of them.
-   *
-   * With one map this was a signal every map obeyed, which is the same thing.
-   * With two it is not: sending a layer to the second map and having the FIRST
-   * one jump to it is a move the user did not ask for, in a panel they were
-   * not looking at, and it also loses wherever that map was pointed.
-   */
-  fitTargetPanel: string | null
-  fitMapToBbox: (bbox: [number, number, number, number], panelId?: string) => void
+  fitMapToBbox: (bbox: [number, number, number, number]) => void
   setShowLegend: (v: boolean) => void
   setShowNorthArrow: (v: boolean) => void
   setLegendSettings: (s: LegendSettings) => void
@@ -379,7 +367,6 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   isLoadingFeatures: false,
   availableObjects: [],
   addFeaturesDialogOpen: false,
-  addFeaturesPanel: null,
   showLegend: false,
   showNorthArrow: false,
   legendSettings: DEFAULT_LEGEND_SETTINGS,
@@ -633,8 +620,7 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
   setViewState: (viewState) => set({ viewState }),
   setIsLoadingFeatures: (isLoadingFeatures) => set({ isLoadingFeatures }),
   setAvailableObjects: (availableObjects) => set({ availableObjects }),
-  setAddFeaturesDialogOpen: (addFeaturesDialogOpen, panelId) =>
-    set({ addFeaturesDialogOpen, addFeaturesPanel: panelId ?? null }),
+  setAddFeaturesDialogOpen: (addFeaturesDialogOpen) => set({ addFeaturesDialogOpen }),
   ensureOpen: () => set((s) => s.isOpen ? {} : { isOpen: true }),
 
   updateLayerFeature: (layerId, featureIndex, geometry) =>
@@ -691,14 +677,10 @@ export const useSpatialStore = create<SpatialState>((set, get) => ({
     }),
 
   fitBoundsSignal: 0,
-  requestFitBounds: (panelId) =>
-    set((s) => ({ fitBoundsSignal: s.fitBoundsSignal + 1, fitTargetPanel: panelId ?? null })),
+  requestFitBounds: () => set((s) => ({ fitBoundsSignal: s.fitBoundsSignal + 1 })),
   fitTarget: null,
   fitTargetSignal: 0,
-  fitTargetPanel: null,
-  fitMapToBbox: (bbox, panelId) => set((s) => ({
-    fitTarget: bbox, fitTargetSignal: s.fitTargetSignal + 1, fitTargetPanel: panelId ?? null,
-  })),
+  fitMapToBbox: (bbox) => set((s) => ({ fitTarget: bbox, fitTargetSignal: s.fitTargetSignal + 1 })),
   setShowLegend: (showLegend) => set({ showLegend }),
   setShowNorthArrow: (showNorthArrow) => set({ showNorthArrow }),
   setLegendSettings: (legendSettings) => set({ legendSettings }),

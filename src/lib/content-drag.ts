@@ -1,4 +1,4 @@
-// Dragging a tab, or a map session, from one panel to another.
+// Dragging a document tab from one editor to another.
 //
 // The same gesture as `startPanelDrag` in Zone.tsx, and written the same way
 // for the same hard-won reasons:
@@ -14,9 +14,9 @@
 //     the first overlay to clear the drag would unmount the rest mid-dispatch
 //     and the panel under the cursor would never run.
 //
-// The commit is a callback rather than a store call so that a tab and a
-// session — which move through completely different stores — share every part
-// of this except the one line that differs.
+// The commit is a callback rather than a store call, so a second kind of
+// draggable content would share every part of this except the one line that
+// moves it.
 
 import { useContentDragStore, type ContentKind } from '@/store/contentDrag'
 import type { PanelId } from './layout/model'
@@ -44,11 +44,9 @@ export interface ContentDragOptions {
   /**
    * Run once the threshold is crossed and the drag is real.
    *
-   * The session list needs this and cannot use `onPress`: closing the dropdown
-   * on mousedown unmounts the row, so the click that was only ever meant to
-   * SWITCH sessions never reaches its handler. Closing on drag-start keeps the
-   * click working and still gets the dropdown out of the way before the
-   * pointer has to aim at the map underneath it.
+   * Distinct from `onPress` for the case where the reaction unmounts the thing
+   * being dragged — doing that on mousedown means the click that was only ever
+   * meant to select it never reaches its handler.
    */
   onStart?: () => void
 }

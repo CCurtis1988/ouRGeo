@@ -6,7 +6,7 @@
 // store directly.
 //
 // **Removing a panel never removes its content.** That is the whole reason
-// this module exists rather than a `dropPanel` call at each site: a second
+// this module exists rather than a `dropPanel` call at each site: an added
 // editor holds documents, and a user closing a panel is arranging their
 // workspace, not throwing work away. The content is handed to the panel that
 // remains, and only then is the panel taken out of the layout.
@@ -19,23 +19,22 @@
 // ever apply to a panel the user asked for, which by construction has a
 // sibling for its contents to move to.
 //
-// The map's cap is currently 1 (see `panel-meta.ts`), so today this is only
-// ever the editor. Everything below is written over `basePanelId` rather than
-// against the editor, so raising that cap is a one-line change there.
+// Today the editor is the only panel with a cap above 1. What is written over
+// `basePanelId` rather than against the editor stays that way, so a second
+// kind would need `maxInstances` in `panel-meta.ts` and an adopt/summary
+// branch here, and nothing else.
 
 import { basePanelId, isPanelInstance, nextPanelInstanceId } from './layout/instances'
 import { zoneOf, type PanelId, type ZoneId } from './layout/model'
 import { panelInfo, panelMaxInstances } from './layout/panel-meta'
 import { useLayoutStore } from '@/store/layout'
 import { useEditorStore, PRIMARY_EDITOR } from '@/store/editor'
-import { useGeometryEditStore, PRIMARY_MAP } from '@/store/geometryEdit'
-import { editorPanels, mapPanels, placedPanelIds } from './panel-content'
+import { editorPanels, placedPanelIds } from './panel-content'
 
 /** The panels of this kind the workspace currently has, in layout order. */
 export function instancesOf(base: PanelId): PanelId[] {
   const layout = useLayoutStore.getState().layout
-  return base === PRIMARY_MAP ? mapPanels(layout)
-    : base === PRIMARY_EDITOR ? editorPanels(layout)
+  return base === PRIMARY_EDITOR ? editorPanels(layout)
     : placedPanelIds(layout).filter((p) => p === base)
 }
 
@@ -111,7 +110,7 @@ export function removePanelInstance(id: PanelId): RemovePanelResult {
     return {
       ok: false,
       message: `${meta.label} is the only one — removing it would leave nowhere for its `
-        + `${base === PRIMARY_MAP ? 'sessions' : 'documents'} to go. Close the panel instead.`,
+        + `documents to go. Close the panel instead.`,
     }
   }
 
@@ -125,10 +124,6 @@ export function removePanelInstance(id: PanelId): RemovePanelResult {
     const editor = useEditorStore.getState()
     moved = editor.tabs.filter((t) => (t.panelId ?? PRIMARY_EDITOR) === id).length
     editor.adoptTabs(id, target)
-  } else if (base === PRIMARY_MAP) {
-    const geo = useGeometryEditStore.getState()
-    moved = geo.namedSessions.filter((ns) => (ns.panelId ?? PRIMARY_MAP) === id).length
-    geo.adoptSessions(id, target)
   }
   useLayoutStore.getState().removePanel(id)
   return { ok: true, movedTo: target, moved }
@@ -136,17 +131,8 @@ export function removePanelInstance(id: PanelId): RemovePanelResult {
 
 /** What "remove" will say it did, before the user commits to it. */
 export function removalSummary(id: PanelId): string {
-  const base = basePanelId(id)
-  if (base === PRIMARY_EDITOR) {
-    const n = useEditorStore.getState().tabs.filter((t) => (t.panelId ?? PRIMARY_EDITOR) === id).length
-    return n === 0 ? 'It holds no documents.'
-      : `Its ${n} ${n === 1 ? 'document moves' : 'documents move'} to the other editor.`
-  }
-  if (base === PRIMARY_MAP) {
-    const n = useGeometryEditStore.getState().namedSessions
-      .filter((ns) => (ns.panelId ?? PRIMARY_MAP) === id).length
-    return n === 0 ? 'It holds no sessions.'
-      : `Its ${n} ${n === 1 ? 'session moves' : 'sessions move'} to the other map.`
-  }
-  return ''
+  if (basePanelId(id) !== PRIMARY_EDITOR) return ''
+  const n = useEditorStore.getState().tabs.filter((t) => (t.panelId ?? PRIMARY_EDITOR) === id).length
+  return n === 0 ? 'It holds no documents.'
+    : `Its ${n} ${n === 1 ? 'document moves' : 'documents move'} to the other editor.`
 }

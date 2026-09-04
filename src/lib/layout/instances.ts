@@ -1,4 +1,4 @@
-// A second editor, a second map: panels that can exist more than once.
+// A second editor: panels that can exist more than once.
 //
 // A `PanelId` was always an opaque string to the layout model — `movePanel`,
 // `normalize` and the zone orders never look inside one — so a second instance

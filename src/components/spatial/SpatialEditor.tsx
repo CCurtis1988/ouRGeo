@@ -1,13 +1,10 @@
-import React, { useRef, useCallback, useEffect, useMemo } from 'react'
+import React, { useRef, useCallback, useEffect } from 'react'
 import { SpatialRibbon } from './SpatialRibbon'
 import { MapView, MapViewHandle } from './MapView'
 import { AddFeaturesDialog } from './AddFeaturesDialog'
 import { GeometryEditRibbon } from './GeometryEditRibbon'
 import { useSpatialStore } from '@/store/spatial'
 import { useSelectionStore } from '@/store/selection'
-import { useGeometryEditStore, selectPanelSession, PRIMARY_MAP } from '@/store/geometryEdit'
-import { layersOnPanel } from '@/lib/panel-layers'
-import { usePanelId } from '../layout/panel-context'
 import { useDraftLayerSync } from '@/hooks/useDraftLayerSync'
 import { useDrawHotkeys } from '@/hooks/useDrawHotkeys'
 import { MapControls } from './MapControls'
@@ -22,29 +19,13 @@ import { IdentifyPopup } from './IdentifyPopup'
 export function SpatialEditor(): React.ReactElement {
   const mapRef = useRef<MapViewHandle>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  // Which map this is, and whether it is the one the user is working in.
-  //
-  // Everything that is a SINGLE thing in the app — the drawing tools, the
-  // keyboard shortcuts, the popups, the .Rgeo tile fetcher — belongs to the
-  // focused map and is mounted only there. Two of each would double-handle
-  // every keystroke and fetch every tile twice, and the second copy would be
-  // acting on a session the user is not looking at.
-  const panelId = usePanelId(PRIMARY_MAP)
-  const focused = useGeometryEditStore((s) => s.focusedSpatialPanel === panelId)
-  const allLayers = useSpatialStore((s) => s.layers)
-  const namedSessions = useGeometryEditStore((s) => s.namedSessions)
-  const mySession = useGeometryEditStore((s) => selectPanelSession(s, panelId))
-  const layers = useMemo(
-    () => layersOnPanel(allLayers, namedSessions, mySession?.layerIds ?? null),
-    [allLayers, namedSessions, mySession],
-  )
+  const layers = useSpatialStore((s) => s.layers)
   const fitBoundsSignal = useSpatialStore((s) => s.fitBoundsSignal)
   const selections = useSelectionStore((s) => s.selections)
   const showLegend = useSpatialStore((s) => s.showLegend)
   const showNorthArrow = useSpatialStore((s) => s.showNorthArrow)
-  const addFeaturesPanel = useSpatialStore((s) => s.addFeaturesPanel)
-  useDraftLayerSync(focused)
-  useDrawHotkeys(focused)
+  useDraftLayerSync()
+  useDrawHotkeys()
 
   // Guard against losing staged (unsaved) edits on window close.
   const hasPendingEdits = useSpatialStore(
@@ -128,12 +109,8 @@ export function SpatialEditor(): React.ReactElement {
   fitAllBoundsRef.current = fitAllBounds
   useEffect(() => {
     if (fitBoundsSignal === 0) return
-    // A fit aimed at one map must not move the other. `fitTargetPanel` is null
-    // for the global "fit everything" gesture, which every map obeys.
-    const want = useSpatialStore.getState().fitTargetPanel
-    if (want !== null && want !== panelId) return
     fitAllBoundsRef.current()
-  }, [fitBoundsSignal, panelId])
+  }, [fitBoundsSignal])
 
   // Fit to an explicit bbox pushed from the data viewer (zoom to row / selected
   // rows / layer extent). Reads the target at fire time so the effect only
@@ -141,10 +118,9 @@ export function SpatialEditor(): React.ReactElement {
   const fitTargetSignal = useSpatialStore((s) => s.fitTargetSignal)
   useEffect(() => {
     if (fitTargetSignal === 0) return
-    const { fitTarget: bbox, fitTargetPanel: want } = useSpatialStore.getState()
-    if (want !== null && want !== panelId) return
+    const bbox = useSpatialStore.getState().fitTarget
     if (bbox) mapRef.current?.fitBounds(bbox)
-  }, [fitTargetSignal, panelId])
+  }, [fitTargetSignal])
 
   const onLayersAdded = useCallback((bbox: [number, number, number, number] | null) => {
     if (bbox) {
@@ -164,23 +140,16 @@ export function SpatialEditor(): React.ReactElement {
             onFitBounds={fitAllBounds}
           />
         </div>
-        {showLegend && <MapLegend layers={layers} />}
+        {showLegend && <MapLegend />}
         {showNorthArrow && <NorthArrow />}
-        {focused && <AttributePopover />}
-        {focused && <SelectionPopup />}
-        {focused && <IdentifyPopup />}
+        <AttributePopover />
+        <SelectionPopup />
+        <IdentifyPopup />
       </div>
-      {focused && <GeometryEditRibbon />}
-      {focused && <DrawContextMenu />}
-      {/* The dialog belongs to the map that opened it, or asking for layers on
-          the second map would put the picker on both. */}
-      {(addFeaturesPanel === null ? focused : addFeaturesPanel === panelId) && (
-        <AddFeaturesDialog onLayersAdded={onLayersAdded} panelId={panelId} />
-      )}
-      {/* One fetcher, on the focused map: `useDbSpatialTile` reads the shared
-          `viewBbox`, so a second copy would request the same tiles again for a
-          bbox that is not even its own. */}
-      {focused && <DbSpatialTileLoader />}
+      <GeometryEditRibbon />
+      <DrawContextMenu />
+      <AddFeaturesDialog onLayersAdded={onLayersAdded} />
+      <DbSpatialTileLoader />
     </div>
   )
 }

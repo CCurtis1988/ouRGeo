@@ -1,4 +1,4 @@
-// A tab or a map session in mid-air between two panels.
+// A document tab in mid-air between two editors.
 //
 // Lifted into a store rather than held in the component that started it,
 // because the two ends of the gesture are nowhere near each other in the tree:
@@ -12,12 +12,19 @@
 import { create } from 'zustand'
 import type { PanelId } from '@/lib/layout/model'
 
-/** What is being dragged, which decides which panels can accept it. */
-export type ContentKind = 'tab' | 'session'
+/**
+ * What is being dragged, which decides which panels can accept it.
+ *
+ * One member today. It stays a union rather than collapsing to a boolean
+ * because the drop targets key off it (`data-dock-kind`), and a panel that
+ * accepted anything dragged near it is the failure this type exists to
+ * prevent.
+ */
+export type ContentKind = 'tab'
 
 export interface ContentDrag {
   kind: ContentKind
-  /** Tab id, or named-session id. */
+  /** Tab id. */
   id: string
   /** The panel it started in — the one drop target that is a no-op. */
   from: PanelId

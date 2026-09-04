@@ -20,7 +20,12 @@ const PANELS: PanelMeta[] = [
   panel('editor', { defaultZone: 'center', essential: true, maxInstances: 4 }),
   panel('console', { defaultZone: 'bottom' }),
   panel('environment', { defaultZone: 'left', defaultOpen: false }),
-  panel('spatial', { defaultZone: 'right', defaultOrder: 1, defaultOpen: false, min: 300, maxInstances: 4 }),
+  // Deliberately NOT the shipped registry: the model must work for any panel
+  // with a cap above one, and pinning that to whichever panels ouRGeo happens
+  // to allow today would make these tests re-derive `panel-meta.ts` instead of
+  // testing `normalize`. `panel-meta.test.ts` covers the shipped answer.
+  panel('spatial', { defaultZone: 'right', defaultOrder: 1, defaultOpen: false, min: 300 }),
+  panel('notes', { defaultZone: 'right', defaultOrder: 2, defaultOpen: false, maxInstances: 4 }),
   panel('plots', { defaultZone: 'right', defaultOrder: 0, defaultOpen: false }),
 ]
 
@@ -37,7 +42,7 @@ describe('the default layout', () => {
   })
 
   it('orders a zone by defaultOrder, not by declaration order', () => {
-    expect(layout.zones.right.order).toEqual(['plots', 'spatial'])
+    expect(layout.zones.right.order).toEqual(['plots', 'spatial', 'notes'])
   })
 
   it('opens only what shipped open', () => {
@@ -83,7 +88,7 @@ describe('moving a panel', () => {
 
   it('reorders within the current zone without naming it', () => {
     const next = reorderPanel(layout, 'spatial', 0)
-    expect(next.zones.right.order).toEqual(['spatial', 'plots'])
+    expect(next.zones.right.order).toEqual(['spatial', 'plots', 'notes'])
   })
 })
 
@@ -300,7 +305,7 @@ describe('describeLayout', () => {
   })
 })
 
-describe('a second editor, or a second map', () => {
+describe('a panel that may exist more than once', () => {
   it('keeps an instance of a panel that is allowed more than one', () => {
     const l = normalize(movePanel(defaultLayout(PANELS), 'editor#2', 'center'), PANELS)
     expect(zoneOf(l, 'editor#2')).toBe('center')
@@ -324,20 +329,20 @@ describe('a second editor, or a second map', () => {
   })
 
   it('gives an instance its base panel’s minimum size', () => {
-    const l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
-    expect(l.zones.right.weights['spatial#2']).toBe(1)
+    const l = normalize(movePanel(defaultLayout(PANELS), 'notes#2', 'right'), PANELS)
+    expect(l.zones.right.weights['notes#2']).toBe(1)
   })
 
   it('ties an instance’s open state to the panel it copies', () => {
     // The toolbar has one button per panel, so an instance that could be
-    // closed on its own would be a map holding sessions that is invisible and
-    // has no control to bring it back.
-    let l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
-    expect(l.open['spatial#2']).toBe(l.open['spatial'])
-    l = normalize(setPanelOpen(l, 'spatial', true), PANELS)
-    expect(l.open['spatial#2']).toBe(true)
-    l = normalize(setPanelOpen(l, 'spatial', false), PANELS)
-    expect(l.open['spatial#2']).toBe(false)
+    // closed on its own would be a panel holding the user's work that is
+    // invisible and has no control to bring it back.
+    let l = normalize(movePanel(defaultLayout(PANELS), 'notes#2', 'right'), PANELS)
+    expect(l.open['notes#2']).toBe(l.open['notes'])
+    l = normalize(setPanelOpen(l, 'notes', true), PANELS)
+    expect(l.open['notes#2']).toBe(true)
+    l = normalize(setPanelOpen(l, 'notes', false), PANELS)
+    expect(l.open['notes#2']).toBe(false)
   })
 
   it('does not put a removed instance back, the way it re-places an original', () => {
@@ -356,8 +361,7 @@ describe('a second editor, or a second map', () => {
   })
 
   it('names an instance in the description, derived from its base label', () => {
-    const l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
-    expect(describeLayout(l, PANELS, { ...LABELS, spatial: 'Spatial Editor' }))
-      .toContain('Spatial Editor 2')
+    const l = normalize(movePanel(defaultLayout(PANELS), 'notes#2', 'right'), PANELS)
+    expect(describeLayout(l, PANELS, { ...LABELS, notes: 'Notes' })).toContain('Notes 2')
   })
 })

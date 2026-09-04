@@ -13,9 +13,7 @@ import { buildColorExpression } from '@/lib/color-scales'
 import { parseFieldTemplate, resolveFont } from '@/lib/label-utils'
 import { rasterTileUrl } from '@/lib/raster-layers'
 import type { ColorBinding, SpatialLayer } from '@/store/spatial'
-import { useGeometryEditStore, selectActiveSession, selectPanelSession, PRIMARY_MAP } from '@/store/geometryEdit'
-import { layersOnPanel } from '@/lib/panel-layers'
-import { usePanelId } from '../layout/panel-context'
+import { useGeometryEditStore, selectActiveSession, selectActiveSessionLayerIds, selectActiveSessionViewState } from '@/store/geometryEdit'
 import { setMapView } from '@/lib/map-view'
 import { useThemeStore } from '@/store/theme'
 import { useBasemapStore } from '@/store/basemap'
@@ -324,26 +322,16 @@ function layerStyle(layer: SpatialLayer): React.ReactElement[] {
 
 export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(_props, ref) {
   const mapRef = useRef<MapRef>(null)
-  // Which map this is. Everything below that used to mean "the map" now has to
-  // mean "this map" — the layers it draws, the extent it is at, and whether a
-  // half-drawn shape belongs to it.
-  const panelId = usePanelId(PRIMARY_MAP)
-  const focused = useGeometryEditStore((s) => s.focusedSpatialPanel === panelId)
   const allLayers = useSpatialStore((s) => s.layers)
-  const namedSessions = useGeometryEditStore((s) => s.namedSessions)
-  const mySession = useGeometryEditStore((s) => selectPanelSession(s, panelId))
-  const sessionLayerIds = mySession?.layerIds ?? null
-  // Ownership is what separates two maps; see lib/panel-layers.ts for the rule
-  // and for why a layer no session claims is drawn on both.
-  const layers = useMemo(
-    () => layersOnPanel(allLayers, namedSessions, sessionLayerIds),
-    [allLayers, namedSessions, sessionLayerIds],
-  )
-  // The half-drawn shape, and only on the map it is being drawn on. Two maps
-  // sharing one draft would render the same rubber band twice and let a click
-  // in the wrong one extend it.
-  const activeSession = useGeometryEditStore(selectActiveSession)
-  const session = focused ? activeSession : null
+  const sessionLayerIds = useGeometryEditStore(selectActiveSessionLayerIds)
+  const session = useGeometryEditStore(selectActiveSession)
+  // Show all layers whenever there's no active draw session. Filtering only
+  // when a session is in-flight prevents the layer from unmounting for one
+  // frame the instant Complete Drawing flips session→null (which used to
+  // tear down the maplibre <Source> mid-commit and amplify churn).
+  const layers = (sessionLayerIds === null || session === null)
+    ? allLayers
+    : allLayers.filter((l) => sessionLayerIds.includes(l.id))
   const overrideId = useBasemapStore((s) => s.overrideBasemapId)
   const currentTheme = useThemeStore((s) => s.current)
   const apiKeys = useApiKeysStore((s) => s.keys)
@@ -363,7 +351,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
   // and the two must keep saying the same thing: a view written where the map
   // does not read from is a move that silently never happens.
   const globalViewState = useSpatialStore((s) => s.viewState)
-  const viewState = mySession?.viewState ?? globalViewState
+  const sessionViewState = useGeometryEditStore(selectActiveSessionViewState)
+  const viewState = sessionViewState ?? globalViewState
   const isEditMode = useGeometryEditStore((s) => s.isEditMode)
   const draggingVertex = useGeometryEditStore((s) => s.draggingVertex)
   const snapTarget = useGeometryEditStore((s) => s.snapTarget)
@@ -455,17 +444,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   /** Record the extent on screen — what both export codegens draw. */
   const syncViewBbox = useCallback(() => {
-    // Only the focused map writes it: `viewBbox` is one value and it is what
-    // an export draws, so a background map reporting its own extent would set
-    // the bounds of a figure generated from the other one.
-    if (useGeometryEditStore.getState().focusedSpatialPanel !== panelId) return
     const bounds = mapRef.current?.getBounds()
     if (!bounds) return
     useSpatialStore.getState().setViewBbox([
       bounds.getWest(), bounds.getSouth(),
       bounds.getEast(), bounds.getNorth(),
     ])
-  }, [panelId])
+  }, [])
 
   // A view set from OUTSIDE the map — `map:setView`, a restored project — moves
   // the camera through props, and react-map-gl deliberately does NOT echo that
@@ -476,10 +461,10 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
   const onMove = useCallback(
     (evt: { viewState: { longitude: number; latitude: number; zoom: number } }) => {
-      setMapView(evt.viewState, panelId)
+      setMapView(evt.viewState)
       syncViewBbox()
     },
-    [syncViewBbox, panelId]
+    [syncViewBbox]
   )
 
   // Identify (info) — hit-test vectors + rasters under the click and open the
@@ -722,7 +707,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
         // Capture initial bbox and zoom for code generators
         syncViewBbox()
         const center = map.getCenter()
-        setMapView({ longitude: center.lng, latitude: center.lat, zoom: map.getZoom() }, panelId)
+        setMapView({ longitude: center.lng, latitude: center.lat, zoom: map.getZoom() })
       }}
       onDblClick={handleDblClick}
       onMouseDown={handleMouseDown}

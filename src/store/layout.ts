@@ -127,7 +127,7 @@ interface LayoutStoreState {
    * The panel the user last clicked in.
    *
    * Session state, never persisted: it is where the pointer has been, not part
-   * of the arrangement. With two editors or two maps on screen it is what
+   * of the arrangement. With two editors on screen it is what
    * decides where a new tab opens and which map a drawing tool draws on, so it
    * is also the one piece of layout state a user notices being wrong — hence
    * the focus ring in `Zone`, which exists to make it visible rather than
