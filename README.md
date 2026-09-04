@@ -44,16 +44,16 @@ the whole analysis.
   **write plugins that add capabilities ouRGeo does not ship with**.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
-  like: drag the grip in a panel's top-right corner and drop it wherever you
-  want it. Settings → Workspace saves arrangements by name, exports and imports
-  them as `.ourgeolayout.json` files, switches the drag grips off if you would
-  rather they weren't there, and restores the shipped default in one click. Panels sharing a zone share it equally — two take half each, three a
-  third each — until you drag a divider; double-click one to even them out
-  again. Save an arrangement as a preset and switch between them.
+  like. Settings → Workspace is where you move panels, save arrangements by
+  name, export and import them as `.ourgeolayout.json` files, and restore the
+  shipped default in one click. Turn on **Drag panels to rearrange them** and
+  each panel grows a small grip in its top-right corner: drag it to drop the
+  panel into another zone, or right-click it for that panel's menu. Panels
+  sharing a zone share it equally — two take half each, three a third each —
+  until you drag a divider; double-click one to even them out again.
 - **Two code editors.** Open a second one for two documents side by side, each
-  with its own tabs. Add it in Settings → Workspace or by right-clicking a
-  panel's grip, drag tabs between the two, and remove the extra when you are
-  done — **removing never closes a document**, they move to the editor that
+  with its own tabs. Add it in Settings → Workspace, drag tabs between the two,
+  and remove the extra when you are done — **removing never closes a document**, they move to the editor that
   remains. Only a panel you added can be removed; the ones ouRGeo ships are
   hidden and shown from the toolbar instead.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,

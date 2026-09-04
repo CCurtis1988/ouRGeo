@@ -1,6 +1,7 @@
 import React from 'react'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
+import { Switch } from '../ui/switch'
 
 /** Settings toggle: show/hide the attribute popup after drawing a new feature. */
 export function AttributePopupToggle(): React.ReactElement {
@@ -15,21 +16,17 @@ export function AttributePopupToggle(): React.ReactElement {
   }
 
   return (
-    <label className="flex items-start gap-2 cursor-pointer">
-      <input
-        type="checkbox"
-        className="accent-[#4493f8] mt-0.5"
-        checked={showAttributePopup}
-        onChange={(e) => toggle(e.target.checked)}
-      />
-      <span className="flex flex-col gap-0.5">
-        <span className="text-xs text-foreground">Attribute popup for new features</span>
-        <span className="text-[10px] text-geo-muted">
-          After drawing a new feature's geometry, pop up a small form to fill its
-          attribute values. When off, drawing continues uninterrupted and values
-          are entered in the data editor.
-        </span>
-      </span>
-    </label>
+    <Switch
+      checked={showAttributePopup}
+      onChange={toggle}
+      label="Attribute popup for new features"
+      description={
+        <>
+          After drawing a new feature&apos;s geometry, pop up a small form to fill
+          its attribute values. When off, drawing continues uninterrupted and
+          values are entered in the data editor.
+        </>
+      }
+    />
   )
 }

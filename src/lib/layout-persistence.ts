@@ -79,11 +79,17 @@ export async function loadPresets(): Promise<LayoutPreset[]> {
 /**
  * Whether panels can be dragged by their corner grip.
  *
- * Defaults to ON, and an unreadable or absent value means ON: the grip is how
- * the workspace is arranged by hand, and a preference file that failed to load
- * should not quietly take a feature away.
+ * Defaults to OFF, and an unreadable or absent value means OFF — the shipped
+ * default, so a preference file that failed to load produces the workspace a
+ * new install has rather than one the user has to recognise as wrong.
+ *
+ * Only an explicit `true` turns it on. The grip is a hover-revealed control
+ * over every panel's own header, and a gesture nobody went looking for is one
+ * that mostly fires by accident; the arrangement is reachable from Settings →
+ * Workspace and from the assistant either way, so defaulting it off costs
+ * nothing but the shortcut.
  */
 export async function loadDragEnabled(): Promise<boolean> {
   const data = await store.read<PersistShape>()
-  return data.dragEnabled !== false
+  return data.dragEnabled === true
 }

@@ -428,8 +428,10 @@ export const layoutActions: UiAction[] = [
     group: 'layout',
     tier: 'always',
     summary:
-      'Turn the drag-to-rearrange grip in each panel’s corner on or off. Off removes the GESTURE only — ' +
-      'the arrangement is untouched, and layout:movePanel still works. Settings → Workspace has the same switch.',
+      'Turn the drag-to-rearrange grip in each panel’s corner on or off. It ships OFF, so a user who ' +
+      'wants to drag panels about has to be told this exists. On, the grip also right-clicks to that ' +
+      'panel’s menu. Off removes the GESTURE only — the arrangement is untouched and layout:movePanel ' +
+      'still works. Settings → Workspace has the same switch.',
     params: [
       { name: 'enabled', type: 'boolean', required: true, description: 'true to allow dragging panels, false to switch the grips off.' },
     ],
@@ -437,7 +439,7 @@ export const layoutActions: UiAction[] = [
       const enabled = argBool(args, 'enabled', true)
       useLayoutStore.getState().setDragEnabled(enabled)
       return ok(enabled
-        ? 'Panels can be dragged by the grip in their top-right corner.'
+        ? 'Panels can be dragged by the grip in their top-right corner, and right-clicking it opens that panel’s menu.'
         : 'Panel drag grips are off. Panels can still be moved from Settings → Workspace, or with layout:movePanel.')
     },
   },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '../ui/button'
+import { Switch } from '../ui/switch'
 import { useLayoutStore } from '@/store/layout'
 import { openPanels, ZONE_IDS, ZONE_LABELS } from '@/lib/layout/model'
 import { panelInfo, panelMaxInstances, multiInstancePanels } from '@/lib/layout/panel-meta'
@@ -124,23 +125,24 @@ function PanelDragToggle(): React.ReactElement {
   const setDragEnabled = useLayoutStore((s) => s.setDragEnabled)
 
   return (
-    <label className="flex items-start gap-2 cursor-pointer">
-      <input
-        type="checkbox"
-        className="accent-[#4493f8] mt-0.5"
-        checked={dragEnabled}
-        onChange={(e) => setDragEnabled(e.target.checked)}
-        data-ourgeo-id="settings.panelDrag"
-      />
-      <span className="flex flex-col gap-0.5">
-        <span className="text-xs text-foreground">Drag panels to rearrange them</span>
-        <span className="text-[10px] text-geo-muted">
-          Shows a small grip in each panel’s top-right corner; drag it to drop the
-          panel into another zone. Turning this off only removes the gesture — the
-          arrangement is unchanged, and saved arrangements below still apply.
-        </span>
-      </span>
-    </label>
+    <Switch
+      checked={dragEnabled}
+      onChange={setDragEnabled}
+      data-ourgeo-id="settings.panelDrag"
+      label="Drag panels to rearrange them"
+      // Off by default, so the description has to say what turning it ON
+      // brings rather than what turning it off takes away — and it has to
+      // mention the right-click menu, which is the grip's other half and
+      // the only place "Move to" and "Remove" live outside this dialog.
+      description={
+        <>
+          Puts a small grip in each panel’s top-right corner: drag it to drop the
+          panel into another zone, or right-click it for that panel’s menu. The
+          arrangement itself is unaffected either way — this list, and the
+          assistant, can rearrange the workspace with the grips off.
+        </>
+      }
+    />
   )
 }
 

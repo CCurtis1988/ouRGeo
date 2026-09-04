@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { Switch } from '../ui/switch'
 import { Mic, Square } from 'lucide-react'
 import { useVoiceStore } from '@/store/voice'
 import { useApiKeysStore } from '@/store/apiKeys'
@@ -265,21 +266,18 @@ export function VoiceSettings(): React.ReactElement {
         </div>
       </div>
 
-      <label className="flex items-start gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={autoSend}
-          onChange={(e) => setAutoSend(e.target.checked)}
-          className="accent-geo-accent w-3 h-3 mt-0.5"
-          data-ourgeo-id="settings.voiceAutoSend"
-        />
-        <span className="flex flex-col">
-          <span className="text-xs text-foreground">Send as soon as the transcript arrives</span>
-          <span className="text-[11px] text-geo-muted">
-            Off by default. The assistant can run R, and a misheard instruction is worth reading before it goes.
-          </span>
-        </span>
-      </label>
+      <Switch
+        checked={autoSend}
+        onChange={setAutoSend}
+        data-ourgeo-id="settings.voiceAutoSend"
+        label="Send as soon as the transcript arrives"
+        description={
+          <>
+            Off by default. The assistant can run R, and a misheard instruction is
+            worth reading before it goes.
+          </>
+        }
+      />
     </div>
   )
 }

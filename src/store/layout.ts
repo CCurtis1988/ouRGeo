@@ -192,7 +192,10 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
   return {
     layout: defaultLayout(panelInfoList()),
     presets: [],
-    dragEnabled: true,
+    // Off until `init` reads the file, and off if the file says nothing —
+    // see `loadDragEnabled`. Starting it on would flash a grip onto every
+    // panel for the length of one file read.
+    dragEnabled: false,
     loaded: false,
     focusedPanel: null,
 

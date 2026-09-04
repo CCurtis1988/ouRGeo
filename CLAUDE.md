@@ -1337,7 +1337,8 @@ request.
   console on a short window leaves fifty pixels to type in, and three open
   panels leave the editor none.
 - **Settings → Workspace** (`LayoutSettings.tsx`) is the third way to reach the
-  arrangement, and the one that shows you what you have. The grip is a gesture
+  arrangement, and — with the grips off by default — the first one most users
+  will find, as well as the only one that shows you what you have. The grip is a gesture
   and the assistant is a conversation; neither lists the arrangements you saved,
   and neither is where a user looks after moving something by accident — which
   is why **Restore default arrangement** sits with the list rather than
@@ -1346,8 +1347,16 @@ request.
     the presets and Restore all still work with the grips off, and the stored
     layout is untouched — otherwise switching it off would strand a user in
     whatever arrangement they had. It lives in `layout.json` beside the layout
-    and the presets, and an absent or unreadable value means ON: a preference
-    file that failed to load must not quietly take a feature away.
+    and the presets.
+  - **It ships OFF**, and only an explicit `true` turns it on — an absent or
+    unreadable value is OFF, which is the state a new install is in rather than
+    one the user would have to recognise as wrong. The grip is hover-revealed
+    over every panel's own header, so a gesture nobody went looking for is one
+    that mostly fires by accident. The cost is that the grip's **right-click
+    menu goes with it** — Move to, Add another, Remove — so the setting's
+    description says so, and Settings → Workspace carries add and remove
+    itself. The store also starts `false` rather than `true`, or a grip would
+    flash onto every panel for the length of one file read.
   - **Arrangements export as `.ourgeolayout.json`** (`layout/layout-file.ts`),
     following the theme format for the same reason: an envelope that says what
     the file IS, so a file picked by mistake is answered by naming it (a theme,
@@ -1790,3 +1799,5 @@ Muted:       #8b949e  (geo-muted)
 ```
 
 These are the Dark app theme's values; every theme overrides them at runtime via `applyTheme`. New UI must use these tokens via Tailwind classes (`bg-geo-bg`, `text-geo-muted`, etc.) and follow the existing shadcn/ui + Radix component patterns in `src/components/ui/`.
+
+**A setting is a `Switch`, not a checkbox** (`ui/switch.tsx`). A checkbox states a value something else will act on later — the ticks in Add Features, "don't show this again" on a dialog you are about to dismiss — and those stay checkboxes. A switch takes effect the moment it moves, which is every row in the Settings dialog: there is no OK button. The whole row is the `<button role="switch">`, because a button nested in a label is two click targets that both fire, and the knob is `bg-foreground` in both states — the one token guaranteed readable on both the `geo-bg` track and the `geo-accent` one, in light themes as well as dark.
