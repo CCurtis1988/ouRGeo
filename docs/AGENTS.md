@@ -254,9 +254,14 @@ next model — can find it.
 38. **`README.md`** — anything user-visible: a feature, a requirement, a
     command, a new file format.
 
-39. **`src/components/settings/versionHistory.ts`** — the release note. The
-    first entry's `version` is the version the app reports, so this file is the
-    single source of truth for both.
+39. **`src/components/settings/versionHistory.ts`** — the release note, for a
+    release. Versions are `a.b.c`: **`a` and `b` belong to the maintainer** and
+    are the releases announced here, one entry each. **`c` is yours** — bump it
+    in `package.json` with the work, once per coherent change rather than once
+    per file, and do not add an entry for it. The running version is
+    `package.json`'s, injected at build time (`__APP_VERSION__`); a patch bump
+    needs no other edit. If a change feels release-sized, say so rather than
+    bumping `b` yourself.
 
 40. **The relevant `ourgeo_docs` topic** in `ai-skill-ourgeo.ts`. The
     assistant's knowledge is part of the feature, not documentation of it — a

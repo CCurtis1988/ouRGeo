@@ -212,5 +212,24 @@ export const VERSION_HISTORY: ReleaseNote[] = [
   },
 ]
 
-/** Current app version — the newest entry in the history. */
-export const APP_VERSION = VERSION_HISTORY[0].version
+/**
+ * The version the app reports, `a.b.c`, injected at build time from
+ * `package.json` — the file electron-builder already reads to name the
+ * installer.
+ *
+ * It used to be `VERSION_HISTORY[0].version`, which was right while every
+ * version was a release. It is not any more: `a` and `b` are the releases the
+ * maintainer announces (and the entries below are their notes), while `c`
+ * moves with ordinary changes between them. Deriving the running version from
+ * the release notes would have meant either a notes entry per patch — a
+ * "What's new" dialog full of typo fixes — or a top entry whose version no
+ * longer matched its own title.
+ */
+export const APP_VERSION: string =
+  typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : VERSION_HISTORY[0].version
+
+/** The `a.b` release the running build belongs to, for matching it against the
+ *  notes below. */
+export function currentRelease(): string {
+  return APP_VERSION.split('.').slice(0, 2).join('.')
+}

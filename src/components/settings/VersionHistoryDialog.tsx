@@ -1,7 +1,7 @@
 import React from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, History } from 'lucide-react'
-import { VERSION_HISTORY, APP_VERSION } from './versionHistory'
+import { VERSION_HISTORY, currentRelease } from './versionHistory'
 
 interface VersionHistoryDialogProps {
   children: React.ReactNode
@@ -43,7 +43,9 @@ export function VersionHistoryDialog({ children }: VersionHistoryDialogProps): R
           <div className="overflow-y-auto px-5 py-4">
             <ol className="relative border-l border-geo-border ml-2">
               {VERSION_HISTORY.map((rel, i) => {
-                const isCurrent = rel.version === APP_VERSION
+                // Matched on the release, not the exact build: entries are
+                // the a.b releases, and the running version carries a patch.
+                const isCurrent = rel.version === currentRelease()
                 return (
                   <li key={rel.version} className={`ml-5 ${i === VERSION_HISTORY.length - 1 ? '' : 'pb-6'}`}>
                     {/* Timeline node */}
