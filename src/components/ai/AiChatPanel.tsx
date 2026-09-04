@@ -4,6 +4,7 @@ import { Button } from '../ui/button'
 import { AiChatMessage } from './AiChatMessage'
 import { ModelSelectorPopup } from './ModelSelectorPopup'
 import { AutopilotWarningDialog } from './AutopilotWarningDialog'
+import { VoiceButton, VoiceStatusLine } from './VoiceButton'
 import { AiPermissionsDialog } from './AiPermissionsDialog'
 import { AiActionConfirmDialog } from './AiActionConfirmDialog'
 import { useAiStore } from '@/store/ai'
@@ -303,6 +304,32 @@ export function AiChatPanel(): React.ReactElement {
   }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, contextSize,
       addMessage, appendStreamChunk, finalizeStream, beginStream, setTokenUsage, addConsoleEntry, streamingContent, setEnvironments])
 
+  /**
+   * Put a transcript into the message box at the caret.
+   *
+   * At the caret rather than replacing the box, so dictation can finish a
+   * half-typed sentence — and spaced against what is already there, because a
+   * transcript butted straight onto the previous word is the one mistake that
+   * makes voice input feel broken rather than imperfect.
+   */
+  const insertTranscript = useCallback((text: string) => {
+    const el = textareaRef.current
+    setInput((current) => {
+      const at = el && el.selectionStart != null ? el.selectionStart : current.length
+      const before = current.slice(0, at)
+      const after = current.slice(at)
+      const gap = before && !/\s$/.test(before) ? ' ' : ''
+      const next = `${before}${gap}${text}${after}`
+      // Restore the caret after React has written the new value.
+      requestAnimationFrame(() => {
+        const pos = before.length + gap.length + text.length
+        el?.focus()
+        el?.setSelectionRange(pos, pos)
+      })
+      return next
+    })
+  }, [])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Autocomplete navigation
     if (suggestions.length > 0) {
@@ -482,7 +509,10 @@ export function AiChatPanel(): React.ReactElement {
           />
         </div>
 
+        <VoiceStatusLine />
+
         <div className="flex justify-end gap-2">
+          <VoiceButton onTranscript={insertTranscript} disabled={isStreaming} />
           {isStreaming ? (
             <Button size="sm" variant="ghost" onClick={cancelStream} className="text-geo-error hover:text-geo-error h-6 px-2">
               <Square className="w-3 h-3 mr-1 fill-geo-error" />

@@ -32,6 +32,11 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'settings.layoutName', label: 'Name this arrangement', where: 'Settings → Workspace' },
   { id: 'settings.layoutImport', label: 'Import…', where: 'Settings → Workspace' },
   { id: 'settings.layoutReset', label: 'Restore default arrangement', where: 'Settings → Workspace' },
+  { id: 'settings.voiceDevice', label: 'Input device', where: 'Settings → Voice input' },
+  { id: 'settings.voiceService', label: 'Transcribed by', where: 'Settings → Voice input' },
+  { id: 'settings.voiceTest', label: 'Test microphone', where: 'Settings → Voice input' },
+  { id: 'settings.voiceModels', label: 'Manage models…', where: 'Settings → Voice input' },
+  { id: 'settings.voiceAutoSend', label: 'Send as soon as the transcript arrives', where: 'Settings → Voice input' },
 
   // Spatial editor ribbon.
   { id: 'map.addFeatures', label: 'Add Features', where: 'spatial editor ribbon' },
@@ -46,6 +51,11 @@ const FIXED_TARGETS: UiTarget[] = [
 
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },
+
+  // AI panel. Pointable, but there is deliberately no action that presses it:
+  // the microphone is the user's, and an assistant that can arm it is on the
+  // same list as one that can close its own panel.
+  { id: 'ai.voice', label: 'Dictate a message', where: 'AI panel, beside Send' },
 
   // Environment panel.
   { id: 'environment.export', label: 'Export', where: 'Environment panel, action bar' },

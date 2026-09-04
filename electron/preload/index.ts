@@ -227,5 +227,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.send('ai:fetch', id, req)
       return () => { ipcRenderer.send('ai:abort', id); cleanup() }
     }
+  },
+  voice: {
+    // Upload a recording to a transcription service. The audio crosses as a
+    // Uint8Array (structured clone), not base64 — see electron/main/voice.ts.
+    transcribe: (req: {
+      url: string
+      headers: Record<string, string>
+      audio: Uint8Array
+      filename: string
+      mime: string
+      fields: Record<string, string>
+      raw?: boolean
+      timeoutMs?: number
+    }): Promise<{ ok: boolean; status: number; body: string }> =>
+      ipcRenderer.invoke('voice:transcribe', req),
+    request: (req: {
+      url: string; method?: string; headers?: Record<string, string>; body?: string
+    }): Promise<{ ok: boolean; status: number; body: string }> =>
+      ipcRenderer.invoke('voice:request', req),
+    /** macOS microphone authorisation; 'granted' everywhere else. */
+    micAccess: (): Promise<string> => ipcRenderer.invoke('voice:micAccess'),
+    models: (): Promise<unknown[]> => ipcRenderer.invoke('voice:models'),
+    modelDownload: (
+      id: string, onProgress: (p: { received: number; total: number; file: string }) => void,
+    ): Promise<{ ok: boolean; error?: string }> => {
+      const channel = `voice:modelProgress:${id}`
+      const listener = (
+        _e: Electron.IpcRendererEvent, p: { received: number; total: number; file: string },
+      ): void => onProgress(p)
+      ipcRenderer.on(channel, listener)
+      return ipcRenderer.invoke('voice:modelDownload', id)
+        .finally(() => ipcRenderer.removeListener(channel, listener))
+    },
+    modelCancel: (id: string): Promise<boolean> => ipcRenderer.invoke('voice:modelCancel', id),
+    modelRemove: (id: string): Promise<boolean> => ipcRenderer.invoke('voice:modelRemove', id),
   }
 })

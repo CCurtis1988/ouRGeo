@@ -40,6 +40,7 @@ import { loadBasemap } from './lib/basemap-persistence'
 import { loadEnvironmentPreferences } from './lib/environment-preferences'
 import { useBasemapStore } from './store/basemap'
 import { useEnvironmentStore } from './store/environment'
+import { useVoiceStore } from './store/voice'
 
 // Detect if this window is the plot popout
 const isPopout = typeof window !== 'undefined' && window.location.hash === '#plot-popout'
@@ -130,6 +131,9 @@ function MainApp(): React.ReactElement {
       // Load saved basemap override
       const savedBasemap = await loadBasemap()
       useBasemapStore.setState({ overrideBasemapId: savedBasemap })
+
+      // Voice input: device, service and dictation preferences.
+      void useVoiceStore.getState().init()
 
       // How the Environment panel lists each of the user's environments —
       // beside .GlobalEnv, or inside it as well.

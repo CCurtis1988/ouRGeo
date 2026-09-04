@@ -1,4 +1,6 @@
-import { app, BrowserWindow, shell, ipcMain, powerMonitor } from 'electron'
+import {
+  app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
+} from 'electron'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
@@ -9,6 +11,10 @@ import { registerAiProxy } from './ai-proxy'
 import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
 import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
+import { registerVoiceHandlers } from './voice'
+import {
+  registerVoiceModelHandlers, registerVoiceModelProtocol, VOICE_MODEL_SCHEME_PRIVILEGES,
+} from './voice-models'
 
 async function loadSavedRPath(): Promise<void> {
   try {
@@ -127,6 +133,11 @@ function createWindow(): void {
   }
 }
 
+// Must run before the app is ready: Electron only accepts privilege
+// declarations while the protocol registry is still open. This is what makes
+// `ourgeo-model://` a secure origin that `fetch` will read a stream from.
+protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES])
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('org.ourgeo.app')
 
@@ -134,8 +145,44 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Permissions: an allowlist, not a hole for the microphone.
+  //
+  // Electron grants permission requests by default when no handler is
+  // registered, and none was — so until now the renderer could have asked for
+  // geolocation, notifications, HID or MIDI and been given them without
+  // anything on screen. Voice input needs exactly one of these, so the handler
+  // that grants it also closes the rest.
+  //
+  // The check handler matters as much as the request handler: it is what
+  // `enumerateDevices` consults to decide whether to reveal device LABELS, and
+  // without it the microphone picker is a list of blanks.
+  const allowed = (permission: string): boolean => permission === 'media'
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+    callback(allowed(permission) && contents === mainWindow?.webContents)
+  })
+  session.defaultSession.setPermissionCheckHandler((contents, permission) => (
+    allowed(permission) && contents === mainWindow?.webContents
+  ))
+
   setupIpcHandlers(ipcMain)
   registerAiProxy(ipcMain)
+  registerVoiceHandlers(ipcMain)
+  registerVoiceModelHandlers(ipcMain)
+  registerVoiceModelProtocol()
+
+  // macOS gates the microphone behind TCC, and the prompt only appears if
+  // NSMicrophoneUsageDescription is in the Info.plist (electron-builder
+  // `mac.extendInfo`). Asking here rather than at the first recording means a
+  // user who says no sees a settings link in the panel instead of a capture
+  // that fails for reasons it cannot explain.
+  ipcMain.handle('voice:micAccess', async (): Promise<string> => {
+    if (process.platform !== 'darwin') return 'granted'
+    const status = systemPreferences.getMediaAccessStatus('microphone')
+    if (status === 'not-determined') {
+      return (await systemPreferences.askForMediaAccess('microphone')) ? 'granted' : 'denied'
+    }
+    return status
+  })
   registerKnitHandlers(ipcMain)
   registerForumHandlers(ipcMain)
   registerPluginHandlers(ipcMain)

@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react'
 import { SettingsDialog } from '../settings/SettingsDialog'
 import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
 import { PluginManagerDialog } from '../settings/PluginManagerDialog'
+import { VoiceModelDialog } from '../voice/VoiceModelDialog'
 import { ProjectDropdown } from '../project/ProjectDropdown'
 import { LoadDataDialog } from '../editor/LoadDataDialog'
 import { RecordingDestinationDialog } from '../editor/RecordingDestinationDialog'
@@ -321,6 +322,10 @@ export function EditorLayout(): React.ReactElement {
         open={openDialog === 'theme-studio'}
         onOpenChange={dialogToggle('theme-studio')}
       />
+      {/* Reads its own visibility from the ui store: it is opened both from
+          Settings and from the microphone in the AI panel, and a prop chain
+          from either would leave the other unable to show it. */}
+      <VoiceModelDialog />
       {/* A sibling of Settings for the same reason the Theme Studio is. */}
       <PluginManagerDialog
         open={openDialog === 'plugins'}

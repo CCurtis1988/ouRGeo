@@ -26,6 +26,16 @@ interface ForumCategory {
   minRoleToPost: string
 }
 
+export interface VoiceModelStatus {
+  id: string
+  label: string
+  note: string
+  multilingual: boolean
+  totalBytes: number
+  installed: boolean
+  bytesOnDisk: number
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -158,6 +168,29 @@ declare global {
             onError: (message: string) => void
           }
         ): () => void
+      }
+      voice: {
+        transcribe(req: {
+          url: string
+          headers: Record<string, string>
+          audio: Uint8Array
+          filename: string
+          mime: string
+          fields: Record<string, string>
+          raw?: boolean
+          timeoutMs?: number
+        }): Promise<{ ok: boolean; status: number; body: string }>
+        request(req: {
+          url: string; method?: string; headers?: Record<string, string>; body?: string
+        }): Promise<{ ok: boolean; status: number; body: string }>
+        /** macOS microphone authorisation; 'granted' everywhere else. */
+        micAccess(): Promise<string>
+        models(): Promise<VoiceModelStatus[]>
+        modelDownload(
+          id: string, onProgress: (p: { received: number; total: number; file: string }) => void,
+        ): Promise<{ ok: boolean; error?: string }>
+        modelCancel(id: string): Promise<boolean>
+        modelRemove(id: string): Promise<boolean>
       }
     }
   }

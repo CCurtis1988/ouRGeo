@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
-  Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid,
+  Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -14,6 +14,7 @@ import { InitialExtentPicker } from './InitialExtentPicker'
 import { AttributePopupToggle } from './AttributePopupToggle'
 import { CrsSettings } from './CrsSettings'
 import { AiProviderSettings } from './AiProviderSettings'
+import { VoiceSettings } from './VoiceSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { LayoutSettings } from './LayoutSettings'
 import { useApiKeysStore } from '@/store/apiKeys'
@@ -357,6 +358,14 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
               description="AI provider and model configuration"
             >
               <AiProviderSettings />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={Mic}
+              title="Voice input"
+              description="Dictate to the assistant — microphone, and who transcribes it"
+            >
+              <VoiceSettings />
             </SettingsSection>
 
             <SettingsSection
