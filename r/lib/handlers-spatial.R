@@ -223,8 +223,16 @@ handle_spatial_geojson <- function(body) {
       }
     }
 
-    # Convert to GeoJSON string
-    geojson_str <- if (requireNamespace("geojsonsf", quietly = TRUE)) {
+    # Convert to GeoJSON string.
+    #
+    # geojsonsf is skipped when the object carries NO attribute columns:
+    # `sf_geojson` on a geometry-only sf returns bare geometries separated by
+    # spaces rather than a FeatureCollection, so the renderer's
+    # `geojson.features.map(...)` failed with "Cannot read properties of
+    # undefined". `st_as_sf(data.frame(x, y), coords = c("x", "y"))` — the
+    # first thing anyone does with sf — produces exactly that object.
+    has_attrs <- length(setdiff(names(obj), geom_col)) > 0
+    geojson_str <- if (has_attrs && requireNamespace("geojsonsf", quietly = TRUE)) {
       geojsonsf::sf_geojson(obj)
     } else {
       # Fallback: use sf's built-in GeoJSON writer via temp file
