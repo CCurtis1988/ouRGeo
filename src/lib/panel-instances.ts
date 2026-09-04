@@ -1,4 +1,4 @@
-// Adding and removing an editor or a map.
+// Adding and removing a panel that may exist more than once.
 //
 // Two gestures, three surfaces — Settings → Workspace, the panel grip's
 // context menu, and the assistant — and they must do exactly the same thing,
@@ -7,12 +7,23 @@
 //
 // **Removing a panel never removes its content.** That is the whole reason
 // this module exists rather than a `dropPanel` call at each site: a second
-// editor holds documents and a second map holds sessions that own layers and
-// an extent, and a user closing a panel is arranging their workspace, not
-// throwing work away. The content is handed to the panel that remains, and
-// only then is the panel taken out of the layout.
+// editor holds documents, and a user closing a panel is arranging their
+// workspace, not throwing work away. The content is handed to the panel that
+// remains, and only then is the panel taken out of the layout.
+//
+// **Only a panel that was ADDED can be removed**, and the check lives here
+// rather than in the three menus, because a rule enforced at each call site is
+// a rule that holds until someone adds a fourth. Remove is not the same
+// gesture as Close: closing hides a panel the toolbar can bring straight back,
+// while removing takes a panel out of the workspace for good — so it may only
+// ever apply to a panel the user asked for, which by construction has a
+// sibling for its contents to move to.
+//
+// The map's cap is currently 1 (see `panel-meta.ts`), so today this is only
+// ever the editor. Everything below is written over `basePanelId` rather than
+// against the editor, so raising that cap is a one-line change there.
 
-import { basePanelId, nextPanelInstanceId } from './layout/instances'
+import { basePanelId, isPanelInstance, nextPanelInstanceId } from './layout/instances'
 import { zoneOf, type PanelId, type ZoneId } from './layout/model'
 import { panelInfo, panelMaxInstances } from './layout/panel-meta'
 import { useLayoutStore } from '@/store/layout'
@@ -36,9 +47,9 @@ export type AddPanelResult =
  * Add another instance of a panel, beside the one it was copied from.
  *
  * Beside, rather than in the panel's default zone: a user asking for a second
- * map wants two maps they can look at together, and a second map that opened
- * in the right column while the first sat on the left would read as the button
- * having done nothing.
+ * editor wants two documents they can look at together, and a second editor
+ * that opened in the right column while the first sat in the centre would read
+ * as the button having done nothing.
  */
 export function addPanelInstance(base: PanelId, zone?: ZoneId): AddPanelResult {
   const meta = panelInfo(base)
@@ -79,6 +90,18 @@ export function removePanelInstance(id: PanelId): RemovePanelResult {
   const base = basePanelId(id)
   const meta = panelInfo(id)
   if (!meta) return { ok: false, message: `There is no panel called "${id}".` }
+  // The original is not removable at all, however many siblings it has. It is
+  // where content comes home to when a layout preset or a project bundle names
+  // a panel this workspace no longer has, and for the editor it is `essential`
+  // — `normalize` would put it straight back, empty, having already handed its
+  // documents to the copy.
+  if (!isPanelInstance(id)) {
+    return {
+      ok: false,
+      message: `${meta.label} is the one ouRGeo ships, so it stays. `
+        + `Only a panel that was added can be removed — hide this one from the toolbar instead.`,
+    }
+  }
   const siblings = instancesOf(base)
   if (!siblings.includes(id)) {
     return { ok: false, message: `${meta.label} is not in the workspace.` }

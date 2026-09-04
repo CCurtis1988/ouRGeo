@@ -364,14 +364,15 @@ export const layoutActions: UiAction[] = [
     group: 'layout',
     tier: 'always',
     summary:
-      'Open a SECOND code editor or Spatial Editor, beside the existing one. Only those two can ' +
-      'exist more than once — everything else shows one thing and has one panel. The new panel ' +
-      'starts empty; drag a tab or a map session into it, or open something with it focused.',
+      'Open a SECOND panel of a kind that can have one, beside the existing one — today that is ' +
+      'the code editor, and nothing else. Every other panel shows one global thing (one console, ' +
+      'one environment listing, one map), so a second copy would be two windows onto the same ' +
+      'state. The new panel starts empty; drag a tab into it, or open something with it focused.',
     params: [
       {
         name: 'panel', type: 'enum', valuesAt: () => multiInstancePanels().map((p) => p.id),
         lenient: true, required: true,
-        description: 'editor or spatial.',
+        description: 'The kind of panel to add another of — the values listed are the only ones there are.',
       },
     ],
     run: (args) => {
@@ -394,14 +395,14 @@ export const layoutActions: UiAction[] = [
     group: 'layout',
     tier: 'always',
     summary:
-      'Remove an extra editor or map — one that was added, not the original. Nothing is lost: its ' +
-      'documents or map sessions move to the panel that remains. To hide a panel without removing ' +
-      'it, use ui:panel instead.',
+      'Remove a panel that was ADDED — never one ouRGeo ships, which cannot be removed at all. ' +
+      'Nothing is lost: its documents move to the panel that remains. To hide a panel instead, ' +
+      'which the toolbar can undo in one click, use ui:panel.',
     params: [
       {
         name: 'panel', type: 'enum', valuesAt: () => panelIds().filter(isPanelInstance),
         lenient: true, required: true,
-        description: 'The extra panel, e.g. editor#2 or "Spatial Editor 2".',
+        description: 'The added panel, e.g. editor#2 or "Code editor 2". Empty means there are none to remove.',
       },
     ],
     run: (args) => {
@@ -410,8 +411,9 @@ export const layoutActions: UiAction[] = [
       if (!panel) return fail(unknownPanel(want))
       if (!isPanelInstance(panel.id)) {
         return fail(
-          `${panel.label} is the original panel, not an extra one — removing it would leave its `
-          + 'contents nowhere to go. Close it with ui:panel, or remove one of the extras.',
+          `${panel.label} is the one ouRGeo ships, not one that was added, and it cannot be `
+          + 'removed — it is where content comes home to. Remove the added copy instead (the '
+          + 'contents end up in one panel either way), or hide this one with ui:panel.',
         )
       }
       const summaryOfContents = removalSummary(panel.id)

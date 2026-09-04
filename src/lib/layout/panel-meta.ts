@@ -32,13 +32,20 @@ const BUILTIN: PanelInfo[] = [
   { id: 'environment', label: 'Environment', storeKey: 'environment', min: 120, defaultZone: 'left', defaultOrder: 0, defaultOpen: false },
   { id: 'packages', label: 'Packages', storeKey: 'packages', min: 120, defaultZone: 'left', defaultOrder: 1, defaultOpen: false },
   { id: 'databases', label: 'Databases', storeKey: 'databases', min: 120, defaultZone: 'left', defaultOrder: 2, defaultOpen: false },
-  // The one panel the workspace cannot be without.
-  // The two panels that own a SET of things rather than one global thing —
-  // tabs and map sessions — and are therefore the two worth having twice.
+  // The one panel the workspace cannot be without, and the one panel worth
+  // having twice: it owns a SET of things — tabs — rather than one global
+  // thing, so a second one is a second set of documents rather than a second
+  // view of the same one.
+  //
+  // The Spatial Editor owns a set too (named map sessions) and the model below
+  // is written for either, but its cap stays at 1: a second map is a second
+  // tile stream, a second extent and a second answer to "which map did that
+  // go to", and none of those are worth carrying until someone wants two maps
+  // open at once. `maxInstances: 4` on the entry below is all it would take.
   { id: 'editor', label: 'Code editor', essential: true, maxInstances: 4, min: 120, defaultZone: 'center', defaultOrder: 0, defaultOpen: true },
   { id: 'console', label: 'R console', min: 80, defaultZone: 'bottom', defaultOrder: 0, defaultOpen: true },
   { id: 'plots', label: 'Plots', storeKey: 'plots', min: 240, defaultZone: 'right', defaultOrder: 0, defaultOpen: false },
-  { id: 'spatial', label: 'Spatial Editor', storeKey: 'spatial', maxInstances: 4, min: 300, defaultZone: 'right', defaultOrder: 1, defaultOpen: false },
+  { id: 'spatial', label: 'Spatial Editor', storeKey: 'spatial', min: 300, defaultZone: 'right', defaultOrder: 1, defaultOpen: false },
   { id: 'ai', label: 'AI Assistant', storeKey: 'ai', min: 280, defaultZone: 'right', defaultOrder: 2, defaultOpen: false },
   { id: 'help', label: 'Help', storeKey: 'help', min: 300, defaultZone: 'right', defaultOrder: 3, defaultOpen: false },
 ]
@@ -61,8 +68,9 @@ export function panelInfoList(): PanelInfo[] {
  * `editor#2` is not IN the registry and never will be: the registry lists the
  * panels ouRGeo has, and a second editor exists because a user asked for one.
  * So its entry is derived from the original's, which is also what keeps the
- * two from drifting — a second map has the map's minimum size, the map's
- * default zone and the map's own open/closed state, by construction.
+ * two from drifting — a second editor has the editor's minimum size, the
+ * editor's default zone and the editor's own open/closed state, by
+ * construction.
  *
  * `essential` is deliberately dropped: the workspace needs AN editor, not this
  * one, and an instance that could not be removed would be a trap.
@@ -77,7 +85,7 @@ export function panelInfo(id: PanelId): PanelInfo | undefined {
   return { ...base, id, label: instanceLabel(base.label, n), essential: false }
 }
 
-/** How many of this panel may exist at once. 1 for all but the editor and the map. */
+/** How many of this panel may exist at once. 1 for everything but the code editor. */
 export function panelMaxInstances(id: PanelId): number {
   return live.find((p) => p.id === basePanelId(id))?.maxInstances ?? 1
 }
@@ -98,19 +106,24 @@ export function panelLabels(): Record<PanelId, string> {
  * Resolve a panel by id, or by the name a user would say it by.
  *
  * Instances resolve too, and by their spoken name as well as their id — a user
- * who has two maps says "the second map", and the assistant relaying that
- * reaches for "Spatial Editor 2" long before it reaches for `spatial#2`.
+ * who has two editors says "the second editor", and the assistant relaying
+ * that reaches for "Code editor 2" long before it reaches for `editor#2`.
  */
 export function resolvePanelName(want: string): PanelInfo | undefined {
   const q = want.trim().toLowerCase()
-  const squash = (s: string): string => s.toLowerCase().replace(/[^a-z]/g, '')
+  // Digits SURVIVE the squash, and that is the whole of it: dropping them made
+  // "Code editor 2" squash to `codeeditor`, which is the FIRST editor — so the
+  // spoken name for an added panel resolved, silently and confidently, to the
+  // original. The trailing-number branch below never ran, because this line
+  // had already answered.
+  const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '')
   const exact = live.find((p) => p.id.toLowerCase() === q)
     ?? live.find((p) => p.label.toLowerCase() === q)
     ?? live.find((p) => squash(p.label) === squash(q))
   if (exact) return exact
 
   if (isPanelInstance(want.trim())) return panelInfo(want.trim())
-  // "spatial editor 2" / "code editor 3" — a trailing number names an instance.
+  // "code editor 2" / "code editor 3" — a trailing number names an instance.
   const m = /^(.*?)\s*([2-9])$/.exec(want.trim())
   if (!m) return undefined
   const base = resolvePanelName(m[1])

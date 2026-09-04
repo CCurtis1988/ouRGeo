@@ -12,35 +12,40 @@ import {
 import { useSessionStore } from '@/store/session'
 
 /**
- * Add and remove second editors and second maps.
+ * Add and remove extra editors.
  *
  * Here rather than only on the panel grip because this is the surface that
  * SHOWS you what you have. The grip's menu is the fast way once a panel exists
- * and the pointer is already on it; a user who wants a second map has no panel
- * to right-click yet, and a user who has lost track of how many editors they
- * have needs a list, not a gesture.
+ * and the pointer is already on it; a user who has lost track of how many
+ * editors they have needs a list, not a gesture.
  *
- * Removing never closes a document or a session — they move to the panel that
- * remains, and the button says so before it is pressed.
+ * Only the panels listed here can be added, and only the copies can be
+ * removed — the originals have no ✕, because removing one would leave its
+ * documents nowhere to go. Removing a copy never closes a document: they move
+ * to the editor that remains, and the row says so before the button is
+ * pressed.
  */
 function PanelInstances(): React.ReactElement {
   // Derived outside the selector: a selector returning a fresh array is a
   // new snapshot every render, and zustand re-renders on it.
   const layout = useLayoutStore((s) => s.layout)
   const placed = placedPanelIds(layout)
+  const kinds = multiInstancePanels()
   const note = (kind: 'info' | 'error', text: string): void =>
     useSessionStore.getState().addConsoleEntry(kind, text)
 
   return (
     <div data-ourgeo-id="settings.panelInstances">
+      {/* Named from the registry rather than written out, so this sentence
+          cannot come to disagree with the list underneath it. */}
       <div className="text-[11px] text-geo-muted mb-2 leading-relaxed">
-        The code editor and the Spatial Editor can each be open more than once —
-        two documents side by side, or two maps at different extents. Every other
-        panel shows one thing and exists once.
+        The {kinds.map((p) => p.label.toLowerCase()).join(' and the ')} can be open
+        more than once — two documents side by side, each panel with its own tabs.
+        Every other panel shows one thing and exists once.
       </div>
 
       <div className="flex flex-col divide-y divide-geo-border border border-geo-border rounded">
-        {multiInstancePanels().map((base) => {
+        {kinds.map((base) => {
           const ids = panelInstanceIds(placed, base.id)
           const max = panelMaxInstances(base.id)
           return (
@@ -77,6 +82,9 @@ function PanelInstances(): React.ReactElement {
                   <span className="text-[10px] text-geo-muted/80 truncate">
                     {removalSummary(id)}
                   </span>
+                  {/* Only the copies carry a ✕. The original is filtered out
+                      above, because it is where the copies' documents come
+                      home to — see lib/panel-instances.ts. */}
                   <Button
                     variant="ghost" size="sm"
                     className="h-6 w-6 p-0 text-geo-muted hover:text-geo-error"

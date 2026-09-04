@@ -1625,13 +1625,27 @@ blanks. macOS additionally needs `NSMicrophoneUsageDescription` in
 electron-builder's `mac.extendInfo`, and is asked up front so a blocked
 microphone is visible before the first click.
 
-## Two editors, two maps (v1.12.3)
+## Two editors, one map (v1.12.4)
 
-The code editor and the Spatial Editor can each exist more than once. Nothing
-else can: every other panel is a window onto one global thing — one console,
-one environment listing — and a second copy would be two views fighting over
-one store. These two own a SET (tabs, named map sessions), which is precisely
-what makes a second one useful and what makes the split well-defined.
+The code editor can exist more than once. Nothing else can: every other panel
+is a window onto one global thing — one console, one environment listing — and
+a second copy would be two views fighting over one store. The editor owns a SET
+(its tabs), which is precisely what makes a second one useful and what makes
+the split well-defined.
+
+**The Spatial Editor owns a set too — named map sessions — and briefly had the
+same cap.** It went back to 1, and this section keeps the machinery it needed
+because the model is written over `basePanelId` rather than against the editor:
+`maxInstances: 4` on the `spatial` entry in `panel-meta.ts` is all it would take
+to have it again. What was not worth carrying for it was the *rest*: a second
+tile stream and a bbox per map (`DbSpatialTileLoader` reads one shared
+`viewBbox`), a second extent that the export codegen and the project bundle
+must not read from the wrong one, and a third answer — a dialog — to every
+"send this object to the map". Everything under *"The map had more to unpick"*
+and *"Which map? is a promise"* below is built and correct and currently
+DORMANT: `mapPanels(layout).length` is 1, so `chooseMapPanel` returns that map
+without asking, `MapTargetPicker` renders nothing, and the session-drag targets
+never appear.
 
 ### Instances are a naming scheme, not a new model
 
@@ -1642,20 +1656,54 @@ That is why every `layout.json`, saved preset, `data-ourgeo-id` and `ui:panel`
 call written before this feature still resolves. `#` rather than `:` (a
 plugin's panel id is already `plugin:panel`) and rather than `.` (a dot in an
 id reads as a property access — the same argument that made action ids use a
-colon). `maxInstances` on `PanelMeta` is 4 for both, capped because each extra
-map is another MapLibre instance holding a WebGL context.
+colon). `maxInstances` on `PanelMeta` is 4 for the editor and absent (so 1)
+everywhere else.
 
 `normalize` gained the rules that keep a bad file renderable: an instance of a
 panel that may only exist once is dropped, so is one past the cap and one whose
 suffix does not parse (`editor#1`, `editor#x`); and **an instance's open state
 is its base panel's**. That last one is a decision, not an omission — the
-toolbar has one button per panel, so a second map that could be closed on its
-own could only be reopened from Settings, and a map holding sessions that is
-invisible and unreachable is the worst state this feature can produce. Closing
-the map closes every map; *removing* one is the other gesture, and it hands its
-sessions on. `dropPanel` is that removal, and step 2 of `normalize` never puts
-an instance back: an original that is missing from a file was never seen, an
-extra one that is missing was removed.
+toolbar has one button per panel, so a second editor that could be closed on
+its own could only be reopened from Settings, and a panel holding documents
+that is invisible and unreachable is the worst state this feature can produce.
+Closing the editor closes every editor; *removing* one is the other gesture,
+and it hands its documents on. `dropPanel` is that removal, and step 2 of
+`normalize` never puts an instance back: an original that is missing from a
+file was never seen, an extra one that is missing was removed.
+
+**Dropping the cap is therefore also the migration.** A `layout.json`, a saved
+preset or a `.ourgeoproj` written while two maps were possible still names
+`spatial#2`; `metaFor` refuses it, step 1 drops it, and `reconcilePanelContent`
+brings its sessions back to the map that remains. Pinned by
+`panel-meta.test.ts`, which asserts against the SHIPPED registry rather than a
+fixture — `model.test.ts` already proves the machinery is general, and a
+fixture would go on passing after the shipped answer changed.
+
+`resolvePanelName`'s squash keeps digits for a related reason. Stripping them
+made "Code editor 2" squash to `codeeditor`, which is the FIRST editor — so the
+spoken name of an added panel resolved, silently and confidently, to the
+original, and the trailing-number branch written to handle it never ran.
+
+### Only what was added can be removed
+
+Remove and Close are different gestures and must not be offered as if they were
+one. Closing hides a panel the toolbar brings straight back; removing takes a
+panel out of the workspace for good. So **Remove applies only to a panel the
+user asked for**, which by construction has a sibling for its contents to move
+to — and the check is in `removePanelInstance`, not in each of the three menus,
+because a rule enforced at every call site holds until someone adds a fourth.
+
+The grip's right-click menu briefly carried both, and that was wrong twice
+over: a right-click could take the console or the map out of the workspace — a
+destructive answer to a gesture made to *move* something — and the way back was
+a toolbar button nothing in the menu mentioned. The menu now moves a panel,
+adds one, and removes one that was added; hiding a panel is what the toolbar is
+for. Settings shows the ✕ only on the copies, and `layout:removePanel` refuses
+the original by name.
+
+Removing the ORIGINAL is not merely disallowed, it could not have worked: the
+editor is `essential`, so `normalize` would put it straight back — empty,
+having already handed its documents to the copy.
 
 ### Removing a panel never removes what is in it
 
@@ -1696,9 +1744,9 @@ orphans back in the original panel.
   `PanelSlot` draws a focus ring, but only when there is more than one panel of
   that kind: with one editor the question has no answer worth showing.
 
-### The map had more to unpick than the editor
+### The map had more to unpick than the editor (dormant)
 
-Only three things in the Spatial Editor were ever per-panel; everything else is
+Kept because the cap is one line away from moving back. Only three things in the Spatial Editor were ever per-panel; everything else is
 per-*focus* and is mounted **only on the focused map** — `GeometryEditRibbon`,
 `DrawContextMenu`, the three popups, `useDrawHotkeys`, `useDraftLayerSync` and
 `DbSpatialTileLoader`. Two of each would double-handle every keystroke, write
@@ -1715,7 +1763,10 @@ both would show it.
   drawn on that session's map and nowhere else, and **a layer owned by no
   session is drawn on every map**. The second half is what keeps it from being
   a regression — rasters have never joined a session, and neither have the Data
-  Connector's raster imports.
+  Connector's raster imports. **This one is not dormant**: with a single map it
+  reduces to "the canvas draws the active session's layers plus the unowned
+  ones", so switching sessions now changes what is drawn and not only what the
+  Contents list names — which is what that list always implied.
 - **The fit signals carry a target panel** (`fitTargetPanel`). Sending a layer
   to the second map and having the first jump to it is a move the user did not
   ask for, in a panel they were not looking at, and it loses wherever that map
@@ -1727,9 +1778,11 @@ both would show it.
   read — a background map reporting where it happens to be pointed would set
   the extent of a figure generated from the other one.
 
-### "Which map?" is a promise
+### "Which map?" is a promise (dormant)
 
-`src/lib/map-target.ts` + `src/store/mapTarget.ts` + `ChooseMapDialog`. Four
+With one map, `chooseMapPanel` short-circuits to it and none of this is
+reached. It is kept whole rather than deleted-and-rewritten, and the reasoning
+is why. `src/lib/map-target.ts` + `src/store/mapTarget.ts` + `ChooseMapDialog`. Four
 places send an object to the map (the Environment panel, the data viewer, the
 assistant, the connectors); a dialog in each would be four dialogs that drift,
 and a setting alone would take the choice away from anyone who wants to decide

@@ -17,7 +17,7 @@ import { panelInfo, panelMaxInstances, type PanelInfo } from '@/lib/layout/panel
 import { useLayoutStore } from '@/store/layout'
 import { useSessionStore } from '@/store/session'
 import { useContentDragStore, type ContentKind } from '@/store/contentDrag'
-import { addPanelInstance, removalSummary, removePanelInstance } from '@/lib/panel-instances'
+import { addPanelInstance, instancesOf, removalSummary, removePanelInstance } from '@/lib/panel-instances'
 import { focusPanel } from '@/lib/panel-focus'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { PanelIdContext } from './panel-context'
@@ -291,10 +291,18 @@ function innerSize(isRow: boolean, weight: number, min: number): React.CSSProper
  * over for a gesture used rarely.
  *
  * Right-clicking it opens the panel's menu. That is where **Remove** lives for
- * a second editor or a second map, and putting it here rather than only in
- * Settings matters: the grip is the control the user already associates with
- * "this panel, as a panel", and it is the thing under the pointer at the
- * moment they decide they no longer want the panel.
+ * an extra editor, and putting it here rather than only in Settings matters:
+ * the grip is the control the user already associates with "this panel, as a
+ * panel", and it is the thing under the pointer at the moment they decide they
+ * no longer want it.
+ *
+ * **Remove appears only on a panel that was added**, never on one ouRGeo
+ * shipped, and the menu carries no Close either. It briefly carried both, and
+ * that was wrong twice over: a right-click on the grip could take the console
+ * or the map out of the workspace — a destructive-looking answer to a gesture
+ * the user made to move something — and the way back was a toolbar button
+ * nothing in the menu mentioned. Hiding a panel is what the toolbar is for;
+ * this menu moves a panel, adds one, and takes away one that was added.
  */
 function PanelGrip(
   { def, setDrag }: { def: PanelInfo; setDrag: (p: PanelId | null) => void },
@@ -313,10 +321,17 @@ function PanelGrip(
       onClick: () => useLayoutStore.getState().movePanel(def.id, z),
     })),
   })
-  if (panelMaxInstances(def.id) > 1) {
+  const max = panelMaxInstances(def.id)
+  if (max > 1) {
+    const kind = def.label.toLowerCase().replace(/ \d+$/, '')
+    const full = instancesOf(basePanelId(def.id)).length >= max
     items.push({ separator: true, label: '' })
     items.push({
-      label: `Add another ${def.label.toLowerCase().replace(/ \d+$/, '')}`,
+      // The cap is stated in the item rather than left for the console: a menu
+      // entry that does nothing when clicked is the one kind of failure a
+      // user reads as the app being broken.
+      label: full ? `Add another ${kind} — ${max} is the most` : `Add another ${kind}`,
+      disabled: full,
       onClick: () => {
         const res = addPanelInstance(basePanelId(def.id))
         note(res.ok ? 'info' : 'error', res.ok ? `Added ${res.label}.` : res.message)
@@ -334,12 +349,6 @@ function PanelGrip(
         note(res.ok ? 'info' : 'error',
           res.ok ? `Removed ${def.label}. ${summary}`.trim() : res.message)
       },
-    })
-  } else if (!def.essential) {
-    items.push({ separator: true, label: '' })
-    items.push({
-      label: `Close ${def.label}`,
-      onClick: () => useLayoutStore.getState().setPanelOpen(def.id, false),
     })
   }
 

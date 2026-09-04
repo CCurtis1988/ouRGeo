@@ -616,20 +616,19 @@ A zone is either **split** (panels share the space, side by side or stacked, per
 
 Panels sharing a zone **start equal** — two take half each, three a third each, and that is what every zone comes back to when ouRGeo is restarted or when \`layout:evenPanels\` is called. So "the Environment panel is tiny" is usually not a sizing request at all: check \`layout:describe\` first, because they may have dragged it, or the zone itself may be too narrow. The result message says the share the panel actually ended up with, which can be less than you asked for — a panel will not shrink below its minimum height on screen. The centre has no size of its own.
 
-## Two editors, or two maps
+## A second code editor
 
-The **code editor** and the **Spatial Editor** are the only panels that can exist more than once — up to four each. Every other panel shows one global thing (one console, one environment listing), so a second copy would be two windows onto the same state.
+The **code editor** is the only panel that can exist more than once — up to four. Every other panel, the Spatial Editor included, shows one global thing (one console, one environment listing, one map), so a second copy would be two windows onto the same state.
 
-    layout:addPanel    panel=spatial
-    layout:removePanel panel=spatial#2
+    layout:addPanel    panel=editor
+    layout:removePanel panel=editor#2
 
-The second one is \`editor#2\` / \`spatial#2\`; the first keeps its plain id. It can also be named the way a user would say it — "Spatial Editor 2".
+The second one is \`editor#2\`; the first keeps its plain id. It can also be named the way a user would say it — "Code editor 2".
 
-- **A new panel starts empty**, and that is deliberate: nothing is duplicated or moved for you. The user drags a tab or a map session into it, or opens something with it focused.
-- **Removing one never closes anything.** Its documents, or its map sessions, move to the panel that remains. Say so when you offer it — a user who thinks Remove will lose their work will not press it.
-- **Closing is not removing.** \`ui:panel\` hides the Spatial Editor, and it hides *every* Spatial Editor, because the toolbar has one button per panel. \`layout:removePanel\` takes one out of the workspace for good.
-- **Which map a layer goes to.** \`map:addLayer\` takes an optional \`map=\`; without it the layer goes to the map the user last worked in, and the result says which one. When the user sends an object from the Environment panel or the data viewer, ouRGeo asks them — unless they have set Settings → Spatial Editor → "Use the map I last worked in".
-- Each map owns its own **sessions**, layers and extent. A layer that no session claims — a raster, a Data Connector import — is drawn on every map.
+- **A new editor starts empty**, and that is deliberate: nothing is duplicated or moved for you. The user drags a tab into it, or opens something with it focused. An empty editor says so on screen, with the two ways to fill it.
+- **Only a panel that was ADDED can be removed.** \`editor\` itself never can — it is where documents come home to. If a user wants the original gone, remove the copy instead: everything ends up in one editor either way.
+- **Removing never closes a document.** The copy's tabs move to the editor that remains. Say so when you offer it — a user who thinks Remove will lose their work will not press it.
+- **Closing is not removing.** \`ui:panel\` hides a panel and the toolbar brings it straight back; \`layout:removePanel\` takes an added panel out of the workspace for good.
 
 ## The toolbar
 

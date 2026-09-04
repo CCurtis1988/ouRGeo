@@ -51,6 +51,49 @@ describe('the layout group is registered like every other', () => {
   })
 })
 
+describe('adding and removing a panel', () => {
+  it('opens a second code editor and gives it a name of its own', async () => {
+    expect(await run('layout:addPanel', { panel: 'editor' })).toContain('Code editor 2')
+    expect(zoneOf(layout(), 'editor#2')).toBe('center')
+    // An added panel is never independently closed — the toolbar has one
+    // button per panel, so a hidden one would have no control to bring it back.
+    expect(isOpen(layout(), 'editor#2')).toBe(true)
+  })
+
+  it('refuses every other panel, and says which one it will take', async () => {
+    // The Spatial Editor is a window onto one map. A second copy would be a
+    // second tile stream and a second extent, so the cap is 1.
+    const out = await run('layout:addPanel', { panel: 'spatial' })
+    expect(out).toContain('FAILED')
+    expect(out).toContain('editor')
+    expect(zoneOf(layout(), 'spatial#2')).toBeNull()
+  })
+
+  it('removes the panel that was added', async () => {
+    await run('layout:addPanel', { panel: 'editor' })
+    expect(await run('layout:removePanel', { panel: 'editor#2' })).not.toContain('FAILED')
+    expect(zoneOf(layout(), 'editor#2')).toBeNull()
+  })
+
+  it('will not remove the editor ouRGeo ships, even with a copy open', async () => {
+    // The gesture that could take the console, the map or the original editor
+    // out of the workspace is the one this feature must not have: `normalize`
+    // would put an essential panel straight back, empty, having already handed
+    // its documents to the copy.
+    await run('layout:addPanel', { panel: 'editor' })
+    const out = await run('layout:removePanel', { panel: 'editor' })
+    expect(out).toContain('FAILED')
+    expect(out).toContain('ui:panel')
+    expect(zoneOf(layout(), 'editor')).toBe('center')
+  })
+
+  it('will not remove a panel that was never duplicated', async () => {
+    const out = await run('layout:removePanel', { panel: 'console' })
+    expect(out).toContain('FAILED')
+    expect(zoneOf(layout(), 'console')).toBe('bottom')
+  })
+})
+
 describe('layout:describe', () => {
   it('says where things are and which zones exist', async () => {
     const out = await run('layout:describe')
