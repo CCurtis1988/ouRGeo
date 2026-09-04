@@ -34,8 +34,14 @@ function hexWithOpacity(hex: string, opacity: number): string {
 
 // ── Main component ─────────────────────────────────────────────────
 
-export function MapLegend(): React.ReactElement | null {
-  const layers = useSpatialStore((s) => s.layers).filter((l) => l.visible)
+export function MapLegend(
+  { layers: shown }: { layers?: SpatialLayer[] } = {},
+): React.ReactElement | null {
+  // The legend describes the map it is drawn on. Given no list it falls back
+  // to every layer, which is what it always did and is still right for the
+  // single-map case and for the export renderer.
+  const allLayers = useSpatialStore((s) => s.layers)
+  const layers = (shown ?? allLayers).filter((l) => l.visible)
   const ls = useSpatialStore((s) => s.legendSettings)
 
   if (layers.length === 0) return null

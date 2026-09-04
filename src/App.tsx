@@ -112,7 +112,7 @@ function MainApp(): React.ReactElement {
       // Load spatial editor settings
       const {
         mode: extentMode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs,
-        lastExportMode
+        lastExportMode, mapTarget
       } = await loadSpatialSettings()
       useSpatialSettingsStore.setState({
         initialExtentMode: extentMode,
@@ -121,7 +121,8 @@ function MainApp(): React.ReactElement {
         showAttributePopup,
         calcCrs,
         defaultCrs,
-        lastExportMode
+        lastExportMode,
+        mapTarget
       })
 
       // Load markdown/R Markdown document settings

@@ -15,7 +15,7 @@ import { draftToGeoJSON, draftIsEmpty } from '@/lib/draw/draft'
  * whichever session's draft was active — so Session 1's in-progress edits don't
  * bleed through to Session 2's map view.
  */
-export function useDraftLayerSync() {
+export function useDraftLayerSync(enabled = true) {
   const session = useGeometryEditStore(selectActiveSession)
   const activeSessionId = useGeometryEditStore((s) => s.activeSessionId)
   const updateLayerFeature = useSpatialStore((s) => s.updateLayerFeature)
@@ -25,6 +25,10 @@ export function useDraftLayerSync() {
   const prevSessionRef = useRef<GeometryEditSession | null>(null)
 
   useEffect(() => {
+    // Mounted once per Spatial Editor, but there is one draft and one set of
+    // layers: a second copy would write the same geometry a second time and,
+    // on a session switch, restore the original twice.
+    if (!enabled) return
     const prevSessionId = prevSessionIdRef.current
     const prevSession = prevSessionRef.current
     prevSessionIdRef.current = activeSessionId
@@ -55,5 +59,5 @@ export function useDraftLayerSync() {
 
     const geometry = draftToGeoJSON(session.draft, session.geometryType, { lenient: true })
     updateLayerFeature(layer.id, session.currentRow, geometry)
-  }, [session, activeSessionId, updateLayerFeature])
+  }, [session, activeSessionId, updateLayerFeature, enabled])
 }

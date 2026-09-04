@@ -1,14 +1,32 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronDown, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
-import { useGeometryEditStore, selectActiveSession, computeOrphanedLayerIds } from '@/store/geometryEdit'
+import {
+  useGeometryEditStore, selectActiveSession, computeOrphanedLayerIds,
+  sessionsForPanel, PRIMARY_MAP,
+} from '@/store/geometryEdit'
 import type { NamedSession } from '@/store/geometryEdit'
 import { useSpatialStore } from '@/store/spatial'
+import { useLayoutStore } from '@/store/layout'
+import { mapPanels } from '@/lib/panel-content'
+import { panelInfo } from '@/lib/layout/panel-meta'
+import { startContentDrag } from '@/lib/content-drag'
+import { usePanelId } from '../layout/panel-context'
+import { ArrowRightLeft } from 'lucide-react'
 
 export function SessionManagerDropdown(): React.ReactElement {
-  const namedSessions = useGeometryEditStore((s) => s.namedSessions)
-  const activeSessionId = useGeometryEditStore((s) => s.activeSessionId)
+  const panelId = usePanelId(PRIMARY_MAP)
+  const allSessions = useGeometryEditStore((s) => s.namedSessions)
+  // This map's sessions only. Two maps each have their own set, and a session
+  // list that showed the other map's would offer to switch to a session this
+  // canvas cannot draw.
+  const namedSessions = sessionsForPanel(allSessions, panelId)
+  const activeSessionId = useGeometryEditStore((s) => s.activeByPanel[panelId] ?? null)
   const activeSession = useGeometryEditStore(selectActiveSession)
+  const moveSessionToPanel = useGeometryEditStore((s) => s.moveSessionToPanel)
+  // See TabBar: a selector that builds an array re-renders for ever.
+  const layout = useLayoutStore((s) => s.layout)
+  const otherMaps = mapPanels(layout).filter((p) => p !== panelId)
   const createNamedSession = useGeometryEditStore((s) => s.createNamedSession)
   const switchNamedSession = useGeometryEditStore((s) => s.switchNamedSession)
   const deleteNamedSession = useGeometryEditStore((s) => s.deleteNamedSession)
@@ -80,7 +98,7 @@ export function SessionManagerDropdown(): React.ReactElement {
   const buttonLabel = activeNs?.name ?? 'Sessions'
   const hasActive = !!activeSession
 
-  const deletingNs = namedSessions.find((ns) => ns.id === deletingId)
+  const deletingNs = allSessions.find((ns) => ns.id === deletingId)
 
   return (
     <div className="relative flex-shrink-0" ref={dropdownRef}>
@@ -115,6 +133,18 @@ export function SessionManagerDropdown(): React.ReactElement {
                     className={`flex items-center gap-1.5 px-2 py-1.5 cursor-pointer hover:bg-geo-bg group ${
                       isActive ? 'bg-geo-accent/5' : ''
                     }`}
+                    // A session can be dragged straight out of this list onto
+                    // the other map. The dropdown closes as the drag starts —
+                    // it is drawn above the map that would otherwise be the
+                    // drop target, and aiming through it is impossible.
+                    onMouseDown={otherMaps.length > 0 && !isRenaming ? startContentDrag({
+                      kind: 'session',
+                      id: ns.id,
+                      from: panelId,
+                      label: ns.name,
+                      onStart: () => setOpen(false),
+                      onDrop: (to) => moveSessionToPanel(ns.id, to),
+                    }) : undefined}
                     onClick={() => {
                       if (!isRenaming) {
                         switchNamedSession(ns.id)
@@ -171,6 +201,22 @@ export function SessionManagerDropdown(): React.ReactElement {
                       </button>
                     )}
 
+                    {/* Send to the other map. The drag is faster once it is
+                        known about; this is how it becomes known about. */}
+                    {!isRenaming && otherMaps.length === 1 && (
+                      <button
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-geo-muted hover:text-foreground flex-shrink-0"
+                        title={`Move to ${panelInfo(otherMaps[0])?.label ?? 'the other map'}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          moveSessionToPanel(ns.id, otherMaps[0])
+                          setOpen(false)
+                        }}
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
+                      </button>
+                    )}
+
                     {/* Delete button */}
                     <button
                       className="opacity-0 group-hover:opacity-100 p-0.5 text-geo-muted hover:text-geo-error flex-shrink-0"
@@ -195,7 +241,7 @@ export function SessionManagerDropdown(): React.ReactElement {
             <button
               className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-geo-muted hover:text-foreground hover:bg-geo-bg"
               onClick={() => {
-                createNamedSession()
+                createNamedSession(undefined, panelId)
                 setOpen(false)
               }}
             >
@@ -229,7 +275,7 @@ export function SessionManagerDropdown(): React.ReactElement {
                 className="px-3 py-1.5 text-xs rounded border border-geo-error/50 bg-geo-error/10 text-geo-error hover:bg-geo-error/20"
                 onClick={() => {
                   if (deletingId) {
-                    const orphaned = computeOrphanedLayerIds(namedSessions, deletingId)
+                    const orphaned = computeOrphanedLayerIds(allSessions, deletingId)
                     deleteNamedSession(deletingId)
                     orphaned.forEach((id) => removeSpatialLayer(id))
                   }

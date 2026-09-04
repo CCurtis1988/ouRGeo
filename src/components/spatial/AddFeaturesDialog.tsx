@@ -8,9 +8,12 @@ import { useSpatialStore, SpatialObjectInfo } from '@/store/spatial'
 
 interface AddFeaturesDialogProps {
   onLayersAdded: (bbox: [number, number, number, number] | null) => void
+  /** The map the layers are being added to. There is no prompt here: the
+   *  dialog was opened from one map's ribbon, and that is the answer. */
+  panelId?: string
 }
 
-export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): React.ReactElement {
+export function AddFeaturesDialog({ onLayersAdded, panelId }: AddFeaturesDialogProps): React.ReactElement {
   const open = useSpatialStore((s) => s.addFeaturesDialogOpen)
   const setOpen = useSpatialStore((s) => s.setAddFeaturesDialogOpen)
   const availableObjects = useSpatialStore((s) => s.availableObjects)
@@ -59,7 +62,7 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
     setError(null)
     // The add itself lives in src/lib/add-spatial-layer.ts, so the AI
     // assistant adds layers through exactly this path.
-    const { failures, bbox } = await addSpatialLayers(toAdd)
+    const { failures, bbox } = await addSpatialLayers(toAdd, panelId)
     setLoading(false)
 
     // Surface failures instead of silently doing nothing; keep the dialog open

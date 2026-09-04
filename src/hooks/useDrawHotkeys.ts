@@ -20,7 +20,7 @@ import { useAddFeature } from './useAddFeature'
  *   H              start polygon hole
  *   S / D / E / M  switch tool: select / draw / edit vertices / move
  */
-export function useDrawHotkeys() {
+export function useDrawHotkeys(enabled = true) {
   const { finish, cancel, undoLast } = useDrawActions()
   const { confirmPendingRowAdd, declinePendingRowAdd } = useAddFeature()
 
@@ -124,7 +124,10 @@ export function useDrawHotkeys() {
       }
     }
 
+    // One listener, on the focused map. Two Spatial Editors would otherwise
+    // both handle every Escape and every tool key, undoing twice.
+    if (!enabled) return
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [finish, cancel, undoLast, confirmPendingRowAdd, declinePendingRowAdd])
+  }, [finish, cancel, undoLast, confirmPendingRowAdd, declinePendingRowAdd, enabled])
 }

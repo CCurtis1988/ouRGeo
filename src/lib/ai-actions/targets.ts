@@ -29,6 +29,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
   { id: 'settings.panelDrag', label: 'Drag panels to rearrange them', where: 'Settings → Workspace' },
+  { id: 'settings.panelInstances', label: 'Add or remove a second editor or map', where: 'Settings → Workspace' },
   { id: 'settings.layoutName', label: 'Name this arrangement', where: 'Settings → Workspace' },
   { id: 'settings.layoutImport', label: 'Import…', where: 'Settings → Workspace' },
   { id: 'settings.layoutReset', label: 'Restore default arrangement', where: 'Settings → Workspace' },

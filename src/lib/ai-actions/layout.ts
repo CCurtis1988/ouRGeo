@@ -12,7 +12,13 @@
 // them, which is exactly the user most likely to want it.
 
 import { useLayoutStore } from '@/store/layout'
-import { panelInfoList, panelInfo, panelLabels, resolvePanelName } from '@/lib/layout/panel-meta'
+import {
+  panelInfoList, panelInfo, panelLabels, panelMaxInstances, multiInstancePanels,
+  resolvePanelName,
+} from '@/lib/layout/panel-meta'
+import { basePanelId, isPanelInstance } from '@/lib/layout/instances'
+import { placedPanelIds } from '@/lib/panel-content'
+import { addPanelInstance, removalSummary, removePanelInstance } from '@/lib/panel-instances'
 import { toolbarButtons, resolveToolbar } from '@/lib/layout/toolbar'
 import {
   describeLayout, zoneOf, isOpen, openPanels, shareOf, ZONE_IDS, ZONE_LABELS,
@@ -25,12 +31,22 @@ function resolvePanel(want: string): { id: PanelId; label: string } | null {
   return hit ? { id: hit.id, label: hit.label } : null
 }
 
+/**
+ * Every panel that exists right now, instances included.
+ *
+ * Resolved at CALL time, not captured at module load: a second editor is
+ * created while the app is running, and a fixed list would have `validateArgs`
+ * refusing `editor#2` before the handler that knows about it ever ran — the
+ * same trap the theme actions walked into with a captured `Object.keys(THEMES)`.
+ */
 function panelIds(): string[] {
-  return panelInfoList().map((p) => p.id)
+  const placed = placedPanelIds(useLayoutStore.getState().layout)
+  return [...new Set([...panelInfoList().map((p) => p.id), ...placed.filter(isPanelInstance)])]
 }
 
 function unknownPanel(want: string): string {
-  return `No panel called "${want}". Panels: ${panelInfoList().map((p) => `${p.id} (${p.label})`).join(', ')}.`
+  const names = panelIds().map((id) => `${id} (${panelInfo(id)?.label ?? id})`)
+  return `No panel called "${want}". Panels: ${names.join(', ')}.`
 }
 
 function presetNames(): string[] {
@@ -340,6 +356,68 @@ export const layoutActions: UiAction[] = [
       }
       await useLayoutStore.getState().deletePreset(name)
       return ok(`Deleted the layout "${name}".`)
+    },
+  },
+
+  {
+    id: 'layout:addPanel',
+    group: 'layout',
+    tier: 'always',
+    summary:
+      'Open a SECOND code editor or Spatial Editor, beside the existing one. Only those two can ' +
+      'exist more than once — everything else shows one thing and has one panel. The new panel ' +
+      'starts empty; drag a tab or a map session into it, or open something with it focused.',
+    params: [
+      {
+        name: 'panel', type: 'enum', valuesAt: () => multiInstancePanels().map((p) => p.id),
+        lenient: true, required: true,
+        description: 'editor or spatial.',
+      },
+    ],
+    run: (args) => {
+      const want = argStr(args, 'panel')
+      const panel = resolvePanel(want)
+      if (!panel) return fail(unknownPanel(want))
+      const base = basePanelId(panel.id)
+      if (panelMaxInstances(base) <= 1) {
+        const can = multiInstancePanels().map((p) => `${p.id} (${p.label})`).join(', ')
+        return fail(`There can only be one ${panel.label}. Panels that can exist twice: ${can}.`)
+      }
+      const res = addPanelInstance(base)
+      if (!res.ok) return fail(res.message)
+      return ok(`Added ${res.label}.`, summary())
+    },
+  },
+
+  {
+    id: 'layout:removePanel',
+    group: 'layout',
+    tier: 'always',
+    summary:
+      'Remove an extra editor or map — one that was added, not the original. Nothing is lost: its ' +
+      'documents or map sessions move to the panel that remains. To hide a panel without removing ' +
+      'it, use ui:panel instead.',
+    params: [
+      {
+        name: 'panel', type: 'enum', valuesAt: () => panelIds().filter(isPanelInstance),
+        lenient: true, required: true,
+        description: 'The extra panel, e.g. editor#2 or "Spatial Editor 2".',
+      },
+    ],
+    run: (args) => {
+      const want = argStr(args, 'panel')
+      const panel = resolvePanel(want)
+      if (!panel) return fail(unknownPanel(want))
+      if (!isPanelInstance(panel.id)) {
+        return fail(
+          `${panel.label} is the original panel, not an extra one — removing it would leave its `
+          + 'contents nowhere to go. Close it with ui:panel, or remove one of the extras.',
+        )
+      }
+      const summaryOfContents = removalSummary(panel.id)
+      const res = removePanelInstance(panel.id)
+      if (!res.ok) return fail(res.message)
+      return ok(`Removed ${panel.label}. ${summaryOfContents}`.trim(), summary())
     },
   },
 

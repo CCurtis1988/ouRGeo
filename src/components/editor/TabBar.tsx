@@ -1,8 +1,16 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, ChevronDown, Table2, Braces, FileCode, FileText } from 'lucide-react'
-import { useEditorStore, type TabType, type TabState } from '@/store/editor'
+import {
+  useEditorStore, tabsForPanel, PRIMARY_EDITOR, type TabType, type TabState,
+} from '@/store/editor'
 import { languageOf, isMarkdownDoc } from '@/lib/markdown/doc-kind'
+import { panelInfo } from '@/lib/layout/panel-meta'
+import { startContentDrag } from '@/lib/content-drag'
+import { usePanelId } from '../layout/panel-context'
+import { editorPanels } from '@/lib/panel-content'
+import { useLayoutStore } from '@/store/layout'
+import { ContextMenu, type ContextMenuItem } from '../ui/context-menu'
 import { cn } from '@/lib/utils'
 import { CreateDataDialog, type CreateDataType } from './CreateDataDialog'
 
@@ -21,13 +29,31 @@ function TabIcon({ tab }: { tab: TabState }): React.ReactElement | null {
 }
 
 export function TabBar(): React.ReactElement {
-  const tabs = useEditorStore((s) => s.tabs)
-  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const panelId = usePanelId(PRIMARY_EDITOR)
+  const allTabs = useEditorStore((s) => s.tabs)
+  const tabs = tabsForPanel(allTabs, panelId)
+  const activeTabId = useEditorStore((s) => s.activeByPanel[panelId] ?? null)
   const setActiveTab = useEditorStore((s) => s.setActiveTab)
   const closeTab = useEditorStore((s) => s.closeTab)
-  const addTab = useEditorStore((s) => s.addTab)
+  const moveTabToPanel = useEditorStore((s) => s.moveTabToPanel)
   const newMarkdownTab = useEditorStore((s) => s.newMarkdownTab)
+  // The other editors this document could be sent to. Read from the layout
+  // rather than from the tabs, so a second editor that is currently EMPTY is
+  // still offered — an empty panel is exactly the one a user wants to fill.
+  // Selecting `layout` (a stable reference) and deriving outside the
+  // selector: a selector that BUILDS an array returns a new one every call,
+  // which zustand reads as a change and re-renders for ever.
+  const layout = useLayoutStore((s) => s.layout)
+  const others = editorPanels(layout).filter((p) => p !== panelId)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [tabMenu, setTabMenu] = useState<{ x: number; y: number; tab: TabState } | null>(null)
+
+  /** Anything that opens a document opens it HERE, not in whichever editor
+   *  happened to be focused — the button that was clicked is in this one. */
+  const openHere = (make: () => void): void => {
+    useEditorStore.getState().focusEditor(panelId)
+    make()
+  }
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
@@ -77,6 +103,20 @@ export function TabBar(): React.ReactElement {
                 ? 'bg-geo-panel border-t-2 border-t-geo-accent text-foreground'
                 : 'bg-geo-bg text-geo-muted hover:bg-geo-panel/50 border-t-2 border-t-transparent'
             )}
+            // Pressing selects, dragging past 4px moves. Both from one handler,
+            // so a tab can be picked up from wherever the eye found it without
+            // first having to make it the active one.
+            onMouseDown={others.length > 0 ? startContentDrag({
+              kind: 'tab',
+              id: tab.id,
+              from: panelId,
+              label: tab.fileName,
+              onPress: () => setActiveTab(tab.id),
+              onDrop: (to) => moveTabToPanel(tab.id, to),
+            }) : undefined}
+            onContextMenu={others.length > 0
+              ? (e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, tab }) }
+              : undefined}
             onClick={() => setActiveTab(tab.id)}
           >
             <TabIcon tab={tab} />
@@ -101,7 +141,7 @@ export function TabBar(): React.ReactElement {
       <div className="flex items-center flex-shrink-0 border-l border-geo-border">
         <button
           className="flex items-center justify-center w-7 h-8 text-geo-muted hover:text-foreground"
-          onClick={() => addTab()}
+          onClick={() => openHere(() => useEditorStore.getState().addTab())}
           title="New blank .R file"
           data-ourgeo-id="editor.newTab"
         >
@@ -126,13 +166,13 @@ export function TabBar(): React.ReactElement {
         >
           <button
             className="block w-full text-left text-xs px-3 py-1.5 text-foreground hover:bg-geo-bg/50"
-            onClick={() => { setDropdownOpen(false); newMarkdownTab('markdown') }}
+            onClick={() => { setDropdownOpen(false); openHere(() => newMarkdownTab('markdown')) }}
           >
             New Markdown
           </button>
           <button
             className="block w-full text-left text-xs px-3 py-1.5 text-foreground hover:bg-geo-bg/50"
-            onClick={() => { setDropdownOpen(false); newMarkdownTab('rmarkdown') }}
+            onClick={() => { setDropdownOpen(false); openHere(() => newMarkdownTab('rmarkdown')) }}
           >
             New R Markdown
           </button>
@@ -143,6 +183,7 @@ export function TabBar(): React.ReactElement {
               className="block w-full text-left text-xs px-3 py-1.5 text-foreground hover:bg-geo-bg/50"
               onClick={() => {
                 setDropdownOpen(false)
+                useEditorStore.getState().focusEditor(panelId)
                 setDialogType(type)
               }}
             >
@@ -151,6 +192,28 @@ export function TabBar(): React.ReactElement {
           ))}
         </div>,
         document.body
+      )}
+
+      {/* A drag is the fast way to move a document; this is the discoverable
+          one. Neither is the only one, because a drag inside a scrolling strip
+          is easy to start by accident and easy to miss entirely. */}
+      {tabMenu && (
+        <ContextMenu
+          x={tabMenu.x}
+          y={tabMenu.y}
+          onClose={() => setTabMenu(null)}
+          items={[
+            {
+              label: 'Move to',
+              submenu: others.map((p): ContextMenuItem => ({
+                label: panelInfo(p)?.label ?? p,
+                onClick: () => moveTabToPanel(tabMenu.tab.id, p),
+              })),
+            },
+            { separator: true, label: '' },
+            { label: 'Close', onClick: () => closeTab(tabMenu.tab.id) },
+          ]}
+        />
       )}
 
       {/* Dialog */}

@@ -31,6 +31,16 @@ export interface SnapSettings {
 /** Which map-code generator the export dialogs last used. */
 export type ExportCodeMode = 'tmap' | 'ggplot'
 
+/**
+ * What "send this object to the map" does when there is more than one map.
+ *
+ * `ask` is the default because the wrong answer is invisible: the layer lands
+ * on a map the user is not looking at, reports success, and looks exactly like
+ * nothing having happened. `last` is for anyone who has settled into using one
+ * of the two maps and does not want a dialog every time.
+ */
+export type MapTargetMode = 'ask' | 'last'
+
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   kinds: { vertex: true, edge: true, midpoint: true, intersection: true },
   tolerancePx: 15
@@ -57,6 +67,9 @@ interface SpatialSettingsState {
    * inserts matches the flavour of code the user has been working in.
    */
   lastExportMode: ExportCodeMode
+  /** Where a sent object goes when the workspace has two Spatial Editors.
+   *  Ignored when there is only one — there is nothing to ask about. */
+  mapTarget: MapTargetMode
   setInitialExtentMode: (mode: InitialExtentMode) => void
   setUserExtent: (extent: UserExtent) => void
   setSnapSettings: (s: SnapSettings) => void
@@ -64,6 +77,7 @@ interface SpatialSettingsState {
   setCalcCrs: (v: string) => void
   setDefaultCrs: (v: string) => void
   setLastExportMode: (v: ExportCodeMode) => void
+  setMapTarget: (v: MapTargetMode) => void
 }
 
 export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
@@ -74,13 +88,15 @@ export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
   calcCrs: 'auto',
   defaultCrs: '4326',
   lastExportMode: 'tmap',
+  mapTarget: 'ask',
   setInitialExtentMode: (initialExtentMode) => set({ initialExtentMode }),
   setUserExtent: (userExtent) => set({ userExtent }),
   setSnapSettings: (snapSettings) => set({ snapSettings }),
   setShowAttributePopup: (showAttributePopup) => set({ showAttributePopup }),
   setCalcCrs: (calcCrs) => set({ calcCrs }),
   setDefaultCrs: (defaultCrs) => set({ defaultCrs }),
-  setLastExportMode: (lastExportMode) => set({ lastExportMode })
+  setLastExportMode: (lastExportMode) => set({ lastExportMode }),
+  setMapTarget: (mapTarget) => set({ mapTarget })
 }))
 
 export function computeInitialViewState(mode: InitialExtentMode, userExtent: UserExtent): ViewState {

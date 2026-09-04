@@ -7,7 +7,8 @@ import { TabBar } from './TabBar'
 import { DataViewer } from './DataViewer'
 import { rClient } from '@/lib/r-client'
 import { useSessionStore } from '@/store/session'
-import { useEditorStore } from '@/store/editor'
+import { useEditorStore, tabsForPanel, PRIMARY_EDITOR, type TabState } from '@/store/editor'
+import { usePanelId } from '../layout/panel-context'
 import { useThemeStore } from '@/store/theme'
 import { THEMES } from '@/lib/themes'
 import {
@@ -120,7 +121,19 @@ function findChunkEnd(model: monaco.editor.ITextModel, startLine: number): numbe
   return endLine
 }
 
+/** The tab of that id, wherever it is. */
+function tabById(id: string | null): TabState | undefined {
+  return id ? useEditorStore.getState().tabs.find((t) => t.id === id) : undefined
+}
+
 export function CodeEditor(): React.ReactElement {
+  // Which editor this is. With two on screen, "the active tab" is a question
+  // with two answers, and every callback below has to mean THIS panel's — the
+  // store's `activeTabId` is the focused panel's, which is the same thing
+  // while the user is typing here and a different thing the moment they click
+  // in the other editor.
+  const panelId = usePanelId(PRIMARY_EDITOR)
+  const activeIdRef = useRef<string | null>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const modelsRef = useRef<Map<string, monaco.editor.ITextModel>>(new Map())
   const suppressChangeRef = useRef(false)
@@ -281,7 +294,7 @@ export function CodeEditor(): React.ReactElement {
         return node
       },
       hasOutput: (chunkId) => {
-        const tabId = useEditorStore.getState().activeTabId
+        const tabId = activeIdRef.current
         const out = tabId ? useChunkStore.getState().outputs[tabId]?.[chunkId] : undefined
         return !!out && out.status !== 'idle'
       },
@@ -301,7 +314,7 @@ export function CodeEditor(): React.ReactElement {
   ): void => {
     // In Visual mode the document is a ProseMirror doc, not text — route the
     // same catalog entry through the schema-aware backend instead.
-    if (useEditorStore.getState().getActiveTab()?.viewMode === 'visual') {
+    if (tabById(activeIdRef.current)?.viewMode === 'visual') {
       const ok = visualRef.current?.applyAction(action, values)
       if (!ok) {
         useSessionStore.getState().addConsoleEntry(
@@ -344,7 +357,7 @@ export function CodeEditor(): React.ReactElement {
 
   /** Current selection text, from whichever editor is showing. */
   const selectionText = useCallback((): string => {
-    if (useEditorStore.getState().getActiveTab()?.viewMode === 'visual') {
+    if (tabById(activeIdRef.current)?.viewMode === 'visual') {
       return visualRef.current?.getSelectionText() ?? ''
     }
     const editor = editorRef.current
@@ -360,7 +373,7 @@ export function CodeEditor(): React.ReactElement {
       // Refuse before the dialog, not after: a footnote prompt that collects a
       // note and then reports it can't be inserted is worse than no prompt.
       if (
-        useEditorStore.getState().getActiveTab()?.viewMode === 'visual' &&
+        tabById(activeIdRef.current)?.viewMode === 'visual' &&
         VISUAL_UNSUPPORTED.has(action.id)
       ) {
         useSessionStore.getState().addConsoleEntry(
@@ -380,8 +393,12 @@ export function CodeEditor(): React.ReactElement {
   const mdBackendRef = useRef(mdBackend)
   mdBackendRef.current = mdBackend
 
+  // Every tab in the app, not just this panel's: `modelsRef` cleanup below has
+  // to tell "moved to the other editor" from "closed", and only the full list
+  // can say which.
   const tabs = useEditorStore((s) => s.tabs)
-  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const activeTabId = useEditorStore((s) => s.activeByPanel[panelId] ?? null)
+  activeIdRef.current = activeTabId
   const updateTabContent = useEditorStore((s) => s.updateTabContent)
   const externalContentUpdate = useEditorStore((s) => s.externalContentUpdate)
   const themeId = useThemeStore((s) => s.current)
@@ -415,7 +432,7 @@ export function CodeEditor(): React.ReactElement {
   /** Re-scan chunks, reconcile ids against the previous pass, and re-render the
    *  Monaco surfaces. Cheap (a line scan) so it can run on every change. */
   const rescanChunks = useCallback((): void => {
-    const tabId = useEditorStore.getState().activeTabId
+    const tabId = activeIdRef.current
     const model = editorRef.current?.getModel()
     const tab = tabId ? useEditorStore.getState().tabs.find((t) => t.id === tabId) : undefined
     if (!tabId || !model || !tab || !supportsChunks(languageOf(tab))) {
@@ -504,19 +521,28 @@ export function CodeEditor(): React.ReactElement {
     useEditorStore.setState({ externalContentUpdate: null })
   }, [externalContentUpdate])
 
-  // Clean up disposed tab models
+  // Clean up models this editor no longer shows.
+  //
+  // "No longer shows" rather than "no longer exists", because a tab dragged to
+  // the other editor leaves a model behind here — and `getOrCreateModel`
+  // returns a cached model WITHOUT refreshing its text, so dragging the tab
+  // back would resurrect the document as it was when it left.
+  //
+  // Chunk outputs are a different lifetime: they are keyed by tab id in a
+  // shared store and must survive the move, so they are only dropped when the
+  // tab is gone from the app entirely.
   useEffect(() => {
-    const tabIds = new Set(tabs.map((t) => t.id))
+    const mine = new Set(tabsForPanel(tabs, panelId).map((t) => t.id))
+    const anywhere = new Set(tabs.map((t) => t.id))
     for (const [id, model] of modelsRef.current) {
-      if (!tabIds.has(id)) {
-        model.dispose()
-        modelsRef.current.delete(id)
-        // Chunk outputs hold base64 PNGs — dropping the tab must drop those too.
-        useChunkStore.getState().clearTab(id)
-        prevChunks.current.delete(id)
-      }
+      if (mine.has(id)) continue
+      model.dispose()
+      modelsRef.current.delete(id)
+      prevChunks.current.delete(id)
+      // Chunk outputs hold base64 PNGs — dropping the tab must drop those too.
+      if (!anywhere.has(id)) useChunkStore.getState().clearTab(id)
     }
-  }, [tabs])
+  }, [tabs, panelId])
 
   // Rebuild the editor theme on change. `colors` comes from the app theme and
   // the two palettes supply only token rules, so a code/markdown switch cannot
@@ -548,7 +574,7 @@ export function CodeEditor(): React.ReactElement {
   const runChunkCode = useCallback(async (
     chunkId: string, code: string, options: Record<string, string>,
   ): Promise<void> => {
-    const tabId = useEditorStore.getState().activeTabId
+    const tabId = activeIdRef.current
     if (!tabId) return
     const store = useChunkStore.getState()
     store.set(tabId, chunkId, { status: 'running', stale: false, error: null })
@@ -600,7 +626,7 @@ export function CodeEditor(): React.ReactElement {
    *  Sequential on purpose: R executes serially, so Promise.all would just
    *  queue them at the server while the UI claimed they were all running. */
   const runAllChunks = useCallback(async (): Promise<void> => {
-    const tabId = useEditorStore.getState().activeTabId
+    const tabId = activeIdRef.current
     if (!tabId) return
     const list = runnableChunks(chunksRef.current)
     const store = useChunkStore.getState()
@@ -638,7 +664,7 @@ export function CodeEditor(): React.ReactElement {
     editorRef.current = editor
 
     // Set initial model for active tab
-    const activeTab = useEditorStore.getState().getActiveTab()
+    const activeTab = tabById(activeIdRef.current)
     if (activeTab) {
       const model = getOrCreateModel(activeTab.id, activeTab.content, languageOf(activeTab))
       suppressChangeRef.current = true
@@ -651,7 +677,7 @@ export function CodeEditor(): React.ReactElement {
     // Track content changes
     editor.onDidChangeModelContent(() => {
       if (suppressChangeRef.current) return
-      const currentTabId = useEditorStore.getState().activeTabId
+      const currentTabId = activeIdRef.current
       if (!currentTabId) return
       const value = editor.getValue()
       updateTabContent(currentTabId, value)
@@ -761,7 +787,7 @@ export function CodeEditor(): React.ReactElement {
     editor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW,
       () => {
-        const id = useEditorStore.getState().activeTabId
+        const id = activeIdRef.current
         if (id) useEditorStore.getState().closeTab(id)
       }
     )
@@ -901,12 +927,17 @@ export function CodeEditor(): React.ReactElement {
   }, [executeCode])
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
+  // An editor with nothing in it is a normal state once there are two of them:
+  // every document can legitimately live in the other one. Monaco is HIDDEN
+  // rather than unmounted, exactly as it is for the data viewer — remounting
+  // it would throw away every model and undo stack in this panel.
+  const isEmpty = tabsForPanel(tabs, panelId).length === 0
   const isDataViewer = activeTab?.type === 'data-viewer'
   const isVisual = activeTab?.viewMode === 'visual'
 
   /** Enter Visual mode, warning first when the round trip would rewrite the file. */
   const enterVisual = useCallback((force = false): void => {
-    const tab = useEditorStore.getState().getActiveTab()
+    const tab = tabById(activeIdRef.current)
     const model = tab ? modelsRef.current.get(tab.id) : undefined
     if (!tab || !model) return
     const original = model.getValue()
@@ -941,7 +972,7 @@ export function CodeEditor(): React.ReactElement {
 
   /** Leave Visual mode, writing the document back into the Monaco model. */
   const exitVisual = useCallback((): void => {
-    const tab = useEditorStore.getState().getActiveTab()
+    const tab = tabById(activeIdRef.current)
     const model = tab ? modelsRef.current.get(tab.id) : undefined
     const base = visualBaseline.current
     if (!tab || !model) return
@@ -1032,8 +1063,10 @@ export function CodeEditor(): React.ReactElement {
         </div>
       )}
 
+      {isEmpty && <EmptyEditorState panelId={panelId} />}
+
       {/* Editor toolbar + Monaco — hidden (not unmounted) when data-viewer is active */}
-      <div className={`flex flex-col flex-1 min-h-0 ${isDataViewer ? 'hidden' : ''}`}>
+      <div className={`flex flex-col flex-1 min-h-0 ${isDataViewer || isEmpty ? 'hidden' : ''}`}>
         {/* Editor toolbar */}
         <div className="flex items-center justify-between px-3 py-1 border-b border-geo-border flex-shrink-0">
           <span className="text-xs text-geo-muted">
@@ -1251,6 +1284,37 @@ export function CodeEditor(): React.ReactElement {
         onOpenChange={(o) => { if (!o) setRtWarning(null) }}
         onConfirm={() => { setRtWarning(null); enterVisual(true) }}
       />
+    </div>
+  )
+}
+
+/**
+ * What a second editor looks like with nothing in it.
+ *
+ * It says the two ways to fill it, because neither is obvious from an empty
+ * box: a document can be created here, or dragged here from the other editor.
+ * The alternative — quietly opening an Untitled-7 whenever a panel emptied —
+ * would make the panel impossible to leave empty and would put a document the
+ * user did not ask for in front of them.
+ */
+function EmptyEditorState({ panelId }: { panelId: string }): React.ReactElement {
+  return (
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-6">
+      <p className="text-xs text-geo-muted">
+        Nothing open in this editor.
+      </p>
+      <Button
+        variant="ghost" size="sm" className="h-6 text-xs gap-1"
+        onClick={() => {
+          useEditorStore.getState().focusEditor(panelId)
+          useEditorStore.getState().addTab()
+        }}
+      >
+        New file
+      </Button>
+      <p className="text-[11px] text-geo-muted/70">
+        Or drag a tab here from the other editor.
+      </p>
     </div>
   )
 }

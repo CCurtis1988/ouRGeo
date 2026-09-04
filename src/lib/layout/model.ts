@@ -49,6 +49,10 @@
 // dragging stays in that session. Where a panel IS, and how wide its column
 // is, are remembered as they always were.
 
+import {
+  basePanelId, instanceLabel, instanceNumber, isPanelInstance,
+} from './instances'
+
 /** Where a panel can live. `center` has no size — it absorbs the slack. */
 export type ZoneId = 'left' | 'center' | 'right' | 'bottom'
 
@@ -115,6 +119,18 @@ export interface PanelMeta {
   /** Share of its zone relative to its siblings, when nobody has dragged
    *  anything. Omit it: 1 is what makes panels open evenly. */
   defaultWeight?: number
+  /**
+   * How many of this panel may exist at once, counting the original. Absent
+   * means one — the answer for every panel whose content is global (there is
+   * one console, one environment listing). The editor and the map are the two
+   * that own a SET of things (tabs, map sessions) and can therefore be
+   * usefully split in two.
+   *
+   * Capped rather than unbounded because each extra map is another MapLibre
+   * instance holding a WebGL context, and a browser hands out only so many
+   * before it starts silently dropping the oldest.
+   */
+  maxInstances?: number
   /**
    * The workspace is unusable without it, so it can never end up in no zone.
    * Only the editor sets this: a layout that lost it would leave the user with
@@ -401,17 +417,29 @@ export function setActivePanel(layout: LayoutState, panel: PanelId): LayoutState
  */
 export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState {
   const meta = new Map(panels.map((p) => [p.id, p]))
+  /** The registry entry an id answers to — an instance answers to its base. */
+  const metaFor = (id: PanelId): PanelMeta | undefined => {
+    const m = meta.get(basePanelId(id))
+    if (!m) return undefined
+    const n = instanceNumber(id)
+    // `editor#1`, `editor#`, `editor#x` — an id that parses to nothing is a
+    // corrupt file, not a panel, and must not reach the render.
+    if (n === 0) return undefined
+    if (n > (m.maxInstances ?? 1)) return undefined
+    return m
+  }
   const next = clone(layout)
   next.version = LAYOUT_VERSION
 
-  // 1. Drop panels that no longer exist — a plugin the user removed — and
-  //    de-duplicate, keeping the first placement. A panel rendered in two
-  //    zones would be mounted twice, which for the map means two MapLibre
-  //    instances fighting over one store.
+  // 1. Drop panels that no longer exist — a plugin the user removed, or an
+  //    extra editor from a build that allowed more of them — and de-duplicate,
+  //    keeping the first placement. A panel rendered in two zones would be
+  //    mounted twice, which for the map means two MapLibre instances fighting
+  //    over one store.
   const placed = new Set<PanelId>()
   for (const z of ZONE_IDS) {
     next.zones[z].order = next.zones[z].order.filter((p) => {
-      if (!meta.has(p) || placed.has(p)) return false
+      if (!metaFor(p) || placed.has(p)) return false
       placed.add(p)
       return true
     })
@@ -419,7 +447,9 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
 
   // 2. Place anything the layout has never seen — a panel added by an ouRGeo
   //    update, or by a plugin enabled since the file was written — where its
-  //    author meant it to go, rather than nowhere.
+  //    author meant it to go, rather than nowhere. Only the ORIGINAL of each
+  //    panel: an extra instance exists precisely because the user asked for
+  //    it, so one that is not in the file is one that was removed.
   for (const p of panels) {
     if (placed.has(p.id)) continue
     next.zones[p.defaultZone].order.push(p.id)
@@ -434,6 +464,7 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
     next.open[p.id] = true
     if (!zoneOfIn(next, p.id)) {
       next.zones[p.defaultZone].order.unshift(p.id)
+      placed.add(p.id)
     }
   }
 
@@ -446,24 +477,39 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
     zone.size = z === 'center' ? 0 : clamp(zone.size, MIN_ZONE_SIZE, MAX_ZONE_SIZE)
     const weights: Record<PanelId, number> = {}
     for (const p of zone.order) {
-      const m = meta.get(p)!
+      const m = metaFor(p)!
       weights[p] = clamp(zone.weights?.[p] ?? m.defaultWeight ?? DEFAULT_WEIGHT, MIN_WEIGHT, MAX_WEIGHT)
     }
     zone.weights = weights
+  }
 
-    // 5. `active` must name a panel that is here and open, or the render has
-    //    a tab strip with nothing selected.
+  // 5. Drop open-flags for panels that no longer exist, so the file does not
+  //    grow a fossil for every plugin ever installed.
+  //
+  //    An extra instance is NOT independently closable, and that is a rule
+  //    worth stating rather than an omission: the toolbar has one button per
+  //    panel, so a second map that could be closed on its own could only be
+  //    reopened by finding it in Settings — and a map holding sessions that is
+  //    invisible and unreachable is the worst state this feature can produce.
+  //    Closing the map closes every map; removing one is the other gesture,
+  //    and it hands its sessions to a map that is still there.
+  const open: Record<PanelId, boolean> = {}
+  for (const p of panels) open[p.id] = next.open[p.id] ?? p.defaultOpen
+  for (const p of placed) {
+    if (isPanelInstance(p)) open[p] = open[basePanelId(p)] ?? false
+  }
+  next.open = open
+
+  // 6. `active` must name a panel that is here and open, or the render has a
+  //    tab strip with nothing selected. After step 5, so an instance's
+  //    open-flag is the settled one.
+  for (const z of ZONE_IDS) {
+    const zone = next.zones[z]
     const openHere = zone.order.filter((p) => next.open[p])
     if (!zone.active || !openHere.includes(zone.active)) {
       zone.active = openHere[0] ?? null
     }
   }
-
-  // 6. Drop open-flags for panels that no longer exist, so the file does not
-  //    grow a fossil for every plugin ever installed.
-  const open: Record<PanelId, boolean> = {}
-  for (const p of panels) open[p.id] = next.open[p.id] ?? p.defaultOpen
-  next.open = open
 
   // 7. The toolbar lists are just ids; de-duplicate them so a repeated entry
   //    cannot render the same button twice. Ids that name nothing are left
@@ -472,6 +518,27 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
   next.toolbar.order = [...new Set(next.toolbar.order)]
   next.toolbar.hidden = [...new Set(next.toolbar.hidden)]
 
+  return next
+}
+
+/**
+ * Take a panel out of the layout entirely — what removing an extra editor or
+ * an extra map does.
+ *
+ * Distinct from closing it: a closed panel keeps its zone, its share and its
+ * place in the order so that re-opening puts it back. A removed one is gone,
+ * and `normalize` will not re-place it, because step 2 only ever restores the
+ * ORIGINAL of a panel. Whoever calls this owns moving the content out first —
+ * see `lib/panel-instances.ts`, which is the only caller that should exist.
+ */
+export function dropPanel(layout: LayoutState, panel: PanelId): LayoutState {
+  const next = clone(layout)
+  for (const z of ZONE_IDS) {
+    next.zones[z].order = next.zones[z].order.filter((p) => p !== panel)
+    delete next.zones[z].weights[panel]
+    if (next.zones[z].active === panel) next.zones[z].active = null
+  }
+  delete next.open[panel]
   return next
 }
 
@@ -498,7 +565,12 @@ function clamp(n: number, lo: number, hi: number): number {
 export function describeLayout(
   layout: LayoutState, panels: PanelMeta[], labels: Record<PanelId, string>,
 ): string {
-  const label = (p: PanelId): string => labels[p] ?? p
+  // An instance's label is derived rather than registered — `panelLabels()`
+  // lists the panels that exist, and `editor#2` exists only in this layout.
+  const label = (p: PanelId): string =>
+    labels[p] ?? (isPanelInstance(p)
+      ? instanceLabel(labels[basePanelId(p)] ?? basePanelId(p), instanceNumber(p))
+      : p)
   const lines: string[] = []
   for (const z of ZONE_IDS) {
     const zone = layout.zones[z]

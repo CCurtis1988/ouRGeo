@@ -9,13 +9,26 @@
 import React from 'react'
 import { GripVertical } from 'lucide-react'
 import {
-  openPanels, ZONE_LABELS, type LayoutState, type PanelId, type ZoneId,
+  openPanels, ZONE_IDS, ZONE_LABELS, type LayoutState, type PanelId, type ZoneId,
 } from '@/lib/layout/model'
+import { basePanelId, isPanelInstance, panelInstanceIds } from '@/lib/layout/instances'
 import { panelRender } from '@/lib/layout/panels'
-import { panelInfo, type PanelInfo } from '@/lib/layout/panel-meta'
+import { panelInfo, panelMaxInstances, type PanelInfo } from '@/lib/layout/panel-meta'
 import { useLayoutStore } from '@/store/layout'
+import { useSessionStore } from '@/store/session'
+import { useContentDragStore, type ContentKind } from '@/store/contentDrag'
+import { addPanelInstance, removalSummary, removePanelInstance } from '@/lib/panel-instances'
+import { focusPanel } from '@/lib/panel-focus'
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
+import { PanelIdContext } from './panel-context'
 import { startDragResize } from './resize'
 import { cn } from '@/lib/utils'
+
+/** Which kind of content a panel accepts on a drag — nothing, for most of them. */
+function dockKind(id: PanelId): ContentKind | null {
+  const base = basePanelId(id)
+  return base === 'editor' ? 'tab' : base === 'spatial' ? 'session' : null
+}
 
 /**
  * Start moving a panel, on mouse events rather than HTML5 drag-and-drop.
@@ -127,21 +140,107 @@ export function Zone({ zone, layout, drag, setDrag, maxSize }: Props): React.Rea
             {i > 0 && state.mode === 'split' && prev && (
               <InnerDivider zone={zone} before={prev} after={id} axis={isRow ? 'x' : 'y'} />
             )}
-            <div
-              className={cn(
-                'relative group min-w-0 min-h-0 overflow-hidden',
-                state.mode === 'tabs' && 'flex-1',
-              )}
+            <PanelSlot
+              def={def}
+              layout={layout}
+              tabbed={state.mode === 'tabs'}
               style={state.mode === 'tabs' ? undefined : innerSize(isRow, state.weights[id], def.min)}
+              showGrip={state.mode === 'split' && dragEnabled}
+              setDrag={setDrag}
             >
-              {state.mode === 'split' && dragEnabled && <PanelGrip def={def} setDrag={setDrag} />}
               {render()}
-            </div>
+            </PanelSlot>
           </React.Fragment>
         )
       })}
 
       {drag && <DropTargets zone={zone} ids={ids} isRow={isRow} />}
+    </div>
+  )
+}
+
+/**
+ * One panel's box: what it is drawn in, what it accepts, and whether it has
+ * the user's attention.
+ *
+ * The focus ring appears ONLY when there is more than one panel of this kind,
+ * and that is deliberate rather than tidiness. With one editor, "which editor
+ * does this new tab open in" has no answer worth showing; with two, it is the
+ * single thing a user needs to see, because everything that follows — a new
+ * tab, a drawn vertex, an object sent to the map — lands in the panel with the
+ * ring and nowhere else.
+ */
+function PanelSlot(
+  { def, layout, tabbed, style, showGrip, setDrag, children }: {
+    def: PanelInfo
+    layout: LayoutState
+    tabbed: boolean
+    style?: React.CSSProperties
+    showGrip: boolean
+    setDrag: (p: PanelId | null) => void
+    children: React.ReactNode
+  },
+): React.ReactElement {
+  const focusedPanel = useLayoutStore((s) => s.focusedPanel)
+  const drag = useContentDragStore((s) => s.drag)
+  const kind = dockKind(def.id)
+  const siblings = kind
+    ? panelInstanceIds(ZONE_IDS.flatMap((z) => layout.zones[z].order), basePanelId(def.id))
+    : []
+  const shared = siblings.length > 1
+  const focused = shared && focusedPanel === def.id
+  const accepting = !!drag && drag.kind === kind && drag.from !== def.id
+
+  return (
+    <div
+      className={cn(
+        'relative group min-w-0 min-h-0 overflow-hidden',
+        tabbed && 'flex-1',
+        focused && 'ring-1 ring-inset ring-geo-accent/40',
+      )}
+      style={style}
+      data-panel-id={def.id}
+      {...(kind ? { 'data-content-dock': def.id, 'data-dock-kind': kind } : {})}
+      // Capture, so focus has moved before the click does whatever it was for
+      // — a click that begins a drawing must land in the map it was aimed at.
+      onMouseDownCapture={() => focusPanel(def.id)}
+    >
+      {showGrip && <PanelGrip def={def} setDrag={setDrag} />}
+      <PanelIdContext.Provider value={def.id}>{children}</PanelIdContext.Provider>
+      {accepting && <ContentDropTarget label={def.label} kind={drag!.kind} />}
+    </div>
+  )
+}
+
+/** Where a dragged tab or session will land. One target per panel, covering
+ *  all of it: the choice being made is WHICH PANEL, and a hairline inside a
+ *  tab strip would be a much smaller thing to aim at for no extra meaning. */
+function ContentDropTarget(
+  { label, kind }: { label: string; kind: ContentKind },
+): React.ReactElement {
+  const [over, setOver] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      const box = ref.current?.getBoundingClientRect()
+      setOver(!!box && e.clientX >= box.left && e.clientX <= box.right
+        && e.clientY >= box.top && e.clientY <= box.bottom)
+    }
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [])
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'absolute inset-0 z-30 flex items-center justify-center pointer-events-none',
+        'ring-2 ring-inset transition-colors',
+        over ? 'ring-geo-accent bg-geo-accent/15' : 'ring-geo-accent/30 bg-geo-accent/5',
+      )}
+    >
+      <span className="px-2 py-1 rounded bg-geo-panel/90 border border-geo-border text-[11px] text-foreground">
+        {over ? `Move ${kind === 'tab' ? 'document' : 'session'} to ${label}` : label}
+      </span>
     </div>
   )
 }
@@ -183,22 +282,105 @@ function innerSize(isRow: boolean, weight: number, min: number): React.CSSProper
   }
 }
 
-/** The handle that starts a move. Deliberately small and hover-revealed: it
- *  sits over a panel's own header, and a permanent bar on every panel would
- *  cost a row of vertical space nine times over for a gesture used rarely. */
+/**
+ * The handle that starts a move, and the menu that says what else can be done
+ * to a panel.
+ *
+ * Deliberately small and hover-revealed: it sits over a panel's own header, and
+ * a permanent bar on every panel would cost a row of vertical space nine times
+ * over for a gesture used rarely.
+ *
+ * Right-clicking it opens the panel's menu. That is where **Remove** lives for
+ * a second editor or a second map, and putting it here rather than only in
+ * Settings matters: the grip is the control the user already associates with
+ * "this panel, as a panel", and it is the thing under the pointer at the
+ * moment they decide they no longer want the panel.
+ */
 function PanelGrip(
   { def, setDrag }: { def: PanelInfo; setDrag: (p: PanelId | null) => void },
 ): React.ReactElement {
+  const [menuAt, setMenuAt] = React.useState<{ x: number; y: number } | null>(null)
+  const layout = useLayoutStore((s) => s.layout)
+  const note = (kind: 'info' | 'error', text: string): void =>
+    useSessionStore.getState().addConsoleEntry(kind, text)
+
+  const items: ContextMenuItem[] = []
+  items.push({
+    label: 'Move to',
+    submenu: ZONE_IDS.map((z) => ({
+      label: ZONE_LABELS[z],
+      disabled: layout.zones[z].order.includes(def.id),
+      onClick: () => useLayoutStore.getState().movePanel(def.id, z),
+    })),
+  })
+  if (panelMaxInstances(def.id) > 1) {
+    items.push({ separator: true, label: '' })
+    items.push({
+      label: `Add another ${def.label.toLowerCase().replace(/ \d+$/, '')}`,
+      onClick: () => {
+        const res = addPanelInstance(basePanelId(def.id))
+        note(res.ok ? 'info' : 'error', res.ok ? `Added ${res.label}.` : res.message)
+      },
+    })
+  }
+  if (isPanelInstance(def.id)) {
+    items.push({
+      label: `Remove ${def.label}`,
+      onClick: () => {
+        // The summary is read BEFORE the removal, or it would describe the
+        // panel's contents after they had already moved.
+        const summary = removalSummary(def.id)
+        const res = removePanelInstance(def.id)
+        note(res.ok ? 'info' : 'error',
+          res.ok ? `Removed ${def.label}. ${summary}`.trim() : res.message)
+      },
+    })
+  } else if (!def.essential) {
+    items.push({ separator: true, label: '' })
+    items.push({
+      label: `Close ${def.label}`,
+      onClick: () => useLayoutStore.getState().setPanelOpen(def.id, false),
+    })
+  }
+
+  return (
+    <>
+      <div
+        onMouseDown={startPanelDrag(def.id, setDrag)}
+        onContextMenu={(e) => { e.preventDefault(); setMenuAt({ x: e.clientX, y: e.clientY }) }}
+        title={`Move ${def.label} — drag into another zone, or right-click for more`}
+        data-ourgeo-id={`panel.grip.${def.id}`}
+        className="absolute top-0 right-0 z-20 h-4 w-4 flex items-center justify-center
+          cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100
+          text-geo-muted hover:text-foreground transition-opacity"
+      >
+        <GripVertical className="w-3 h-3" />
+      </div>
+      {menuAt && (
+        <ContextMenu x={menuAt.x} y={menuAt.y} items={items} onClose={() => setMenuAt(null)} />
+      )}
+    </>
+  )
+}
+
+/**
+ * The label that follows the pointer while a tab or a session is in mid-air.
+ *
+ * Rendered once, at the top of the tree, because there is one drag at a time
+ * and it has to be drawn above every panel — a label inside the panel it left
+ * would be clipped by that panel's own `overflow: hidden` the moment it
+ * crossed the border, which is the whole journey.
+ */
+export function ContentDragLabel(): React.ReactElement | null {
+  const drag = useContentDragStore((s) => s.drag)
+  if (!drag) return null
   return (
     <div
-      onMouseDown={startPanelDrag(def.id, setDrag)}
-      title={`Move ${def.label} — drag into another zone`}
-      data-ourgeo-id={`panel.grip.${def.id}`}
-      className="absolute top-0 right-0 z-20 h-4 w-4 flex items-center justify-center
-        cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100
-        text-geo-muted hover:text-foreground transition-opacity"
+      className="fixed z-[10000] pointer-events-none px-2 py-1 rounded
+        bg-geo-panel border border-geo-accent text-[11px] text-foreground shadow-lg"
+      style={{ left: drag.x + 12, top: drag.y + 12 }}
     >
-      <GripVertical className="w-3 h-3" />
+      {drag.label}
     </div>
   )
 }

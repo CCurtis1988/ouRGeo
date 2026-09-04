@@ -50,6 +50,13 @@ the whole analysis.
   rather they weren't there, and restores the shipped default in one click. Panels sharing a zone share it equally — two take half each, three a
   third each — until you drag a divider; double-click one to even them out
   again. Save an arrangement as a preset and switch between them.
+- **Two editors, or two maps.** The code editor and the Spatial Editor can each
+  be open more than once — two documents side by side, or two maps at different
+  extents. Add and remove them in Settings → Workspace, or right-click a
+  panel's grip. Drag a tab or a map session from one to the other, and when you
+  send an object to the map ouRGeo asks which one (or always uses the map you
+  last worked in, if you would rather). **Removing a panel never closes
+  anything**: its documents or sessions move to the one that remains.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
   panels and documentation, added while the app is running — no rebuild, and
   usually no code at all.

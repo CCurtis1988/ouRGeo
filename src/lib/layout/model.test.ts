@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  defaultLayout, normalize, movePanel, reorderPanel, setPanelOpen, setZoneSize,
+  defaultLayout, normalize, movePanel, reorderPanel, dropPanel, setPanelOpen, setZoneSize,
   setPanelShare, splitPanels, evenPanels, forgetWeights, shareOf,
   setZoneMode, setZoneAxis, setActivePanel, setToolbar,
   zoneOf, openPanels, zoneVisible, describeLayout, ZONE_IDS,
@@ -17,10 +17,10 @@ const panel = (id: string, over: Partial<PanelMeta> = {}): PanelMeta => ({
 })
 
 const PANELS: PanelMeta[] = [
-  panel('editor', { defaultZone: 'center', essential: true }),
+  panel('editor', { defaultZone: 'center', essential: true, maxInstances: 4 }),
   panel('console', { defaultZone: 'bottom' }),
   panel('environment', { defaultZone: 'left', defaultOpen: false }),
-  panel('spatial', { defaultZone: 'right', defaultOrder: 1, defaultOpen: false, min: 300 }),
+  panel('spatial', { defaultZone: 'right', defaultOrder: 1, defaultOpen: false, min: 300, maxInstances: 4 }),
   panel('plots', { defaultZone: 'right', defaultOrder: 0, defaultOpen: false }),
 ]
 
@@ -297,5 +297,67 @@ describe('describeLayout', () => {
     let l = setPanelOpen(defaultLayout(PANELS), 'spatial', true)
     l = normalize(setZoneMode(l, 'right', 'tabs'), PANELS)
     expect(describeLayout(l, PANELS, LABELS)).toContain('tabbed, showing spatial')
+  })
+})
+
+describe('a second editor, or a second map', () => {
+  it('keeps an instance of a panel that is allowed more than one', () => {
+    const l = normalize(movePanel(defaultLayout(PANELS), 'editor#2', 'center'), PANELS)
+    expect(zoneOf(l, 'editor#2')).toBe('center')
+    expect(openPanels(l, 'center')).toContain('editor#2')
+  })
+
+  it('drops an instance of a panel that may only exist once', () => {
+    // A layout file from a build that allowed it, or a hand edit. Two consoles
+    // would be two views of one thing, both writing the same store.
+    const l = normalize(movePanel(defaultLayout(PANELS), 'console#2', 'bottom'), PANELS)
+    expect(zoneOf(l, 'console#2')).toBeNull()
+  })
+
+  it('drops an instance past the cap, and a malformed one', () => {
+    let l = movePanel(defaultLayout(PANELS), 'editor#9', 'center')
+    l = movePanel(l, 'editor#1', 'center')
+    l = normalize(l, PANELS)
+    expect(zoneOf(l, 'editor#9')).toBeNull()
+    expect(zoneOf(l, 'editor#1')).toBeNull()
+    expect(zoneOf(l, 'editor')).toBe('center')
+  })
+
+  it('gives an instance its base panel’s minimum size', () => {
+    const l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
+    expect(l.zones.right.weights['spatial#2']).toBe(1)
+  })
+
+  it('ties an instance’s open state to the panel it copies', () => {
+    // The toolbar has one button per panel, so an instance that could be
+    // closed on its own would be a map holding sessions that is invisible and
+    // has no control to bring it back.
+    let l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
+    expect(l.open['spatial#2']).toBe(l.open['spatial'])
+    l = normalize(setPanelOpen(l, 'spatial', true), PANELS)
+    expect(l.open['spatial#2']).toBe(true)
+    l = normalize(setPanelOpen(l, 'spatial', false), PANELS)
+    expect(l.open['spatial#2']).toBe(false)
+  })
+
+  it('does not put a removed instance back, the way it re-places an original', () => {
+    // Step 2 of `normalize` restores a panel the file has never seen. An extra
+    // one exists only because a user asked for it, so its absence is an answer.
+    let l = normalize(movePanel(defaultLayout(PANELS), 'editor#2', 'center'), PANELS)
+    l = normalize(dropPanel(l, 'editor#2'), PANELS)
+    expect(zoneOf(l, 'editor#2')).toBeNull()
+    expect(l.open['editor#2']).toBeUndefined()
+  })
+
+  it('puts the essential panel back when it is the one dropped', () => {
+    const l = normalize(dropPanel(defaultLayout(PANELS), 'editor'), PANELS)
+    expect(zoneOf(l, 'editor')).toBe('center')
+    expect(l.open['editor']).toBe(true)
+  })
+
+  it('names an instance in the description, derived from its base label', () => {
+    const l = normalize(movePanel(defaultLayout(PANELS), 'spatial#2', 'right'), PANELS)
+    expect(describeLayout(l, PANELS, { ...LABELS, spatial: 'Spatial Editor' }))
+      .toContain('Spatial Editor 2')
   })
 })

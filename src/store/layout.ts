@@ -24,7 +24,7 @@
 
 import { create } from 'zustand'
 import {
-  defaultLayout, normalize, movePanel, reorderPanel, setPanelOpen as setOpenIn,
+  defaultLayout, normalize, movePanel, reorderPanel, dropPanel, setPanelOpen as setOpenIn,
   setZoneSize as setZoneSizeIn, setPanelShare as setPanelShareIn,
   splitPanels as splitPanelsIn, evenPanels as evenPanelsIn,
   setZoneMode as setZoneModeIn, setZoneAxis as setZoneAxisIn,
@@ -32,6 +32,8 @@ import {
   type LayoutState, type PanelId, type ZoneAxis, type ZoneId, type ZoneMode, type ToolbarState,
 } from '@/lib/layout/model'
 import { panelInfoList } from '@/lib/layout/panel-meta'
+import { basePanelId } from '@/lib/layout/instances'
+import { reconcilePanelContent } from '@/lib/panel-content'
 import {
   loadLayout, saveLayoutFile, loadPresets, loadDragEnabled, type LayoutPreset,
 } from '@/lib/layout-persistence'
@@ -121,6 +123,17 @@ interface LayoutStoreState {
   /** False until `init()` has read layout.json — the render uses the defaults
    *  meanwhile rather than flashing an empty workspace. */
   loaded: boolean
+  /**
+   * The panel the user last clicked in.
+   *
+   * Session state, never persisted: it is where the pointer has been, not part
+   * of the arrangement. With two editors or two maps on screen it is what
+   * decides where a new tab opens and which map a drawing tool draws on, so it
+   * is also the one piece of layout state a user notices being wrong — hence
+   * the focus ring in `Zone`, which exists to make it visible rather than
+   * inferred.
+   */
+  focusedPanel: PanelId | null
 
   init: () => Promise<void>
   setPanelOpen: (panel: PanelId, open: boolean) => void
@@ -139,6 +152,11 @@ interface LayoutStoreState {
   setZoneMode: (zone: ZoneId, mode: ZoneMode) => void
   setZoneAxis: (zone: ZoneId, axis: ZoneAxis) => void
   setActivePanel: (panel: PanelId) => void
+  /** Note which panel the user is working in. Call it, don't set it. */
+  focusPanel: (panel: PanelId) => void
+  /** Take a panel out of the layout for good. Extra editors and maps only —
+   *  go through `lib/panel-instances.ts`, which moves the content first. */
+  removePanel: (panel: PanelId) => void
   setToolbar: (patch: Partial<ToolbarState>) => void
   reset: () => void
 
@@ -163,6 +181,11 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
   const apply = (fn: (l: LayoutState) => LayoutState): void => {
     const next = normalize(fn(get().layout), panelInfoList())
     set({ layout: next })
+    // Every layout change passes through here, which is why the check for
+    // content stranded in a panel that has gone lives here too. See
+    // lib/panel-content.ts — a preset or a reset can drop an editor as
+    // surely as removing one can.
+    reconcilePanelContent(next)
     scheduleSave()
   }
 
@@ -171,6 +194,7 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
     presets: [],
     dragEnabled: true,
     loaded: false,
+    focusedPanel: null,
 
     init: async () => {
       if (get().loaded) return
@@ -186,16 +210,19 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       for (const [id, store] of Object.entries(PANEL_STORES)) {
         store.setOpen(base.open[id] ?? false)
       }
+      reconcilePanelContent(base)
     },
 
     setPanelOpen: (panel, open) => {
-      const store = PANEL_STORES[panel]
+      // An extra instance has no open-flag of its own — closing the map closes
+      // every map. See rule 5 in `normalize` for why.
+      const store = PANEL_STORES[basePanelId(panel)]
       if (store) { store.setOpen(open); return }   // the mirror follows
       apply((l) => setOpenIn(l, panel, open))
     },
 
     togglePanel: (panel) => {
-      const store = PANEL_STORES[panel]
+      const store = PANEL_STORES[basePanelId(panel)]
       if (store) { store.setOpen(!store.isOpen()); return }
       apply((l) => setOpenIn(l, panel, !l.open[panel]))
     },
@@ -204,7 +231,7 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       apply((l) => movePanel(l, panel, zone, index))
       // `movePanel` opens the panel; push that through the owner too, or the
       // mirror and the feature store would disagree on the next sync.
-      PANEL_STORES[panel]?.setOpen(true)
+      PANEL_STORES[basePanelId(panel)]?.setOpen(true)
     },
 
     reorderPanel: (panel, index) => apply((l) => reorderPanel(l, panel, index)),
@@ -217,8 +244,15 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
 
     setActivePanel: (panel) => {
       apply((l) => setActiveIn(l, panel))
-      PANEL_STORES[panel]?.setOpen(true)
+      PANEL_STORES[basePanelId(panel)]?.setOpen(true)
     },
+
+    focusPanel: (panel) => {
+      if (get().focusedPanel === panel) return
+      set({ focusedPanel: panel })
+    },
+
+    removePanel: (panel) => apply((l) => dropPanel(l, panel)),
 
     setToolbar: (patch) => apply((l) => setToolbarIn(l, patch)),
 

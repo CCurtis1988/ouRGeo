@@ -15,6 +15,7 @@ import { PlottingPanel } from '@/components/plotting/PlottingPanel'
 import { AiChatPanel } from '@/components/ai/AiChatPanel'
 import { HelpPanel } from '@/components/help/HelpPanel'
 import { pluginPanelRender, type PanelRender } from './panel-render'
+import { basePanelId } from './instances'
 import type { PanelId } from './model'
 
 const BUILTIN_RENDERERS: Record<PanelId, PanelRender> = {
@@ -36,7 +37,10 @@ const BUILTIN_RENDERERS: Record<PanelId, PanelRender> = {
  *  metadata but no renderer is possible only mid-reload; `normalize` drops it
  *  before the next render. */
 export function panelRender(id: PanelId): PanelRender | undefined {
-  return BUILTIN_RENDERERS[id] ?? pluginPanelRender(id)
+  // A second editor draws the same component as the first; which tabs it shows
+  // comes from the panel id in context, not from a different renderer.
+  const base = basePanelId(id)
+  return BUILTIN_RENDERERS[base] ?? pluginPanelRender(base)
 }
 
 // `registerPluginPanels`, `PluginPanelDef` and `PanelRender` deliberately are

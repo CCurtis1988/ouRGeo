@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { PanelId } from '@/lib/layout/model'
 import { useSpatialSettingsStore, computeInitialViewState } from './spatialSettings'
 import type { ToolId, DraftGeometry, PathRef, VertexRef, Position, CurveMode } from '@/lib/draw/types'
 import {
@@ -98,7 +99,37 @@ export interface NamedSession {
   layerIds: string[]
   /** Independent map extent for this session */
   viewState: ViewState
+  /**
+   * Which Spatial Editor panel this session belongs to. Absent means the
+   * original map — every session made before a second map was possible carries
+   * no field, and a project bundle written by an older ouRGeo must open
+   * unchanged.
+   */
+  panelId?: PanelId
 }
+
+/** The map panel a session with no `panelId` of its own belongs to. */
+export const PRIMARY_MAP: PanelId = 'spatial'
+
+export function sessionPanelId(ns: Pick<NamedSession, 'panelId'>): PanelId {
+  return ns.panelId ?? PRIMARY_MAP
+}
+
+/** The sessions one map panel holds, in order. */
+export function sessionsForPanel(sessions: NamedSession[], panelId: PanelId): NamedSession[] {
+  return sessions.filter((ns) => sessionPanelId(ns) === panelId)
+}
+
+/**
+ * The session one map panel is showing.
+ *
+ * This is what a second map needs and `selectActiveSession` cannot give it:
+ * that one answers "which session is being EDITED", which is a property of
+ * focus, not of a panel. Two maps have two sessions on screen and at most one
+ * of them is being drawn into.
+ */
+export const selectPanelSession = (s: GeometryEditState, panelId: PanelId): NamedSession | undefined =>
+  s.namedSessions.find((ns) => ns.id === s.activeByPanel[panelId])
 
 /** Selector for the currently active GeometryEditSession (null if none). */
 export const selectActiveSession = (s: GeometryEditState): GeometryEditSession | null =>
@@ -143,7 +174,19 @@ export type StartEditingParams = Omit<
 
 interface GeometryEditState {
   namedSessions: NamedSession[]
+  /**
+   * The session being drawn into — the focused map's.
+   *
+   * Kept as one value rather than becoming a map, because every drawing tool,
+   * every hotkey and the whole Save Edits path means "the map I am working
+   * in", and a second map does not change that. What a second map needs is
+   * `activeByPanel`, which is what each map RENDERS.
+   */
   activeSessionId: string | null
+  /** Each map panel's own session on screen. */
+  activeByPanel: Record<PanelId, string | null>
+  /** Which map the drawing tools act on: the one last clicked in. */
+  focusedSpatialPanel: PanelId
   isEditMode: boolean
   /** The active drawing tool. Null when neither edit mode nor a session is active. */
   activeToolId: ToolId | null
@@ -220,10 +263,26 @@ interface GeometryEditState {
   incrementTotalRows: () => void
 
   // Named session management
-  createNamedSession: (name?: string) => void
+  createNamedSession: (name?: string, panelId?: PanelId) => void
   switchNamedSession: (id: string) => void
   deleteNamedSession: (id: string) => void
   renameNamedSession: (id: string, name: string) => void
+  /** Note which map the user is working in — where drawing goes and where a
+   *  new session is created. */
+  focusSpatialPanel: (panelId: PanelId) => void
+  /** Move one session to another map panel, and show it there. */
+  moveSessionToPanel: (sessionId: string, panelId: PanelId) => void
+  /** Hand every session of one map panel to another — what removing a map
+   *  does, so no session is ever lost to close a panel. */
+  adoptSessions: (from: PanelId, to: PanelId) => void
+  /** Put back any session pointing at a map panel that no longer exists. */
+  reclaimOrphanSessions: (livePanels: PanelId[]) => void
+  /** Move one map panel's extent. Each map pans independently, so this takes
+   *  the panel rather than acting on whichever session has focus. */
+  setPanelViewState: (panelId: PanelId, vs: ViewState) => void
+  /** Give a layer to a named session by id — the send-to-map path, which
+   *  chooses its target map before it has focus. */
+  addLayerToSession: (sessionId: string, layerId: string) => void
 
   // Per-session layer ownership
   addLayerToActiveSession: (layerId: string) => void
@@ -269,6 +328,8 @@ function mutateDraft(
   }
 }
 
+/** Takes the sessions of ONE map, so two maps both start at "Session 1"
+ *  rather than the second map's first session being called "Session 4". */
 function nextSessionName(namedSessions: NamedSession[]): string {
   const n = namedSessions.length + 1
   return `Session ${n}`
@@ -277,6 +338,8 @@ function nextSessionName(namedSessions: NamedSession[]): string {
 export const useGeometryEditStore = create<GeometryEditState>((set, get) => ({
   namedSessions: [],
   activeSessionId: null,
+  activeByPanel: {},
+  focusedSpatialPanel: PRIMARY_MAP,
   isEditMode: false,
   activeToolId: null,
   draggingVertex: null,
@@ -645,35 +708,183 @@ export const useGeometryEditStore = create<GeometryEditState>((set, get) => ({
 
   // --- Named session management ---
 
-  createNamedSession: (name) => {
+  createNamedSession: (name, panelId) => {
     const s = get()
     const id = crypto.randomUUID()
-    const sessionName = name ?? nextSessionName(s.namedSessions)
+    const panel = panelId ?? s.focusedSpatialPanel
+    const sessionName = name ?? nextSessionName(sessionsForPanel(s.namedSessions, panel))
     const { initialExtentMode, userExtent } = useSpatialSettingsStore.getState()
     const viewState = computeInitialViewState(initialExtentMode, userExtent)
+    const created: NamedSession = {
+      id, name: sessionName, autoNamed: true, session: null, layerIds: [], viewState,
+      ...(panel === PRIMARY_MAP ? {} : { panelId: panel }),
+    }
     set({
-      namedSessions: [...s.namedSessions, { id, name: sessionName, autoNamed: true, session: null, layerIds: [], viewState }],
-      activeSessionId: id,
-      activeToolId: 'select',
-      selectedVertex: null
+      namedSessions: [...s.namedSessions, created],
+      activeByPanel: { ...s.activeByPanel, [panel]: id },
+      // Creating a session in a map that is not focused must not steal the
+      // drawing tools from the map that is: only the focused map's session is
+      // ever `activeSessionId`.
+      ...(panel === s.focusedSpatialPanel
+        ? { activeSessionId: id, activeToolId: 'select' as const, selectedVertex: null }
+        : {}),
     })
   },
 
   switchNamedSession: (id) => {
-    set({ activeSessionId: id, activeToolId: 'select', selectedVertex: null })
+    const s = get()
+    const ns = s.namedSessions.find((x) => x.id === id)
+    if (!ns) return
+    const panel = sessionPanelId(ns)
+    set({
+      activeSessionId: id,
+      focusedSpatialPanel: panel,
+      activeByPanel: { ...s.activeByPanel, [panel]: id },
+      activeToolId: 'select',
+      selectedVertex: null,
+    })
   },
 
   deleteNamedSession: (id) => {
     const s = get()
+    const gone = s.namedSessions.find((ns) => ns.id === id)
+    if (!gone) return
+    const panel = sessionPanelId(gone)
+    const here = sessionsForPanel(s.namedSessions, panel)
+    const idx = here.findIndex((ns) => ns.id === id)
     const remaining = s.namedSessions.filter((ns) => ns.id !== id)
-    let newActiveId = s.activeSessionId
-    if (s.activeSessionId === id) {
-      // Switch to the previous session (or null)
-      const idx = s.namedSessions.findIndex((ns) => ns.id === id)
-      const prev = remaining[idx - 1] ?? remaining[0] ?? null
-      newActiveId = prev?.id ?? null
+    const leftHere = here.filter((ns) => ns.id !== id)
+    // The replacement comes from the SAME map: deleting a session in one map
+    // must never put another map's session on this one's canvas.
+    const next = leftHere[Math.max(0, idx - 1)] ?? leftHere[0] ?? null
+    const activeByPanel = { ...s.activeByPanel, [panel]: next?.id ?? null }
+    set({
+      namedSessions: remaining,
+      activeByPanel,
+      activeSessionId: s.activeSessionId === id
+        ? (activeByPanel[s.focusedSpatialPanel] ?? null)
+        : s.activeSessionId,
+    })
+  },
+
+  focusSpatialPanel: (panelId) => {
+    const s = get()
+    if (s.focusedSpatialPanel === panelId) return
+    const here = s.activeByPanel[panelId]
+      ?? sessionsForPanel(s.namedSessions, panelId)[0]?.id ?? null
+    set({
+      focusedSpatialPanel: panelId,
+      activeByPanel: { ...s.activeByPanel, [panelId]: here },
+      activeSessionId: here,
+      // A half-drawn shape belongs to the map it was started on. Moving focus
+      // puts the new map in select mode rather than carrying a live tool
+      // across, which would let the next click land in the wrong session.
+      activeToolId: here ? 'select' : null,
+      selectedVertex: null,
+      draggingVertex: null,
+    })
+  },
+
+  moveSessionToPanel: (sessionId, panelId) => {
+    const s = get()
+    const ns = s.namedSessions.find((x) => x.id === sessionId)
+    if (!ns || sessionPanelId(ns) === panelId) return
+    const from = sessionPanelId(ns)
+    const namedSessions = s.namedSessions.map((x) => {
+      if (x.id !== sessionId) return x
+      const next: NamedSession = { ...x }
+      if (panelId === PRIMARY_MAP) delete next.panelId
+      else next.panelId = panelId
+      return next
+    })
+    const leftBehind = sessionsForPanel(namedSessions, from)
+    set({
+      namedSessions,
+      activeByPanel: {
+        ...s.activeByPanel,
+        [from]: s.activeByPanel[from] === sessionId ? (leftBehind[0]?.id ?? null) : s.activeByPanel[from],
+        [panelId]: sessionId,
+      },
+      focusedSpatialPanel: panelId,
+      activeSessionId: sessionId,
+      activeToolId: 'select',
+      selectedVertex: null,
+    })
+  },
+
+  adoptSessions: (from, to) => {
+    const s = get()
+    const moving = sessionsForPanel(s.namedSessions, from)
+    if (moving.length === 0) return
+    const ids = new Set(moving.map((ns) => ns.id))
+    const namedSessions = s.namedSessions.map((ns) => {
+      if (!ids.has(ns.id)) return ns
+      const next: NamedSession = { ...ns }
+      if (to === PRIMARY_MAP) delete next.panelId
+      else next.panelId = to
+      return next
+    })
+    // What the destination was showing wins: removing a panel should not also
+    // change the map the user is looking at.
+    const keep = s.activeByPanel[to] ?? s.activeByPanel[from] ?? moving[0].id
+    const activeByPanel = { ...s.activeByPanel, [to]: keep }
+    delete activeByPanel[from]
+    set({
+      namedSessions,
+      activeByPanel,
+      focusedSpatialPanel: s.focusedSpatialPanel === from ? to : s.focusedSpatialPanel,
+      activeSessionId: s.focusedSpatialPanel === from ? keep : s.activeSessionId,
+    })
+  },
+
+  reclaimOrphanSessions: (livePanels) => {
+    const s = get()
+    const live = new Set(livePanels)
+    const home = livePanels.includes(PRIMARY_MAP) ? PRIMARY_MAP : (livePanels[0] ?? PRIMARY_MAP)
+    if (s.namedSessions.every((ns) => live.has(sessionPanelId(ns)))) return
+    // A project bundle can name a map this workspace no longer has. Its
+    // sessions own layers and an extent, so they come back to the original map
+    // rather than being dropped.
+    const namedSessions = s.namedSessions.map((ns) => {
+      if (live.has(sessionPanelId(ns))) return ns
+      const next: NamedSession = { ...ns }
+      if (home === PRIMARY_MAP) delete next.panelId
+      else next.panelId = home
+      return next
+    })
+    const activeByPanel: Record<PanelId, string | null> = {}
+    for (const panel of livePanels) {
+      const wanted = s.activeByPanel[panel]
+      activeByPanel[panel] = namedSessions.some((ns) => ns.id === wanted && sessionPanelId(ns) === panel)
+        ? wanted
+        : (sessionsForPanel(namedSessions, panel)[0]?.id ?? null)
     }
-    set({ namedSessions: remaining, activeSessionId: newActiveId })
+    const focused = live.has(s.focusedSpatialPanel) ? s.focusedSpatialPanel : home
+    set({
+      namedSessions,
+      activeByPanel,
+      focusedSpatialPanel: focused,
+      activeSessionId: activeByPanel[focused] ?? null,
+    })
+  },
+
+  setPanelViewState: (panelId, vs) => {
+    const s = get()
+    const id = s.activeByPanel[panelId]
+    if (!id) return
+    set({
+      namedSessions: s.namedSessions.map((ns) => (ns.id === id ? { ...ns, viewState: vs } : ns)),
+    })
+  },
+
+  addLayerToSession: (sessionId, layerId) => {
+    set((s) => ({
+      namedSessions: s.namedSessions.map((ns) =>
+        ns.id === sessionId && !ns.layerIds.includes(layerId)
+          ? { ...ns, layerIds: [...ns.layerIds, layerId] }
+          : ns
+      ),
+    }))
   },
 
   renameNamedSession: (id, name) => {

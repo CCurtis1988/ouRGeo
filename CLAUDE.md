@@ -1625,6 +1625,160 @@ blanks. macOS additionally needs `NSMicrophoneUsageDescription` in
 electron-builder's `mac.extendInfo`, and is asked up front so a blocked
 microphone is visible before the first click.
 
+## Two editors, two maps (v1.12.3)
+
+The code editor and the Spatial Editor can each exist more than once. Nothing
+else can: every other panel is a window onto one global thing — one console,
+one environment listing — and a second copy would be two views fighting over
+one store. These two own a SET (tabs, named map sessions), which is precisely
+what makes a second one useful and what makes the split well-defined.
+
+### Instances are a naming scheme, not a new model
+
+`src/lib/layout/instances.ts`. `PanelId` was already an opaque string to the
+layout model, so a second panel costs nothing structural — what it costs is a
+name, and **the first instance keeps the bare id**: `editor`, then `editor#2`.
+That is why every `layout.json`, saved preset, `data-ourgeo-id` and `ui:panel`
+call written before this feature still resolves. `#` rather than `:` (a
+plugin's panel id is already `plugin:panel`) and rather than `.` (a dot in an
+id reads as a property access — the same argument that made action ids use a
+colon). `maxInstances` on `PanelMeta` is 4 for both, capped because each extra
+map is another MapLibre instance holding a WebGL context.
+
+`normalize` gained the rules that keep a bad file renderable: an instance of a
+panel that may only exist once is dropped, so is one past the cap and one whose
+suffix does not parse (`editor#1`, `editor#x`); and **an instance's open state
+is its base panel's**. That last one is a decision, not an omission — the
+toolbar has one button per panel, so a second map that could be closed on its
+own could only be reopened from Settings, and a map holding sessions that is
+invisible and unreachable is the worst state this feature can produce. Closing
+the map closes every map; *removing* one is the other gesture, and it hands its
+sessions on. `dropPanel` is that removal, and step 2 of `normalize` never puts
+an instance back: an original that is missing from a file was never seen, an
+extra one that is missing was removed.
+
+### Removing a panel never removes what is in it
+
+`src/lib/panel-instances.ts` is the only thing that should call
+`useLayoutStore.removePanel`, and it moves the content first — to the FIRST
+remaining panel of the same kind, which for anyone who added exactly one extra
+is always the original. Three surfaces call it and must agree: Settings →
+Workspace (which is also the only surface that SHOWS you what you have), the
+panel grip's right-click menu (the fast way, when the pointer is already on the
+panel), and `layout:removePanel`. All three print the same sentence about where
+the documents went, read *before* the removal — `removalSummary` afterwards
+would describe a panel that is already empty.
+
+`src/lib/panel-content.ts` is the safety net for the other direction.
+Content pointing at a panel that is gone arrives from three real places — a
+`session.json` or `.ourgeoproj` written when the workspace had two editors, a
+layout preset applied from Settings, `layout:reset` — and its symptom is the
+worst kind: the tab still exists, still holds the user's work, and is drawn
+nowhere. So `reconcilePanelContent` runs after EVERY layout change, from the
+one place every change passes through (`useLayoutStore.apply`), and puts
+orphans back in the original panel.
+
+### What each store had to grow
+
+- `TabState.panelId` and `NamedSession.panelId`, both **absent meaning the
+  original** — the same backwards-compatibility tolerance `language` needed, so
+  a session or bundle written before this reads back unchanged, and a tab moved
+  to the second editor and back is byte-identical to one that never left.
+- `activeTabId` and `activeSessionId` **stay single values**, because almost
+  everything that asks — Save, Knit, the document tools, every drawing tool and
+  hotkey — means "the one in front of me". What a second panel needs is
+  `activeByPanel`, which is what each panel RENDERS: switching focus to the
+  other editor must not disturb the tab this one is showing.
+- `focusedEditor` / `focusedSpatialPanel`: where a new tab opens, and which map
+  a drawing tool draws on. Set from `Zone`'s **mousedown capture**
+  (`lib/panel-focus.ts`), so focus has moved before the click does whatever it
+  was for — a click that begins a drawing must land in the map it was aimed at.
+  `PanelSlot` draws a focus ring, but only when there is more than one panel of
+  that kind: with one editor the question has no answer worth showing.
+
+### The map had more to unpick than the editor
+
+Only three things in the Spatial Editor were ever per-panel; everything else is
+per-*focus* and is mounted **only on the focused map** — `GeometryEditRibbon`,
+`DrawContextMenu`, the three popups, `useDrawHotkeys`, `useDraftLayerSync` and
+`DbSpatialTileLoader`. Two of each would double-handle every keystroke, write
+the same geometry twice and fetch every tile twice for a bbox that is not even
+its own. The ribbon's dialogs are gated the same way: `openDialog` names one
+open dialog for the whole app, which is right, but with two ribbons mounted
+both would show it.
+
+- **`src/lib/panel-layers.ts` is the new rule and the one behaviour change
+  outside this feature's own surface.** The map used to draw every layer,
+  filtering to the session only while a drawing was in flight; `layerIds`
+  narrowed the Contents list and nothing else. Two maps would therefore be
+  copies of each other. So ownership became real: a layer owned by a session is
+  drawn on that session's map and nowhere else, and **a layer owned by no
+  session is drawn on every map**. The second half is what keeps it from being
+  a regression — rasters have never joined a session, and neither have the Data
+  Connector's raster imports.
+- **The fit signals carry a target panel** (`fitTargetPanel`). Sending a layer
+  to the second map and having the first jump to it is a move the user did not
+  ask for, in a panel they were not looking at, and it loses wherever that map
+  was pointed. `null` still means every map, which is the "fit to layers"
+  gesture.
+- **Only the focused map mirrors its view outwards.** `setMapView(view, panel)`
+  writes that panel's session always, but `useSpatialStore.viewState` and
+  `viewBbox` are single values that the export codegen and the project bundle
+  read — a background map reporting where it happens to be pointed would set
+  the extent of a figure generated from the other one.
+
+### "Which map?" is a promise
+
+`src/lib/map-target.ts` + `src/store/mapTarget.ts` + `ChooseMapDialog`. Four
+places send an object to the map (the Environment panel, the data viewer, the
+assistant, the connectors); a dialog in each would be four dialogs that drift,
+and a setting alone would take the choice away from anyone who wants to decide
+per object. So `chooseMapPanel` parks a request in a store, the dialog renders
+it, and the answer resolves the promise the caller is already awaiting. Closing
+it answers `null` — the safe answer is the one you get by doing nothing.
+
+It asks by default because **getting it wrong is invisible**: the layer is
+added, the call reports success, the console logs it, and the map the user is
+looking at does not change, which is indistinguishable from the button having
+done nothing. Settings → Spatial Editor offers "use the map I last worked in"
+instead, and that section renders nothing at all when there is only one map.
+
+The Add Features dialog does NOT ask: it was opened from one map's ribbon, and
+that is the answer. It is gated on `addFeaturesPanel` for the same reason the
+ribbon's dialogs are gated on focus.
+
+### Moving content between panels
+
+`src/lib/content-drag.ts` + `src/store/contentDrag.ts`, written the same way as
+`startPanelDrag` and for the same hard-won reasons: plain mouse events (not
+HTML5 dnd), a 4px threshold so a plain click on a tab still selects it, and
+**the drop committed in the one mouseup handler** rather than by the panel
+dropped on — React flushes a discrete native event's update synchronously, so
+the first overlay to clear the drag would unmount the rest mid-dispatch.
+
+Two shapes, one gesture. A tab strip is a strip, so tabs drag. Sessions live in
+a dropdown, which is drawn *above* the map that would be the drop target — so
+the drag closes it, and it closes on **drag start, not on press**: closing on
+mousedown unmounts the row and the click that was only ever meant to switch
+sessions never reaches its handler (`onStart`, not `onPress`). Both also carry
+an explicit **Move to** — a drag hidden inside a dropdown is undiscoverable,
+and a drag inside a scrolling tab strip is easy to start by accident.
+
+### Two smaller consequences
+
+- **An empty editor is a normal state**, and it says so, with the two ways to
+  fill it. `closeTab` only invents an Untitled when the last tab *anywhere*
+  goes; a panel that silently grew an `Untitled-7` whenever it emptied would be
+  one the user cannot leave empty.
+- **`CodeEditor` disposes a model when its tab leaves the panel**, not when the
+  tab is closed. `getOrCreateModel` returns a cached model without refreshing
+  its text, so dragging a tab out and back would resurrect the document as it
+  was when it left. Chunk outputs are a different lifetime — keyed by tab id in
+  a shared store — and are dropped only when the tab is gone from the app.
+- **`HighlightOverlay` picks the control inside the focused panel** when an id
+  appears twice. A tutorial says "the New file button", not "the New file
+  button in the second editor".
+
 ## Design Tokens
 
 ```

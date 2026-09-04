@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useState } from 'react'
 import { useUiStore } from '@/store/ui'
+import { useLayoutStore } from '@/store/layout'
 
 // Pointing at a control instead of pressing it.
 //
@@ -21,8 +22,29 @@ const TIMEOUT_MS = 30_000
 
 interface Box { top: number; left: number; width: number; height: number }
 
-function measure(target: string): Box | null {
-  const el = document.querySelector<HTMLElement>(`[data-ourgeo-id="${CSS.escape(target)}"]`)
+/**
+ * The element to ring.
+ *
+ * A workspace with two editors has two "New file" buttons, and both carry the
+ * same `data-ourgeo-id` — deliberately, because a tutorial says "the New file
+ * button", not "the New file button in the second editor". So when there is
+ * more than one, the one inside the FOCUSED panel wins: that is the editor the
+ * user is working in, and therefore the button they are being pointed at.
+ * `data-panel-id` is put on every panel box by `Zone`.
+ */
+function pick(target: string, focusedPanel: string | null): HTMLElement | null {
+  const all = document.querySelectorAll<HTMLElement>(`[data-ourgeo-id="${CSS.escape(target)}"]`)
+  if (all.length <= 1) return all[0] ?? null
+  if (focusedPanel) {
+    for (const el of all) {
+      if (el.closest('[data-panel-id]')?.getAttribute('data-panel-id') === focusedPanel) return el
+    }
+  }
+  return all[0]
+}
+
+function measure(target: string, focusedPanel: string | null): Box | null {
+  const el = pick(target, focusedPanel)
   if (!el) return null
   const r = el.getBoundingClientRect()
   if (r.width === 0 && r.height === 0) return null
@@ -32,6 +54,7 @@ function measure(target: string): Box | null {
 export function HighlightOverlay(): React.ReactElement | null {
   const highlight = useUiStore((s) => s.highlight)
   const setHighlight = useUiStore((s) => s.setHighlight)
+  const focusedPanel = useLayoutStore((s) => s.focusedPanel)
   const [box, setBox] = useState<Box | null>(null)
 
   // Measure after paint, and keep measuring: the target may be inside a panel
@@ -40,12 +63,12 @@ export function HighlightOverlay(): React.ReactElement | null {
     if (!highlight) { setBox(null); return }
     let frame = 0
     const tick = (): void => {
-      setBox(measure(highlight.target))
+      setBox(measure(highlight.target, focusedPanel))
       frame = requestAnimationFrame(tick)
     }
     tick()
     return () => cancelAnimationFrame(frame)
-  }, [highlight])
+  }, [highlight, focusedPanel])
 
   // Any interaction dismisses it — including the click it was asking for.
   useEffect(() => {

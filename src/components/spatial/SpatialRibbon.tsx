@@ -3,7 +3,11 @@ import { Plus, Lasso, MousePointer2, Check, Eye, EyeOff, Trash2, Pencil, Chevron
 import { Button } from '../ui/button'
 import { useUiStore } from '@/store/ui'
 import { useSpatialStore } from '@/store/spatial'
-import { useGeometryEditStore, selectActiveSessionLayerIds, selectActiveSession } from '@/store/geometryEdit'
+import {
+  useGeometryEditStore, selectPanelSession, sessionsForPanel, PRIMARY_MAP,
+} from '@/store/geometryEdit'
+import { layersOnPanel } from '@/lib/panel-layers'
+import { usePanelId } from '../layout/panel-context'
 import { useSelectionStore } from '@/store/selection'
 import { usePendingEditGroups } from '@/hooks/useSaveEdits'
 import { SaveEditsDialog } from './SaveEditsDialog'
@@ -73,6 +77,8 @@ function SettingsToggle({
 }
 
 export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonProps): React.ReactElement {
+  const panelId = usePanelId(PRIMARY_MAP)
+  const focused = useGeometryEditStore((s) => s.focusedSpatialPanel === panelId)
   const allLayers = useSpatialStore((s) => s.layers)
   const setDialogOpen = useSpatialStore((s) => s.setAddFeaturesDialogOpen)
   const toggleVisibility = useSpatialStore((s) => s.toggleLayerVisibility)
@@ -86,16 +92,14 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
   const namedSessions = useGeometryEditStore((s) => s.namedSessions)
   const setEditMode = useGeometryEditStore((s) => s.setEditMode)
   const setActiveTool = useGeometryEditStore((s) => s.setActiveTool)
-  const sessionLayerIds = useGeometryEditStore(selectActiveSessionLayerIds)
-  const activeSession = useGeometryEditStore(selectActiveSession)
+  const mySession = useGeometryEditStore((s) => selectPanelSession(s, panelId))
+  const sessionLayerIds = mySession?.layerIds ?? null
   const removeLayerFromActiveSession = useGeometryEditStore((s) => s.removeLayerFromActiveSession)
 
-  // Show all layers when actively drawing (activeSession != null) so the user can
-  // see and manage their existing layers while drawing new geometry.
-  // Only filter to session-owned layers when in edit mode with no active draw.
-  const layers = (sessionLayerIds === null || activeSession !== null)
-    ? allLayers
-    : allLayers.filter((l) => sessionLayerIds.includes(l.id))
+  // Contents lists exactly what this map draws — the same rule, from the same
+  // module, so the list and the canvas can never disagree about which layers
+  // belong to this map. See lib/panel-layers.ts.
+  const layers = layersOnPanel(allLayers, namedSessions, sessionLayerIds)
 
   const handleRemoveLayer = (layerId: string) => {
     // Raster layers: free the server-side warp/tile cache, then drop the
@@ -171,7 +175,10 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
     document.addEventListener('mouseup', onMouseUp)
   }
 
-  const showSessionManager = isEditMode || namedSessions.length > 0
+  // Sessions are counted per map: the second map's manager should appear
+  // because IT has sessions, not because the first one does.
+  const mySessions = sessionsForPanel(namedSessions, panelId)
+  const showSessionManager = isEditMode || mySessions.length > 0
 
   const showLegend = useSpatialStore((s) => s.showLegend)
   const showNorthArrow = useSpatialStore((s) => s.showNorthArrow)
@@ -190,15 +197,20 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
   const dialogArg = useUiStore((s) => s.dialogArg)
   const showDialog = useUiStore((s) => s.showDialog)
   const hideDialog = useUiStore((s) => s.hideDialog)
-  const contentsOpen = openDialog === 'map-contents'
-  const selectOpen = openDialog === 'select-menu'
-  const settingsOpen = openDialog === 'map-settings'
-  const symbologyLayerId = openDialog === 'symbology' ? dialogArg : null
-  const labelLayerId = openDialog === 'labeling' ? dialogArg : null
-  const legendSettingsOpen = openDialog === 'legend-settings'
-  const northArrowSettingsOpen = openDialog === 'north-arrow-settings'
-  const basemapDialogOpen = openDialog === 'basemap'
-  const saveEditsOpen = openDialog === 'save-edits'
+  // `openDialog` names ONE open dialog for the whole app, which is right — but
+  // with two ribbons mounted, both would show it. The focused map is the one
+  // that opened it: clicking any ribbon control focuses its panel first
+  // (Zone's mousedown-capture), so this is never ambiguous.
+  const mine = focused
+  const contentsOpen = mine && openDialog === 'map-contents'
+  const selectOpen = mine && openDialog === 'select-menu'
+  const settingsOpen = mine && openDialog === 'map-settings'
+  const symbologyLayerId = mine && openDialog === 'symbology' ? dialogArg : null
+  const labelLayerId = mine && openDialog === 'labeling' ? dialogArg : null
+  const legendSettingsOpen = mine && openDialog === 'legend-settings'
+  const northArrowSettingsOpen = mine && openDialog === 'north-arrow-settings'
+  const basemapDialogOpen = mine && openDialog === 'basemap'
+  const saveEditsOpen = mine && openDialog === 'save-edits'
 
   const contentsRef = useRef<HTMLDivElement>(null)
   const selectRef = useRef<HTMLDivElement>(null)
@@ -266,7 +278,7 @@ export function SpatialRibbon({ onFitBounds, mapContainerRef }: SpatialRibbonPro
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0 text-geo-muted hover:text-foreground flex-shrink-0"
-          onClick={() => setDialogOpen(true)}
+          onClick={() => setDialogOpen(true, panelId)}
           title="Add Features"
             data-ourgeo-id="map.addFeatures"
         >

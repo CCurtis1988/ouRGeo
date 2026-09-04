@@ -12,6 +12,7 @@ import { CodeThemePicker, MarkdownThemePicker } from './EditorThemePicker'
 import { RVersionPicker } from './RVersionPicker'
 import { InitialExtentPicker } from './InitialExtentPicker'
 import { AttributePopupToggle } from './AttributePopupToggle'
+import { MapTargetPicker } from './MapTargetPicker'
 import { CrsSettings } from './CrsSettings'
 import { AiProviderSettings } from './AiProviderSettings'
 import { VoiceSettings } from './VoiceSettings'
@@ -312,6 +313,8 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
             >
               <SubLabel>Initial Spatial Extent</SubLabel>
               <InitialExtentPicker />
+              {/* Renders nothing at all unless the workspace has two maps. */}
+              <MapTargetPicker />
               <SubLabel className="mt-5">Drawing</SubLabel>
               <AttributePopupToggle />
               <SubLabel className="mt-5">Coordinate Reference Systems</SubLabel>

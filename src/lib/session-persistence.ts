@@ -6,6 +6,10 @@ export interface SessionData {
   tabs: TabState[]
   activeTabId: string | null
   untitledCounter: number
+  /** Each editor panel's own active tab, when the workspace has more than one
+   *  editor. Absent in every session written before that was possible, which
+   *  is why it is optional rather than defaulted. */
+  activeByPanel?: Record<string, string | null>
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -23,10 +27,18 @@ export function buildSessionData(): SessionData {
   // live in workspace-persistence, which is cleared on exit.
   const codeTabs = state.tabs.filter((t) => !t.type || t.type === 'code')
   const activeIsCode = codeTabs.some((t) => t.id === state.activeTabId)
+  const ids = new Set(codeTabs.map((t) => t.id))
+  const activeByPanel: Record<string, string | null> = {}
+  for (const [panel, id] of Object.entries(state.activeByPanel)) {
+    // Object-backed tabs are session-scoped and live in workspace-persistence,
+    // so a panel showing one has no code tab to restore as its active.
+    if (id && ids.has(id)) activeByPanel[panel] = id
+  }
   return {
     tabs: codeTabs,
     activeTabId: activeIsCode ? state.activeTabId : (codeTabs[0]?.id ?? null),
-    untitledCounter: state.untitledCounter
+    untitledCounter: state.untitledCounter,
+    activeByPanel,
   }
 }
 
@@ -64,7 +76,8 @@ export async function applySessionData(data: SessionData): Promise<boolean> {
   useEditorStore.getState().loadFromSession({
     tabs: restoredTabs,
     activeTabId,
-    untitledCounter: data.untitledCounter || 1
+    untitledCounter: data.untitledCounter || 1,
+    activeByPanel: data.activeByPanel,
   })
 
   return true
