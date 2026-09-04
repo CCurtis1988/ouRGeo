@@ -1,10 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, Database, Link2 } from 'lucide-react'
-import type { RObjectInfo, REnvironmentInfo } from '@/lib/r-client'
+import { Box, ChevronRight, ChevronDown, Database, Link2 } from 'lucide-react'
+import type { RObjectInfo } from '@/lib/r-client'
 import { ContextMenu, type ContextMenuItem } from '../ui/context-menu'
 import { useSessionStore } from '@/store/session'
 import { useEditorStore } from '@/store/editor'
 import { useDatabaseStore, type OpenDb } from '@/store/database'
+import { useEnvironmentStore } from '@/store/environment'
+import {
+  duplicateCode, moveTargets, placementOf, GLOBAL_ENV, type PanelEnv,
+} from '@/lib/environments'
+import { exportEnvironments } from '@/lib/env-export'
+import { placementMenu, workHereItem } from './env-menu'
 import { type SpatialLayer } from '@/store/spatial'
 import { rClient } from '@/lib/r-client'
 import { SaveConflictDialog, type SaveConflictDecision } from '../database/SaveConflictDialog'
@@ -34,40 +40,10 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/** Recursively collect all environment names from the environment list, including nested env objects */
-function collectAllEnvNames(
-  environments: REnvironmentInfo[],
-  currentEnvName: string
-): string[] {
-  const names: string[] = []
-
-  function walkObjects(objects: RObjectInfo[], parentEnvName: string) {
-    for (const obj of objects) {
-      if (obj.isEnvironment) {
-        names.push(obj.name)
-        if (obj.children) {
-          walkObjects(obj.children, obj.name)
-        }
-      }
-    }
-  }
-
-  for (const env of environments) {
-    if (env.name !== currentEnvName) {
-      names.push(env.name)
-    }
-    // Walk into objects to find nested environments
-    walkObjects(env.objects, env.name)
-  }
-
-  // Deduplicate and remove current env
-  return [...new Set(names)].filter((n) => n !== currentEnvName)
-}
-
 interface EnvironmentItemProps {
   obj: RObjectInfo
   envName: string
-  allEnvironments: REnvironmentInfo[]
+  allEnvironments: PanelEnv[]
   onRefresh: () => void
   depth?: number
   accessPath?: string
@@ -126,6 +102,8 @@ export function EnvironmentItem({
   } | null>(null)
   const [alreadyOnMap, setAlreadyOnMap] = useState<SpatialLayer[]>([])
   const workspaceFolder = useDatabaseStore((s) => s.workspaceFolder)
+  const userFilterActive = useEnvironmentStore((s) => s.userFilterActive)
+  const envPlacement = useEnvironmentStore((s) => s.envPlacement)
   const renameRef = useRef<HTMLInputElement>(null)
   const copyRef = useRef<HTMLInputElement>(null)
 
@@ -156,9 +134,19 @@ export function EnvironmentItem({
     useSessionStore.getState().addConsoleEntry('input', cmd)
   }
 
+  const reportFailure = (res: { success: boolean; error?: string }, what: string): boolean => {
+    if (res.success) return true
+    // Writing into an attached package is the common one — R locks those
+    // bindings — and the old code discarded the answer, so the menu item did
+    // nothing and said nothing.
+    useSessionStore.getState().addConsoleEntry('error', res.error ?? `Could not ${what}.`)
+    return false
+  }
+
   const handleRemove = async () => {
     logToConsole(`rm("${obj.name}", envir = ${envName})`)
-    await rClient.envRemove(obj.name, envName)
+    const res = await rClient.envRemove(obj.name, envName)
+    if (!reportFailure(res, `remove ${obj.name}`)) return
     onRefresh()
   }
 
@@ -171,17 +159,54 @@ export function EnvironmentItem({
     logToConsole(
       `assign("${newName}", get("${obj.name}", envir = ${envName}), envir = ${envName}); rm("${obj.name}", envir = ${envName})`
     )
-    await rClient.envRename(obj.name, newName, envName)
+    const res = await rClient.envRename(obj.name, newName, envName)
     setRenaming(false)
+    if (!reportFailure(res, `rename ${obj.name}`)) return
     onRefresh()
   }
 
   const handleCopy = async (toEnv?: string) => {
     const name = copyName.trim() || obj.name + '_copy'
     const targetEnv = toEnv || envName
-    logToConsole(`assign("${name}", get("${obj.name}", envir = ${envName}), envir = ${targetEnv})`)
-    await rClient.envCopy(obj.name, envName, targetEnv, name)
     setCopying(false)
+    // An environment is a REFERENCE. `assign(new, get(old))` would give the
+    // user a second name for the same environment and call it a copy — the
+    // next edit through either one would show up in both.
+    if (obj.isEnvironment) {
+      logToConsole(duplicateCode(obj.name, name, envName))
+      const res = await rClient.envDuplicate(obj.name, name, envName)
+      if (!reportFailure(res, `copy ${obj.name}`)) return
+      onRefresh()
+      return
+    }
+    logToConsole(`assign("${name}", get("${obj.name}", envir = ${envName}), envir = ${targetEnv})`)
+    const res = await rClient.envCopy(obj.name, envName, targetEnv, name)
+    if (!reportFailure(res, `copy ${obj.name}`)) return
+    onRefresh()
+  }
+
+  /**
+   * Copy this object into another environment, keeping the original.
+   *
+   * Distinct from "Make Copy", which makes a second copy alongside it under a
+   * new name: this one keeps the NAME and changes the place, so `roads` in
+   * .GlobalEnv and `roads` in `env2` are the same data in two environments.
+   * That is what a user reaches for when they are setting an environment up to
+   * work in and do not want to lose what they had.
+   */
+  const handleCopyTo = async (toEnv: string) => {
+    if (obj.isEnvironment) {
+      // An environment is a reference; `assign` would put a second name on it.
+      logToConsole(duplicateCode(obj.name, obj.name, envName, toEnv))
+      const res = await rClient.envDuplicate(obj.name, obj.name, envName, toEnv)
+      if (!reportFailure(res, `copy ${obj.name} to ${toEnv}`)) return
+      onRefresh()
+      return
+    }
+    logToConsole(
+      `assign("${obj.name}", get("${obj.name}", envir = ${envName}), envir = ${toEnv})`)
+    const res = await rClient.envCopy(obj.name, envName, toEnv, obj.name)
+    if (!reportFailure(res, `copy ${obj.name} to ${toEnv}`)) return
     onRefresh()
   }
 
@@ -189,7 +214,8 @@ export function EnvironmentItem({
     logToConsole(
       `assign("${obj.name}", get("${obj.name}", envir = ${envName}), envir = ${toEnv}); rm("${obj.name}", envir = ${envName})`
     )
-    await rClient.envMove(obj.name, envName, toEnv)
+    const res = await rClient.envMove(obj.name, envName, toEnv)
+    if (!reportFailure(res, `move ${obj.name} to ${toEnv}`)) return
     onRefresh()
   }
 
@@ -279,11 +305,25 @@ export function EnvironmentItem({
     }
   }
 
-  const moveTargets = collectAllEnvNames(allEnvironments, envName)
-  const moveSubmenu: ContextMenuItem[] = moveTargets.map((name) => ({
-    label: name,
-    onClick: () => handleMove(name)
-  }))
+  // Where this object may be sent.
+  //
+  // With the panel's eye hiding what is not the user's, the list is what the
+  // panel is showing: .GlobalEnv and the environments the user made. Turn the
+  // eye off — "show me the whole session" — and every environment is offered,
+  // package environments included; those usually refuse the write, which is why
+  // the move reports what R said rather than appearing to do nothing.
+  //
+  // The old list was every environment REACHABLE by walking the tree, nested
+  // ones included. Half of them could not be written to at all: the server
+  // resolves a target by name in .GlobalEnv, so `inner` inside `myenv` came
+  // back "Environment 'inner' not found".
+  const targets = moveTargets(allEnvironments, envName, !userFilterActive)
+  const moveSubmenu: ContextMenuItem[] = targets.length === 0
+    ? [{ label: 'No other environment to move to', disabled: true }]
+    : targets.map((name) => ({ label: name, onClick: () => handleMove(name) }))
+  const copyToSubmenu: ContextMenuItem[] = targets.length === 0
+    ? [{ label: 'No other environment to copy to', disabled: true }]
+    : targets.map((name) => ({ label: name, onClick: () => handleCopyTo(name) }))
 
   const dbSubmenu: ContextMenuItem[] = !workspaceFolder
     ? [{ label: 'Set workspace folder first', disabled: true }]
@@ -333,9 +373,22 @@ export function EnvironmentItem({
     !!obj.rgeoProxy && (obj.rgeoProxy.kind === 'sf' || obj.rgeoProxy.kind === 'geos')
   const isInMemorySf = SF_CLASSES.includes(obj.class) && !obj.rgeoProxy
 
+  // An environment the user made is listed here — as the object it is in
+  // .GlobalEnv — or beside .GlobalEnv as a place of its own, never both. So
+  // the row has to carry everything the group carries, or choosing "inside"
+  // would quietly cost the user the ability to export it or move it back.
+  const isTopLevelEnv = obj.isEnvironment && envName === GLOBAL_ENV
+
   const menuItems: ContextMenuItem[] = [
     ...(isViewable(obj.class)
       ? [{ label: 'View/Edit', onClick: handleViewEdit }]
+      : []),
+    ...(isTopLevelEnv
+      ? [
+          workHereItem(obj.name),
+          { label: 'Export…', onClick: () => void exportEnvironments([obj.name]) },
+          placementMenu(obj.name, placementOf(envPlacement, obj.name)),
+        ]
       : []),
     ...(isInMemorySf || isSpatialProxy
       ? [{ label: 'Send to spatial editor', onClick: handleSendToSpatial }]
@@ -356,7 +409,12 @@ export function EnvironmentItem({
       }
     },
     ...(moveSubmenu.length > 0 ? [{ label: 'Move To', submenu: moveSubmenu }] : []),
-    { label: 'Save to database', submenu: dbSubmenu },
+    // Move To leaves nothing behind; Copy To leaves the original where it is.
+    // Both are wanted, and which one a user means is not guessable.
+    ...(copyToSubmenu.length > 0 ? [{ label: 'Copy To', submenu: copyToSubmenu }] : []),
+    // A .Rgeo holds datasets. An environment is a container of them, and the
+    // import would fail on the first attempt to work out its columns.
+    ...(obj.isEnvironment ? [] : [{ label: 'Save to database', submenu: dbSubmenu }]),
     ...(isTabularExportable(obj.class) || isVectorExportable(obj.class)
       ? [
           { separator: true } as ContextMenuItem,
@@ -437,6 +495,11 @@ export function EnvironmentItem({
           )
         ) : (
           <span className="w-3 flex-shrink-0" />
+        )}
+        {/* The same icon the environment's own group carries, so the row and
+            the group beside .GlobalEnv read as the one thing they are. */}
+        {obj.isEnvironment && (
+          <Box className="w-3 h-3 text-geo-accent flex-shrink-0" aria-label="Environment" />
         )}
         {obj.class === 'tbl_dbi' && (
           <Database className="w-3 h-3 text-geo-accent flex-shrink-0" />

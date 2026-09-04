@@ -9,7 +9,14 @@ handle_env_list <- function() {
     env <- tryCatch(as.environment(env_name), error = function(e) NULL)
     if (is.null(env)) return(NULL)
 
-    is_pkg <- env_name != ".GlobalEnv" && grepl("^package:", env_name)
+    # Everything on the search path except .GlobalEnv is ouRGeo's or R's, not
+    # the user's — `isSearchPath` is what the whole renderer reads to mean
+    # "not somewhere the user keeps data". The old test also required a
+    # `package:` prefix, which let "Autoloads" (and any tools:* entry) through
+    # as if it were a user environment: it showed in the panel with the filter
+    # ON, offered itself as a target for Load, and its objects turned up in
+    # every dataset picker in the app.
+    is_pkg <- env_name != ".GlobalEnv"
     env_id <- format(env)
     visited_envs <<- c(visited_envs, env_id)
 
@@ -98,9 +105,64 @@ handle_env_create <- function(body) {
   parent_env <- body$parentEnv %||% ".GlobalEnv"
 
   tryCatch({
+    # A name that is not syntactic is a name the user cannot type: `my env$x`
+    # is a parse error, and the environment would be reachable only through
+    # get(). Refuse it here, where there is a dialog to say so in.
+    if (!identical(make.names(name), name)) {
+      stop(paste0("\"", name, "\" is not a valid R name. Use letters, numbers, ",
+                  "dots and underscores, starting with a letter."))
+    }
+    # Silently overwriting is how a user loses a data frame by naming a new
+    # environment after it.
+    if (exists(name, envir = .GlobalEnv, inherits = FALSE)) {
+      stop(paste0("There is already an object called \"", name,
+                  "\" in .GlobalEnv. Pick another name, or remove that object first."))
+    }
     parent <- resolve_env(parent_env)
     assign(name, new.env(parent = parent), envir = .GlobalEnv)
     ok_response()
+  }, error = function(e) {
+    error_response(conditionMessage(e))
+  })
+}
+
+# Copy an environment's CONTENTS into a new one.
+#
+# Not `assign(new, get(old))`: environments are references, so that makes a
+# second name for the same environment, and every later edit through one shows
+# up in the other. The Environment panel's "Make Copy" said copy and produced
+# an alias.
+handle_env_duplicate <- function(body) {
+  name <- body$name %||% stop("name required")
+  # Where the environment OBJECT lives — ".GlobalEnv" for one the user made,
+  # or the environment holding it when it is nested. The copy is placed beside
+  # the original, which is the only place the user can already name it.
+  home_name <- body$envName %||% ".GlobalEnv"
+  # Where the copy is put — the source's own home unless the caller says
+  # otherwise, which is what "copy this environment into that one" means.
+  dest_name <- body$toEnv %||% home_name
+  new_name <- body$newName %||% paste0(name, "_copy")
+
+  tryCatch({
+    if (!identical(make.names(new_name), new_name)) {
+      stop(paste0("\"", new_name, "\" is not a valid R name."))
+    }
+    home <- resolve_env(home_name)
+    dest <- resolve_env(dest_name)
+    if (exists(new_name, envir = dest, inherits = FALSE)) {
+      stop(paste0("There is already an object called \"", new_name, "\" in ", dest_name, "."))
+    }
+    src <- get(name, envir = home)
+    if (!is.environment(src)) stop(paste0("\"", name, "\" is not an environment."))
+
+    names_to_copy <- ls(envir = src, all.names = TRUE)
+    if (identical(src, .GlobalEnv)) {
+      names_to_copy <- setdiff(names_to_copy, .ourgeo_env$system_names %||% character(0))
+    }
+    copy <- new.env(parent = parent.env(src))
+    for (nm in names_to_copy) assign(nm, get(nm, envir = src), envir = copy)
+    assign(new_name, copy, envir = dest)
+    json_response(list(success = TRUE, count = length(names_to_copy)))
   }, error = function(e) {
     error_response(conditionMessage(e))
   })

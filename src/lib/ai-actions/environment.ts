@@ -7,6 +7,8 @@
 // operation echoed the way the GUI echoes it.
 
 import { rClient } from '@/lib/r-client'
+import { GLOBAL_ENV, panelEnvironments } from '@/lib/environments'
+import { setWorkingEnv, workingEnv } from '@/lib/working-env'
 import { useEnvironmentStore } from '@/store/environment'
 import { usePackagesStore } from '@/store/packages'
 import { useEditorStore } from '@/store/editor'
@@ -18,11 +20,35 @@ async function refreshEnvironments(): Promise<void> {
   if (res?.success) useEnvironmentStore.getState().setEnvironments(res.environments)
 }
 
+/**
+ * The environments the user keeps objects in — .GlobalEnv and the ones they
+ * made. The same list the panel draws, promoted the same way, so "list the
+ * objects in scratch" answers instead of coming back empty: a user environment
+ * is an OBJECT in .GlobalEnv, and `!isSearchPath` alone never reaches inside it.
+ */
+function userEnvironments(): ReturnType<typeof panelEnvironments> {
+  const { environments, envPlacement } = useEnvironmentStore.getState()
+  return panelEnvironments(environments, envPlacement).filter((e) => !e.isSearchPath)
+}
+
 /** Which environment holds an object, for actions that take a bare name. */
 function envOf(name: string): string | null {
-  const envs = useEnvironmentStore.getState().environments
-  const hit = envs.find((e) => !e.isSearchPath && e.objects.some((o) => o.name === name))
+  const hit = userEnvironments().find((e) => e.objects.some((o) => o.name === name))
   return hit?.name ?? null
+}
+
+/** Whether `name` in `env` is itself an environment — copying one is not the
+ *  same operation, see `env:copy`. */
+function isEnvObject(name: string, env: string): boolean {
+  const envs = userEnvironments()
+  // An environment listed BESIDE .GlobalEnv is lifted out of .GlobalEnv's own
+  // object list, so looking only in `objects` answers "no" for exactly the
+  // environments the user made — and env:copy would then alias one instead of
+  // copying it.
+  if (envs.some((e) => e.isUserEnv && e.name === name && (e.parentEnv ?? GLOBAL_ENV) === env)) {
+    return true
+  }
+  return envs.find((e) => e.name === env)?.objects.find((o) => o.name === name)?.isEnvironment === true
 }
 
 export const environmentActions: UiAction[] = [
@@ -39,9 +65,7 @@ export const environmentActions: UiAction[] = [
       await refreshEnvironments()
       const wantEnv = argStr(args, 'env')
       const pattern = argStr(args, 'pattern').toLowerCase()
-      const envs = useEnvironmentStore.getState().environments
-        .filter((e) => !e.isSearchPath)
-        .filter((e) => !wantEnv || e.name === wantEnv)
+      const envs = userEnvironments().filter((e) => !wantEnv || e.name === wantEnv)
       const lines: string[] = []
       for (const env of envs) {
         const objs = env.objects.filter((o) => !pattern || o.name.toLowerCase().includes(pattern))
@@ -52,6 +76,10 @@ export const environmentActions: UiAction[] = [
           lines.push(`  ${o.name}: ${o.class}${dim} — ${o.preview}`)
         }
       }
+      // Where code runs matters to every later call: an object listed under
+      // `scratch` can be named bare only while the console is working there.
+      const where = workingEnv()
+      if (where !== GLOBAL_ENV) lines.push(`(the console is working in ${where})`)
       return lines.length > 0 ? ok(lines.join('\n')) : ok('No matching objects in the R environment.')
     },
   },
@@ -133,7 +161,13 @@ export const environmentActions: UiAction[] = [
       const name = argStr(args, 'name')
       const from = argStr(args, 'from') || envOf(name) || '.GlobalEnv'
       const to = argStr(args, 'to')
-      const res = await rClient.envCopy(name, from, to, argStr(args, 'newName') || name)
+      const newName = argStr(args, 'newName') || name
+      // An environment is a reference: `assign(new, get(old))` makes a second
+      // name for the same environment, so a later change through either shows
+      // up in both. Copying one means copying its contents.
+      const res = isEnvObject(name, from)
+        ? await rClient.envDuplicate(name, newName, from, to)
+        : await rClient.envCopy(name, from, to, newName)
       await refreshEnvironments()
       return res.success ? ok(`Copied "${name}" from ${from} to ${to}.`) : fail(res.error ?? 'Copy failed.')
     },
@@ -163,7 +197,9 @@ export const environmentActions: UiAction[] = [
     id: 'env:create',
     group: 'environment',
     tier: 'autopilot',
-    summary: 'Create a new R environment.',
+    summary:
+      'Create a new R environment. It is created in .GlobalEnv and listed beside it in the panel; ' +
+      'its objects are named env$object. A name already in use is refused rather than overwritten.',
     params: [
       { name: 'name', type: 'string', required: true, description: 'Name for the environment.' },
       { name: 'parent', type: 'string', description: 'Parent environment; defaults to .GlobalEnv.' },
@@ -173,6 +209,35 @@ export const environmentActions: UiAction[] = [
       const res = await rClient.envCreate(name, argStr(args, 'parent') || undefined)
       await refreshEnvironments()
       return res.success ? ok(`Created environment "${name}".`) : fail(res.error ?? 'Create failed.')
+    },
+  },
+
+  {
+    id: 'env:workIn',
+    group: 'environment',
+    // It changes where every later `execute_r_code` evaluates and where the
+    // objects it creates land, which is exactly what the Autopilot switch is
+    // about — even though nothing in R has run yet.
+    tier: 'autopilot',
+    summary:
+      'Run console and tool code inside an environment instead of .GlobalEnv, so its objects ' +
+      'can be named directly (R looks names up outwards, never into an environment). ' +
+      'Pass .GlobalEnv to go back.',
+    params: [
+      { name: 'env', type: 'string', default: GLOBAL_ENV, description: 'Environment to work in.' },
+    ],
+    run: async (args) => {
+      const name = argStr(args, 'env') || GLOBAL_ENV
+      await refreshEnvironments()
+      if (name !== GLOBAL_ENV && !userEnvironments().some((e) => e.name === name)) {
+        return fail(`There is no environment called "${name}". ` +
+          `Working environments are ${userEnvironments().map((e) => e.name).join(', ')}.`)
+      }
+      setWorkingEnv(name)
+      return ok(name === GLOBAL_ENV
+        ? 'Working in .GlobalEnv again.'
+        : `Working in ${name}. Code now runs as evalq({ … }, ${name}); .GlobalEnv is still ` +
+          'visible through it, and new objects are created there.')
     },
   },
 

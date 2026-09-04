@@ -53,6 +53,14 @@ the whole analysis.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
   panels and documentation, added while the app is running — no rebuild, and
   usually no code at all.
+- **Environments you can actually work in.** A new environment sits beside
+  `.GlobalEnv` in the panel, and its right-click menu has **Work in this
+  environment** — R looks names up outwards and never into an environment, so
+  without it `x` in `env2` is only ever `env2$x`. Working inside it, `x * a`
+  just works, and the prompt shows where you are. The same menu exports,
+  copies, renames and deletes; objects carry **Copy To** as well as **Move
+  To**, and **Show** lists the environment inside `.GlobalEnv` instead if you
+  prefer to see it where R keeps it.
 - **One dataset, three views.** The Environment panel, the data viewer and the
   map are the same objects seen from three angles, and any of them gets you to
   the others: **Add to Map** in the data viewer's header sends a table to the

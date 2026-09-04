@@ -37,6 +37,7 @@ import { useSpatialSettingsStore } from './store/spatialSettings'
 import { loadMarkdownSettings } from './lib/markdown-settings-persistence'
 import { useMarkdownSettingsStore } from './store/markdownSettings'
 import { loadBasemap } from './lib/basemap-persistence'
+import { loadEnvironmentPreferences } from './lib/environment-preferences'
 import { useBasemapStore } from './store/basemap'
 import { useEnvironmentStore } from './store/environment'
 
@@ -130,6 +131,11 @@ function MainApp(): React.ReactElement {
       const savedBasemap = await loadBasemap()
       useBasemapStore.setState({ overrideBasemapId: savedBasemap })
 
+      // How the Environment panel lists each of the user's environments —
+      // beside .GlobalEnv, or inside it as well.
+      const envPrefs = await loadEnvironmentPreferences()
+      useEnvironmentStore.getState().setEnvPlacements(envPrefs.envPlacement)
+
       setRStatus('connecting')
 
       try {
@@ -164,6 +170,7 @@ function MainApp(): React.ReactElement {
         const sessionResult = await rClient.initSession()
         if (sessionResult.systemNames?.length) {
           useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', sessionResult.systemNames)
+          useEnvironmentStore.getState().setSystemNames(sessionResult.systemNames)
         }
         addEntry('info', 'R session ready.')
         void refreshWorkingDir()

@@ -9,6 +9,7 @@ import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
 import { getTextareaCaretRect } from '@/lib/caret-coords'
 import { WorkingDirBar } from './WorkingDirBar'
+import { setWorkingEnv } from '@/lib/working-env'
 
 function EntryLine({ entry }: { entry: ConsoleEntry }): React.ReactElement {
   const textColor = {
@@ -33,6 +34,7 @@ export function Console(): React.ReactElement {
   const history = useSessionStore((s) => s.consoleHistory)
   const clearConsole = useSessionStore((s) => s.clearConsole)
   const wsConnected = useSessionStore((s) => s.wsConnected)
+  const workingEnv = useSessionStore((s) => s.workingEnv)
   const addEntry = useSessionStore((s) => s.addConsoleEntry)
   const inputHistory = useSessionStore((s) => s.consoleInputHistory)
   const addInputHistory = useSessionStore((s) => s.addInputHistory)
@@ -272,6 +274,20 @@ export function Console(): React.ReactElement {
 
       {/* Input line */}
       <div className="flex items-start px-3 py-1.5 border-t border-geo-border flex-shrink-0 gap-1">
+        {/* Where the code will be evaluated, shown ON the prompt — the one
+            place the user is certain to be looking when they type. A command
+            run in `env2` finds different objects and leaves its results
+            somewhere else; that cannot be a setting hidden in a menu. */}
+        {workingEnv !== '.GlobalEnv' && (
+          <button
+            className="text-xs font-mono text-geo-accent/80 hover:text-geo-accent select-none leading-relaxed max-w-[40%] truncate"
+            title={`Running code in ${workingEnv} — click to work in .GlobalEnv again`}
+            data-ourgeo-id="console.workingEnv"
+            onClick={() => setWorkingEnv('.GlobalEnv')}
+          >
+            {workingEnv}
+          </button>
+        )}
         <span className="text-xs font-mono text-geo-accent select-none leading-relaxed">&gt;</span>
         <textarea
           ref={inputRef}

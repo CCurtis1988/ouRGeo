@@ -20,6 +20,9 @@ interface SessionState {
   /** `path.expand("~")`, so the display can shorten the home prefix. */
   homeDir: string | null
   consoleHistory: ConsoleEntry[]
+  /** The environment the console evaluates in — `.GlobalEnv` unless the user
+   *  asked to work inside one of their own. See `src/lib/working-env.ts`. */
+  workingEnv: string
   consoleInputHistory: string[]
   isExecuting: boolean
   executingStartTime: number | null
@@ -32,6 +35,7 @@ interface SessionState {
   setRPort: (port: number | null) => void
   setWsConnected: (connected: boolean) => void
   setWorkingDir: (path: string | null, home?: string | null) => void
+  setWorkingEnv: (name: string) => void
   setExecuting: (v: boolean) => void
   addConsoleEntry: (type: ConsoleEntry['type'], text: string) => void
   clearConsole: () => void
@@ -49,6 +53,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   workingDir: null,
   homeDir: null,
   consoleHistory: [],
+  workingEnv: '.GlobalEnv',
   consoleInputHistory: [],
   isExecuting: false,
   executingStartTime: null,
@@ -62,6 +67,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setWsConnected: (wsConnected) => set({ wsConnected }),
   setWorkingDir: (workingDir, home) =>
     set(home === undefined ? { workingDir } : { workingDir, homeDir: home }),
+  setWorkingEnv: (workingEnv) => set({ workingEnv }),
   setExecuting: (v) => set(v
     ? { isExecuting: true, executingStartTime: Date.now() }
     : { isExecuting: false, executingStartTime: null }

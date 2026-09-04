@@ -64,6 +64,7 @@ export async function reconnectToR(): Promise<void> {
     const sessionResult = await rClient.initSession()
     if (sessionResult.systemNames?.length) {
       useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', sessionResult.systemNames)
+      useEnvironmentStore.getState().setSystemNames(sessionResult.systemNames)
     }
     addConsoleEntry('info', 'R session ready.')
     // A restart is a fresh R process, so its directory is R's default again.

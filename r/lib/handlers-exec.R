@@ -102,6 +102,20 @@ handle_session_init <- function() {
 handle_execute <- function(body) {
   code <- body$code %||% stop("code required")
 
+  # Where the code is evaluated. Almost always .GlobalEnv; the Environment
+  # panel's "Work in this environment" points it at one of the user's own
+  # environments instead, which is the only way to type `x * a` when `x` lives
+  # in that environment and `a` does not — R looks names up OUTWARDS, never
+  # into an environment sitting in .GlobalEnv. The environment's own parent is
+  # .GlobalEnv, so everything else stays reachable.
+  env_name <- body$envir %||% ".GlobalEnv"
+  eval_env <- tryCatch(resolve_env(env_name), error = function(e) NULL)
+  if (is.null(eval_env) || !is.environment(eval_env)) {
+    return(error_response(paste0(
+      "The console is set to work in '", env_name,
+      "', which no longer exists. Switch back to .GlobalEnv in the Environment panel.")))
+  }
+
   warnings_collected <- character(0)
   messages_collected <- character(0)
 
@@ -109,7 +123,7 @@ handle_execute <- function(body) {
     withCallingHandlers(
       {
         captured <- capture.output({
-          .result <- withVisible(eval(parse(text = code), envir = .GlobalEnv))
+          .result <- withVisible(eval(parse(text = code), envir = eval_env))
           if (.result$visible) {
             .widget <- .as_htmlwidget(.result$value)
             if (!is.null(.widget)) {

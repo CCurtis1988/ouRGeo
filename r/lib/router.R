@@ -78,6 +78,11 @@ route <- function(req) {
       return(handle_env_create(body))
     }
 
+    if (path == "/env/duplicate" && method == "POST") {
+      body <- parse_body(req)
+      return(handle_env_duplicate(body))
+    }
+
     if (path == "/env/save" && method == "POST") {
       body <- parse_body(req)
       return(handle_env_save(body))

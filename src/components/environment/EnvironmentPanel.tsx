@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Search, X, Loader2, Plus, Save, FolderOpen, Eye } from 'lucide-react'
+import { RefreshCw, Search, X, Loader2, Plus, Download, FolderOpen, Eye } from 'lucide-react'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { EnvironmentGroup } from './EnvironmentGroup'
 import { useEnvironmentStore } from '@/store/environment'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
+import {
+  exportedNames, loadTargets, panelEnvironments, treeEnvironments, userOnlyView, GLOBAL_ENV,
+} from '@/lib/environments'
+import { exportEnvironments } from '@/lib/env-export'
 import { cn } from '@/lib/utils'
 
 export function EnvironmentPanel(): React.ReactElement {
@@ -19,12 +23,15 @@ export function EnvironmentPanel(): React.ReactElement {
   const setUserFilterActive = useEnvironmentStore((s) => s.setUserFilterActive)
   const rdataLoadedNames = useEnvironmentStore((s) => s.rdataLoadedNames)
   const addRdataLoadedNames = useEnvironmentStore((s) => s.addRdataLoadedNames)
+  const systemNames = useEnvironmentStore((s) => s.systemNames)
+  const envPlacement = useEnvironmentStore((s) => s.envPlacement)
 
   const [showNewEnv, setShowNewEnv] = useState(false)
   const [newEnvName, setNewEnvName] = useState('')
-  const [saveDropdown, setSaveDropdown] = useState(false)
-  const [saveSelection, setSaveSelection] = useState<Set<string>>(new Set())
+  const [exportDropdown, setExportDropdown] = useState(false)
+  const [exportSelection, setExportSelection] = useState<Set<string>>(new Set())
   const [loadDropdown, setLoadDropdown] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const fetchEnvironments = useCallback(async () => {
     setLoading(true)
@@ -61,15 +68,33 @@ export function EnvironmentPanel(): React.ReactElement {
   const handleCreateEnv = async () => {
     const name = newEnvName.trim()
     if (!name) return
+    // The server refuses a name that is not a syntactic R name, and one that
+    // is already taken — silently overwriting is how a user loses a data frame
+    // by naming an environment after it. Keep the input open so the name can
+    // be fixed where it was typed.
+    const res = await rClient.envCreate(name)
+    if (!res.success) {
+      setCreateError(res.error ?? 'Could not create that environment.')
+      return
+    }
+    // Every environment ouRGeo makes is `new.env(parent = .GlobalEnv)` — a
+    // child of the global environment, which is what makes .GlobalEnv visible
+    // from inside it. There is no second kind worth offering: the only other
+    // sensible parent is `emptyenv()`, where even `*` cannot be found.
     logToConsole(`${name} <- new.env(parent = .GlobalEnv)`)
-    await rClient.envCreate(name)
+    // R looks names up outwards, never into an environment, so `x` put in here
+    // is not `x` at the prompt. Said at the moment the environment is made,
+    // because the alternative is finding out later through an error.
+    logToConsole(`# Objects in ${name} are ${name}$x — reach them with ${name}$x or with(${name}, x * a),`)
+    logToConsole(`# or right-click ${name} → "Work in this environment" and just type x * a`)
     setShowNewEnv(false)
     setNewEnvName('')
+    setCreateError(null)
     fetchEnvironments()
   }
 
-  const toggleSaveSelection = (envName: string) => {
-    setSaveSelection((prev) => {
+  const toggleExportSelection = (envName: string) => {
+    setExportSelection((prev) => {
       const next = new Set(prev)
       if (next.has(envName)) next.delete(envName)
       else next.add(envName)
@@ -77,17 +102,10 @@ export function EnvironmentPanel(): React.ReactElement {
     })
   }
 
-  const handleSave = async () => {
-    const selected = Array.from(saveSelection)
-    if (selected.length === 0) return
-    setSaveDropdown(false)
-    const filePath = await window.electronAPI.dialog.saveRData()
-    if (!filePath) return
-    const rdataNames = [...new Set(selected.flatMap(en => rdataLoadedNames[en] ?? []))]
-    const envList = selected.join(', ')
-    logToConsole(`# Save environments: ${envList} → "${filePath}"`)
-    await rClient.envSave(selected, filePath, rdataNames)
-    setSaveSelection(new Set())
+  const handleExport = async (envNames: string[]) => {
+    setExportDropdown(false)
+    await exportEnvironments(envNames)
+    setExportSelection(new Set())
   }
 
   const handleLoad = async (envName: string) => {
@@ -96,18 +114,27 @@ export function EnvironmentPanel(): React.ReactElement {
     if (!filePath) return
     logToConsole(`load("${filePath}", envir = ${envName})`)
     const result = await rClient.envLoad(filePath, envName)
+    if (!result.success) {
+      useSessionStore.getState().addConsoleEntry('error', result.error ?? 'Load failed')
+      return
+    }
     if (result.rdataLoadedNames?.length) {
       addRdataLoadedNames(envName, result.rdataLoadedNames)
     }
     fetchEnvironments()
   }
 
-  // Writable envs for load dropdown (.GlobalEnv + custom envs)
-  const writableEnvs = environments.filter(
-    (e) => e.name === '.GlobalEnv' || !e.name.startsWith('package:')
-  )
-  // All envs available for saving (including package environments)
-  const saveableEnvs = environments
+  // The panel's own view: the user's environments listed beside .GlobalEnv,
+  // and — for the ones the user asked to see both ways — inside it as well.
+  // Everything below reads this, not the raw list.
+  const panelEnvs = panelEnvironments(environments, envPlacement)
+  // One list drives the tree, the Export dropdown, the Load targets and the
+  // Move To menus, so the eye means the same thing everywhere: what you can
+  // see is what you can act on.
+  const visibleEnvs = userFilterActive ? userOnlyView(panelEnvs, rdataLoadedNames) : panelEnvs
+  // A .RData can only be loaded somewhere the user keeps objects. This used to
+  // be "not a package:" environment, which offered Autoloads.
+  const writableEnvs = loadTargets(visibleEnvs)
 
   return (
     <div className="flex-1 min-h-0 bg-geo-panel flex flex-col">
@@ -176,45 +203,51 @@ export function EnvironmentPanel(): React.ReactElement {
             size="sm"
             className="h-5 px-1.5 text-[10px] text-geo-muted hover:text-foreground gap-1"
             onClick={() => {
-              if (!saveDropdown) {
-                setSaveSelection(new Set())
+              if (!exportDropdown) {
+                setExportSelection(new Set())
               }
-              setSaveDropdown(!saveDropdown)
+              setExportDropdown(!exportDropdown)
               setLoadDropdown(false)
             }}
-            title="Save .RData"
+            title="Export environments to an .RData file on your computer"
+            data-ourgeo-id="environment.export"
           >
-            <Save className="w-3 h-3" />
-            Save
+            <Download className="w-3 h-3" />
+            Export
           </Button>
-          {saveDropdown && (
-            <div className="absolute top-full left-0 z-50 bg-geo-panel border border-geo-border rounded shadow-lg py-1 min-w-[160px]">
+          {exportDropdown && (
+            <div className="absolute top-full left-0 z-50 bg-geo-panel border border-geo-border rounded shadow-lg py-1 min-w-[180px]">
               <div className="px-3 py-1 text-[10px] text-geo-muted border-b border-geo-border">
-                Select environments to save
+                Environments to write to the file
               </div>
-              {saveableEnvs.map((e) => (
-                <label
-                  key={e.name}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-geo-bg/50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={saveSelection.has(e.name)}
-                    onChange={() => toggleSaveSelection(e.name)}
-                    className="accent-geo-accent w-3 h-3"
-                  />
-                  {e.name}
-                </label>
-              ))}
+              <div className="max-h-56 overflow-y-auto">
+                {visibleEnvs.map((e) => (
+                  <label
+                    key={e.name}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-geo-bg/50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={exportSelection.has(e.name)}
+                      onChange={() => toggleExportSelection(e.name)}
+                      className="accent-geo-accent w-3 h-3"
+                    />
+                    <span className="truncate">{e.name}</span>
+                    <span className="ml-auto text-[10px] text-geo-muted flex-shrink-0">
+                      {exportedNames(e, systemNames).length}
+                    </span>
+                  </label>
+                ))}
+              </div>
               <div className="border-t border-geo-border px-3 py-1.5 flex justify-end">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-5 px-2 text-[10px] text-geo-accent hover:text-foreground"
-                  disabled={saveSelection.size === 0}
-                  onClick={handleSave}
+                  disabled={exportSelection.size === 0}
+                  onClick={() => void handleExport(Array.from(exportSelection))}
                 >
-                  Save ({saveSelection.size})
+                  Export ({exportSelection.size})
                 </Button>
               </div>
             </div>
@@ -227,9 +260,10 @@ export function EnvironmentPanel(): React.ReactElement {
             className="h-5 px-1.5 text-[10px] text-geo-muted hover:text-foreground gap-1"
             onClick={() => {
               setLoadDropdown(!loadDropdown)
-              setSaveDropdown(false)
+              setExportDropdown(false)
             }}
-            title="Load .RData"
+            title="Load an .RData file into an environment"
+            data-ourgeo-id="environment.load"
           >
             <FolderOpen className="w-3 h-3" />
             Load
@@ -252,25 +286,43 @@ export function EnvironmentPanel(): React.ReactElement {
 
       {/* New env inline input */}
       {showNewEnv && (
-        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-geo-border flex-shrink-0">
+        <div className="px-3 py-1.5 border-b border-geo-border flex-shrink-0">
           <input
             autoFocus
-            className="bg-geo-bg border border-geo-border rounded px-1.5 py-0.5 text-xs text-foreground outline-none flex-1 min-w-0"
+            className="bg-geo-bg border border-geo-border rounded px-1.5 py-0.5 text-xs text-foreground outline-none w-full"
             placeholder="Environment name..."
             value={newEnvName}
-            onChange={(e) => setNewEnvName(e.target.value)}
+            onChange={(e) => { setNewEnvName(e.target.value); setCreateError(null) }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreateEnv()
+              if (e.key === 'Enter') void handleCreateEnv()
               if (e.key === 'Escape') {
                 setShowNewEnv(false)
                 setNewEnvName('')
+                setCreateError(null)
               }
             }}
-            onBlur={() => {
-              setShowNewEnv(false)
-              setNewEnvName('')
-            }}
+            // No onBlur close: the refusal below is worth reading, and a
+            // blur-to-cancel takes the typed name away with it the moment the
+            // user reaches for anything else.
           />
+          <div className="flex items-center gap-2 mt-1">
+            <span className={cn('text-[10px] flex-1 min-w-0', createError ? 'text-geo-error' : 'text-geo-muted')}>
+              {createError ?? 'Created in .GlobalEnv and listed beside it; its objects are name$object.'}
+            </span>
+            <button
+              className="text-[10px] text-geo-muted hover:text-foreground flex-shrink-0"
+              onClick={() => { setShowNewEnv(false); setNewEnvName(''); setCreateError(null) }}
+            >
+              Cancel
+            </button>
+            <button
+              className="text-[10px] text-geo-accent hover:text-foreground flex-shrink-0 disabled:opacity-40"
+              disabled={newEnvName.trim().length === 0}
+              onClick={() => void handleCreateEnv()}
+            >
+              Create
+            </button>
+          </div>
         </div>
       )}
 
@@ -293,24 +345,14 @@ export function EnvironmentPanel(): React.ReactElement {
         </div>
       ) : (
         <ScrollArea className="flex-1">
-          {(userFilterActive
-            ? environments
-                .filter(env => !env.isSearchPath)
-                .map(env => {
-                  const rdataSet = new Set(rdataLoadedNames[env.name] ?? [])
-                  return rdataSet.size === 0
-                    ? env
-                    : { ...env, objects: env.objects.filter(obj => !rdataSet.has(obj.name)) }
-                })
-            : environments
-          ).map((env) => (
+          {treeEnvironments(visibleEnvs).map((env) => (
             <EnvironmentGroup
               key={env.name}
               env={env}
-              allEnvironments={environments}
+              allEnvironments={visibleEnvs}
               searchQuery={searchQuery}
               onRefresh={fetchEnvironments}
-              defaultExpanded={env.name === '.GlobalEnv'}
+              defaultExpanded={env.name === GLOBAL_ENV}
             />
           ))}
         </ScrollArea>

@@ -114,6 +114,8 @@ export interface RChunkResponse {
 
 export interface REnvironmentInfo {
   name: string
+  /** On R's search path — every entry except .GlobalEnv. Read across the app
+   *  as "not somewhere the user keeps data". */
   isSearchPath: boolean
   objects: RObjectInfo[]
 }
@@ -176,6 +178,32 @@ class RClient {
     return this.client
   }
 
+  /**
+   * A POST whose refusal is an answer, not a failure.
+   *
+   * R's handlers report a refused operation with `error_response()`, which is
+   * HTTP 500 carrying `{success: false, error}` — and axios REJECTS a 500. So
+   * every caller that dutifully checked `res.success` never saw one: the
+   * promise rejected instead, unhandled, and the menu item did nothing and said
+   * nothing. Creating an environment over the top of a data frame, moving an
+   * object into a locked package environment, copying onto a name already
+   * taken — all silent.
+   *
+   * A rejection with no response at all is left to throw: that is a severed
+   * connection, not R's considered answer, and `transport-retry.ts` is what
+   * knows the difference.
+   */
+  private async ask<T extends RResponse>(url: string, body: unknown): Promise<T> {
+    try {
+      const res = await this.http.post<T>(url, body)
+      return res.data
+    } catch (e) {
+      const data = (e as { response?: { data?: unknown } })?.response?.data
+      if (data && typeof data === 'object' && 'success' in (data as object)) return data as T
+      throw e
+    }
+  }
+
   async initSession(): Promise<RResponse & { systemNames?: string[] }> {
     const res = await this.http.post<RResponse & { systemNames?: string[] }>('/session/init')
     return res.data
@@ -211,6 +239,20 @@ class RClient {
     }
   }
 
+  /**
+   * Where `execute` evaluates. `.GlobalEnv` unless the user has asked to work
+   * inside one of their own environments (`src/lib/working-env.ts`).
+   *
+   * A field on the client rather than an argument threaded through forty call
+   * sites: the toolbox, the AI assistant and the console all run R the same
+   * way, and if a tool wrote its result into .GlobalEnv while the user was
+   * working in `env2` the panel would show the object arriving somewhere they
+   * were not looking.
+   */
+  private workingEnv = '.GlobalEnv'
+
+  setWorkingEnv(name: string): void { this.workingEnv = name }
+
   async execute(code: string): Promise<RExecuteResponse> {
     // Arbitrary user/generated code — imports, geoprocessing, model fits — can
     // run for a long time (a large chunked ImageServer export easily exceeds
@@ -220,7 +262,8 @@ class RClient {
     // Inhibit OS idle-suspend for the duration: sleeping mid-request makes
     // Chromium abort it (ERR_NETWORK_CHANGED) even though R finishes the work.
     return withPowerBlock(async () => {
-      const res = await this.http.post<RExecuteResponse>('/r/execute', { code }, { timeout: 3_600_000 })
+      const res = await this.http.post<RExecuteResponse>(
+        '/r/execute', { code, envir: this.workingEnv }, { timeout: 3_600_000 })
       return res.data
     })
   }
@@ -328,28 +371,33 @@ class RClient {
   }
 
   async envRemove(name: string, envName: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/remove', { name, envName })
-    return res.data
+    return this.ask<RResponse>('/env/remove', { name, envName })
   }
 
   async envRename(oldName: string, newName: string, envName: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/rename', { oldName, newName, envName })
-    return res.data
+    return this.ask<RResponse>('/env/rename', { oldName, newName, envName })
   }
 
   async envCopy(name: string, fromEnv: string, toEnv: string, newName: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/copy', { name, fromEnv, toEnv, newName })
-    return res.data
+    return this.ask<RResponse>('/env/copy', { name, fromEnv, toEnv, newName })
   }
 
   async envMove(name: string, fromEnv: string, toEnv: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/move', { name, fromEnv, toEnv })
-    return res.data
+    return this.ask<RResponse>('/env/move', { name, fromEnv, toEnv })
   }
 
   async envCreate(name: string, parentEnv?: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/create', { name, parentEnv })
-    return res.data
+    return this.ask<RResponse>('/env/create', { name, parentEnv })
+  }
+
+  /** Copy an environment's contents into a NEW environment in .GlobalEnv.
+   *  `/env/copy` would copy the reference — see handlers-env.R. */
+  async envDuplicate(
+    name: string, newName: string, envName = '.GlobalEnv', toEnv?: string,
+  ): Promise<RResponse & { count?: number }> {
+    return this.ask<RResponse & { count?: number }>(
+      '/env/duplicate', { name, newName, envName, toEnv: toEnv ?? envName },
+    )
   }
 
   async envSave(
@@ -358,15 +406,13 @@ class RClient {
     rdataLoadedNames?: string[],
     excludeSystem = false
   ): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/env/save', {
+    return this.ask<RResponse>('/env/save', {
       envNames, filePath, rdataLoadedNames: rdataLoadedNames ?? [], excludeSystem
     })
-    return res.data
   }
 
   async envLoad(filePath: string, envName: string): Promise<RResponse & { rdataLoadedNames?: string[] }> {
-    const res = await this.http.post<RResponse & { rdataLoadedNames?: string[] }>('/env/load', { filePath, envName })
-    return res.data
+    return this.ask<RResponse & { rdataLoadedNames?: string[] }>('/env/load', { filePath, envName })
   }
 
   // Clear .GlobalEnv, disconnect all DuckDB connections, drop proxies — a clean

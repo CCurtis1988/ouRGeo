@@ -47,12 +47,17 @@ const FIXED_TARGETS: UiTarget[] = [
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },
 
+  // Environment panel.
+  { id: 'environment.export', label: 'Export', where: 'Environment panel, action bar' },
+  { id: 'environment.load', label: 'Load', where: 'Environment panel, action bar' },
+
   // Editor toolbar and console.
   { id: 'editor.runLine', label: 'Line (Ctrl+Enter)', where: 'editor toolbar' },
   { id: 'editor.runAll', label: 'Run All', where: 'editor toolbar' },
   { id: 'editor.language', label: 'Document type selector', where: 'editor toolbar' },
   { id: 'editor.newTab', label: 'New tab', where: 'tab bar, right end' },
   { id: 'console.workingDir', label: 'Working directory', where: 'console header' },
+  { id: 'console.workingEnv', label: 'Working environment', where: 'console prompt, shown only while working inside an environment' },
   { id: 'console.clear', label: 'Clear console', where: 'console header, right' },
 
   // Project.
