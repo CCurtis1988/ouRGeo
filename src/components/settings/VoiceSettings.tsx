@@ -195,8 +195,10 @@ export function VoiceSettings(): React.ReactElement {
         <SecretField
           id={service.apiKeyId}
           label="API key"
-          description="Left blank for a server you run yourself, which usually needs none."
-          placeholder="sk-…"
+          description={service.kind === 'cloud'
+            ? `Required by ${service.label}. Audio is uploaded to them, and the console records each time it is.`
+            : 'Leave blank for a server you run yourself, which usually needs none.'}
+          placeholder={service.kind === 'cloud' ? 'Paste the key' : 'sk-… (optional)'}
         />
       )}
 

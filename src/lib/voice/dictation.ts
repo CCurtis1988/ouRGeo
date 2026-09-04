@@ -10,11 +10,11 @@
 // a network call the user should be able to see afterwards, so it goes in the
 // console the way `describeWebCall` records every web tool call.
 
-import { encodeWav } from './audio'
+import { encodeWav, floatToPcm16 } from './audio'
 import { CaptureError, VoiceCapture, type CaptureEnd } from './capture'
 import { INITIAL_SILENCE, silenceStep, heardSpeech, type SilenceState } from './silence'
 import { resolveService } from './registry'
-import { TranscriptionError } from './types'
+import { TranscriptionError, type StreamSession } from './types'
 import { useVoiceStore } from '@/store/voice'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useSessionStore } from '@/store/session'
@@ -32,6 +32,8 @@ let silence: SilenceState = INITIAL_SILENCE
 let handlers: DictationHandlers | null = null
 let abort: AbortController | null = null
 let stopping = false
+/** The live connection, when the chosen service has one and it opened. */
+let stream: StreamSession | null = null
 
 /** What the console records when audio leaves this machine. */
 export function describeVoiceCall(service: string, url: string, seconds: number): string {
@@ -88,10 +90,26 @@ export async function startDictation(next: DictationHandlers): Promise<void> {
         })
         if (silence.phase === 'stopped') void stopDictation()
       },
-      onFrame: () => { /* streaming services consume these in a later phase */ },
+      onFrame: (frame) => stream?.push(floatToPcm16(frame)),
       onEnd: (reason) => void finishAfterEnd(reason),
     })
     useVoiceStore.getState().setStatus('listening')
+    // Opened AFTER capture, so a service having a bad day cannot stop the
+    // microphone from working: a failure here falls through to the batch path
+    // with the audio intact rather than losing the dictation.
+    if (service.openStream) {
+      try {
+        stream = await service.openStream({
+          keys,
+          model: store.modelByService[service.id] ?? service.defaultModel,
+          language: store.language,
+          onPartial: (text) => useVoiceStore.getState().setPartial(text),
+        })
+      } catch {
+        stream = null
+        log(`[Voice] ${service.label} would not open a live connection — transcribing on stop instead`)
+      }
+    }
   } catch (err) {
     fail(err instanceof CaptureError ? err.message : 'The microphone could not be started.')
   }
@@ -128,6 +146,25 @@ async function transcribeWhatWeHave(): Promise<void> {
   const seconds = samples.length / 16000
   abort = new AbortController()
 
+  // A live connection has already been sent every frame; asking it to finish
+  // is both cheaper and more accurate than uploading the same audio again.
+  if (stream) {
+    const live = stream
+    stream = null
+    try {
+      const text = await live.finish()
+      useVoiceStore.getState().setStatus('idle')
+      if (text.trim()) handlers?.onTranscript(text.trim())
+      else handlers?.onNothingHeard?.()
+      return
+    } catch (err) {
+      // The socket dropped mid-sentence. The audio is still in hand, so the
+      // batch path below is a real second chance rather than an apology.
+      log(`[Voice] the live connection to ${service.label} dropped — retrying with the recording`)
+      if (err instanceof TranscriptionError && !samples.length) { fail(err.message); return }
+    }
+  }
+
   try {
     if (service.kind !== 'on-device') {
       log(describeVoiceCall(service.label, keys[service.urlKeyId ?? ''] ?? service.defaultUrl ?? '', seconds))
@@ -159,6 +196,8 @@ async function transcribeWhatWeHave(): Promise<void> {
 /** Throw the recording away — the user changed their mind. */
 export async function cancelDictation(): Promise<void> {
   stopping = true
+  stream?.abort()
+  stream = null
   abort?.abort()
   await capture.cancel()
   useVoiceStore.getState().setStatus('idle')

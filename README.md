@@ -53,6 +53,13 @@ the whole analysis.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
   panels and documentation, added while the app is running — no rebuild, and
   usually no code at all.
+- **Talk to the assistant.** A microphone in the AI panel dictates into the
+  message box, with a ring that shows it is hearing you and a live level meter
+  in Settings to check you picked the right device. Transcription runs **on your
+  machine by default** — Whisper, downloaded once on first use, no account and
+  no network — or through a server you run, or Deepgram, ElevenLabs and
+  AssemblyAI if you would rather. Anything that leaves your machine is recorded
+  in the R console.
 - **Environments you can actually work in.** A new environment sits beside
   `.GlobalEnv` in the panel, and its right-click menu has **Work in this
   environment** — R looks names up outwards and never into an environment, so

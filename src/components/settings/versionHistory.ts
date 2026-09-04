@@ -16,6 +16,23 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.12',
+    date: 'September 2026',
+    title: 'Say It Out Loud',
+    summary:
+      'Dictate to the AI assistant \u2014 on your own machine by default, with nothing uploaded and no account needed.',
+    highlights: [
+      'A microphone beside Send in the AI panel. Click it, talk, and the transcript lands in the message box at the cursor \u2014 so you can start typing a sentence and finish it out loud.',
+      'It shows you it is listening: a ring around the microphone that moves with your voice, a timer, and a live level meter in Settings so you can check the right device is picked up before you rely on it.',
+      'Transcription runs ON YOUR MACHINE by default. Whisper is downloaded once (43\u2013242 MB, your choice of model) and then works offline for ever \u2014 no account, no key, and nothing you say leaves the computer.',
+      'Prefer something else? Point it at a server you run (whisper.cpp, Speaches, LocalAI), or at OpenAI, Groq, Deepgram, ElevenLabs Scribe or AssemblyAI. Deepgram shows words as you speak them.',
+      'Every recording sent off your machine is recorded in the R console, with how long it was and where it went. The on-device engine never appears there, because there is nothing to report.',
+      'Pick your microphone from the button itself (right-click) or in Settings \u2192 Voice input, along with the language, how long a pause should end a recording, and whether to send the message automatically.',
+      'Auto-send is off by default: the assistant can run R, and a misheard instruction is worth reading before it goes.',
+      'ouRGeo now asks your operating system for the microphone and nothing else \u2014 the app previously had no permission policy at all, and could have been granted location or notifications without anything appearing on screen.',
+    ],
+  },
+  {
     version: '1.11',
     date: 'September 2026',
     title: 'Make It Do More',

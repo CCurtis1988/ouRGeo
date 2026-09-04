@@ -9,10 +9,16 @@
 import type { TranscriptionService } from './types'
 import { openAiCompatibleService } from './services/openai-compatible'
 import { builtinWhisperService, BUILTIN_WHISPER_ID } from './services/builtin-whisper'
+import { deepgramService } from './services/deepgram'
+import { elevenLabsService } from './services/elevenlabs'
+import { assemblyAiService } from './services/assemblyai'
 
 const BUILTIN: TranscriptionService[] = [
   builtinWhisperService,
   openAiCompatibleService,
+  deepgramService,
+  elevenLabsService,
+  assemblyAiService,
 ]
 
 export const BUILTIN_SERVICES: readonly TranscriptionService[] = BUILTIN

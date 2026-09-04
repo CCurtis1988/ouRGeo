@@ -6,11 +6,10 @@
 // returns text, which is what makes every one of them testable without an
 // audio device.
 //
-// Streaming is deliberately NOT in this interface yet. Only two of the shipped
-// services can stream, neither is built at the time of writing, and an
-// abstraction designed around a transport nobody has implemented is a guess.
-// It arrives as an optional `stream?()` alongside `transcribe`, so a batch
-// service never has to pretend.
+// Streaming arrives as an OPTIONAL `openStream` alongside `transcribe`, so a
+// batch service never has to pretend to have a transport it does not. Every
+// service can still transcribe a finished clip; only some can also do it while
+// the user is still talking, and the panel asks rather than assumes.
 
 export type ServiceKind =
   /** Runs here, on the user's machine, over no network at all. */
@@ -73,6 +72,33 @@ export interface TranscriptionService {
 
   /** Audio in, text out. Rejects with a message the user can act on. */
   transcribe(req: TranscriptionRequest): Promise<string>
+
+  /**
+   * Open a live connection, for the services that can transcribe while the
+   * user is still speaking. Absent on batch-only services.
+   *
+   * The dictation flow falls back to `transcribe` whenever this is missing or
+   * the connection fails to open, so a streaming service that is having a bad
+   * day still produces a transcript rather than nothing.
+   */
+  openStream?(opts: StreamOptions): Promise<StreamSession>
+}
+
+export interface StreamOptions {
+  keys: Record<string, string>
+  model: string
+  language: string
+  /** Text so far, including the part still being revised. */
+  onPartial: (text: string) => void
+}
+
+export interface StreamSession {
+  /** One 20 ms frame of 16 kHz mono PCM16. */
+  push(frame: Int16Array): void
+  /** No more audio. Resolves with the final transcript. */
+  finish(): Promise<string>
+  /** Give up; no further callbacks. */
+  abort(): void
 }
 
 /** Thrown by a service when the request itself was refused, with a usable reason. */
