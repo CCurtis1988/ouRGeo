@@ -17,6 +17,7 @@ import {
   TERMINAL_PREFERENCE_DEFAULTS,
   type TerminalPreferences, type TerminalPlacement,
 } from '@/lib/terminal-preferences-persistence'
+import type { ShellProfile } from '@/lib/terminal/shells'
 
 export interface TerminalSession {
   /** The id main assigned to the pty. */
@@ -47,6 +48,10 @@ interface TerminalStore {
   backendError: string | null
   prefs: TerminalPreferences
   prefsLoaded: boolean
+  /** The shells this machine has, as main found them. Read once when the panel
+   *  first opens; installing a shell mid-session is rare enough that a restart
+   *  is a fair price for not re-scanning the filesystem on every menu open. */
+  profiles: ShellProfile[]
 
   toggleOpen: () => void
   setOpen: (v: boolean) => void
@@ -58,6 +63,7 @@ interface TerminalStore {
   markExited: (id: string, exitCode: number) => void
 
   setBackendError: (e: string | null) => void
+  setProfiles: (p: ShellProfile[]) => void
 
   loadPrefs: () => Promise<void>
   setPrefs: (patch: Partial<TerminalPreferences>) => void
@@ -71,6 +77,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   backendError: null,
   prefs: { ...TERMINAL_PREFERENCE_DEFAULTS },
   prefsLoaded: false,
+  profiles: [],
 
   toggleOpen: () => set((s) => ({ isOpen: !s.isOpen })),
   setOpen: (v) => set({ isOpen: v }),
@@ -114,6 +121,8 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   })),
 
   setBackendError: (backendError) => set({ backendError }),
+
+  setProfiles: (profiles) => set({ profiles }),
 
   loadPrefs: async () => {
     if (get().prefsLoaded) return

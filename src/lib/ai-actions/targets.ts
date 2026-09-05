@@ -28,6 +28,8 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'toolbar.settings', label: 'Settings', where: 'top toolbar, far right' },
   { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
+  { id: 'settings.terminalPlacement', label: 'Give the terminal its own pane', where: 'Settings → Workspace' },
+  { id: 'settings.terminalShell', label: 'Terminal shell', where: 'Settings → Terminal' },
   { id: 'settings.panelDrag', label: 'Drag panels to rearrange them', where: 'Settings → Workspace' },
   { id: 'settings.panelInstances', label: 'Add or remove a second editor or map', where: 'Settings → Workspace' },
   { id: 'settings.layoutName', label: 'Name this arrangement', where: 'Settings → Workspace' },
@@ -74,6 +76,7 @@ const FIXED_TARGETS: UiTarget[] = [
   // Terminal.
   { id: 'terminal.tab', label: 'Terminal tab', where: 'Terminal panel, tab strip' },
   { id: 'terminal.new', label: 'New terminal', where: 'Terminal panel, right of the tab strip' },
+  { id: 'terminal.profiles', label: 'Choose a shell', where: 'Terminal panel, right of the New terminal button' },
   { id: 'terminal.screen', label: 'Terminal screen', where: 'Terminal panel, where commands are typed' },
 
   // Project.

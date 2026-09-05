@@ -16,6 +16,7 @@ import { languageOf } from '@/lib/markdown/doc-kind'
 import { useDatabaseStore } from '@/store/database'
 import { useThemeStore } from '@/store/theme'
 import { useLayoutStore } from '@/store/layout'
+import { zoomFocusedTerminal } from '@/lib/terminal/zoom'
 import { usePluginRevision } from '@/store/plugins'
 import { useUiStore, type DialogId } from '@/store/ui'
 import { zoneVisible, type PanelId, type ZoneId } from '@/lib/layout/model'
@@ -177,8 +178,16 @@ export function EditorLayout(): React.ReactElement {
   }, [requestedLoadFile, showDialog])
 
   // Ctrl+Shift+= / Ctrl+Shift+- zoom via IPC (intercepted in main process before Chromium)
+  //
+  // Routed to the terminal when a terminal has the keyboard, because Ctrl+± is
+  // font size in every terminal there is and scaling the whole interface is
+  // not what the user meant. It has to be decided here rather than in the
+  // terminal: main calls `preventDefault` on these before Chromium sees them,
+  // so the keystroke never reaches the focused element at all — only this
+  // message does.
   useEffect(() => {
     window.electronAPI.app.onUiZoom((direction) => {
+      if (zoomFocusedTerminal(direction)) return
       if (direction === 'in') zoomIn()
       else zoomOut()
     })

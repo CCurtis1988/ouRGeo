@@ -1,12 +1,15 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { SearchAddon } from '@xterm/addon-search'
+import { Search, X } from 'lucide-react'
 import { useTerminalStore } from '@/store/terminal'
 import { useThemeStore } from '@/store/theme'
 import { buildTerminalTheme } from '@/lib/terminal/theme'
 import { registerSink } from '@/lib/terminal/sessions'
+import { cn } from '@/lib/utils'
 import { THEMES } from '@/lib/themes'
 import { resolveCodeTheme } from '@/lib/editor-themes'
 import '@xterm/xterm/css/xterm.css'
@@ -36,10 +39,43 @@ interface Props {
   active: boolean
 }
 
+/**
+ * The chords ouRGeo keeps, and everything else goes to the shell.
+ *
+ * This is the rule that makes it a terminal rather than a text box: Ctrl+C is
+ * SIGINT, Ctrl+R is reverse-search, Ctrl+D is EOF, Ctrl+L clears — every one
+ * of them is a keystroke some editor would like to have, and every one of them
+ * must reach the pty. So the handler returns true (xterm handles it, i.e. the
+ * shell gets it) for everything except the short list below.
+ *
+ * Copy and paste are Konsole's, which is also VS Code's and GNOME Terminal's:
+ * Ctrl+Shift+C/V, because plain Ctrl+C is already taken by the thing terminals
+ * have used it for since before there were clipboards. macOS has no such
+ * conflict — Cmd is a separate modifier — so there it is the ordinary Cmd+C/V.
+ */
+function isAppChord(e: KeyboardEvent): 'copy' | 'paste' | 'find' | null {
+  const mac = navigator.platform.toUpperCase().includes('MAC')
+  if (mac && e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key === 'c') return 'copy'
+    if (e.key === 'v') return 'paste'
+    if (e.key === 'f') return 'find'
+  }
+  if (e.ctrlKey && e.shiftKey && !e.altKey) {
+    const k = e.key.toLowerCase()
+    if (k === 'c') return 'copy'
+    if (k === 'v') return 'paste'
+    if (k === 'f') return 'find'
+  }
+  return null
+}
+
 export function TerminalView({ id, active }: Props): React.ReactElement {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const searchRef = useRef<SearchAddon | null>(null)
+  const [finding, setFinding] = useState(false)
+  const [query, setQuery] = useState('')
 
   const themeId = useThemeStore((s) => s.current)
   const codeThemeId = useThemeStore((s) => s.codeTheme)
@@ -86,6 +122,9 @@ export function TerminalView({ id, active }: Props): React.ReactElement {
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    const search = new SearchAddon()
+    term.loadAddon(search)
+    searchRef.current = search
     term.loadAddon(new Unicode11Addon())
     // Powerline glyphs and CJK are two columns wide, and the width table that
     // knows so is the Unicode 11 one; without activating it the cursor drifts
@@ -144,6 +183,27 @@ export function TerminalView({ id, active }: Props): React.ReactElement {
       return false
     })
 
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      const chord = isAppChord(e)
+      if (!chord) return true
+      e.preventDefault()
+      if (chord === 'copy') {
+        const text = term.getSelection()
+        // Nothing selected is not a no-op to fall through on: Ctrl+Shift+C
+        // with an empty selection must not become a Ctrl+C the shell sees as
+        // SIGINT, which would kill whatever is running.
+        if (text) void navigator.clipboard.writeText(text)
+      } else if (chord === 'paste') {
+        void navigator.clipboard.readText().then((text) => {
+          if (text) window.electronAPI.terminal.write(id, text)
+        })
+      } else {
+        setFinding(true)
+      }
+      return false
+    })
+
     // Registered BEFORE the attach: data emitted while that round trip is in
     // flight is sent straight away, and a sink installed after the await would
     // miss it. Buffer until the replay has been written, then go direct.
@@ -190,6 +250,7 @@ export function TerminalView({ id, active }: Props): React.ReactElement {
       term.dispose()
       termRef.current = null
       fitRef.current = null
+      searchRef.current = null
     }
   }, [id])
 
@@ -248,12 +309,65 @@ export function TerminalView({ id, active }: Props): React.ReactElement {
     return () => cancelAnimationFrame(raf)
   }, [active, id])
 
+  // Focus returns to the terminal on close, always. A find bar that leaves the
+  // keyboard behind when it goes is one the user has to click out of.
+  const closeFind = (): void => {
+    setFinding(false)
+    searchRef.current?.clearDecorations()
+    termRef.current?.focus()
+  }
+
   return (
     <div
-      ref={hostRef}
-      className="h-full w-full overflow-hidden px-2 pb-1"
-      data-ourgeo-id="terminal.screen"
+      className="relative h-full w-full"
       style={{ display: active ? 'block' : 'none' }}
-    />
+    >
+      <div
+        ref={hostRef}
+        className="h-full w-full overflow-hidden px-2 pb-1"
+        data-ourgeo-id="terminal.screen"
+      />
+      {finding && (
+        <div className={cn(
+          'absolute right-3 top-2 flex items-center gap-1 rounded px-2 py-1',
+          'border border-geo-border bg-geo-panel shadow-lg',
+        )}>
+          <Search className="h-3 w-3 flex-shrink-0 text-geo-muted" />
+          <input
+            autoFocus
+            value={query}
+            placeholder="Find in terminal"
+            onChange={(e) => {
+              setQuery(e.target.value)
+              // Search as you type, from the bottom — which in a terminal is
+              // where the interesting output is, not the top.
+              if (e.target.value) searchRef.current?.findPrevious(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              // Every key here belongs to the field, not the shell. Without
+              // this, the terminal underneath receives the search text too.
+              e.stopPropagation()
+              if (e.key === 'Escape') closeFind()
+              else if (e.key === 'Enter') {
+                if (e.shiftKey) searchRef.current?.findNext(query)
+                else searchRef.current?.findPrevious(query)
+              }
+            }}
+            className={cn(
+              'w-40 bg-transparent text-xs text-foreground outline-none',
+              'placeholder:text-geo-muted/60',
+            )}
+          />
+          <button
+            type="button"
+            aria-label="Close find"
+            onClick={closeFind}
+            className="flex-shrink-0 text-geo-muted hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

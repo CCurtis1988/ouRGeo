@@ -224,6 +224,7 @@ declare global {
         resize(id: string, cols: number, rows: number): void
         ack(id: string, chars: number): void
         kill(id: string): Promise<boolean>
+        cwd(id: string): Promise<string | null>
         list(): Promise<TerminalInfo[]>
         onData(callback: (id: string, data: string) => void): () => void
         onExit(

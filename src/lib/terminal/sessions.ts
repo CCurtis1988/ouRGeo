@@ -154,6 +154,27 @@ export async function adoptRunningSessions(): Promise<void> {
   }
 }
 
+/**
+ * Ask the OS where the shell is, and remember the answer.
+ *
+ * Two sources, in order: what the shell told us via OSC 7, and — for the many
+ * shells that say nothing (a stock bash says nothing at all) — the kernel,
+ * which main can ask because we own the pty and therefore know its pid.
+ *
+ * Called when the tab menu is about to open rather than on a timer: the answer
+ * only matters at the moment someone is deciding what to do with it, and
+ * polling every terminal's cwd forever to keep a menu item enabled would be a
+ * lot of syscalls for a label.
+ */
+export async function refreshCwd(id: string): Promise<string | null> {
+  const store = useTerminalStore.getState()
+  const known = store.sessions.find((s) => s.id === id)?.cwd ?? null
+  const found = await window.electronAPI.terminal.cwd(id)
+  const cwd = found ?? known
+  if (cwd !== known) store.patchSession(id, { cwd })
+  return cwd
+}
+
 /** Type into a shell. */
 export function writeToSession(id: string, data: string): void {
   window.electronAPI.terminal.write(id, data)

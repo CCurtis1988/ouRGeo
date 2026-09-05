@@ -31,7 +31,7 @@
 
 import type { IpcMain, WebContents } from 'electron'
 import { randomUUID } from 'crypto'
-import { accessSync, constants } from 'fs'
+import { accessSync, constants, readlinkSync } from 'fs'
 import { availableShells, resolveShell, type ShellProfile } from '../../src/lib/terminal/shells'
 
 // ── Tuning ─────────────────────────────────────────────────────────────────
@@ -385,6 +385,32 @@ export function registerTerminalHandlers(ipcMain: IpcMain): void {
     if (!session) return false
     destroy(session)
     return true
+  })
+
+  // Where the shell actually is.
+  //
+  // OSC 7 is the portable answer and plenty of shells never emit it — a stock
+  // bash emits nothing at all, which is most Linux users. But we own the pty,
+  // so we know the shell's pid, and on Linux the kernel will simply tell us.
+  // Without this, "Set R's working directory to here" is permanently disabled
+  // for the majority of the people it was built for.
+  //
+  // The shell's own cwd is the right one to read even while a child is running
+  // (`vim`, a build): `cd` is a shell builtin, so the shell's cwd is what the
+  // next command will resolve against, which is what the question means.
+  ipcMain.handle('terminal:cwd', (_event, id: string): string | null => {
+    const session = sessions.get(id)
+    if (!session || !session.alive) return null
+    try {
+      // procfs only. macOS has no equivalent short of spawning `lsof`, and
+      // Windows none at all without opening a handle to the process — on both,
+      // OSC 7 remains the answer, and a shell that does not emit it reports
+      // nothing rather than something invented.
+      if (process.platform === 'linux') return readlinkSync(`/proc/${session.pty.pid}/cwd`)
+    } catch {
+      // The process ended between the check and the read, or procfs refused.
+    }
+    return null
   })
 
   ipcMain.handle('terminal:list', (): TerminalInfo[] => (

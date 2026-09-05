@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
+  SquareTerminal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -17,6 +18,7 @@ import { AiProviderSettings } from './AiProviderSettings'
 import { VoiceSettings } from './VoiceSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { LayoutSettings } from './LayoutSettings'
+import { TerminalSettings } from './TerminalSettings'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useUiStore } from '@/store/ui'
 
@@ -289,6 +291,14 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
               description="Panel arrangement — dragging, saved layouts, and the way back"
             >
               <LayoutSettings />
+            </SettingsSection>
+
+            <SettingsSection
+              icon={SquareTerminal}
+              title="Terminal"
+              description="Which shell opens, and how it looks"
+            >
+              <TerminalSettings />
             </SettingsSection>
 
             <SettingsSection

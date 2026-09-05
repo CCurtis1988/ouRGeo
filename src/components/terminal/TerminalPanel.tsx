@@ -1,12 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Plus, X, TerminalSquare, RotateCcw } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, X, TerminalSquare, RotateCcw, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { useTerminalStore } from '@/store/terminal'
+import { useSessionStore } from '@/store/session'
 import { TerminalView } from './TerminalView'
 import {
-  adoptRunningSessions, closeSession, ensureSession, openSession,
+  adoptRunningSessions, closeSession, ensureSession, openSession, interruptSession,
+  refreshCwd,
 } from '@/lib/terminal/sessions'
 import { alignTerminalMode } from '@/lib/terminal/placement'
+import { goToRWorkingDir, setRWorkingDirFromShell } from '@/lib/terminal/r-link'
 import { useLayoutStore } from '@/store/layout'
 
 // The Terminal panel: a strip of shells, and whichever one is in front.
@@ -15,10 +19,109 @@ import { useLayoutStore } from '@/store/layout'
 // editor worth having and a second map not — and the reason "another terminal"
 // is another tab in here rather than another panel in the workspace.
 
-function TabStrip(): React.ReactElement {
+interface MenuState {
+  x: number
+  y: number
+  items: ContextMenuItem[]
+}
+
+/** Rename in place. A dialog for one short string is three clicks where one
+ *  would do, and the name is right there in the strip to type over. */
+function TabName({ id, title, editing, stop }: {
+  id: string; title: string; editing: boolean; stop: () => void
+}): React.ReactElement {
+  const patch = useTerminalStore((s) => s.patchSession)
+  const [draft, setDraft] = useState(title)
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) { setDraft(title); ref.current?.select() } }, [editing, title])
+
+  if (!editing) return <>{title}</>
+  return (
+    <input
+      ref={ref}
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onBlur={() => {
+        const name = draft.trim()
+        // `renamed` is what stops the shell's own title sequence — which fires
+        // on every command in most default prompts — from erasing the name the
+        // user just chose. Clearing the field hands the name back to the shell.
+        if (name) patch(id, { title: name, renamed: true })
+        else patch(id, { renamed: false })
+        stop()
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') { setDraft(title); stop() }
+      }}
+      className="w-24 bg-geo-bg border border-geo-accent rounded px-1 text-xs text-foreground outline-none"
+    />
+  )
+}
+
+function TabStrip({ onMenu }: { onMenu: (m: MenuState) => void }): React.ReactElement {
   const sessions = useTerminalStore((s) => s.sessions)
   const activeId = useTerminalStore((s) => s.activeId)
   const setActive = useTerminalStore((s) => s.setActive)
+  const workingDir = useSessionStore((s) => s.workingDir)
+  const [renaming, setRenaming] = useState<string | null>(null)
+
+  const menuFor = useCallback(async (id: string, x: number, y: number) => {
+    // Asked before the menu is built, not while it is open: the enabled state
+    // of "Set R's working directory to here" is the answer, and a menu item
+    // that enables itself a moment after you looked at it is worse than one
+    // that was right when it appeared.
+    const cwd = await refreshCwd(id)
+    const session = useTerminalStore.getState().sessions.find((s) => s.id === id)
+    if (!session) return
+    const others = useTerminalStore.getState().sessions.filter((s) => s.id !== id)
+    onMenu({
+      x,
+      y,
+      items: [
+        { label: 'Rename…', onClick: () => setRenaming(id) },
+        {
+          label: 'Duplicate',
+          // Same shell, same directory — which is what "another one of these"
+          // means, and is not the same as the `+` button's default profile.
+          onClick: () => { void openSession({ profileId: session.profileId, cwd: session.cwd }) },
+        },
+        { separator: true, label: '' },
+        {
+          label: cwd
+            ? `Set R’s working directory to ${cwd}`
+            : 'Set R’s working directory to here — this shell’s directory is unknown',
+          // Disabled rather than absent, because the reason is worth telling;
+          // and never guessed, since `setwd` to the wrong place silently
+          // changes what every relative path in the R session means.
+          disabled: !cwd,
+          onClick: () => { void setRWorkingDirFromShell(id) },
+        },
+        {
+          label: workingDir ? `Go to ${workingDir}` : 'Go to R’s working directory',
+          disabled: !workingDir,
+          onClick: () => { goToRWorkingDir(id) },
+        },
+        { separator: true, label: '' },
+        {
+          label: 'Interrupt (Ctrl+C)',
+          disabled: !session.alive,
+          onClick: () => { interruptSession(id) },
+        },
+        { label: 'Close', onClick: () => { void closeSession(id) } },
+        {
+          label: 'Close others',
+          disabled: others.length === 0,
+          onClick: () => { for (const o of others) void closeSession(o.id) },
+        },
+      ],
+    })
+  }, [onMenu, workingDir])
 
   return (
     <div className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto">
@@ -28,6 +131,12 @@ function TabStrip(): React.ReactElement {
           role="tab"
           aria-selected={s.id === activeId}
           title={s.cwd ? `${s.title} — ${s.cwd}` : s.title}
+          onDoubleClick={() => setRenaming(s.id)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setActive(s.id)
+            void menuFor(s.id, e.clientX, e.clientY)
+          }}
           onMouseDown={(e) => {
             // Middle-click closes, the way it does in every tab strip; done on
             // mousedown so it cannot land on whatever scrolled underneath.
@@ -36,7 +145,7 @@ function TabStrip(): React.ReactElement {
           }}
           className={cn(
             'group flex items-center gap-1.5 px-2 py-1 rounded-t text-xs cursor-pointer',
-            'border-b-2 max-w-[180px] flex-shrink-0 transition-colors',
+            'border-b-2 max-w-[200px] flex-shrink-0 transition-colors',
             s.id === activeId
               ? 'border-geo-accent text-foreground'
               : 'border-transparent text-geo-muted hover:text-foreground',
@@ -46,7 +155,14 @@ function TabStrip(): React.ReactElement {
           {/* A bell in a tab that is not in front is the only way to know a
               long command finished in one you are not watching. */}
           {s.bell && <span className="h-1.5 w-1.5 rounded-full bg-geo-accent flex-shrink-0" />}
-          <span className={cn('truncate', !s.alive && 'line-through opacity-60')}>{s.title}</span>
+          <span className={cn('truncate', !s.alive && 'line-through opacity-60')}>
+            <TabName
+              id={s.id}
+              title={s.title}
+              editing={renaming === s.id}
+              stop={() => setRenaming(null)}
+            />
+          </span>
           {!s.alive && s.exitCode !== null && (
             <span className={cn(
               'flex-shrink-0 text-[10px]',
@@ -112,8 +228,12 @@ export function TerminalPanel(): React.ReactElement {
   const activeId = useTerminalStore((s) => s.activeId)
   const backendError = useTerminalStore((s) => s.backendError)
   const setBackendError = useTerminalStore((s) => s.setBackendError)
+  const setProfiles = useTerminalStore((s) => s.setProfiles)
+  const profiles = useTerminalStore((s) => s.profiles)
   const loadPrefs = useTerminalStore((s) => s.loadPrefs)
+  const setPrefs = useTerminalStore((s) => s.setPrefs)
   const [checked, setChecked] = useState(false)
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const started = useRef(false)
 
   // Opening the panel is what starts a shell — nothing spawns one in the
@@ -141,23 +261,48 @@ export function TerminalPanel(): React.ReactElement {
         return
       }
       setBackendError(null)
+      setProfiles(await window.electronAPI.terminal.shells())
       // Adopt first: after a reload main is still running the user's shells,
       // and creating a new one before looking would leave the old ones with no
       // tab and no way to reach them.
       await adoptRunningSessions()
       await ensureSession()
     })()
-  }, [loadPrefs, setBackendError])
+  }, [loadPrefs, setBackendError, setProfiles])
+
+  const profileMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const { prefs } = useTerminalStore.getState()
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        ...profiles.map((p) => ({
+          // A tick on the default, so the menu says which one the plain `+`
+          // button opens rather than leaving it to be discovered.
+          label: `${prefs.profileId === p.id ? '✓ ' : ' '}${p.label}`,
+          onClick: () => { void openSession({ profileId: p.id }) },
+        })),
+        { separator: true, label: '' },
+        ...profiles.map((p) => ({
+          label: `Always open ${p.label}`,
+          disabled: prefs.profileId === p.id,
+          onClick: () => setPrefs({ profileId: p.id }),
+        })),
+      ],
+    })
+  }, [profiles, setPrefs])
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-geo-border px-2 py-0.5 flex-shrink-0">
-        <TabStrip />
+      <div className="flex items-center gap-1 border-b border-geo-border px-2 py-0.5 flex-shrink-0">
+        <TabStrip onMenu={setMenu} />
         <button
           type="button"
           title="New terminal"
           aria-label="New terminal"
           onClick={() => { void openSession() }}
+          onContextMenu={profileMenu}
           disabled={backendError !== null}
           className={cn(
             'flex-shrink-0 rounded p-1 text-geo-muted transition-colors',
@@ -166,6 +311,24 @@ export function TerminalPanel(): React.ReactElement {
           data-ourgeo-id="terminal.new"
         >
           <Plus className="h-3.5 w-3.5" />
+        </button>
+        {/* The same menu on a visible control as well as on right-click: a
+            second shell is discoverable, a DIFFERENT shell should be too. */}
+        <button
+          type="button"
+          title="Choose a shell"
+          aria-label="Choose a shell"
+          onClick={profileMenu}
+          disabled={backendError !== null || profiles.length < 2}
+          className={cn(
+            'flex-shrink-0 rounded p-1 text-geo-muted transition-colors',
+            backendError || profiles.length < 2
+              ? 'opacity-40 cursor-not-allowed'
+              : 'hover:text-foreground hover:bg-geo-bg',
+          )}
+          data-ourgeo-id="terminal.profiles"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -180,7 +343,7 @@ export function TerminalPanel(): React.ReactElement {
                 {!s.alive && s.id === activeId && (
                   <button
                     type="button"
-                    onClick={() => { void closeSession(s.id).then(() => openSession()) }}
+                    onClick={() => { void closeSession(s.id).then(() => openSession({ profileId: s.profileId, cwd: s.cwd })) }}
                     className={cn(
                       'absolute bottom-2 right-3 flex items-center gap-1 rounded px-2 py-1',
                       'border border-geo-border bg-geo-panel text-[11px] text-geo-muted',
@@ -194,6 +357,10 @@ export function TerminalPanel(): React.ReactElement {
               </div>
             ))}
       </div>
+
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
+      )}
     </div>
   )
 }

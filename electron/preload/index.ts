@@ -291,6 +291,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /** Report drawn output so main can un-pause a firehose. */
     ack: (id: string, chars: number): void => { ipcRenderer.send('terminal:ack', id, chars) },
     kill: (id: string): Promise<boolean> => ipcRenderer.invoke('terminal:kill', id),
+    /** The shell's working directory, read from the OS. Null where the OS will
+     *  not say — see the handler for which platforms those are. */
+    cwd: (id: string): Promise<string | null> => ipcRenderer.invoke('terminal:cwd', id),
     list: (): Promise<{
       id: string; profileId: string; pid: number; alive: boolean; exitCode: number | null
     }[]> => ipcRenderer.invoke('terminal:list'),
