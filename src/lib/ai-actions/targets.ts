@@ -71,6 +71,11 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'console.workingEnv', label: 'Working environment', where: 'console prompt, shown only while working inside an environment' },
   { id: 'console.clear', label: 'Clear console', where: 'console header, right' },
 
+  // Terminal.
+  { id: 'terminal.tab', label: 'Terminal tab', where: 'Terminal panel, tab strip' },
+  { id: 'terminal.new', label: 'New terminal', where: 'Terminal panel, right of the tab strip' },
+  { id: 'terminal.screen', label: 'Terminal screen', where: 'Terminal panel, where commands are typed' },
+
   // Project.
   { id: 'project.dropdown', label: 'Project menu', where: 'top toolbar, far right' },
 ]

@@ -7,6 +7,7 @@
 import React from 'react'
 import { CodeEditor } from '@/components/editor/CodeEditor'
 import { Console } from '@/components/console/Console'
+import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { EnvironmentPanel } from '@/components/environment/EnvironmentPanel'
 import { PackagePanel } from '@/components/packages/PackagePanel'
 import { DatabasePanel } from '@/components/database/DatabasePanel'
@@ -24,6 +25,7 @@ const BUILTIN_RENDERERS: Record<PanelId, PanelRender> = {
   databases: () => <DatabasePanel />,
   editor: () => <CodeEditor />,
   console: () => <Console />,
+  terminal: () => <TerminalPanel />,
   plots: () => <PlottingPanel />,
   spatial: () => <SpatialEditor />,
   ai: () => <AiChatPanel />,

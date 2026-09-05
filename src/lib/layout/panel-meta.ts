@@ -44,6 +44,11 @@ const BUILTIN: PanelInfo[] = [
   // open at once. `maxInstances: 4` on the entry below is all it would take.
   { id: 'editor', label: 'Code editor', essential: true, maxInstances: 4, min: 120, defaultZone: 'center', defaultOrder: 0, defaultOpen: true },
   { id: 'console', label: 'R console', min: 80, defaultZone: 'bottom', defaultOrder: 0, defaultOpen: true },
+  // Beside the console, and by default tabbed WITH it — see lib/terminal/
+  // placement.ts. One instance: the panel owns a set of shell sessions with its
+  // own tab strip, so "another terminal" is another tab rather than another
+  // panel, exactly as another document is another editor tab.
+  { id: 'terminal', label: 'Terminal', storeKey: 'terminal', min: 80, defaultZone: 'bottom', defaultOrder: 1, defaultOpen: false },
   { id: 'plots', label: 'Plots', storeKey: 'plots', min: 240, defaultZone: 'right', defaultOrder: 0, defaultOpen: false },
   { id: 'spatial', label: 'Spatial Editor', storeKey: 'spatial', min: 300, defaultZone: 'right', defaultOrder: 1, defaultOpen: false },
   { id: 'ai', label: 'AI Assistant', storeKey: 'ai', min: 280, defaultZone: 'right', defaultOrder: 2, defaultOpen: false },

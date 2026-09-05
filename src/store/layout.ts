@@ -45,6 +45,7 @@ import { useSpatialStore } from './spatial'
 import { usePlottingStore } from './plotting'
 import { useAiStore } from './ai'
 import { useHelpStore } from './help'
+import { useTerminalStore } from './terminal'
 
 /** How the layout reaches a panel's own open/closed state. */
 interface PanelStoreAdapter {
@@ -73,6 +74,7 @@ const PANEL_STORES: Record<string, PanelStoreAdapter> = {
   plots: adapt(usePlottingStore),
   ai: adapt(useAiStore),
   help: adapt(useHelpStore),
+  terminal: adapt(useTerminalStore),
 }
 
 const DEBOUNCE_MS = 400
@@ -158,6 +160,17 @@ interface LayoutStoreState {
    *  go through `lib/panel-instances.ts`, which moves the content first. */
   removePanel: (panel: PanelId) => void
   setToolbar: (patch: Partial<ToolbarState>) => void
+  /**
+   * Apply a pure layout transform.
+   *
+   * The one escape hatch, for a feature that owns a placement rule of its own
+   * — `lib/terminal/placement.ts` decides where the Terminal panel sits
+   * relative to the R console, and that rule belongs with the terminal rather
+   * than as another special case in here. It still goes through `apply`, so
+   * `normalize`, the orphaned-content check and the debounced save all run
+   * exactly as they do for a drag.
+   */
+  transform: (fn: (l: LayoutState) => LayoutState) => void
   reset: () => void
 
   setDragEnabled: (on: boolean) => void
@@ -258,6 +271,8 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
     removePanel: (panel) => apply((l) => dropPanel(l, panel)),
 
     setToolbar: (patch) => apply((l) => setToolbarIn(l, patch)),
+
+    transform: (fn) => apply(fn),
 
     reset: () => {
       const fresh = defaultLayout(panelInfoList())
