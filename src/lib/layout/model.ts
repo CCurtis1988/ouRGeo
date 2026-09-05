@@ -132,6 +132,20 @@ export interface PanelMeta {
    */
   maxInstances?: number
   /**
+   * This panel draws the zone's tab strip inside its own header rather than
+   * letting the zone put one above it.
+   *
+   * The R console and the terminal both already have a header row, and a zone
+   * strip above it meant two rows of chrome and the words "R console" twice on
+   * screen. A panel that opts in renders `<ZoneTabs>` itself and gets the row
+   * back.
+   *
+   * It is all or nothing per zone — see `zoneHostsTabs`. A zone where only
+   * some panels opted in would move its tab strip up and down the screen as
+   * you switched between them, which is worse than either arrangement.
+   */
+  hostsTabs?: boolean
+  /**
    * The workspace is unusable without it, so it can never end up in no zone.
    * Only the editor sets this: a layout that lost it would leave the user with
    * nowhere to type and no obvious way back.
@@ -203,6 +217,20 @@ export function openPanels(layout: LayoutState, zone: ZoneId): PanelId[] {
  *  empty box holding space the user cannot reclaim. */
 export function zoneVisible(layout: LayoutState, zone: ZoneId): boolean {
   return openPanels(layout, zone).length > 0
+}
+
+/**
+ * Whether this zone's panels draw the tab strip themselves.
+ *
+ * True only when EVERY open panel in the zone opts in. The alternative — asking
+ * the active panel alone — would move the tab strip between the zone's own row
+ * and the panel's header as the user switched tabs, so the control they were
+ * about to click jumps a row. All or nothing keeps it still.
+ */
+export function zoneHostsTabs(layout: LayoutState, zone: ZoneId, panels: PanelMeta[]): boolean {
+  const open = openPanels(layout, zone)
+  if (open.length === 0) return false
+  return open.every((id) => panels.find((p) => p.id === basePanelId(id))?.hostsTabs === true)
 }
 
 // ── Operations ─────────────────────────────────────────────────────────────

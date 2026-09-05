@@ -79,6 +79,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'terminal.tab', label: 'Terminal tab', where: 'Terminal panel, tab strip' },
   { id: 'terminal.new', label: 'New terminal', where: 'Terminal panel, right of the tab strip' },
   { id: 'terminal.profiles', label: 'Choose a shell', where: 'Terminal panel, right of the New terminal button' },
+  { id: 'terminal.workingDir', label: 'Terminal directory', where: 'Terminal panel header' },
   { id: 'terminal.screen', label: 'Terminal screen', where: 'Terminal panel, where commands are typed' },
 
   // Project.

@@ -28,6 +28,17 @@ function windowsQuote(path: string): string {
 }
 
 /**
+ * Quote a path for whichever shell family this platform runs.
+ *
+ * Quoted rather than interpolated because a directory chosen from a file
+ * picker can contain a space, a quote or a `$` — and an unquoted `cd` with a
+ * space in it does not fail loudly, it silently changes to the first word.
+ */
+export function quoteForShell(path: string): string {
+  return navigator.platform.startsWith('Win') ? windowsQuote(path) : posixQuote(path)
+}
+
+/**
  * Type `cd <R's working directory>` into a shell.
  *
  * Typed rather than executed silently, and left for the user to press Enter
@@ -39,8 +50,7 @@ function windowsQuote(path: string): string {
 export function goToRWorkingDir(sessionId: string): { ok: boolean; error?: string } {
   const dir = useSessionStore.getState().workingDir
   if (!dir) return { ok: false, error: 'R has not reported a working directory yet.' }
-  const quote = navigator.platform.startsWith('Win') ? windowsQuote : posixQuote
-  writeToSession(sessionId, `cd ${quote(dir)}\r`)
+  writeToSession(sessionId, `cd ${quoteForShell(dir)}\r`)
   return { ok: true }
 }
 

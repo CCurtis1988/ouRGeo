@@ -12,6 +12,10 @@ import {
 import { alignTerminalMode } from '@/lib/terminal/placement'
 import { goToRWorkingDir, setRWorkingDirFromShell } from '@/lib/terminal/r-link'
 import { useLayoutStore } from '@/store/layout'
+import { ZoneTabs } from '../layout/ZoneTabs'
+import { usePanelDrawsTabs } from '@/hooks/useZoneTabs'
+import { usePanelId } from '../layout/panel-context'
+import { TerminalDirBar } from './TerminalDirBar'
 
 // The Terminal panel: a strip of shells, and whichever one is in front.
 //
@@ -143,12 +147,15 @@ function TabStrip({ onMenu }: { onMenu: (m: MenuState) => void }): React.ReactEl
             if (e.button === 1) { e.preventDefault(); void closeSession(s.id) }
             else if (e.button === 0) setActive(s.id)
           }}
+          // A pill, not an underline. The pane's own tabs beside these are
+          // underlined, and two underlined rows of tabs an inch apart read as
+          // peers when one of them lives inside the other.
           className={cn(
-            'group flex items-center gap-1.5 px-2 py-1 rounded-t text-xs cursor-pointer',
-            'border-b-2 max-w-[200px] flex-shrink-0 transition-colors',
+            'group flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] cursor-pointer',
+            'max-w-[200px] flex-shrink-0 transition-colors',
             s.id === activeId
-              ? 'border-geo-accent text-foreground'
-              : 'border-transparent text-geo-muted hover:text-foreground',
+              ? 'bg-geo-panel text-foreground'
+              : 'text-geo-muted hover:text-foreground hover:bg-geo-panel/50',
           )}
           data-ourgeo-id="terminal.tab"
         >
@@ -235,6 +242,8 @@ export function TerminalPanel(): React.ReactElement {
   const [checked, setChecked] = useState(false)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const started = useRef(false)
+  const panelId = usePanelId('terminal')
+  const drawsTabs = usePanelDrawsTabs(panelId)
 
   // Opening the panel is what starts a shell — nothing spawns one in the
   // background, so a user who never opens the Terminal never has a pty. Guarded
@@ -295,8 +304,14 @@ export function TerminalPanel(): React.ReactElement {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-1 border-b border-geo-border px-2 py-0.5 flex-shrink-0">
+      <div className="flex items-center gap-1 border-b border-geo-border pl-1 pr-2 py-0.5 flex-shrink-0">
+        {/* The pane's tabs, then this panel's own. One row rather than two:
+            the zone used to draw a strip above this header, which put a tab
+            called "Terminal" directly on top of a header that said the same. */}
+        {drawsTabs && <ZoneTabs panel={panelId} className="flex-shrink-0" />}
+        {drawsTabs && <span className="h-4 w-px flex-shrink-0 bg-geo-border" />}
         <TabStrip onMenu={setMenu} />
+        {activeId && <TerminalDirBar sessionId={activeId} />}
         <button
           type="button"
           title="New terminal"

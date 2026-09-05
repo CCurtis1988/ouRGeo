@@ -10,6 +10,9 @@ import { CompletionPopup } from '../completion/CompletionPopup'
 import { getTextareaCaretRect } from '@/lib/caret-coords'
 import { WorkingDirBar } from './WorkingDirBar'
 import { setWorkingEnv } from '@/lib/working-env'
+import { ZoneTabs } from '../layout/ZoneTabs'
+import { usePanelDrawsTabs } from '@/hooks/useZoneTabs'
+import { usePanelId } from '../layout/panel-context'
 
 function EntryLine({ entry }: { entry: ConsoleEntry }): React.ReactElement {
   const textColor = {
@@ -52,6 +55,8 @@ export function Console(): React.ReactElement {
   const [elapsed, setElapsed] = useState(0)
   const [ctxOpen, setCtxOpen] = useState(false)
   const ctxRef = useRef<HTMLDivElement>(null)
+  const panelId = usePanelId('console')
+  const drawsTabs = usePanelDrawsTabs(panelId)
 
   // Tick elapsed seconds while executing
   useEffect(() => {
@@ -211,9 +216,14 @@ export function Console(): React.ReactElement {
   return (
     <div className="flex flex-col h-full">
       {/* Console header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-geo-border flex-shrink-0">
+      <div className="flex items-center justify-between pl-1 pr-3 py-1 border-b border-geo-border flex-shrink-0">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="flex-shrink-0 text-xs text-geo-muted">R Console</span>
+          {/* The heading IS the tab when this pane is tabbed — the strip used
+              to sit in its own row above, which cost a row of chrome and put
+              the words "R console" on screen twice, three pixels apart. */}
+          {drawsTabs
+            ? <ZoneTabs panel={panelId} />
+            : <span className="flex-shrink-0 px-2 text-xs text-geo-muted">R Console</span>}
           <div
             className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', wsConnected ? 'bg-geo-success' : 'bg-geo-muted')}
             title={wsConnected ? 'Connected' : 'Disconnected'}

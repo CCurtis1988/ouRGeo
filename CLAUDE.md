@@ -1759,6 +1759,49 @@ a fixed lightness band, because a band that suits near-black washes out on white
 with paints nothing, and taking `panel` drew the terminal as a slightly
 different rectangle inside its own pane.
 
+### One header row, not two
+
+The zone used to draw a tab strip ABOVE the panel, and the panel drew its own
+header underneath — so reaching the terminal cost two rows of chrome, and the
+words "R console" appeared on screen twice, three pixels apart, once as a tab
+and once as a heading.
+
+`PanelMeta.hostsTabs` opts a panel into drawing the zone's tabs inside its own
+header instead. The console and the terminal both set it; `ZoneTabs` is the
+shared component and `Zone` skips its own strip when the zone is hosted.
+
+- **All or nothing per zone** (`zoneHostsTabs`), never per panel. Asking only
+  the ACTIVE panel would move the tab strip between the zone's row and the
+  panel header as the user switched tabs, so the control they were reaching for
+  jumps a row. Drag Plots into the bottom strip and the whole zone reverts to
+  its own row — consistent, if less tidy.
+- **Only when there is something to switch between.** `usePanelDrawsTabs` is
+  false for a zone in `split` mode (both panels are visible and each has its own
+  header) and false for a panel alone in its zone, which is what keeps the
+  console looking exactly as it did before the terminal existed.
+- The shell tabs inside the terminal are **pills, not underlines**: the pane's
+  tabs beside them are underlined, and two underlined groups an inch apart read
+  as peers when one lives inside the other.
+
+**`store/panelDrag.ts` is what made this possible.** The dragged-panel id was a
+`useState` in `EditorLayout` threaded down as a prop pair — fine while only
+`EditorLayout`'s own children needed it, impossible once a tab button is
+rendered deep inside `Zone` → `PanelSlot` → the panel itself. Same move
+`store/contentDrag.ts` documents one level down, for the same reason. The
+gesture itself (`startPanelDrag`, its 4px threshold, its single commit point)
+moved to `layout/panel-drag.ts` so the zone and its tabs do not import each
+other.
+
+**`TerminalDirBar` is `WorkingDirBar`'s sibling, not a reuse of it.** Same shape
+— the path IS the control, one click opens everything you can do with a
+directory — but R's working directory is a value ouRGeo owns and can set, while
+a shell's is a fact about a process we can only read, and the way to change it
+is to type `cd` and hope. One component with a prop deciding which of those each
+menu item meant would have been worse than two. It polls (2s, a `readlink` in
+main) while its tab is on screen, and turns warning-coloured when the shell and
+R have drifted apart — which is the moment its bottom two items have something
+to do.
+
 ### Placement, and the setting
 
 `terminal` is an ordinary panel (bottom zone, order 1, closed by default) with a

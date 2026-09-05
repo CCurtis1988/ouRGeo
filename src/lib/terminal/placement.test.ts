@@ -5,8 +5,8 @@ import {
 } from './placement'
 import { BUILTIN_PANEL_INFO } from '../layout/panel-meta'
 import {
-  defaultLayout, movePanel, normalize, setZoneMode, zoneOf, isOpen,
-  type LayoutState, type PanelMeta,
+  defaultLayout, movePanel, normalize, setZoneMode, zoneOf, isOpen, zoneHostsTabs,
+  setPanelOpen, type LayoutState, type PanelMeta,
 } from '../layout/model'
 
 const PANELS = [...BUILTIN_PANEL_INFO] as PanelMeta[]
@@ -110,5 +110,35 @@ describe('what the settings switch reads', () => {
     const away = normalize(movePanel(fresh(), TERMINAL_PANEL, 'right'), PANELS)
     expect(terminalIsPlaced(away, 'tab')).toBe(false)
     expect(terminalIsPlaced(away, 'split')).toBe(false)
+  })
+})
+
+describe('who draws the pane\u2019s tabs', () => {
+  // The console and the terminal each already have a header row, so they draw
+  // the tab strip in it — one row of chrome instead of two, and the words
+  // "R console" once instead of twice.
+  it('lets the console and the terminal draw their own', () => {
+    const both = placeTerminal(fresh(), 'tab')
+    expect(zoneHostsTabs(both, 'bottom', PANELS)).toBe(true)
+  })
+
+  it('hands it back to the zone as soon as one panel has not opted in', () => {
+    // All or nothing, and this is why: a zone that asked only the ACTIVE panel
+    // would move the tab strip between its own row and the panel header as the
+    // user switched tabs, so the control they were about to click jumps a row.
+    const withPlots = movePanel(placeTerminal(fresh(), 'tab'), 'plots', 'bottom')
+    expect(zoneHostsTabs(withPlots, 'bottom', PANELS)).toBe(false)
+  })
+
+  it('ignores a panel that is in the zone but closed', () => {
+    // A closed panel draws nothing, so it has no opinion about who draws tabs.
+    const withPlots = setPanelOpen(
+      movePanel(placeTerminal(fresh(), 'tab'), 'plots', 'bottom'), 'plots', false,
+    )
+    expect(zoneHostsTabs(withPlots, 'bottom', PANELS)).toBe(true)
+  })
+
+  it('says no for an empty zone rather than yes by vacuous truth', () => {
+    expect(zoneHostsTabs(fresh(), 'right', PANELS)).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { Settings } from 'lucide-react'
 import { SettingsDialog } from '../settings/SettingsDialog'
 import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
@@ -16,6 +16,7 @@ import { languageOf } from '@/lib/markdown/doc-kind'
 import { useDatabaseStore } from '@/store/database'
 import { useThemeStore } from '@/store/theme'
 import { useLayoutStore } from '@/store/layout'
+import { usePanelDragStore } from '@/store/panelDrag'
 import { zoomFocusedTerminal } from '@/lib/terminal/zoom'
 import { usePluginRevision } from '@/store/plugins'
 import { useUiStore, type DialogId } from '@/store/ui'
@@ -39,6 +40,9 @@ export function EditorLayout(): React.ReactElement {
   // A plugin can contribute a panel or a toolbar button while the app runs.
   usePluginRevision()
   const layout = useLayoutStore((s) => s.layout)
+  // An empty zone is a drop target only while a panel is in flight; see
+  // store/panelDrag.ts for why that state is no longer a useState here.
+  const drag = usePanelDragStore((s) => s.panel)
   const initLayout = useLayoutStore((s) => s.init)
   const togglePanel = useLayoutStore((s) => s.togglePanel)
   const setZoneSize = useLayoutStore((s) => s.setZoneSize)
@@ -69,7 +73,6 @@ export function EditorLayout(): React.ReactElement {
 
   /** The panel being dragged, or null. Lifted here so a panel can be dragged
    *  out of one zone and into another. */
-  const [drag, setDrag] = useState<PanelId | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const body = useElementSize(bodyRef)
 
@@ -288,17 +291,17 @@ export function EditorLayout(): React.ReactElement {
       <div ref={bodyRef} className="flex flex-1 min-h-0">
         {leftOpen ? (
           <>
-            <Zone zone="left" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.left} />
+            <Zone zone="left" layout={layout} maxSize={caps.left} />
             {zoneDivider('left', 'x', 1)}
           </>
         ) : drag && <EmptyZoneTarget zone="left" />}
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          <Zone zone="center" layout={layout} drag={drag} setDrag={setDrag} />
+          <Zone zone="center" layout={layout} />
           {bottomOpen ? (
             <>
               {zoneDivider('bottom', 'y', -1)}
-              <Zone zone="bottom" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.bottom} />
+              <Zone zone="bottom" layout={layout} maxSize={caps.bottom} />
             </>
           ) : drag && <EmptyZoneTarget zone="bottom" />}
         </div>
@@ -306,7 +309,7 @@ export function EditorLayout(): React.ReactElement {
         {rightOpen ? (
           <>
             {zoneDivider('right', 'x', -1)}
-            <Zone zone="right" layout={layout} drag={drag} setDrag={setDrag} maxSize={caps.right} />
+            <Zone zone="right" layout={layout} maxSize={caps.right} />
           </>
         ) : drag && <EmptyZoneTarget zone="right" />}
       </div>

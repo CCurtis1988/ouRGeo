@@ -17,6 +17,10 @@ import { panelInfo, panelMaxInstances, type PanelInfo } from '@/lib/layout/panel
 import { useLayoutStore } from '@/store/layout'
 import { useSessionStore } from '@/store/session'
 import { useContentDragStore, type ContentKind } from '@/store/contentDrag'
+import { usePanelDragStore } from '@/store/panelDrag'
+import { startPanelDrag, slotUnder } from './panel-drag'
+import { ZoneTabs } from './ZoneTabs'
+import { useZoneHostsTabs } from '@/hooks/useZoneTabs'
 import { addPanelInstance, instancesOf, removalSummary, removePanelInstance } from '@/lib/panel-instances'
 import { focusPanel } from '@/lib/panel-focus'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
@@ -30,80 +34,24 @@ function dockKind(id: PanelId): ContentKind | null {
   return base === 'editor' ? 'tab' : null
 }
 
-/**
- * Start moving a panel, on mouse events rather than HTML5 drag-and-drop.
- *
- * It WAS drag-and-drop: `draggable` on the grip, `onDrop` on the zones. The
- * drop logic was right and is unchanged — but the gesture never reached it.
- * Pressing the grip and dragging did nothing at all, which is the worst way for
- * a control to fail: the tooltip says "Move Environment", the cursor says grab,
- * and the panel sits where it is. The Contents list in the spatial editor has
- * always reordered layers on plain mouse events, in this same app, so that is
- * the pattern to follow rather than a second attempt at native dnd.
- *
- * The 4px threshold is what keeps a plain CLICK from entering drag mode — the
- * tab-strip buttons carry this handler as well as an onClick, and without it
- * every click on a tab would flash the drop targets across the whole window.
- *
- * **The drop is committed HERE, not in the zone that was dropped on**, and that
- * is not a stylistic choice. Each zone's overlay used to end the drag itself:
- * every one of them heard the mouseup, the one holding the slot moved the
- * panel, the rest cleared the drag. But React flushes a state update from a
- * discrete native event SYNCHRONOUSLY, so the first zone to hear the mouseup —
- * the left one, always, since effects register in tree order — cleared the drag
- * mid-dispatch, unmounted every overlay, and took the remaining listeners with
- * it. The zone actually under the cursor never ran. The gesture worked
- * perfectly when the mouseup was synthesized from a script, because that update
- * was merely batched; only a real one from a human hand failed.
- */
-function startPanelDrag(
-  panel: PanelId, setDrag: (p: PanelId | null) => void,
-): (e: React.MouseEvent) => void {
-  return (e) => {
-    if (e.button !== 0) return
-    e.preventDefault()          // or the pointer selects text as it travels
-    const x0 = e.clientX, y0 = e.clientY
-    let started = false
 
-    const onMove = (ev: MouseEvent): void => {
-      if (started) return
-      if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return
-      started = true
-      setDrag(panel)
-    }
-    const onUp = (ev: MouseEvent): void => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      if (started) {
-        const slot = slotUnder(ev.clientX, ev.clientY)
-        if (slot) useLayoutStore.getState().movePanel(panel, slot.zone, slot.index)
-      }
-      setDrag(null)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
-}
-
-/** The insertion slot under the pointer, wherever it is. */
-function slotUnder(x: number, y: number): { zone: ZoneId; index: number } | null {
-  const el = (document.elementFromPoint(x, y) as HTMLElement | null)
-    ?.closest('[data-drop-zone]') as HTMLElement | null
-  if (!el?.dataset.dropZone) return null
-  return { zone: el.dataset.dropZone as ZoneId, index: Number(el.dataset.dropIndex) }
-}
 
 interface Props {
   zone: ZoneId
   layout: LayoutState
-  drag: PanelId | null
-  setDrag: (p: PanelId | null) => void
   /** Ceiling along the outer axis, in px — see EditorLayout, which computes it
    *  from the window so the centre always keeps a usable floor. */
   maxSize?: number
 }
 
-export function Zone({ zone, layout, drag, setDrag, maxSize }: Props): React.ReactElement | null {
+export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | null {
+  const drag = usePanelDragStore((s) => s.panel)
+  const beginDrag = usePanelDragStore((s) => s.begin)
+  const endDrag = usePanelDragStore((s) => s.end)
+  const setDrag = (p: PanelId | null): void => { if (p) beginDrag(p); else endDrag() }
+  // Drawn by the panels themselves when every one of them opts in — see
+  // ZoneTabs. Rendering it here as well would put two tab strips on screen.
+  const hosted = useZoneHostsTabs(zone)
   // Settings → Workspace can switch the grips off. The layout itself is
   // untouched by that: what it disables is the GESTURE, not rearranging, which
   // stays available from Settings and from the assistant.
@@ -126,8 +74,11 @@ export function Zone({ zone, layout, drag, setDrag, maxSize }: Props): React.Rea
       )}
       style={zone === 'center' ? undefined : sizeStyle(zone, state.size, maxSize)}
     >
-      {state.mode === 'tabs' && (
-        <TabStrip zone={zone} ids={ids} active={state.active ?? ids[0]} setDrag={setDrag} />
+      {state.mode === 'tabs' && !hosted && (
+        <ZoneTabs
+          zone={zone}
+          className="h-6 bg-geo-bg border-b border-geo-border overflow-x-auto"
+        />
       )}
 
       {shown.map((id, i) => {
@@ -390,39 +341,6 @@ export function ContentDragLabel(): React.ReactElement | null {
       style={{ left: drag.x + 12, top: drag.y + 12 }}
     >
       {drag.label}
-    </div>
-  )
-}
-
-function TabStrip(
-  { zone, ids, active, setDrag }:
-  { zone: ZoneId; ids: PanelId[]; active: PanelId; setDrag: (p: PanelId | null) => void },
-): React.ReactElement {
-  const setActivePanel = useLayoutStore((s) => s.setActivePanel)
-  const dragEnabled = useLayoutStore((s) => s.dragEnabled)
-  return (
-    <div className="flex items-center gap-px h-6 flex-shrink-0 bg-geo-bg border-b border-geo-border overflow-x-auto"
-      data-ourgeo-id={`zone.tabs.${zone}`}
-    >
-      {ids.map((id) => {
-        const def = panelInfo(id)
-        if (!def) return null
-        return (
-          <button
-            key={id}
-            onMouseDown={dragEnabled ? startPanelDrag(id, setDrag) : undefined}
-            onClick={() => setActivePanel(id)}
-            className={cn(
-              'px-2 h-6 text-[11px] whitespace-nowrap transition-colors',
-              id === active
-                ? 'text-foreground bg-geo-panel border-b-2 border-geo-accent'
-                : 'text-geo-muted hover:text-foreground',
-            )}
-          >
-            {def.label}
-          </button>
-        )
-      })}
     </div>
   )
 }
