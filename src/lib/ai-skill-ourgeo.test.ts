@@ -59,16 +59,23 @@ describe('buildOurgeoCore', () => {
   })
 
   it('stays inside its budget — this is on every request', () => {
-    // ~4 chars per token: 7000 chars ≈ 1750 tokens, action index included.
+    // ~4 chars per token: 7200 chars ≈ 1800 tokens, action index included.
     //
     // Raised from 6000 when the layout and plugin groups landed — 23 ids the
     // model genuinely needs, plus two sentences telling it plugins exist at
     // all (without which it would never open the topic that explains them).
+    // Raised again, by 200, for the terminal: six generated ids the index
+    // carries whether or not anything is written about them, and one sentence
+    // that has to be here rather than in the topic — it names the switch the
+    // actions need. Without it a model with the switch off does not know why
+    // the actions vanished, and one with it on cannot tell the user what they
+    // turned on. The prose cost 44 of the 200; the rest is the index.
+    //
     // This is a budget to defend, not a number to keep nudging: everything
     // here is paid for on every single request, including by a local model
     // with a 32k window. New material belongs in an `ourgeo_docs` topic
     // unless the model cannot act correctly without knowing it up front.
-    expect(core.length).toBeLessThan(7000)
+    expect(core.length).toBeLessThan(7200)
   })
 })
 

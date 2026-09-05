@@ -8,6 +8,15 @@ export interface AiPreferences {
   autopilotWarningDismissed: boolean
   webAccessEnabled: boolean
   /**
+   * The Terminal switch: whether the assistant may run shell commands.
+   *
+   * OFF by default, and only an explicit `true` turns it on — an absent or
+   * unreadable value is off, which is the state a new install is in rather
+   * than one a user would have to notice was wrong. Same reasoning as
+   * `dragEnabled` in layout.json, and for a much larger power.
+   */
+  terminalEnabled: boolean
+  /**
    * Per-action permission overrides, actionId → tier.
    *
    * SPARSE on purpose: only the actions the user actually moved. That keeps the
@@ -36,6 +45,7 @@ const DEFAULTS: AiPreferences = {
   },
   autopilotWarningDismissed: false,
   webAccessEnabled: true,
+  terminalEnabled: false,
   actionTiers: {},
 }
 
@@ -45,6 +55,7 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     modelByProvider?: unknown
     autopilotWarningDismissed?: unknown
     webAccessEnabled?: unknown
+    terminalEnabled?: unknown
     actionTiers?: unknown
   }>()
   return {
@@ -59,6 +70,10 @@ export async function loadAiPreferences(): Promise<AiPreferences> {
     webAccessEnabled: typeof data.webAccessEnabled === 'boolean'
       ? data.webAccessEnabled
       : DEFAULTS.webAccessEnabled,
+    // Only an explicit true. Anything else — absent, a string, a half-written
+    // file — is off, because the safe answer must be the one you get by
+    // default and by accident.
+    terminalEnabled: data.terminalEnabled === true,
     actionTiers: typeof data.actionTiers === 'object' && data.actionTiers
       ? (data.actionTiers as Record<string, string>)
       : {},

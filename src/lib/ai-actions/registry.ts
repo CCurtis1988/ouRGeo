@@ -25,8 +25,9 @@ import { themeActions } from './theme'
 import { layoutActions } from './layout'
 import { pluginActions } from './plugin'
 import { connectorActions } from './connector'
+import { terminalActions } from './terminal'
 import { GROUP_LABELS, describeAction, groupLabel, type UiAction } from './types'
-import { resolveTier } from './permissions'
+import { resolveTier, type Switches } from './permissions'
 
 const BUILTIN: UiAction[] = [
   ...uiActions,
@@ -45,6 +46,7 @@ const BUILTIN: UiAction[] = [
   ...layoutActions,
   ...pluginActions,
   ...connectorActions,
+  ...terminalActions,
 ]
 
 /** The actions ouRGeo ships. The integrity test walks these, not the live set:
@@ -112,8 +114,13 @@ export function searchActions(query: string, group?: string): UiAction[] {
 }
 
 /** Full listing of matched actions, tiers resolved against the user's overrides. */
-export function listActions(query: string, group?: string): string {
+export function listActions(query: string, group?: string, switches?: Switches): string {
+  // An action behind a switch the user has not turned on is not listed at all.
+  // Discovering a capability and then being refused it costs the model a turn
+  // and the user a confusing sentence; `buildToolGuidance` states the switch
+  // positions up front instead.
   const hits = searchActions(query, group)
+    .filter((a) => !a.requires || (switches && switches[a.requires]))
   if (hits.length === 0) {
     return `No actions match. Groups: ${Object.entries(GROUP_LABELS).map(([id, l]) => `${id} (${l})`).join(', ')}.`
   }

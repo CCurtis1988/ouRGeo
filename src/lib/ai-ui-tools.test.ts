@@ -13,8 +13,8 @@ vi.mock('@/lib/r-client', () => ({
   },
 }))
 
-const ON = { autoPilot: true }
-const OFF = { autoPilot: false }
+const ON = { autoPilot: true, terminal: true }
+const OFF = { autoPilot: false, terminal: true }
 
 beforeEach(() => {
   clearTierOverrides()

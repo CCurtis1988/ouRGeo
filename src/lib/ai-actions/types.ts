@@ -39,7 +39,7 @@ export const TIER_LABELS: Record<Tier, string> = {
 export type GroupId =
   | 'ui' | 'editor' | 'project' | 'data' | 'environment' | 'packages'
   | 'help' | 'map' | 'draw' | 'plots' | 'session' | 'settings' | 'theme'
-  | 'layout' | 'plugin' | 'connector'
+  | 'layout' | 'plugin' | 'connector' | 'terminal'
 
 /**
  * A group contributed by a plugin.
@@ -69,6 +69,7 @@ const BUILTIN_GROUPS: Record<GroupId, string> = {
   layout: 'Workspace layout',
   plugin: 'Plugins',
   connector: 'Data connectors',
+  terminal: 'Terminal',
 }
 
 /** The groups ouRGeo ships, in the order the model reads them. */
@@ -167,6 +168,20 @@ export interface ActionResult {
   data?: unknown
 }
 
+/**
+ * A second, independent switch an action needs, on top of its tier.
+ *
+ * One value today. It is a union rather than a boolean for the same reason
+ * `ContentKind` is: the switch has a NAME, and the refusal has to say which
+ * one — "turn on Autopilot" and "turn on Terminal" are different instructions,
+ * and a boolean could not tell them apart.
+ *
+ * The gate is expressed here, on the action, rather than as six copies of the
+ * same check inside the terminal group: a rule enforced at every call site
+ * holds only until someone adds a seventh.
+ */
+export type ActionRequirement = 'terminal'
+
 export interface UiAction {
   id: string
   group: AnyGroupId
@@ -174,6 +189,8 @@ export interface UiAction {
   summary: string
   params: ParamDef[]
   tier: Tier
+  /** An extra switch this action needs, beside its tier. See above. */
+  requires?: ActionRequirement
   run: (args: Args) => Promise<ActionResult> | ActionResult
 }
 

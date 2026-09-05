@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock, SlidersHorizontal } from 'lucide-react'
+import {
+  Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock, SlidersHorizontal,
+  SquareTerminal, Terminal as TerminalIcon,
+} from 'lucide-react'
 import { Button } from '../ui/button'
 import { AiChatMessage } from './AiChatMessage'
 import { ModelSelectorPopup } from './ModelSelectorPopup'
@@ -73,6 +76,8 @@ export function AiChatPanel(): React.ReactElement {
   const setAutoPilot = useAiStore((s) => s.setAutoPilot)
   const setAutopilotWarningDismissed = useAiStore((s) => s.setAutopilotWarningDismissed)
   const setWebAccess = useAiStore((s) => s.setWebAccess)
+  const terminalEnabled = useAiStore((s) => s.terminalEnabled)
+  const setTerminalAccess = useAiStore((s) => s.setTerminalAccess)
   const setTokenUsage = useAiStore((s) => s.setTokenUsage)
   const beginStream = useAiStore((s) => s.beginStream)
 
@@ -179,7 +184,11 @@ export function AiChatPanel(): React.ReactElement {
       // Documents are always in the prompt: the model has to know a .Rmd renders
       // in a session of its own before it writes one, not after the knit fails.
       buildDocumentSkill({ hasDocumentTools: true }),
-      buildToolGuidance({ autoPilot: autoPilotEnabled, webAccess: webAccessEnabled }),
+      buildToolGuidance({
+        autoPilot: autoPilotEnabled,
+        webAccess: webAccessEnabled,
+        terminal: terminalEnabled,
+      }),
       envContext,
     ].filter(Boolean).join('\n\n')
     // Give the model awareness of the live console — commands the user ran by
@@ -255,6 +264,7 @@ export function AiChatPanel(): React.ReactElement {
         return truncateForModel(
           await runUiTool(call.name, call.input, {
             autoPilot: useAiStore.getState().autoPilotEnabled,
+            terminal: useAiStore.getState().terminalEnabled,
           }),
           24000,
         )
@@ -301,7 +311,7 @@ export function AiChatPanel(): React.ReactElement {
         finalizeStream(streamingContent || '')
       }
     }
-  }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, contextSize,
+  }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
       addMessage, appendStreamChunk, finalizeStream, beginStream, setTokenUsage, addConsoleEntry, streamingContent, setEnvironments])
 
   /**
@@ -465,6 +475,30 @@ export function AiChatPanel(): React.ReactElement {
           >
             {webAccessEnabled ? <Globe className="w-3 h-3" /> : <GlobeLock className="w-3 h-3" />}
             <span>Web {webAccessEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Shell access, AND-ed with Autopilot: both must be on. Off by
+              default and only ever turned on deliberately. Not a containment
+              boundary — R's `system()` already reaches the OS from behind
+              Autopilot alone — but the moment the user decides that running
+              commands on their machine is part of what the assistant does. */}
+          <button
+            onClick={() => setTerminalAccess(!terminalEnabled)}
+            data-ourgeo-id="ai.terminalSwitch"
+            className={cn(
+              'flex items-center gap-1.5 text-[10px] px-2 py-1 rounded transition-colors',
+              terminalEnabled
+                ? 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25'
+                : 'text-geo-muted hover:text-foreground hover:bg-white/5'
+            )}
+            title={terminalEnabled
+              ? 'The AI can run shell commands in the Terminal panel (Autopilot must also be on). Click to stop it.'
+              : 'Let the AI run shell commands in the Terminal panel. Autopilot must be on as well; every command is typed into a tab you can see and logged to the console.'}
+          >
+            {terminalEnabled
+              ? <SquareTerminal className="w-3 h-3" />
+              : <TerminalIcon className="w-3 h-3" />}
+            <span>Terminal {terminalEnabled ? 'ON' : 'OFF'}</span>
           </button>
         </div>
 

@@ -22,14 +22,14 @@ describe('buildProvenanceRules', () => {
 
 describe('buildToolGuidance', () => {
   it('describes both tools as available when both switches are on', () => {
-    const g = buildToolGuidance({ autoPilot: true, webAccess: true })
+    const g = buildToolGuidance({ autoPilot: true, webAccess: true, terminal: false })
     expect(g).toContain('`execute_r_code`')
     expect(g).toContain('`web_search`')
     expect(g).toContain('Web access — ON')
   })
 
   it('states plainly that web access is cut off when the switch is off', () => {
-    const g = buildToolGuidance({ autoPilot: true, webAccess: false })
+    const g = buildToolGuidance({ autoPilot: true, webAccess: false, terminal: false })
     expect(g).toContain('Web access — OFF')
     expect(g).toMatch(/cut off your internet access/)
     expect(g).toMatch(/Do not claim to have looked anything up/)
@@ -37,13 +37,13 @@ describe('buildToolGuidance', () => {
   })
 
   it('tells the model to hand code to the user when Autopilot is off', () => {
-    const g = buildToolGuidance({ autoPilot: false, webAccess: false })
+    const g = buildToolGuidance({ autoPilot: false, webAccess: false, terminal: false })
     expect(g).toContain('Running R code — unavailable')
     expect(g).toMatch(/Autopilot is off/)
   })
 
   it('keeps the two switches independent', () => {
-    const webOnly = buildToolGuidance({ autoPilot: false, webAccess: true })
+    const webOnly = buildToolGuidance({ autoPilot: false, webAccess: true, terminal: false })
     expect(webOnly).toContain('Running R code — unavailable')
     expect(webOnly).toContain('Web access — ON')
   })

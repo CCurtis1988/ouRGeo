@@ -43,11 +43,11 @@ describe('tiers', () => {
 
 describe('checkAllowed', () => {
   it('lets `always` actions run with Autopilot off', () => {
-    expect(checkAllowed(get('ui:panel'), { autoPilot: false })).toEqual({ allowed: true })
+    expect(checkAllowed(get('ui:panel'), { autoPilot: false, terminal: true })).toEqual({ allowed: true })
   })
 
   it('refuses `autopilot` actions with Autopilot off, and says what to do instead', () => {
-    const d = checkAllowed(get('map:addLayer'), { autoPilot: false })
+    const d = checkAllowed(get('map:addLayer'), { autoPilot: false, terminal: true })
     expect(d.allowed).toBe(false)
     if (d.allowed || d.reason !== 'autopilot') throw new Error('expected an autopilot refusal')
     expect(d.message).toMatch(/needs Autopilot/)
@@ -58,29 +58,29 @@ describe('checkAllowed', () => {
   })
 
   it('allows `autopilot` actions once Autopilot is on', () => {
-    expect(checkAllowed(get('map:addLayer'), { autoPilot: true })).toEqual({ allowed: true })
+    expect(checkAllowed(get('map:addLayer'), { autoPilot: true, terminal: true })).toEqual({ allowed: true })
   })
 
   it('asks for confirmation on `confirm` actions, even with Autopilot on', () => {
-    expect(checkAllowed(get('env:remove'), { autoPilot: true }))
+    expect(checkAllowed(get('env:remove'), { autoPilot: true, terminal: true }))
       .toEqual({ allowed: false, reason: 'confirm' })
   })
 
   it('refuses `confirm` actions for Autopilot first when it is off', () => {
     // Autopilot is the outer gate: no point asking the user to confirm
     // something that the switch forbids anyway.
-    const d = checkAllowed(get('env:remove'), { autoPilot: false })
+    const d = checkAllowed(get('env:remove'), { autoPilot: false, terminal: true })
     expect(d.allowed).toBe(false)
     expect(d.allowed === false && d.reason).toBe('autopilot')
   })
 
   it('honours an override in both directions', () => {
     setTierOverride('ui:panel', 'confirm')
-    expect(checkAllowed(get('ui:panel'), { autoPilot: true }))
+    expect(checkAllowed(get('ui:panel'), { autoPilot: true, terminal: true }))
       .toEqual({ allowed: false, reason: 'confirm' })
 
     setTierOverride('env:remove', 'always')
-    expect(checkAllowed(get('env:remove'), { autoPilot: false })).toEqual({ allowed: true })
+    expect(checkAllowed(get('env:remove'), { autoPilot: false, terminal: true })).toEqual({ allowed: true })
   })
 })
 

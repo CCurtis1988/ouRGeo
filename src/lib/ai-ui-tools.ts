@@ -11,7 +11,7 @@
 
 import type { AiTool } from '@/lib/ai-client'
 import { actionIds, actionById, listActions, actionIndex } from '@/lib/ai-actions/registry'
-import { checkAllowed, resolveTier } from '@/lib/ai-actions/permissions'
+import { checkAllowed, resolveTier, type Switches } from '@/lib/ai-actions/permissions'
 import { validateArgs, GROUP_LABELS, type Args } from '@/lib/ai-actions/types'
 import {
   findTool, searchTools, toolLine, describeTool, runToolboxTool, categoryListing,
@@ -147,7 +147,7 @@ function renderArgs(args: Args): string {
   return entries.map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join('\n')
 }
 
-async function runAction(id: string, args: Args, opts: { autoPilot: boolean }): Promise<string> {
+async function runAction(id: string, args: Args, opts: Switches): Promise<string> {
   const action = actionById(id)
   if (!action) {
     return `Error: no action called "${id}". Use list_ui_actions to find the right id. ` +
@@ -159,6 +159,7 @@ async function runAction(id: string, args: Args, opts: { autoPilot: boolean }): 
 
   const decision = checkAllowed(action, opts)
   if (!decision.allowed && decision.reason === 'autopilot') return decision.message
+  if (!decision.allowed && decision.reason === 'requires') return decision.message
   if (!decision.allowed && decision.reason === 'confirm') {
     const allowed = await useUiStore.getState().askConfirm({
       actionId: action.id,
@@ -207,13 +208,18 @@ async function runToolbox(input: Record<string, unknown>): Promise<string> {
 /** Dispatch, matching the other tool families: every failure is a string the
  *  model can recover from, never a thrown error. */
 export async function runUiTool(
-  name: string, input: Record<string, unknown>, opts: { autoPilot: boolean },
+  name: string, input: Record<string, unknown>, opts: Switches,
 ): Promise<string> {
   switch (name) {
     case LIST_UI_ACTIONS_TOOL.name:
+      // The switch positions are passed to the LISTING as well as to the run,
+      // because a capability that is off should be absent rather than
+      // discovered by refusal — the same rule the web tools follow, where a
+      // disabled switch means the tool is not in the request at all.
       return listActions(
         typeof input.query === 'string' ? input.query : '',
         typeof input.group === 'string' ? input.group : undefined,
+        opts,
       )
 
     case RUN_UI_ACTION_TOOL.name:

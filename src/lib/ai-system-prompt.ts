@@ -37,11 +37,15 @@ Every number, table, chart and conclusion you present must be traceable to data 
 export interface ToolGuidanceOptions {
   autoPilot: boolean
   webAccess: boolean
+  /** The Terminal switch in the panel footer, AND-ed with Autopilot. */
+  terminal: boolean
 }
 
 /** Describes the tools actually attached to this request, and the limits on
  *  what each may be used to justify. */
-export function buildToolGuidance({ autoPilot, webAccess }: ToolGuidanceOptions): string {
+export function buildToolGuidance(
+  { autoPilot, webAccess, terminal }: ToolGuidanceOptions,
+): string {
   const parts: string[] = []
 
   parts.push(autoPilot
@@ -66,6 +70,27 @@ You have \`web_search\` and \`web_fetch\`. Use them for reference material: pack
     : `## Web access — OFF
 
 The user has cut off your internet access, and no web tools are attached to this request. Do not claim to have looked anything up, and do not present a remembered fact about an external package, dataset or API as if you had verified it — flag it as recalled and possibly out of date. If a question genuinely requires the internet, say so, then either answer from what is in the session or hand the user R code that fetches what is needed, so the request is visible in their console.`)
+
+  // Stated, not discovered. A capability the user has switched off should be
+  // known to be off up front — a model that finds out by being refused has
+  // already spent a turn, and often tells the user something is impossible
+  // when it is one click away.
+  parts.push(terminal && autoPilot
+    ? `## Terminal — ON
+
+The \`terminal:*\` actions are available: you can open a shell, run a command and read what came back. Use it for what is genuinely outside R — installing a system library, \`git\`, inspecting a file with \`gdalinfo\` or \`ogrinfo\`, checking a path exists.
+
+- **R work goes through R.** If something can be done with \`execute_r_code\`, do that instead: it is echoed to the console, it is reproducible, and it is what the user can re-run tomorrow. The terminal produces nothing the user can replay.
+- Every command is typed into a terminal tab the user is watching and logged to their console. Write commands you would be content to have read back to you.
+- One command per call, and prefer the reversible one. Say what a command will do before running anything that installs, deletes or overwrites — and if you are unsure, ask rather than run.
+- Quote the exit code and the actual output. A non-zero exit is a result to report, not to retry blindly.`
+    : `## Terminal — OFF
+
+${terminal && !autoPilot
+      ? 'The Terminal switch is on but Autopilot is off, and both are needed.'
+      : 'The Terminal switch in the AI panel footer is off.'} You cannot run shell commands, and no \`terminal:*\` action will work this turn. Do not claim to have run one.
+
+If something genuinely needs a shell, say which command and why, and tell the user they can switch Terminal on in the AI panel footer — or run it themselves. Anything that can be done from R you can still do with \`execute_r_code\` when Autopilot is on, including \`system()\`.`)
 
   return parts.join('\n\n')
 }

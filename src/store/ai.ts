@@ -46,6 +46,12 @@ interface AiState {
    *  so the only route to the internet left is R code the user sees run in the
    *  console. */
   webAccessEnabled: boolean
+  /** Master switch for the `terminal:*` actions, AND-ed with Autopilot: both
+   *  must be on before the assistant can run a shell command. Off by default.
+   *  Not a containment boundary — R's `system()` already reaches the OS from
+   *  behind Autopilot — but the point at which running shell commands becomes
+   *  something the user turned on deliberately. */
+  terminalEnabled: boolean
   /** Per-action permission overrides for the GUI actions, actionId → tier.
    *  Sparse: only what the user changed. See lib/ai-actions/permissions.ts. */
   actionTiers: Record<string, Tier>
@@ -64,6 +70,7 @@ interface AiState {
   setAutoPilot: (on: boolean) => void
   setAutopilotWarningDismissed: (v: boolean) => void
   setWebAccess: (on: boolean) => void
+  setTerminalAccess: (on: boolean) => void
   /** Move one action to a tier, or back to its default with null. */
   setActionTier: (actionId: string, tier: Tier | null) => void
   resetActionTiers: () => void
@@ -98,6 +105,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   autoPilotEnabled: false,
   autopilotWarningDismissed: false,
   webAccessEnabled: true,
+  terminalEnabled: false,
   actionTiers: {},
   tokenUsage: { used: 0, total: 200000 },
   abortController: null,
@@ -119,6 +127,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       modelByProvider: prefs.modelByProvider,
       autopilotWarningDismissed: prefs.autopilotWarningDismissed,
       webAccessEnabled: prefs.webAccessEnabled,
+      terminalEnabled: prefs.terminalEnabled,
       actionTiers: tiers,
       initialized: true,
     })
@@ -173,6 +182,11 @@ export const useAiStore = create<AiState>((set, get) => ({
   setWebAccess: (on) => {
     set({ webAccessEnabled: on })
     saveAiPreferences({ webAccessEnabled: on })
+  },
+
+  setTerminalAccess: (on) => {
+    set({ terminalEnabled: on })
+    saveAiPreferences({ terminalEnabled: on })
   },
 
   setActionTier: (actionId, tier) => {

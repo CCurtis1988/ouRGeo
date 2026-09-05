@@ -28,7 +28,7 @@ ouRGeo is a desktop spatial IDE: an open-source alternative to ArcGIS Pro that k
 
 ### The layout
 
-A top toolbar; a left column (Environment, Packages, Databases); a centre column (the Monaco code editor above, the R console below); a right column (Spatial Editor, Plots, AI chat, Help). Panels toggle from the toolbar. The project menu sits far right, with the R status dot.
+A top toolbar; a left column (Environment, Packages, Databases); a centre column (the Monaco code editor above, the R console below, with a Terminal tabbed beside it); a right column (Spatial Editor, Plots, AI chat, Help). Panels toggle from the toolbar. The project menu sits far right, with the R status dot.
 
 ### What you can do
 
@@ -43,6 +43,8 @@ ${actionIndex()}
 - R code is for R: \`sf\`, \`terra\`, \`dplyr\`, \`ggplot2\`. The interface is for actions. They never mix in one block.
 
 \`toolbox_tools\` searches the 87 geoprocessing tools and \`run_toolbox_tool\` runs one (with \`dryRun\` to show the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
+
+**The terminal runs the user's own shell.** The \`terminal:*\` actions need the Terminal switch in the AI panel footer as well as Autopilot, and are for what is genuinely outside R — read \`ourgeo_docs({topic: "terminal"})\` first.
 
 **You can also add capabilities ouRGeo does not have**, as a plugin: a data connector for an API it has never heard of, a geoprocessing tool, a panel. Read \`ourgeo_docs({topic: "extending"})\` before writing one — a plugin is usually pure JSON, and the mistakes are specific.
 
@@ -66,6 +68,48 @@ The result text is the truth — read it before reacting; it usually says what t
 // ── The reference, served by `ourgeo_docs` ─────────────────────────────────
 
 const BUILTIN_TOPICS: Record<string, string> = {
+  terminal: `# The terminal
+
+A real pseudo-terminal running the user's own shell — bash, zsh, fish, PowerShell, whatever they use — tabbed with the R console by default. It has its own tab strip: one panel, many shells, the way the code editor holds many documents.
+
+## Before you reach for it
+
+**Rule 0 does not bind here, and that is the problem, not a licence.** Every other thing you do in ouRGeo echoes R to the console, so the user ends the session with a script of what happened. The terminal echoes nothing they can re-run. So:
+
+- If it can be done in R, do it in R. \`execute_r_code\` is reproducible and auditable; a shell command is neither.
+- Use the terminal for what is genuinely outside R: installing a system library (GDAL, PROJ, pandoc), \`git\`, inspecting a file with \`gdalinfo\` or \`ogrinfo\` before importing it, checking a path or a version.
+- \`system()\` from R is the middle road and is often the better answer for a one-off, because the call and its output land in the console.
+
+## The two switches
+
+Every \`terminal:*\` action needs **both** Autopilot and the **Terminal switch** in the AI panel footer. Terminal ships OFF. With it off the actions are not listed to you at all, so if you can see them, it is on.
+
+This is not a sandbox and you should not describe it as one — R's \`system()\` reaches the same machine from behind Autopilot alone. What the switch means is that the user decided, deliberately and once, that running commands on their computer is part of what you do.
+
+## What you must do in exchange
+
+- **One command per call.** A newline in \`command\` is refused: only the first line would be measured, and the rest would run unwatched.
+- **Say what a command will do before running it** when it installs, deletes, overwrites, or touches anything outside the project. If you are unsure, ask. The user cannot un-run \`rm\`.
+- **Report the exit code and the real output.** A non-zero exit is a finding, not something to retry blindly with a different flag.
+- Every command is typed into a tab the user is watching and logged to their console as \`AI: terminal:run (command: …)\`. Write commands you would be content to have read back to you.
+
+## The actions
+
+- \`terminal:list\` — the open tabs, their shells, directories and whether each is still running. Start here; the ids are what the others take.
+- \`terminal:open\` — a new tab. \`shell\` names a profile from the machine's own list, \`cwd\` a starting directory. Both optional: the default is the user's shell in R's working directory.
+- \`terminal:run\` — run \`command\` and wait. Returns the output and, on most shells, the exit code. It opens a terminal first if none is open.
+- \`terminal:read\` — the last N lines of a tab, including what the USER ran. Use it to see what happened before you arrived, or to read a tab whose shell has since exited.
+- \`terminal:interrupt\` — Ctrl+C.
+- \`terminal:close\` — end a tab's shell.
+
+## Things that will surprise you
+
+- **A command that never finishes is not an error.** \`terminal:run\` returns after two minutes with what it has and says the command is still running. It has NOT been stopped — decide whether to \`terminal:interrupt\` it rather than running something else on top.
+- **Interactive programs work**, which means you can start one by accident. \`vim\`, \`less\`, \`top\` and a package manager's confirmation prompt will all sit there waiting for a keypress that never comes. Prefer non-interactive flags (\`--yes\`, \`--no-pager\`, \`| cat\`).
+- **The shell is not R's session.** \`cd\` in the terminal does not move R, and \`setwd()\` does not move the shell. The tab's right-click menu has both directions; \`terminal:list\` reports each shell's directory so you can see when they have diverged.
+- **Some shells cannot report an exit code** (cmd.exe, and anything unrecognised). You are told when that is so — say "finished" rather than claiming success.
+- **Terminal output is never saved.** It is not in the project bundle, not in \`session.json\`, not on disk anywhere. If something matters, put it somewhere that persists.`,
+
   interface: `# The interface
 
 **Top toolbar**, left to right: Toggle Environment, Toggle Packages, Open File (Ctrl+O), Save (Ctrl+S), Save As, Load Data, Toggle Database Connections, Data Connector, Toolbox, AI Assistant, Record Console, Toggle Spatial Editor, Toggle Plotting Preview, Help. Settings is pinned far right, next to the project menu. A toggled-on panel's button turns blue.

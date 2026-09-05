@@ -16,7 +16,15 @@ import type { Tier, UiAction } from './types'
 export type Decision =
   | { allowed: true }
   | { allowed: false; reason: 'autopilot'; message: string }
+  | { allowed: false; reason: 'requires'; message: string }
   | { allowed: false; reason: 'confirm' }
+
+/** The switches in force when an action is asked to run. */
+export interface Switches {
+  autoPilot: boolean
+  /** The Terminal switch in the AI panel footer. Off by default. */
+  terminal: boolean
+}
 
 /** Sparse map of user overrides, actionId → tier. */
 export type TierOverrides = Record<string, Tier>
@@ -50,8 +58,28 @@ export function resolveTier(action: UiAction): Tier {
   return overrides[action.id] ?? action.tier
 }
 
-/** Whether an action may run right now. */
-export function checkAllowed(action: UiAction, opts: { autoPilot: boolean }): Decision {
+/**
+ * Whether an action may run right now.
+ *
+ * The extra requirement is checked FIRST, and before the tier, because it is
+ * the more specific answer: an action the user has not enabled at all should
+ * say so, rather than telling them to turn on Autopilot and then refusing
+ * again for a different reason. Two refusals for one call is how a model ends
+ * up telling a user something is impossible.
+ */
+export function checkAllowed(action: UiAction, opts: Switches): Decision {
+  if (action.requires === 'terminal' && !opts.terminal) {
+    return {
+      allowed: false,
+      reason: 'requires',
+      message:
+        `Refused: "${action.id}" needs the Terminal switch, which is off. It sits in the AI ` +
+        'panel footer beside Autopilot, and both must be on before you can run shell commands. ' +
+        'Say what you wanted to run and that they can switch it on; you may still point at the ' +
+        'Terminal panel with ui:highlight, and anything that can be done in R you can still do ' +
+        'with execute_r_code.',
+    }
+  }
   const tier = resolveTier(action)
   if (tier === 'always') return { allowed: true }
   if (!opts.autoPilot) {

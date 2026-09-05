@@ -25,7 +25,16 @@ import { useSessionStore } from '@/store/session'
 
 type Sink = (data: string) => void
 
-const sinks = new Map<string, Sink>()
+/**
+ * Listeners per session, plural.
+ *
+ * One-per-session was the first shape and it was wrong: `terminal:run` has to
+ * watch the stream for its completion marker WHILE the view keeps drawing it,
+ * because a command the assistant ran that produces nothing on screen is
+ * exactly the failure the visible-tab rule exists to prevent. A set costs
+ * nothing and removes the whole question.
+ */
+const sinks = new Map<string, Set<Sink>>()
 let wired = false
 
 /** Start listening for pty output and exits. Idempotent; called by everything
@@ -33,7 +42,14 @@ let wired = false
 export function initTerminals(): void {
   if (wired || typeof window === 'undefined' || !window.electronAPI?.terminal) return
   wired = true
-  window.electronAPI.terminal.onData((id, data) => { sinks.get(id)?.(data) })
+  window.electronAPI.terminal.onData((id, data) => {
+    const listeners = sinks.get(id)
+    if (!listeners) return
+    // A copy: a listener that unsubscribes itself mid-notify (the run watcher
+    // does exactly that when it sees its marker) would otherwise mutate the
+    // set being iterated.
+    for (const fn of [...listeners]) fn(data)
+  })
   window.electronAPI.terminal.onExit((id, exitCode) => {
     useTerminalStore.getState().markExited(id, exitCode)
   })
@@ -50,8 +66,15 @@ export function initTerminals(): void {
  */
 export function registerSink(id: string, sink: Sink): () => void {
   initTerminals()
-  sinks.set(id, sink)
-  return () => { if (sinks.get(id) === sink) sinks.delete(id) }
+  const set = sinks.get(id) ?? new Set<Sink>()
+  set.add(sink)
+  sinks.set(id, set)
+  return () => {
+    const live = sinks.get(id)
+    if (!live) return
+    live.delete(sink)
+    if (live.size === 0) sinks.delete(id)
+  }
 }
 
 /** Where a new terminal starts: R's working directory, so a relative path
