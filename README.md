@@ -56,6 +56,16 @@ the whole analysis.
   and remove the extra when you are done — **removing never closes a document**, they move to the editor that
   remains. Only a panel you added can be removed; the ones ouRGeo ships are
   hidden and shown from the toolbar instead.
+- **A real terminal.** Your own shell — bash, zsh, fish, PowerShell — as a tab
+  beside the R console, with as many tabs as you like, full colour, search
+  (Ctrl+Shift+F) and a font size that follows Ctrl+= / Ctrl+-. It opens in R's
+  working directory, and the tab menu moves either side to the other: send R to
+  the shell's directory (echoing `setwd()` to the console, like everything
+  else), or type `cd` to R's. Colours follow your code theme; give it its own
+  pane instead of a tab from Settings → Workspace. The AI assistant can use it
+  too, behind its own switch in the panel footer that is **off until you turn
+  it on** — every command it runs is typed into a tab you can watch and logged
+  to your console.
 - **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
   panels and documentation, added while the app is running — no rebuild, and
   usually no code at all.
