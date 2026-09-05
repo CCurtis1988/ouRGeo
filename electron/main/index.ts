@@ -12,6 +12,7 @@ import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
 import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
 import { registerVoiceHandlers } from './voice'
+import { registerTerminalHandlers, killAllTerminals } from './terminal'
 import {
   registerVoiceModelHandlers, registerVoiceModelProtocol, VOICE_MODEL_SCHEME_PRIVILEGES,
 } from './voice-models'
@@ -187,6 +188,7 @@ app.whenReady().then(async () => {
   registerForumHandlers(ipcMain)
   registerPluginHandlers(ipcMain)
   registerEsbuildWasmHandler(ipcMain)
+  registerTerminalHandlers(ipcMain)
 
   // The renderer calls this after resolving the unsaved-changes prompt (Save or
   // Don't Save) to allow the intercepted window close to complete.
@@ -259,6 +261,9 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   rBridge.stop()
+  // A pty outliving the window is an orphan process the user has no way to
+  // see, let alone stop — and on Windows it keeps the app's console alive.
+  killAllTerminals()
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -268,6 +273,7 @@ app.on('window-all-closed', () => {
 // EXCEPT session.json (open code/.R tabs), which we deliberately keep between
 // sessions. A crash (no will-quit) leaves these intact for recovery on relaunch.
 app.on('will-quit', () => {
+  killAllTerminals()
   const dir = app.getPath('userData')
   const sessionScoped = [
     'plots.json',

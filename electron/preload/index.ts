@@ -262,5 +262,53 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     modelCancel: (id: string): Promise<boolean> => ipcRenderer.invoke('voice:modelCancel', id),
     modelRemove: (id: string): Promise<boolean> => ipcRenderer.invoke('voice:modelRemove', id),
+  },
+
+  terminal: {
+    /** Whether a pty can be spawned at all — asked before the panel draws, so
+     *  an unsupported platform gets a sentence instead of a broken terminal. */
+    available: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('terminal:available'),
+    shells: (): Promise<{ id: string; label: string; path: string; args: string[] }[]> =>
+      ipcRenderer.invoke('terminal:shells'),
+    create: (req: {
+      profileId?: string | null; cwd?: string | null; cols?: number; rows?: number
+    }): Promise<{
+      ok: boolean
+      id?: string
+      profile?: { id: string; label: string; path: string; args: string[] }
+      error?: string
+    }> => ipcRenderer.invoke('terminal:create', req),
+    attach: (id: string): Promise<{
+      ok: boolean; replay?: string; alive?: boolean; exitCode?: number | null; error?: string
+    }> => ipcRenderer.invoke('terminal:attach', id),
+    // `send`, not `invoke`: keystrokes and acks are one-way and frequent, and a
+    // promise per keypress is a round trip nobody awaits.
+    write: (id: string, data: string): void => { ipcRenderer.send('terminal:write', id, data) },
+    resize: (id: string, cols: number, rows: number): void => {
+      ipcRenderer.send('terminal:resize', id, cols, rows)
+    },
+    /** Report drawn output so main can un-pause a firehose. */
+    ack: (id: string, chars: number): void => { ipcRenderer.send('terminal:ack', id, chars) },
+    kill: (id: string): Promise<boolean> => ipcRenderer.invoke('terminal:kill', id),
+    list: (): Promise<{
+      id: string; profileId: string; pid: number; alive: boolean; exitCode: number | null
+    }[]> => ipcRenderer.invoke('terminal:list'),
+    onData: (callback: (id: string, data: string) => void): (() => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, p: { id: string; data: string }): void =>
+        callback(p.id, p.data)
+      ipcRenderer.on('terminal:data', listener)
+      return () => ipcRenderer.removeListener('terminal:data', listener)
+    },
+    onExit: (
+      callback: (id: string, exitCode: number, signal: number | null) => void,
+    ): (() => void) => {
+      const listener = (
+        _e: Electron.IpcRendererEvent,
+        p: { id: string; exitCode: number; signal: number | null },
+      ): void => callback(p.id, p.exitCode, p.signal)
+      ipcRenderer.on('terminal:exit', listener)
+      return () => ipcRenderer.removeListener('terminal:exit', listener)
+    }
   }
 })

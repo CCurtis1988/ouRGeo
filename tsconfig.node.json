@@ -15,6 +15,7 @@
     "electron/**/*",
     // Pure helpers shared with the main process. They live under src/ so the
     // renderer's Vitest suite covers them; the main process imports them.
-    "src/lib/markdown/knit-errors.ts"
+    "src/lib/markdown/knit-errors.ts",
+    "src/lib/terminal/shells.ts"
   ]
 }

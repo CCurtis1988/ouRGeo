@@ -21,6 +21,16 @@ export default tseslint.config(
     }
   },
 
+  // Build-time scripts: plain Node ESM, run by npm before electron-builder.
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
+      ecmaVersion: 'latest',
+      sourceType: 'module'
+    }
+  },
+
   // Base + TypeScript recommended rules for all TS/TSX source
   js.configs.recommended,
   ...tseslint.configs.recommended,

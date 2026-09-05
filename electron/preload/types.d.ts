@@ -26,6 +26,23 @@ interface ForumCategory {
   minRoleToPost: string
 }
 
+/** A shell the Terminal panel can open, as main found it on this machine. */
+export interface TerminalShellProfile {
+  id: string
+  label: string
+  path: string
+  args: string[]
+}
+
+/** A live shell session, for reconciling the panel after a reload. */
+export interface TerminalInfo {
+  id: string
+  profileId: string
+  pid: number
+  alive: boolean
+  exitCode: number | null
+}
+
 export interface VoiceModelStatus {
   id: string
   label: string
@@ -191,6 +208,27 @@ declare global {
         ): Promise<{ ok: boolean; error?: string }>
         modelCancel(id: string): Promise<boolean>
         modelRemove(id: string): Promise<boolean>
+      }
+      terminal: {
+        available(): Promise<{ ok: boolean; error?: string }>
+        shells(): Promise<TerminalShellProfile[]>
+        create(req: {
+          profileId?: string | null; cwd?: string | null; cols?: number; rows?: number
+        }): Promise<{
+          ok: boolean; id?: string; profile?: TerminalShellProfile; error?: string
+        }>
+        attach(id: string): Promise<{
+          ok: boolean; replay?: string; alive?: boolean; exitCode?: number | null; error?: string
+        }>
+        write(id: string, data: string): void
+        resize(id: string, cols: number, rows: number): void
+        ack(id: string, chars: number): void
+        kill(id: string): Promise<boolean>
+        list(): Promise<TerminalInfo[]>
+        onData(callback: (id: string, data: string) => void): () => void
+        onExit(
+          callback: (id: string, exitCode: number, signal: number | null) => void,
+        ): () => void
       }
     }
   }

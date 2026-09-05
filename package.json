@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.12.6",
+  "version": "1.12.7",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -17,15 +17,18 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder",
-    "package:linux": "electron-vite build && electron-builder --linux",
-    "package:win": "electron-vite build && electron-builder --win",
+    "check:pty": "node scripts/check-pty.mjs",
+    "package": "npm run check:pty && electron-vite build && electron-builder",
+    "package:linux": "npm run check:pty linux && electron-vite build && electron-builder --linux",
+    "package:win": "npm run check:pty win32 && electron-vite build && electron-builder --win",
+    "package:mac": "npm run check:pty darwin && electron-vite build && electron-builder --mac",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit tsconfig.node.json tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@lydell/node-pty": "1.2.0-beta.15",
     "@milkdown/kit": "^7.22.1",
     "@milkdown/react": "^7.22.1",
     "@monaco-editor/react": "^4.6.0",
@@ -100,6 +103,9 @@
     "files": [
       "out/**/*",
       "r/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/@lydell/node-pty*/**"
     ],
     "extraResources": [
       {
