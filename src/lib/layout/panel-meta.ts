@@ -50,7 +50,16 @@ const BUILTIN: PanelInfo[] = [
   // placement.ts. One instance: the panel owns a set of shell sessions with its
   // own tab strip, so "another terminal" is another tab rather than another
   // panel, exactly as another document is another editor tab.
-  { id: 'terminal', label: 'Terminal', storeKey: 'terminal', hostsTabs: true, min: 80, defaultZone: 'bottom', defaultOrder: 1, defaultOpen: false },
+  //
+  // `essential` for the same reason the console needs no flag: there is no
+  // toolbar button any more, so the TAB is how you reach the terminal, and a
+  // closed terminal would be a panel with nothing left to open it. It costs
+  // nothing to leave open — in a tabbed zone only the active panel renders, so
+  // no shell is spawned until the tab is actually clicked. What `essential`
+  // also buys is the migration: a layout.json written while the button existed
+  // says `open.terminal: false`, and step 3 of `normalize` opens it on load
+  // rather than stranding it.
+  { id: 'terminal', label: 'Terminal', storeKey: 'terminal', essential: true, hostsTabs: true, min: 80, defaultZone: 'bottom', defaultOrder: 1, defaultOpen: true },
   { id: 'plots', label: 'Plots', storeKey: 'plots', min: 240, defaultZone: 'right', defaultOrder: 0, defaultOpen: false },
   { id: 'spatial', label: 'Spatial Editor', storeKey: 'spatial', min: 300, defaultZone: 'right', defaultOrder: 1, defaultOpen: false },
   { id: 'ai', label: 'AI Assistant', storeKey: 'ai', min: 280, defaultZone: 'right', defaultOrder: 2, defaultOpen: false },

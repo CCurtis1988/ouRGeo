@@ -14,7 +14,7 @@
 
 import {
   FolderOpen, Save, SaveAll, Package, Layers, Globe, FolderInput, Circle,
-  ImageIcon, Cloud, Bot, Wrench, HelpCircle, Database, SquareTerminal,
+  ImageIcon, Cloud, Bot, Wrench, HelpCircle, Database,
   type LucideIcon,
 } from 'lucide-react'
 import type { DialogId } from '@/store/ui'
@@ -67,7 +67,6 @@ const BUILTIN: ToolbarButtonDef[] = [
   { id: 'toolbox', targetId: 'toolbar.toolbox', label: 'Toolbox', icon: Wrench, dialog: 'toolbox' },
   { id: 'ai', targetId: 'toolbar.ai', label: 'AI Assistant', icon: Bot, panel: 'ai' },
   { id: 'record', targetId: 'toolbar.record', label: 'Record Console', icon: Circle, command: 'record' },
-  { id: 'terminal', targetId: 'toolbar.terminal', label: 'Toggle Terminal', icon: SquareTerminal, panel: 'terminal' },
   { id: 'spatial', targetId: 'toolbar.spatial', label: 'Toggle Spatial Editor', icon: Globe, panel: 'spatial' },
   { id: 'plots', targetId: 'toolbar.plots', label: 'Toggle Plotting Preview', icon: ImageIcon, panel: 'plots' },
   { id: 'help', targetId: 'toolbar.help', label: 'Help', icon: HelpCircle, panel: 'help' },

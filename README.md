@@ -56,8 +56,9 @@ the whole analysis.
   and remove the extra when you are done — **removing never closes a document**, they move to the editor that
   remains. Only a panel you added can be removed; the ones ouRGeo ships are
   hidden and shown from the toolbar instead.
-- **A real terminal.** Your own shell — bash, zsh, fish, PowerShell — as a tab
-  beside the R console, with as many tabs as you like, full colour, search
+- **A real terminal.** Your own shell — bash, zsh, fish, PowerShell — always a
+  tab beside the R console (no button to hunt for; nothing starts until you
+  click it), with as many tabs as you like, full colour, search
   (Ctrl+Shift+F) and a font size that follows Ctrl+= / Ctrl+-. It shares one
   header row with the console — `R console | Terminal` — rather than stacking a
   tab strip on top of one. It opens in R's working directory, and clicking the

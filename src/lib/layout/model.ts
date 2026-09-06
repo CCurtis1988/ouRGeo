@@ -184,7 +184,11 @@ export function defaultLayout(panels: PanelMeta[]): LayoutState {
       left: emptyZone('col', 260),
       center: emptyZone('col', 0),
       right: emptyZone('row', 460),
-      bottom: emptyZone('row', 240),
+      // The bottom strip ships TABBED, because the console and the terminal
+      // both ship in it and the shipped arrangement is a tab (see
+      // lib/terminal/placement.ts). Split, a fresh install would open with a
+      // shell running beside the console that nobody asked for.
+      bottom: { ...emptyZone('row', 240), mode: 'tabs' as const },
     },
     open: {},
     toolbar: { order: [], hidden: [] },

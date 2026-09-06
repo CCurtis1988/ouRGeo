@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Folder, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
+import { ElidedPath } from '@/components/ui/elided-path'
 import { useTerminalStore } from '@/store/terminal'
 import { useSessionStore } from '@/store/session'
 import { refreshCwd, writeToSession } from '@/lib/terminal/sessions'
@@ -13,6 +14,18 @@ import { goToRWorkingDir, setRWorkingDirFromShell, quoteForShell } from '@/lib/t
 // same shape: the path IS the control. Clicking it opens the one menu that does
 // everything you can do with a directory — change it, copy it, open it in the
 // file manager, or reconcile it with R's.
+//
+// **It is drawn identically**, down to the shared `ElidedPath`, the mono face
+// and the size. The two sit inches apart in the same strip — one when the
+// console tab is in front, one when the terminal is — and a user reading the
+// bottom of the window should see one kind of thing that says where you are,
+// not two that differ in font for no reason they can name.
+//
+// **What it shows is the SHELL's directory and only ever that.** It used to
+// tint amber when the shell and R had drifted apart, which meant the one place
+// that answers "where is this shell?" was also, quietly, reporting on R. The
+// two directions between them are still in the menu below, where they are
+// actions with both paths spelled out — that is where a comparison belongs.
 //
 // It is not the same COMPONENT, though, and that is the interesting part. R's
 // working directory is a value ouRGeo owns and can set (`/session/setwd`); a
@@ -92,35 +105,33 @@ export function TerminalDirBar({ sessionId }: { sessionId: string }): React.Reac
 
   if (!session) return null
 
-  // Highlighted when the two have drifted apart, because that is the moment
-  // the menu below has something worth doing — and the moment a relative path
-  // means two different things in the two halves of this pane.
-  const diverged = !!cwd && !!rDir && cwd !== rDir
-
   return (
-    <>
+    <div className="min-w-0 flex-1">
       <button
         type="button"
         onClick={open}
         onContextMenu={open}
         title={cwd
-          ? `${cwd}${diverged ? `\nR is in ${rDir}` : ''}\nClick for directory actions`
+          ? `Shell directory\n${cwd}\n\nClick for directory actions`
           : 'This shell has not reported a directory'}
         data-ourgeo-id="terminal.workingDir"
+        aria-label={cwd ? `Shell directory: ${cwd}` : 'Shell directory unknown'}
         className={cn(
-          'flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors',
-          'hover:bg-geo-bg',
-          diverged ? 'text-geo-warning' : 'text-geo-muted hover:text-foreground',
+          'flex w-full items-center gap-1.5 rounded px-1.5 py-0.5 text-xs transition-colors',
+          'text-geo-muted hover:bg-geo-bg hover:text-foreground',
+          menu ? 'bg-geo-bg text-foreground' : '',
         )}
       >
         {copied
           ? <Check className="h-3 w-3 flex-shrink-0 text-geo-success" />
           : <Folder className="h-3 w-3 flex-shrink-0" />}
-        <span className="truncate">{cwd ?? 'unknown directory'}</span>
+        {cwd
+          ? <ElidedPath path={cwd} className="font-mono text-left" />
+          : <span className="flex-1 truncate text-left">unknown directory</span>}
       </button>
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
       )}
-    </>
+    </div>
   )
 }

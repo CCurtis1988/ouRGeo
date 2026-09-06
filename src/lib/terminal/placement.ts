@@ -67,9 +67,14 @@ export function placeTerminal(layout: LayoutState, placement: TerminalPlacement)
 /**
  * Honour the placement without ever moving the panel.
  *
- * Run when the Terminal panel opens, which is the moment the preference first
- * has anything to apply to: a workspace built before the terminal existed has
- * it in the bottom strip in `split` mode, and the default is a tab.
+ * Run once at startup, which is the moment the preference first has anything
+ * to apply to: a workspace built before the terminal existed has it in the
+ * bottom strip in `split` mode, and the default is a tab.
+ *
+ * `front` is what separates the two callers. An explicit "open the terminal"
+ * has to SHOW it — a tab opened behind the console looks exactly like a button
+ * that did nothing — but startup must not, or every launch would come up with
+ * the shell in front of the console the user was reading.
  *
  * The guard is the whole point. It only touches a zone the terminal and the
  * console are BOTH in — so a user who has dragged the terminal to the right
@@ -79,18 +84,15 @@ export function placeTerminal(layout: LayoutState, placement: TerminalPlacement)
  * put.
  */
 export function alignTerminalMode(
-  layout: LayoutState, placement: TerminalPlacement,
+  layout: LayoutState, placement: TerminalPlacement, front = true,
 ): LayoutState {
   const zone = zoneOf(layout, TERMINAL_PANEL)
   if (!zone || zone !== zoneOf(layout, CONSOLE_PANEL)) return layout
   const want = modeFor(placement)
-  if (layout.zones[zone].mode === want) {
-    // Already arranged; still make sure a tab that is behind the console is
-    // brought to the front, or opening the panel shows no terminal at all.
-    return placement === 'tab' ? setActivePanel(layout, TERMINAL_PANEL) : layout
-  }
-  const next = setZoneMode(layout, zone, want)
-  return placement === 'tab' ? setActivePanel(next, TERMINAL_PANEL) : next
+  const show = (l: LayoutState): LayoutState =>
+    (front && placement === 'tab' ? setActivePanel(l, TERMINAL_PANEL) : l)
+  if (layout.zones[zone].mode === want) return show(layout)
+  return show(setZoneMode(layout, zone, want))
 }
 
 /** Whether the terminal is currently arranged the way `placement` describes —

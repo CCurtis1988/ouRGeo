@@ -9,9 +9,7 @@ import {
   adoptRunningSessions, closeSession, ensureSession, openSession, interruptSession,
   refreshCwd,
 } from '@/lib/terminal/sessions'
-import { alignTerminalMode } from '@/lib/terminal/placement'
 import { goToRWorkingDir, setRWorkingDirFromShell } from '@/lib/terminal/r-link'
-import { useLayoutStore } from '@/store/layout'
 import { ZoneTabs } from '../layout/ZoneTabs'
 import { usePanelDrawsTabs } from '@/hooks/useZoneTabs'
 import { usePanelId } from '../layout/panel-context'
@@ -128,7 +126,9 @@ function TabStrip({ onMenu }: { onMenu: (m: MenuState) => void }): React.ReactEl
   }, [onMenu, workingDir])
 
   return (
-    <div className="flex items-center gap-0.5 min-w-0 flex-1 overflow-x-auto">
+    // Sized by its tabs, not `flex-1`: the space left over belongs to the
+    // directory, which is the one thing in this row that grows usefully.
+    <div className="flex items-center gap-0.5 min-w-0 shrink overflow-x-auto">
       {sessions.map((s) => (
         <div
           key={s.id}
@@ -255,14 +255,11 @@ export function TerminalPanel(): React.ReactElement {
     started.current = true
     void (async () => {
       await loadPrefs()
-      // The placement preference has nothing to apply to until the panel is
-      // open, and this is that moment: a workspace built before the terminal
-      // existed has it in the bottom strip in `split`, and the default is a
-      // tab. `alignTerminalMode` never MOVES the panel, so a terminal the user
-      // has dragged elsewhere is left exactly where they put it.
-      const { placement } = useTerminalStore.getState().prefs
-      useLayoutStore.getState().transform((l) => alignTerminalMode(l, placement))
-
+      // The placement preference is applied once at startup (EditorLayout) and
+      // whenever the setting is changed — deliberately NOT here. Mounting is
+      // what happens when the user clicks the Terminal tab, and re-arranging
+      // the zone at that moment would undo a split the user had set up by hand
+      // every time they looked at their shell.
       const availability = await window.electronAPI.terminal.available()
       setChecked(true)
       if (!availability.ok) {

@@ -38,6 +38,8 @@ import {
   loadLayout, saveLayoutFile, loadPresets, loadDragEnabled, type LayoutPreset,
 } from '@/lib/layout-persistence'
 import { buildLayoutFile, layoutFileName, parseLayoutFile } from '@/lib/layout/layout-file'
+import { loadTerminalPreferences } from '@/lib/terminal-preferences-persistence'
+import { alignTerminalMode } from '@/lib/terminal/placement'
 import { useEnvironmentStore } from './environment'
 import { usePackagesStore } from './packages'
 import { useDatabaseStore } from './database'
@@ -214,10 +216,23 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
 
     init: async () => {
       if (get().loaded) return
-      const [stored, presets, dragEnabled] = await Promise.all([
-        loadLayout(), loadPresets(), loadDragEnabled(),
+      const [stored, presets, dragEnabled, terminal] = await Promise.all([
+        loadLayout(), loadPresets(), loadDragEnabled(), loadTerminalPreferences(),
       ])
-      const base = normalize(stored ?? defaultLayout(panelInfoList()), panelInfoList())
+      // The terminal's placement is the one preference that arranges a ZONE
+      // rather than a panel, and it has to be applied HERE, before the first
+      // render — not from the panel, and not from an effect afterwards. A
+      // stored layout whose bottom strip is `split` (every layout written
+      // before the terminal shipped) would otherwise mount the Terminal panel
+      // for one frame, and mounting it spawns a shell: `terminal.list()` came
+      // back with a pty nobody had asked for on a launch that never showed a
+      // terminal. `alignTerminalMode` never MOVES the panel, and `front` is
+      // false so a launch never comes up with the shell over the console.
+      const base = alignTerminalMode(
+        normalize(stored ?? defaultLayout(panelInfoList()), panelInfoList()),
+        terminal.placement,
+        false,
+      )
       set({ layout: base, presets, dragEnabled, loaded: true })
       // Restore, then hand ownership back: every subsequent change flows
       // feature store → mirror. Panels that opened themselves while the file

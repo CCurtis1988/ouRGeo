@@ -28,7 +28,7 @@ ouRGeo is a desktop spatial IDE: an open-source alternative to ArcGIS Pro that k
 
 ### The layout
 
-A top toolbar; a left column (Environment, Packages, Databases); a centre column (the Monaco code editor above, the R console below, with a Terminal tabbed beside it); a right column (Spatial Editor, Plots, AI chat, Help). Panels toggle from the toolbar. The project menu sits far right, with the R status dot.
+A top toolbar; a left column (Environment, Packages, Databases); a centre column (the Monaco code editor above, the R console below, with a Terminal tabbed beside it); a right column (Spatial Editor, Plots, AI chat, Help). Panels toggle from the toolbar — except the Terminal, which has no button: it is always there as a tab beside the R console. The project menu sits far right, with the R status dot.
 
 ### What you can do
 
@@ -70,7 +70,7 @@ The result text is the truth — read it before reacting; it usually says what t
 const BUILTIN_TOPICS: Record<string, string> = {
   terminal: `# The terminal
 
-A real pseudo-terminal running the user's own shell — bash, zsh, fish, PowerShell, whatever they use — tabbed with the R console by default. It has its own tab strip: one panel, many shells, the way the code editor holds many documents. **Settings → Terminal** has a switch that gives it its own pane beside the console instead, so both are visible at once (point at it with \`ui:highlight\`, target \`settings.terminalPlacement\`); after that the user is free to drag it anywhere and it stays put.
+A real pseudo-terminal running the user's own shell — bash, zsh, fish, PowerShell, whatever they use — tabbed with the R console by default. It has its own tab strip: one panel, many shells, the way the code editor holds many documents. There is no toolbar button for it: the tab IS how it is reached, and it is always open — but nothing spawns a shell until the tab is actually clicked, so \`ui:panel\` has nothing to open. **Settings → Terminal** has a switch that gives it its own pane beside the console instead, so both are visible at once (point at it with \`ui:highlight\`, target \`settings.terminalPlacement\`); after that the user is free to drag it anywhere and it stays put.
 
 ## Before you reach for it
 

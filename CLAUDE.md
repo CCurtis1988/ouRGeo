@@ -1798,14 +1798,48 @@ directory — but R's working directory is a value ouRGeo owns and can set, whil
 a shell's is a fact about a process we can only read, and the way to change it
 is to type `cd` and hope. One component with a prop deciding which of those each
 menu item meant would have been worse than two. It polls (2s, a `readlink` in
-main) while its tab is on screen, and turns warning-coloured when the shell and
-R have drifted apart — which is the moment its bottom two items have something
-to do.
+main) while its tab is on screen.
+
+**They are DRAWN identically**, though, down to the shared `ElidedPath`
+(`components/ui/elided-path.tsx`, lifted out of `WorkingDirBar`), the mono face
+and the size: the two sit inches apart in the same strip — one when the console
+tab is in front, one when the terminal is, and both at once in split — so a
+user reading the bottom of the window should see one kind of thing that says
+where you are, not two that differ in font for no reason they can name.
+
+**It shows the SHELL's directory and only ever that.** It used to tint amber
+when the shell and R had drifted apart, which made the one place that answers
+"where is this shell?" also, quietly, a report on R. The two directions between
+them are still in its menu, where they are actions with both paths spelled
+out — which is where a comparison belongs.
 
 ### Placement, and the setting
 
-`terminal` is an ordinary panel (bottom zone, order 1, closed by default) with a
-toolbar button. `lib/terminal/placement.ts` is pure and holds two operations:
+`terminal` is an ordinary panel (bottom zone, order 1) and — since v1.12.13 —
+has **no toolbar button**. The tab beside "R console" is how you reach it, which
+is why the panel is `essential`: a closed terminal would be a panel with nothing
+left to open it. It costs nothing to leave open, because in a tabbed zone only
+the ACTIVE panel renders, so no shell is spawned until the tab is clicked.
+`essential` is also the migration — every `layout.json` written while the button
+existed says `open.terminal: false`, and step 3 of `normalize` opens it on load.
+
+Two consequences that were bugs first:
+
+- **The bottom strip now ships `tabs`**, not `split`. The zone default was
+  invisible while the terminal was closed; with it open, a fresh install would
+  have come up with a shell running beside the console that nobody asked for.
+- **The placement preference is applied in `useLayoutStore.init`**, before the
+  first render — not from the panel's mount effect, and not from an effect
+  afterwards. A stored layout whose bottom strip is `split` mounts the Terminal
+  panel for one frame, and mounting it spawns a shell: `terminal.list()` came
+  back with a pty on a launch that never showed a terminal. It is the one
+  terminal-shaped special case in the layout store, and it is there because
+  that is where the file becomes what is on screen. `alignTerminalMode` takes
+  `front` for the same reason: an explicit open must SHOW the terminal, a
+  startup must not, or every launch would come up with the shell in front of
+  the console the user was reading.
+
+`lib/terminal/placement.ts` is pure and holds two operations:
 
 - `placeTerminal` — what the **Settings switch** does. An explicit "arrange it
   like this", so it moves the panel even from another zone, and it follows the

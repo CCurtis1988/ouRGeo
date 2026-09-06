@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom'
 import { Folder, FolderOpen, Check, Copy, ExternalLink, RefreshCw } from 'lucide-react'
 import { useSessionStore } from '@/store/session'
-import {
-  changeWorkingDir, refreshWorkingDir, loadRecentDirs, elidePath,
-} from '@/lib/working-dir'
+import { changeWorkingDir, refreshWorkingDir, loadRecentDirs } from '@/lib/working-dir'
+import { ElidedPath } from '@/components/ui/elided-path'
 
 // The working directory, shown where relative paths are typed.
 //
@@ -17,52 +16,6 @@ import {
 // The path is spelled out in full whenever it fits, and elided by whole
 // segments when it does not (see `elidePath`). The untruncated path is always
 // one hover away in the tooltip and always shown in full at the top of the menu.
-
-/**
- * A path shortened to whatever width it is given.
- *
- * Measured against a canvas in the element's own font rather than left to CSS,
- * because `text-overflow: ellipsis` cuts the END off — and the end of a path is
- * the part that names the directory. The `direction: rtl` trick that truncates
- * the other way reorders the separators, which on a path is worse than either.
- */
-function ElidedPath({ path, className }: { path: string; className?: string }): React.ReactElement {
-  const boxRef = useRef<HTMLSpanElement>(null)
-  const canvas = useRef<HTMLCanvasElement | null>(null)
-  const [shown, setShown] = useState(path)
-
-  // Laid out before paint, so the label never flashes at full width first.
-  useLayoutEffect(() => {
-    const box = boxRef.current
-    if (!box) { setShown(path); return }
-    const fit = (): void => {
-      canvas.current ??= document.createElement('canvas')
-      const ctx = canvas.current.getContext('2d')
-      const available = box.clientWidth
-      if (!ctx || available === 0) { setShown(path); return }
-      const style = getComputedStyle(box)
-      ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
-      setShown(elidePath(path, (c) => ctx.measureText(c).width <= available))
-    }
-    fit()
-    const ro = new ResizeObserver(fit)
-    ro.observe(box)
-    return () => ro.disconnect()
-  }, [path])
-
-  // `flex-1` is load-bearing, not styling. Without it this box is sized by its
-  // own text, so measuring it measures the elided string rather than the space
-  // available — the label shrinks once and can never grow back, because the
-  // ResizeObserver only ever sees the width the short text produced.
-  return (
-    <span
-      ref={boxRef}
-      className={`block min-w-0 flex-1 overflow-hidden whitespace-nowrap ${className ?? ''}`}
-    >
-      {shown}
-    </span>
-  )
-}
 
 export function WorkingDirBar(): React.ReactElement | null {
   const workingDir = useSessionStore((s) => s.workingDir)

@@ -18,8 +18,28 @@ describe('where the terminal starts', () => {
     expect(zoneOf(layout, TERMINAL_PANEL)).toBe(zoneOf(layout, CONSOLE_PANEL))
   })
 
-  it('ships closed — opening the panel is what starts a shell', () => {
-    expect(isOpen(fresh(), TERMINAL_PANEL)).toBe(false)
+  it('ships open, because its tab is the only way to reach it', () => {
+    // There is no toolbar button any more. In a tabbed zone only the ACTIVE
+    // panel renders, so an open terminal nobody has clicked still spawns no
+    // shell — what "open" buys is the tab beside "R console".
+    expect(isOpen(fresh(), TERMINAL_PANEL)).toBe(true)
+  })
+
+  it('ships tabbed, not split', () => {
+    // The default zone mode was `split`, which was invisible while the
+    // terminal was closed and would have opened every fresh install with a
+    // shell running beside the console.
+    const layout = fresh()
+    expect(layout.zones[zoneOf(layout, TERMINAL_PANEL)!].mode).toBe('tabs')
+    expect(layout.zones.bottom.active).toBe(CONSOLE_PANEL)
+  })
+
+  it('reopens a terminal a stored layout had closed', () => {
+    // The migration: every layout.json written while the toolbar button
+    // existed says `open.terminal: false`, and without this it would name a
+    // panel with nothing left to open it.
+    const stored = { ...fresh(), open: { ...fresh().open, [TERMINAL_PANEL]: false } }
+    expect(isOpen(normalize(stored, PANELS), TERMINAL_PANEL)).toBe(true)
   })
 
   it('follows the console rather than the bottom strip', () => {
@@ -88,6 +108,14 @@ describe('the alignment applied when the panel opens', () => {
   it('does nothing when the arrangement already matches', () => {
     const tabbed = placeTerminal(fresh(), 'split')
     expect(alignTerminalMode(tabbed, 'split')).toBe(tabbed)
+  })
+
+  it('leaves the console in front when it is not an explicit open', () => {
+    // What runs at startup. Fronting the terminal there would mean every
+    // launch came up with the shell over the console the user was reading.
+    const behind = { ...placeTerminal(fresh(), 'tab') }
+    behind.zones = { ...behind.zones, bottom: { ...behind.zones.bottom, active: CONSOLE_PANEL } }
+    expect(alignTerminalMode(behind, 'tab', false).zones.bottom.active).toBe(CONSOLE_PANEL)
   })
 
   it('still fronts the tab when the zone is already tabbed', () => {

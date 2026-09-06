@@ -31,7 +31,21 @@ import { ok, fail, argStr, argBool, type UiAction } from './types'
 // deliberately, and the editor with it. An assistant that can close its own
 // panel can end the conversation it is having, and one that can close the
 // editor can leave the user with nowhere to type.
-const UNTOGGLABLE = new Set(['ai', 'editor'])
+// The `terminal` joins them for a different reason: it has no toolbar button
+// any more and is always open, so there is no toggle to expose — and a model
+// that "closed" it would be reporting something `normalize` immediately undoes.
+const UNTOGGLABLE = new Set(['ai', 'editor', 'terminal'])
+
+/** Why each of them is not a toggle. A model told "Unknown panel" about a
+ *  panel it can plainly see in `ui:describe` retries the same call with a
+ *  different spelling; told the reason, it does the right thing instead. */
+const WHY_UNTOGGLABLE: Record<string, string> = {
+  ai: 'The AI Assistant panel is the one we are talking in, so it is not mine to open or close.',
+  editor: 'The code editor is always open — the workspace is never without somewhere to type.',
+  terminal: 'The Terminal is always available as a tab in the R console\u2019s pane, so there is '
+    + 'nothing to open. Use terminal:open to start a shell and bring it to the front, or '
+    + 'layout:movePanel to put the panel somewhere else.',
+}
 
 function togglablePanels(): PanelInfo[] {
   return panelInfoList().filter((p) => !UNTOGGLABLE.has(p.id))
@@ -66,7 +80,12 @@ export const uiActions: UiAction[] = [
     run: (args) => {
       const want = argStr(args, 'panel')
       const panel = resolvePanel(want)
-      if (!panel) return fail(`Unknown panel "${want}". Valid panels: ${panelIds().join(', ')}.`)
+      if (!panel) {
+        const fixed = resolvePanelName(want)
+        const why = fixed && WHY_UNTOGGLABLE[fixed.id]
+        if (why) return fail(why)
+        return fail(`Unknown panel "${want}". Valid panels: ${panelIds().join(', ')}.`)
+      }
       const layoutStore = useLayoutStore.getState()
       const open = isOpen(layoutStore.layout, panel.id)
       const state = argStr(args, 'state', 'open')
