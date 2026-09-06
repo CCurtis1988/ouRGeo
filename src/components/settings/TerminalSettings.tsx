@@ -1,15 +1,20 @@
 import React, { useEffect, useState } from 'react'
 import { Switch } from '../ui/switch'
 import { useTerminalStore } from '@/store/terminal'
+import { useLayoutStore } from '@/store/layout'
+import { placeTerminal, terminalIsPlaced } from '@/lib/terminal/placement'
 import type { ShellProfile } from '@/lib/terminal/shells'
 import { cn } from '@/lib/utils'
 
 // Settings → Terminal.
 //
-// Where the terminal SITS is in Settings → Workspace with the rest of the
-// arrangement, not here: that is a fact about the workspace, and a user
-// looking for it goes where the other panel settings are. This section is
-// about the shell and how it is drawn.
+// Where the terminal SITS leads, because it is the question people arrive
+// with — the panel opens as a tab beside the R console, and "can I have both
+// at once?" is asked long before anyone changes their cursor style. It lived
+// in Settings → Workspace with the rest of the arrangement for one release,
+// on the argument that a panel's position is a workspace fact; in practice a
+// user looking for a terminal setting opens the Terminal section and finds
+// nothing. The rest of this section is the shell and how it is drawn.
 
 const FONT_MIN = 8
 const FONT_MAX = 32
@@ -36,6 +41,48 @@ function Row({ label, hint, children }: {
       </div>
       <div className="flex-shrink-0">{children}</div>
     </div>
+  )
+}
+
+/**
+ * Where the Terminal sits relative to the R console.
+ *
+ * The switch READS the arrangement rather than the stored preference, so it
+ * tells the truth about the workspace: drag the terminal to the right column
+ * and it reads off, which is honest — it is beside nothing.
+ *
+ * Flipping it moves the panel NOW and remembers the choice for next time. What
+ * it deliberately does not do is re-assert itself: the user is free to drag the
+ * terminal anywhere afterwards and ouRGeo leaves it there. A setting that put
+ * it back on every launch would be undoing the user's own arrangement, which
+ * is the opposite of what a workspace preference is for.
+ */
+function TerminalPlacementRow(): React.ReactElement {
+  const layout = useLayoutStore((s) => s.layout)
+  const transform = useLayoutStore((s) => s.transform)
+  const setPlacement = useTerminalStore((s) => s.setPlacement)
+  const split = terminalIsPlaced(layout, 'split')
+
+  return (
+    <Row
+      label="Give the terminal its own pane"
+      hint={'Off, the terminal is a tab in the R console\u2019s pane. On, it sits beside the '
+        + 'console so both are visible at once. Either way this moves it now and remembers '
+        + 'the choice \u2014 drag it anywhere you like afterwards and it stays there. Tabs and '
+        + 'splits are a property of the whole pane, so anything else sharing it follows along.'}
+    >
+      <Switch
+        checked={split}
+        onChange={(next) => {
+          const placement = next ? 'split' : 'tab'
+          setPlacement(placement)
+          transform((l) => placeTerminal(l, placement))
+        }}
+        data-ourgeo-id="settings.terminalPlacement"
+        label=""
+        className="w-auto"
+      />
+    </Row>
   )
 }
 
@@ -74,6 +121,8 @@ export function TerminalSettings(): React.ReactElement {
 
   return (
     <div className="flex flex-col divide-y divide-geo-border">
+      <TerminalPlacementRow />
+
       <Row
         label="Shell"
         hint="What a new terminal opens. Only shells found on this machine are listed."

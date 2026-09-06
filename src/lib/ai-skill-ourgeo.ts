@@ -70,7 +70,7 @@ The result text is the truth — read it before reacting; it usually says what t
 const BUILTIN_TOPICS: Record<string, string> = {
   terminal: `# The terminal
 
-A real pseudo-terminal running the user's own shell — bash, zsh, fish, PowerShell, whatever they use — tabbed with the R console by default. It has its own tab strip: one panel, many shells, the way the code editor holds many documents.
+A real pseudo-terminal running the user's own shell — bash, zsh, fish, PowerShell, whatever they use — tabbed with the R console by default. It has its own tab strip: one panel, many shells, the way the code editor holds many documents. **Settings → Terminal** has a switch that gives it its own pane beside the console instead, so both are visible at once (point at it with \`ui:highlight\`, target \`settings.terminalPlacement\`); after that the user is free to drag it anywhere and it stays put.
 
 ## Before you reach for it
 

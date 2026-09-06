@@ -11,8 +11,6 @@ import {
   addPanelInstance, removalSummary, removePanelInstance,
 } from '@/lib/panel-instances'
 import { useSessionStore } from '@/store/session'
-import { useTerminalStore } from '@/store/terminal'
-import { placeTerminal, terminalIsPlaced } from '@/lib/terminal/placement'
 
 /**
  * Add and remove extra editors.
@@ -148,48 +146,6 @@ function PanelDragToggle(): React.ReactElement {
   )
 }
 
-/**
- * Where the Terminal sits relative to the R console.
- *
- * The switch READS the arrangement rather than the stored preference, so it
- * tells the truth about the workspace: drag the terminal to the right column
- * and both positions read false, which is honest — it is in neither.
- *
- * Flipping it moves the panel NOW and remembers the choice for next time. What
- * it deliberately does not do is re-assert itself: the user is free to drag the
- * terminal anywhere afterwards and ouRGeo leaves it there. A setting that put
- * it back on every launch would be undoing the user's own arrangement, which
- * is the opposite of what a workspace preference is for.
- */
-function TerminalPlacementToggle(): React.ReactElement {
-  const layout = useLayoutStore((s) => s.layout)
-  const transform = useLayoutStore((s) => s.transform)
-  const setPlacement = useTerminalStore((s) => s.setPlacement)
-  const split = terminalIsPlaced(layout, 'split')
-
-  return (
-    <Switch
-      checked={split}
-      onChange={(next) => {
-        const placement = next ? 'split' : 'tab'
-        setPlacement(placement)
-        transform((l) => placeTerminal(l, placement))
-      }}
-      data-ourgeo-id="settings.terminalPlacement"
-      label="Give the terminal its own pane"
-      description={
-        <>
-          Off, the terminal is a tab in the R console’s pane. On, it sits beside the
-          console so both are visible at once. Either way this moves it now and
-          remembers the choice — drag it anywhere you like afterwards and it stays
-          there. Tabs and splits are a property of the whole pane, so anything else
-          sharing it follows along.
-        </>
-      }
-    />
-  )
-}
-
 /** The workspace in one line — what "Save" would be capturing. */
 function summarize(layout: Parameters<typeof openPanels>[0]): string {
   const parts = ZONE_IDS.map((z) => {
@@ -239,8 +195,6 @@ export function LayoutSettings(): React.ReactElement {
   return (
     <div className="flex flex-col gap-4">
       <PanelDragToggle />
-
-      <TerminalPlacementToggle />
 
       <PanelInstances />
 

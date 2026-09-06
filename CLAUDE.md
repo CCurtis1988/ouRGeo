@@ -1810,7 +1810,9 @@ toolbar button. `lib/terminal/placement.ts` is pure and holds two operations:
 - `placeTerminal` — what the **Settings switch** does. An explicit "arrange it
   like this", so it moves the panel even from another zone, and it follows the
   CONSOLE rather than the bottom strip: hard-coding `bottom` would be right until
-  someone moves the console to the left column.
+  someone moves the console to the left column. It also OPENS the panel, since
+  "give the terminal its own pane" and "and don't show it to me" is not a thing
+  anyone means.
 - `alignTerminalMode` — what **opening the panel** does. Never moves anything;
   it only changes the mode of a zone the terminal and console are BOTH in. That
   guard is the difference between a remembered preference and one that fights
@@ -1821,6 +1823,15 @@ toolbar button. `lib/terminal/placement.ts` is pure and holds two operations:
 `useLayoutStore.transform` is the one escape hatch that made this possible
 without a terminal-shaped special case in the layout store — a pure transform,
 applied through the same `apply` as everything else.
+
+**The switch lives in Settings → Terminal, not Settings → Workspace.** It
+shipped in Workspace, on the argument that where a panel sits is a fact about
+the workspace and belongs with the other panel settings — which is true, and
+irrelevant: a user who wants the terminal beside the console opens the Terminal
+section, finds a shell picker and a cursor style, and concludes the arrangement
+cannot be changed. It reads the LAYOUT rather than the stored preference, so a
+terminal dragged to the right column reads off, which is honest — it is beside
+nothing.
 
 ### The assistant
 

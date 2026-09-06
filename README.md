@@ -65,7 +65,7 @@ the whole analysis.
   reconciles it with R's: send R to the shell's directory (echoing `setwd()` to
   the console, like everything else), or type `cd` to R's. The path turns amber
   when the two have drifted apart. Colours follow your code theme; give it its own
-  pane instead of a tab from Settings → Workspace. The AI assistant can use it
+  pane beside the console — instead of a tab in it — from Settings → Terminal. The AI assistant can use it
   too, behind its own switch in the panel footer that is **off until you turn
   it on** — every command it runs is typed into a tab you can watch and logged
   to your console.

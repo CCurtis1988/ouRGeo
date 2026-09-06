@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.12.11",
+  "version": "1.12.12",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",

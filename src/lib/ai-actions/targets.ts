@@ -28,7 +28,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'toolbar.settings', label: 'Settings', where: 'top toolbar, far right' },
   { id: 'settings.themeStudio', label: 'Theme Studio…', where: 'Settings → Appearance, under the app theme cards' },
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
-  { id: 'settings.terminalPlacement', label: 'Give the terminal its own pane', where: 'Settings → Workspace' },
+  { id: 'settings.terminalPlacement', label: 'Give the terminal its own pane', where: 'Settings → Terminal' },
   { id: 'settings.terminalShell', label: 'Terminal shell', where: 'Settings → Terminal' },
   { id: 'settings.panelDrag', label: 'Drag panels to rearrange them', where: 'Settings → Workspace' },
   { id: 'settings.panelInstances', label: 'Add or remove a second editor or map', where: 'Settings → Workspace' },
