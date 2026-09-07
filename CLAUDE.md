@@ -1638,7 +1638,7 @@ revealing device labels, and without it the microphone picker is a list of
 blanks. macOS additionally needs `NSMicrophoneUsageDescription` in
 electron-builder's `mac.extendInfo`, and is asked up front so a blocked
 microphone is visible before the first click.
-## The terminal (v1.12.10)
+## The terminal (v1.13)
 
 A real pseudo-terminal running the user's own shell, tabbed with the R console
 by default. `electron/main/terminal.ts`, `src/lib/terminal/`,
@@ -1815,8 +1815,8 @@ out — which is where a comparison belongs.
 
 ### Placement, and the setting
 
-`terminal` is an ordinary panel (bottom zone, order 1) and — since v1.12.13 —
-has **no toolbar button**. The tab beside "R console" is how you reach it, which
+`terminal` is an ordinary panel (bottom zone, order 1) and — since 1.13 — has
+**no toolbar button**. The tab beside "R console" is how you reach it, which
 is why the panel is `essential`: a closed terminal would be a panel with nothing
 left to open it. It costs nothing to leave open, because in a tabbed zone only
 the ACTIVE panel renders, so no shell is spawned until the tab is clicked.

@@ -16,6 +16,27 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.13',
+    date: 'September 2026',
+    title: 'Run Anything',
+    summary:
+      'A real terminal inside ouRGeo \u2014 your own shell, beside the R console, for the half of the work that was never going to be R.',
+    highlights: [
+      'A Terminal tab beside the R console, always there. It is your own shell \u2014 bash, zsh, fish, PowerShell, whatever you use \u2014 with a real pseudo-terminal behind it, so top, vim, git and colour all work exactly as they do in a terminal window.',
+      'Nothing starts until you click the tab. Open as many shells as you like from the + button, rename them, and pick a different shell from the arrow beside it; the tab shows a dot when a command finishes in one you are not watching.',
+      'It opens in R\u2019s working directory, and the path in the header is a control: click it to change directory, copy it, open it in your file manager, or reconcile the two \u2014 send R to the shell\u2019s directory, or type cd to R\u2019s.',
+      'Colours follow your code theme and the surface follows your app theme, the same way the editor does, so ls looks like it belongs in the window it is in.',
+      'Search with Ctrl+Shift+F, copy and paste with Ctrl+Shift+C/V, and resize the text with Ctrl+= and Ctrl+- \u2014 everything else goes to the shell, including Ctrl+C, Ctrl+R and Ctrl+D.',
+      'Settings \u2192 Terminal gives it its own pane beside the console instead of a tab, so both are visible at once \u2014 and after that you can drag it anywhere and ouRGeo leaves it there.',
+      'Reload the window and your shells are still running, with their scrollback. Close ouRGeo and they are gone: terminal output is never written to disk, not into a project bundle and not into the session file.',
+      'The AI assistant can use it, behind a Terminal switch in the panel footer that ships OFF and works only with Autopilot on. Every command it runs is typed into a tab you are watching and written to your R console.',
+      'It is not a sandbox and is not offered as one \u2014 R\u2019s own system() reaches the same machine. What the switch means is that you decided, once and deliberately, that running commands on your computer is part of what the assistant does. Ask it to do things in R wherever R can do them.',
+      'A second code editor: Settings \u2192 Workspace adds one, and documents drag between the two by their tabs or move with a right-click. Removing an editor never closes a document \u2014 they move to the one that remains.',
+      'Panel drag grips now ship off. They appeared on every panel header on hover, which is a gesture that mostly fires by accident when you did not go looking for it; Settings \u2192 Workspace turns them on and can rearrange everything without them.',
+      'Every on/off setting is now a switch rather than a checkbox, and the whole row is the control \u2014 a settings row takes effect the moment it moves, and there was never an OK button to press.',
+    ],
+  },
+  {
     version: '1.12',
     date: 'September 2026',
     title: 'Say It Out Loud',
