@@ -31,7 +31,7 @@ import { useSpatialSettingsStore } from '@/store/spatialSettings'
 import type { SnapSettings } from '@/store/spatialSettings'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { canComplete, canStartNextPart, canStartHole, getPath } from '@/lib/draw/draft'
-import { parseCadInput } from '@/lib/draw/cad-input'
+import { parseCadInput } from '@/lib/draw/cogo'
 import { RibbonButton, RibbonDivider as Divider } from '../ui/ribbon'
 
 
