@@ -26,6 +26,15 @@ the whole analysis.
   `CURVEPOLYGON` geometry analytically — no densification, no linearization
   error. Curves imported from Esri services are rebuilt as true OGC curves so
   they stay exact end to end.
+- **Distance & Bearing.** Don't eyeball it — type it. A drawing tool that takes
+  a start point and then a distance and a bearing per vertex, in the notation
+  your notes are written in: azimuths, DMS, quadrant bearings (`N45°30'E`),
+  deflections from the last leg (`R90`); metres, feet, US survey feet, chains.
+  Distances are geodesic on the WGS84 ellipsoid — or on the layer's own
+  projected grid, which is what a bearing off a survey plat means, and which
+  ouRGeo picks by default when the layer is projected. It shows where the next
+  vertex lands as you type, reports a ring's closure and its 1:N, and echoes a
+  runnable `ourgeo_traverse()` call when you are done.
 - **87-tool geoprocessing toolbox** across seven categories (table, joins,
   aggregate, type/string, sf, geos, raster), each one generating clean R.
 - **First-class rasters.** R-served XYZ tiles with a full symbology editor —

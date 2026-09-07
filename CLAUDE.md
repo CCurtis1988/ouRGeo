@@ -463,6 +463,103 @@ objects from three angles, and each direction between them lives here.
   rather than leaving it `'Unknown'` for callers that (unlike Add Features)
   never asked `/spatial/list`.
 
+## Distance & Bearing (v1.13)
+
+ourgeo.dev has always said *"don't eyeball it — type it. Enter an absolute
+coordinate, or place the next vertex relative to the last one by distance and
+bearing. Distances are geodesic (measured on the globe), so precision holds
+anywhere on Earth."* What shipped was a 128px text box in the drawing ribbon,
+visible only while the draw tool was up on a non-point layer, speaking one
+syntax (`d150 a45`) — and computing the destination on a **sphere**, which is
+up to half a per cent out against WGS84 and leans every leg the same way. The
+repository's own author could not find it.
+
+- **`lib/draw/cogo.ts` is the whole model, and it is pure.** Vincenty direct
+  and inverse on WGS84, pinned against Vincenty's published example to the
+  millimetre. The inverse solution is not decoration: **a geodesic arrives on a
+  different azimuth than it left on**, so a deflection or an angle right has to
+  turn from `inverse(prevPrev, prev).finalAzimuth`. Driving the app showed it —
+  a 100 m leg's arrival azimuth was 2″ off its departure, and the next leg
+  carried that. Also: the notations a traverse is actually booked in (azimuth,
+  DMS, quadrant, deflection, angle right), and the units it is booked in
+  (metres, feet, **US survey feet** — the unit of most State Plane zones and
+  2 ppm from the international foot), and closure with its 1:N.
+- **An entry that can only mean one thing means it.** `N45°30'E` typed while
+  the notation says Azimuth is a quadrant bearing; `R90` is a deflection.
+  Both were refused at first, with a message complaining about the number,
+  which is how a first traverse ends in the wrong dropdown instead of on the
+  map. A bare `-12` still redirects rather than guessing — it is as likely a
+  mistyped azimuth as a left turn, and guessing wrong puts the leg 24° out
+  with nothing on screen to say so.
+- **A leg is an ordinary vertex append.** The tool (`tools/distance-bearing.ts`)
+  places vertices through the same store calls the draw tool uses, so undo,
+  snapping, Save Edits and the R write know nothing about it. Clicking still
+  works after the first click: a traverse with one eyeballed corner is a real
+  thing, and the tool is about being *able* to type, not forbidden to point.
+- **`traversePath` is a discriminated read, and that is the POINT session.**
+  A line or polygon keeps its trail in the draft, where the ribbon's undo can
+  reach it; a POINT session has no draft at all (each leg commits a row and the
+  geometry goes to the layer), so its trail is the one `store/traverse.ts`
+  keeps. Reading the store for both would go stale under Undo Vertex; reading
+  the draft for both would give a point traverse no trail whatsoever.
+- **The strip is docked, not floating** (`TraverseBar.tsx`): it never covers the
+  geometry it is building and never has to be moved. It **wraps rather than
+  scrolls** — the drawing ribbon below scrolls because a hidden tool can be
+  reached another way, but a hidden "Add leg" is a form with no submit.
+
+### The coordinate system is the feature, not a footnote
+
+A bearing off a survey plat in a projected CRS is measured from GRID north and
+its distance is a GRID distance. Measuring those on the ellipsoid rotates the
+traverse by the grid convergence — up to 3° at a UTM zone edge — and scales it
+by ~1:2500. Both are invisible: the figure closes, it is just in the wrong
+place. So there are two bases, the strip always names which is in force, and a
+projected layer defaults to its own grid with its own unit already selected.
+
+- **The grid arithmetic is R's** (`/spatial/traverse`, `r/lib/handlers-cogo.R`).
+  proj4js in the renderer was the obvious alternative and is wrong twice over:
+  a dependency, and a second projection engine whose disagreement with PROJ over
+  datum shifts would land as metres of silent error when the geometry it
+  produced was transformed BACK to the layer's CRS on save. One engine writes
+  the geometry; the same engine decides where it goes.
+- **The reply carries the frame at the new vertex** — projected position, grid
+  convergence, point scale factor — so the NEXT leg previews on the grid it
+  will be committed on without a round trip per keystroke. `frameAt` is stored
+  beside it because a frame is true of exactly one point and the origin moves;
+  a frame kept alone goes stale silently and previews with the convergence of
+  the last vertex.
+- **`legs: []` is a legitimate question**, not an error: it is how the strip
+  asks for the frame at a start point, so even the first leg previews where it
+  lands. Without it the first grid leg drew geodesically and jumped a metre
+  when R answered.
+- **Convergence and scale are measured, not looked up**: project the vertex and
+  a point a metre north, and see what the projection did. There is no general
+  formula across every projection PROJ supports, and this one is right for a
+  Lambert or an oblique Mercator as much as for a UTM zone.
+- **`json_response` rounded every number to four decimals** — jsonlite's
+  default, and four decimals of longitude is eleven metres. It now takes a
+  `digits` argument that position-carrying handlers pass `NA` to. Nothing else
+  changed: layer geometry never went through it (GeoJSON is spliced in as a
+  pre-built string), which is why this had never surfaced.
+
+### Rule 0, on the one thing the geometry write cannot say
+
+The vertices reach R the way all drawn geometry does — staged, then written by
+the batched `buildBatchedGeometryRCode` statement on Save Edits. What that
+statement cannot carry is that the figure was *measured*: it writes coordinates,
+not the distances and bearings they came from. So finishing a traverse echoes a
+runnable `ourgeo_traverse()` call (`lib/draw/traverse-rcode.ts`) naming the
+origin, the legs and the CRS. It is an `info` entry rather than executed R,
+because running it would build a second geometry nobody asked for.
+
+`ourgeo_traverse()` is defined in `handlers-cogo.R` at startup, so the
+`system_names` snapshot at the end of `server.R` already keeps it out of the
+user's Environment panel and project bundles — the same treatment as
+`ourgeo_calc_crs`, without needing `handle_session_init`'s explicit union. It
+implements the identical Vincenty direct solution as `cogo.ts`; each file names
+the other as the thing it must stay in step with. Verified by driving the app:
+the echoed call reproduced the saved geometry to 7e-13 degrees.
+
 ## Raster Layers (v1.7)
 
 Rasters are first-class end-to-end. `SpatialLayer` is discriminated by

@@ -24,12 +24,15 @@ import { useSessionStore } from '@/store/session'
 import { useUiStore } from '@/store/ui'
 import { rClient } from '@/lib/r-client'
 import { geometryToWKT } from '@/lib/geometry-geojson'
+import { destination, parseBearing, parseDistance, type BearingMode, type DistanceUnit, type TraverseLeg, UNIT_IDS, BEARING_MODE_IDS, incomingAzimuth } from '@/lib/draw/cogo'
+import { buildTraverseRCode } from '@/lib/draw/traverse-rcode'
+import type { Position } from '@/lib/draw/types'
 import { saveEditGroups, discardEditGroups } from '@/lib/save-edits'
-import { ok, fail, argStr, argNum, argJson, argNumList, type UiAction, type ActionResult, type Args } from './types'
+import { ok, fail, argStr, argNum, argBool, argJson, argNumList, type UiAction, type ActionResult, type Args } from './types'
 
 const TOOL_IDS = [
   'select', 'draw', 'edit-vertices', 'move-feature', 'add-point',
-  'rectangle', 'circle', 'freehand', 'trace',
+  'rectangle', 'circle', 'freehand', 'trace', 'distance-bearing',
 ] as const
 
 const isResult = (v: unknown): v is ActionResult =>
@@ -271,6 +274,116 @@ export const drawActions: UiAction[] = [
         `Staged a ${geometry.type} as feature ${newRow + 1} of "${layer.name}". ` +
         'It is on the map and counted in Save Edits, but not yet written to the R object — ' +
         'use draw:saveEdits, or let the user press Save Edits.'
+      )
+    },
+  },
+
+  {
+    id: 'draw:traverse',
+    group: 'draw',
+    tier: 'autopilot',
+    summary:
+      'Build a feature from a start point and a list of distance-and-bearing legs — a traverse, ' +
+      'the way a boundary or a survey line is written down. Staged like any drawn geometry.',
+    params: [
+      { name: 'layer', type: 'string', required: true, description: 'Vector layer to add to.' },
+      {
+        name: 'start', type: 'json', required: true,
+        description: '[longitude, latitude] of the first point.',
+      },
+      {
+        name: 'legs', type: 'json', required: true,
+        description:
+          'Array of legs in order, each {distance, bearing}. `distance` is a number (or a string ' +
+          'with a unit, "150ft"); `bearing` is an azimuth, a DMS azimuth (45°30\'15"), a ' +
+          'quadrant bearing (N45°30\'E) or a deflection from the previous leg (R90, L12°30\').',
+      },
+      {
+        name: 'unit', type: 'enum', values: [...UNIT_IDS], default: 'm',
+        description: 'Unit the distances are in, unless a leg names its own.',
+      },
+      {
+        name: 'notation', type: 'enum', values: [...BEARING_MODE_IDS], default: 'azimuth',
+        description:
+          'How to read a bearing that is not self-describing. `interior` is an angle right, ' +
+          'turned clockwise from the back line.',
+      },
+      {
+        name: 'close', type: 'boolean', default: false,
+        description: 'Return to the start point after the last leg — for a closed boundary.',
+      },
+    ],
+    // Geodesic only, and the summary above says so rather than the tool
+    // pretending otherwise: the layer's own grid needs R per leg, and an
+    // assistant firing a dozen of those into a serial server while the user
+    // waits is a worse trade than one honest basis. The person at the strip
+    // has both.
+    run: async (args) => {
+      const layer = requireVectorLayer(args)
+      if (isResult(layer)) return layer
+      if (layer.tileSource) {
+        return fail(`"${layer.name}" is database-backed. Add rows to the .Rgeo table itself rather ` +
+          'than through the map.')
+      }
+      const start = argJson(args, 'start')
+      if (!Array.isArray(start) || start.length !== 2 || start.some((n) => typeof n !== 'number')) {
+        return fail('`start` must be [longitude, latitude].')
+      }
+      const rawLegs = argJson(args, 'legs')
+      if (!Array.isArray(rawLegs) || rawLegs.length === 0) {
+        return fail('`legs` must be a non-empty array of {distance, bearing}.')
+      }
+
+      const unit = argStr(args, 'unit', 'm') as DistanceUnit
+      const notation = argStr(args, 'notation', 'azimuth') as BearingMode
+      const vertices: Position[] = [start as Position]
+      const legs: TraverseLeg[] = []
+
+      for (let i = 0; i < rawLegs.length; i++) {
+        const leg = rawLegs[i] as { distance?: unknown; bearing?: unknown }
+        const distanceText = String(leg?.distance ?? '')
+        const bearingText = String(leg?.bearing ?? '')
+        const d = parseDistance(distanceText, unit)
+        if (!d.ok) return fail(`Leg ${i + 1}: ${d.error}`)
+        const b = parseBearing(bearingText, notation, incomingAzimuth(vertices))
+        if (!b.ok) return fail(`Leg ${i + 1}: ${b.error}`)
+        vertices.push(destination(vertices[vertices.length - 1], d.value, b.value))
+        legs.push({ distanceText, bearingText, unit, mode: notation, distanceM: d.value, azimuth: b.value })
+      }
+      if (argBool(args, 'close', false)) vertices.push(vertices[0])
+
+      const isPolygon = layer.geometryType.toUpperCase().includes('POLYGON')
+      if (isPolygon && vertices.length < 4) {
+        return fail('A polygon needs at least three legs and a closing leg — pass close: true.')
+      }
+      const geometry: GeoJSON.Geometry = isPolygon
+        ? { type: 'Polygon', coordinates: [vertices[0] === vertices[vertices.length - 1] ? vertices : [...vertices, vertices[0]]] }
+        : { type: 'LineString', coordinates: vertices }
+
+      const code = `${layer.name}[nrow(${layer.name}) + 1L, ] <- NA`
+      const session = useSessionStore.getState()
+      session.addConsoleEntry('input', code)
+      session.addInputHistory(code)
+      const res = await rClient.execute(code)
+      if (!res.success) return fail(res.error ?? `Could not append a row to "${layer.name}".`)
+
+      const meta = metaFor(layer)
+      const newRow = layer.geojson.features.length
+      useSpatialStore.getState().addPendingGeometryEdit(meta, {
+        rowId: newRow, kind: 'row-add', originalGeometry: null,
+      })
+      stageGeometry(layer, newRow, geometry, true)
+
+      // The same echo the strip writes when a hand-typed traverse finishes:
+      // the geometry is staged, and this is the line that says where it came
+      // from, in R the user can re-run.
+      const rcode = buildTraverseRCode(start as Position, legs, 'geodesic', null)
+      if (rcode) session.addConsoleEntry('info', rcode)
+
+      return ok(
+        `Staged a ${geometry.type} of ${legs.length} leg${legs.length === 1 ? '' : 's'} as feature ` +
+        `${newRow + 1} of "${layer.name}", measured geodesically on WGS 84. ` +
+        'It is on the map and counted in Save Edits, but not yet written to the R object.'
       )
     },
   },

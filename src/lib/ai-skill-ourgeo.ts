@@ -194,13 +194,17 @@ A GPU-accelerated MapLibre canvas tied to R objects. **A layer is a view onto an
 
   drawing: `# Drawing and editing geometry
 
-Edit Mode opens a dedicated ribbon with nine tools: select, draw, edit-vertices, move-feature, add-point, rectangle, circle, freehand and trace.
+Edit Mode opens a dedicated ribbon with ten tools: select, draw, edit-vertices, move-feature, add-point, rectangle, circle, freehand, trace and distance-bearing.
 
 **True curves.** The curve mode draws circular arcs rather than straight segments. An sf column stores them exactly as CIRCULARSTRING; a geos column cannot hold curves, so they are densified — the console says so when that happens. Reading curves back needs the \`sfarc\` package.
 
 **Snapping** works across visible layers, to vertices, edges, midpoints and intersections, within a pixel tolerance set in Settings.
 
-**Precise input.** Coordinates can be typed: \`lng,lat\` for an absolute position, or \`d150 a45\` for a relative distance and bearing.
+**Distance & Bearing** (the \`distance-bearing\` tool, hotkey B, on every geometry type). One click — or a typed \`lng, lat\` — sets the start; every vertex after it is typed into a strip under the map, and each entry places a vertex exactly as a click would. It reads azimuths (\`45.5\`, \`45°30'15"\`, \`45 30 15\`), quadrant bearings (\`N45°30'E\`, \`S30W\`), deflections from the previous leg (\`R90\`, \`L12°30'\`) and angles right; distances in metres, feet, US survey feet, chains, miles, with a unit typed after the number (\`150ft\`) overriding the selector. It shows the closure and the 1:N of a ring as it goes, and finishing echoes a runnable \`ourgeo_traverse()\` call.
+
+**Which coordinate system the numbers are in.** Two bases, named in the strip. *Geodesic* measures on the WGS84 ellipsoid from true north — the default, and the same numbers anywhere on Earth. *Grid* measures on the layer's own projected CRS, which is what a bearing off a survey plat means; it is the default when the layer is projected, and its unit starts as the CRS's own (US survey feet for most State Plane zones). The difference is not cosmetic: grid convergence reaches ~3° at a UTM zone edge and the point scale factor is ~1:2500, so the same numbers land in a different place. Say which basis you used.
+
+\`draw:traverse\` builds a feature from a start point and a list of legs the same way, staged like any drawn geometry. It is **geodesic only** — the grid basis needs R per leg, and the person at the strip has both. Older muscle memory still works: the ribbon's one-line box takes \`lng,lat\` or \`d150 a45\`.
 
 **Edits stage; they do not apply.** Everything drawn accumulates as pending edits, counted in the ribbon's Save Edits badge. Save Edits writes them to the R object as one batched statement echoed to the console, or discards them and restores the previous geometry. Database-backed layers flush through the .Rgeo update path instead. This staging is also how the AI's \`draw:addFeature\` works: a geometry the assistant produces is reviewed exactly like one the user drew.`,
 
@@ -733,7 +737,7 @@ export function topicListing(): string {
     toolbox: 'the 87 geoprocessing tools, piping, Linearize and Calculation CRS',
     'data-import': 'Load Data, the Data Connector and its providers, .Rgeo',
     maps: 'layers, symbology, labels, selection, legend, export',
-    drawing: 'edit mode, the nine tools, curves, snapping, staged edits',
+    drawing: 'edit mode, the ten tools, curves, distance & bearing, snapping, staged edits',
     projects: 'scratch vs .ourgeoproj, what persists, recording',
     documents: 'Markdown and R Markdown, chunks, knit, Visual mode, publish',
     databases: '.Rgeo files, connect vs load, raster pyramids',
