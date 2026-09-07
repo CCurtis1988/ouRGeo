@@ -72,6 +72,9 @@ interface TraverseState {
   busy: boolean
   /** A refusal to show under the fields — a parse error or R's own. */
   error: string | null
+  /** What the leg being typed says, for the label beside it on the map:
+   *  "150.00 m · N45°30'E". Null when there is nothing to draw. */
+  legLabel: string | null
 
   pushVertex: (p: Position) => void
   popVertex: () => void
@@ -85,6 +88,7 @@ interface TraverseState {
   setFrame: (f: GridFrame | null, at: Position | null) => void
   setBusy: (busy: boolean) => void
   setError: (error: string | null) => void
+  setLegLabel: (legLabel: string | null) => void
   /** Put the tool down: forget the run, keep the preferences. */
   reset: () => void
 }
@@ -105,6 +109,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   frameAt: null,
   busy: false,
   error: null,
+  legLabel: null,
 
   pushVertex: (p) => set((s) => ({ path: [...s.path, p], error: null })),
   popVertex: () => set((s) => ({ path: s.path.slice(0, -1) })),
@@ -118,9 +123,10 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   setFrame: (frame, frameAt) => set({ frame, frameAt }),
   setBusy: (busy) => set({ busy }),
   setError: (error) => set({ error }),
+  setLegLabel: (legLabel) => set({ legLabel }),
 
   reset: () => set({
     path: [], legs: [], entry: EMPTY_ENTRY,
-    frame: null, frameAt: null, busy: false, error: null,
+    frame: null, frameAt: null, busy: false, error: null, legLabel: null,
   }),
 }))

@@ -2,6 +2,8 @@ import React from 'react'
 import { Source, Layer } from 'react-map-gl/maplibre'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
 import { useDrawPreviewStore } from '@/store/drawPreview'
+import { useTraverseStore } from '@/store/traverse'
+import { resolveFont } from '@/lib/label-utils'
 import { useSpatialStore } from '@/store/spatial'
 import { useThemeStore } from '@/store/theme'
 import { THEMES } from '@/lib/themes'
@@ -17,9 +19,14 @@ export function DrawingLayer(): React.ReactElement | null {
   const snapTarget = useGeometryEditStore((s) => s.snapTarget)
   const previewCursor = useDrawPreviewStore((s) => s.cursor)
   const ghost = useDrawPreviewStore((s) => s.ghost)
+  const legLabel = useTraverseStore((s) => s.legLabel)
   const layers = useSpatialStore((s) => s.layers)
   const currentTheme = useThemeStore((s) => s.current)
-  const { accent, success, muted } = THEMES[currentTheme]?.palette ?? THEMES.dark.palette
+  const theme = THEMES[currentTheme] ?? THEMES.dark
+  const { accent, success, muted } = theme.palette
+  // The halo colour comes from the editor chrome rather than the palette: the
+  // palette has no background, and a label over a basemap needs one.
+  const haloColor = theme.editorChrome.bg
 
   if (!session && !snapTarget) return null
 
@@ -161,6 +168,18 @@ export function DrawingLayer(): React.ReactElement | null {
     })
   }
 
+  // What the leg being typed measures, written on the leg itself. On a wide
+  // map the entry strip is a long way from the geometry it is describing, and
+  // the number you are checking is the one under your eyes.
+  if (legLabel && ghost && ghost.type === 'LineString' && ghost.coordinates.length >= 2) {
+    const [a, b] = [ghost.coordinates[0], ghost.coordinates[ghost.coordinates.length - 1]]
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'leg-label', label: legLabel },
+      geometry: { type: 'Point', coordinates: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] } as Geometry,
+    })
+  }
+
   // Snap indicator — shown at the current snap target position
   if (snapTarget) {
     features.push({
@@ -223,6 +242,27 @@ export function DrawingLayer(): React.ReactElement | null {
           'line-color': accent,
           'line-width': 2,
           'line-dasharray': [4, 2]
+        }}
+      />
+      {/* Distance & Bearing: the pending leg's own numbers, on the leg. */}
+      <Layer
+        id="drawing-leg-label"
+        type="symbol"
+        filter={['==', ['get', 'kind'], 'leg-label']}
+        layout={{
+          'text-field': ['get', 'label'],
+          'text-font': resolveFont('Noto Sans', false, false),
+          'text-size': 11,
+          'text-offset': [0, -0.9],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        }}
+        paint={{
+          'text-color': accent,
+          // A halo, because this sits over whatever the basemap is showing and
+          // a number that cannot be read is worse than no number.
+          'text-halo-color': haloColor,
+          'text-halo-width': 1.5,
         }}
       />
       {/* Ghost shape (rectangle/circle/freehand preview) */}

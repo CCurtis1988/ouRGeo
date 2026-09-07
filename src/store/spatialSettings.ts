@@ -57,6 +57,22 @@ interface SpatialSettingsState {
    * inserts matches the flavour of code the user has been working in.
    */
   lastExportMode: ExportCodeMode
+  /**
+   * How the Distance & Bearing strip starts: the unit distances are typed in,
+   * and the notation bearings are written in.
+   *
+   * `traverseUnit: null` means "follow the layer" — a projected CRS is defined
+   * in a unit (US survey feet for most State Plane zones) and that is the unit
+   * the plat is booked in, so it is the right default until somebody says
+   * otherwise. Once they choose one it is theirs, on every layer.
+   *
+   * Typed as plain strings rather than the unions in `lib/draw/cogo.ts` on
+   * purpose: importing them here would run spatialSettings → cogo →
+   * draw/types → store/geometryEdit → spatialSettings, and that circle ends in
+   * an undefined at module load. The strip validates on the way in.
+   */
+  traverseUnit: string | null
+  traverseNotation: string
   setInitialExtentMode: (mode: InitialExtentMode) => void
   setUserExtent: (extent: UserExtent) => void
   setSnapSettings: (s: SnapSettings) => void
@@ -64,6 +80,7 @@ interface SpatialSettingsState {
   setCalcCrs: (v: string) => void
   setDefaultCrs: (v: string) => void
   setLastExportMode: (v: ExportCodeMode) => void
+  setTraversePrefs: (p: { unit?: string | null; notation?: string }) => void
 }
 
 export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
@@ -74,13 +91,20 @@ export const useSpatialSettingsStore = create<SpatialSettingsState>((set) => ({
   calcCrs: 'auto',
   defaultCrs: '4326',
   lastExportMode: 'tmap',
+  traverseUnit: null,
+  traverseNotation: 'azimuth',
   setInitialExtentMode: (initialExtentMode) => set({ initialExtentMode }),
   setUserExtent: (userExtent) => set({ userExtent }),
   setSnapSettings: (snapSettings) => set({ snapSettings }),
   setShowAttributePopup: (showAttributePopup) => set({ showAttributePopup }),
   setCalcCrs: (calcCrs) => set({ calcCrs }),
   setDefaultCrs: (defaultCrs) => set({ defaultCrs }),
-  setLastExportMode: (lastExportMode) => set({ lastExportMode })
+  setLastExportMode: (lastExportMode) => set({ lastExportMode }),
+  setTraversePrefs: ({ unit, notation }) =>
+    set((s) => ({
+      traverseUnit: unit === undefined ? s.traverseUnit : unit,
+      traverseNotation: notation ?? s.traverseNotation
+    }))
 }))
 
 export function computeInitialViewState(mode: InitialExtentMode, userExtent: UserExtent): ViewState {

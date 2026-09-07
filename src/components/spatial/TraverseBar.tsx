@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Compass, Check, Undo2, Flag, MapPin } from 'lucide-react'
 import { RibbonButton } from '../ui/ribbon'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
@@ -10,9 +10,12 @@ import {
 } from '@/lib/draw/tools/distance-bearing'
 import {
   parseDistance, parseBearing, parseCoordinate, formatDistance, formatRatio,
-  closure, formatDms, UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
+  closure, formatDms, formatBearing, UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
+  type TraverseLeg,
 } from '@/lib/draw/cogo'
 import { canComplete } from '@/lib/draw/draft'
+import { useSpatialSettingsStore } from '@/store/spatialSettings'
+import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { rClient } from '@/lib/r-client'
 import type { DistanceUnit } from '@/lib/draw/cogo'
 import type { CrsInfo, TraverseBasis } from '@/store/traverse'
@@ -65,6 +68,66 @@ function unitForCrs(info: CrsInfo): DistanceUnit | null {
   return null
 }
 
+/**
+ * What has been entered so far, in the words it was entered in.
+ *
+ * The list keeps each leg's RAW text rather than the azimuth it resolved to,
+ * because that is what a user checks against their notes: "S44-30-W" is what
+ * the page says, and 224°30' is what the computer made of it. Both are shown,
+ * in that order.
+ *
+ * Read-only, deliberately. Editing a leg in the middle moves every vertex
+ * after it, which is a different feature (and a bigger one); Undo leg walks
+ * back from the end, which is how a traverse is corrected in practice.
+ */
+function LegList({ legs, unit }: { legs: TraverseLeg[]; unit: DistanceUnit }): React.ReactElement | null {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') setOpen(false) }
+    const onDown = (e: MouseEvent): void => {
+      if (!(e.target as HTMLElement).closest('[data-ourgeo-id="draw.traverse.legs"]')) setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open])
+
+  if (legs.length === 0) return null
+  return (
+    <div className="relative flex-shrink-0" data-ourgeo-id="draw.traverse.legs">
+      <button
+        type="button"
+        className="rounded px-1 text-geo-muted underline decoration-dotted underline-offset-2 hover:text-foreground"
+        title="What has been entered so far"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {legs.length} leg{legs.length === 1 ? '' : 's'}
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1 z-50 max-h-64 w-72 overflow-y-auto
+          rounded border border-geo-border bg-geo-panel py-1 shadow-lg">
+          {legs.map((l, i) => (
+            <div key={i} className="flex items-baseline gap-2 px-2 py-0.5 text-[11px]">
+              <span className="w-5 flex-shrink-0 text-right text-geo-muted">{i + 1}</span>
+              <span className="flex-1 font-mono text-foreground">
+                {l.distanceText} {UNITS[l.unit].abbr} · {l.bearingText}
+              </span>
+              <span className="flex-shrink-0 font-mono text-geo-muted">{formatDms(l.azimuth)}</span>
+            </div>
+          ))}
+          <div className="mt-1 border-t border-geo-border px-2 pt-1 text-[10px] text-geo-muted">
+            {formatDistance(legs.reduce((t, l) => t + l.distanceM, 0), unit)} entered
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function TraverseBar(): React.ReactElement | null {
   const session = useGeometryEditStore(selectActiveSession)
   const activeToolId = useGeometryEditStore((s) => s.activeToolId)
@@ -72,6 +135,7 @@ export function TraverseBar(): React.ReactElement | null {
   const undoVertex = useGeometryEditStore((s) => s.undoVertex)
 
   const storePath = useTraverseStore((s) => s.path)
+  const legs = useTraverseStore((s) => s.legs)
   const entry = useTraverseStore((s) => s.entry)
   const unit = useTraverseStore((s) => s.unit)
   const mode = useTraverseStore((s) => s.mode)
@@ -111,6 +175,27 @@ export function TraverseBar(): React.ReactElement | null {
     }
   }, [isPoint, addVertex, commitPoint, tv])
 
+  // The two preferences that outlive a session: the unit distances are typed
+  // in and the notation bearings are written in. Seeded here rather than in
+  // the store's initial state, because the file is read asynchronously at
+  // startup and the tool may come up before or after that.
+  useEffect(() => {
+    if (!active) return
+    const prefs = useSpatialSettingsStore.getState()
+    if (prefs.traverseUnit && (UNIT_IDS as string[]).includes(prefs.traverseUnit)) {
+      tv.getState().setUnit(prefs.traverseUnit as DistanceUnit)
+    }
+    if ((BEARING_MODE_IDS as string[]).includes(prefs.traverseNotation)) {
+      tv.getState().setMode(prefs.traverseNotation as typeof mode)
+    }
+  }, [active, tv])
+
+  const remember = useCallback((p: { unit?: string | null; notation?: string }) => {
+    const st = useSpatialSettingsStore.getState()
+    st.setTraversePrefs(p)
+    void saveSpatialSettings(st.initialExtentMode, st.userExtent)
+  }, [])
+
   // What the layer's coordinate system is, asked once when the tool comes up.
   // The answer decides the DEFAULT basis and unit: a projected layer is one
   // whose bearings most likely came off something drawn on that grid, and
@@ -135,8 +220,11 @@ export function TraverseBar(): React.ReactElement | null {
       tv.getState().setCrs(info)
       if (!info.isGeographic) {
         tv.getState().setBasis('grid')
+        // The layer's own unit, but only while the user has not chosen one:
+        // `traverseUnit: null` is "follow the layer", and anything else is a
+        // decision that should not be overridden by opening another layer.
         const u = unitForCrs(info)
-        if (u) tv.getState().setUnit(u)
+        if (u && !useSpatialSettingsStore.getState().traverseUnit) tv.getState().setUnit(u)
       } else {
         tv.getState().setBasis('geodesic')
       }
@@ -188,13 +276,19 @@ export function TraverseBar(): React.ReactElement | null {
   useEffect(() => {
     if (!active || !origin || !pending?.position) {
       setGhost(null)
+      tv.getState().setLegLabel(null)
       return
     }
     setGhost({
       type: 'LineString',
       coordinates: [[origin[0], origin[1]], [pending.position[0], pending.position[1]]],
     })
-  }, [active, origin, pending, setGhost])
+    // The same two numbers as the readout, put where the line is: on a wide
+    // map the strip is a long way from the geometry it is describing.
+    tv.getState().setLegLabel(
+      `${formatDistance(pending.distanceM ?? 0, unit)} · ${formatBearing(pending.azimuth ?? 0, mode, incoming)}`
+    )
+  }, [active, origin, pending, setGhost, unit, mode, incoming, tv])
 
   useEffect(() => () => setGhost(null), [setGhost])
 
@@ -392,7 +486,10 @@ export function TraverseBar(): React.ReactElement | null {
             className={selectCls}
             value={unit}
             data-ourgeo-id="draw.traverse.unit"
-            onChange={(e) => tv.getState().setUnit(e.target.value as typeof unit)}
+            onChange={(e) => {
+              tv.getState().setUnit(e.target.value as typeof unit)
+              remember({ unit: e.target.value })
+            }}
           >
             {UNIT_IDS.map((id) => (
               <option key={id} value={id}>{UNITS[id].abbr}</option>
@@ -416,7 +513,10 @@ export function TraverseBar(): React.ReactElement | null {
             className={selectCls}
             value={mode}
             data-ourgeo-id="draw.traverse.mode"
-            onChange={(e) => tv.getState().setMode(e.target.value as typeof mode)}
+            onChange={(e) => {
+              tv.getState().setMode(e.target.value as typeof mode)
+              remember({ notation: e.target.value })
+            }}
           >
             {BEARING_MODE_IDS.map((id) => (
               <option key={id} value={id}>{BEARING_MODES[id].label}</option>
@@ -461,17 +561,16 @@ export function TraverseBar(): React.ReactElement | null {
 
         {/* How the traverse is going: what it has cost so far, and — once it
             could be a ring — how far it is from closing. */}
-        <span className="flex-shrink-0 text-geo-muted">
-          {legCount} leg{legCount === 1 ? '' : 's'}
-          {shut && (
-            <>
-              {' · '}{formatDistance(shut.perimeterM, unit)}
-              {' · closure '}
-              <span className="font-mono">{formatDistance(shut.distanceM, unit)}</span>
-              {' ('}{formatRatio(shut.ratio)}{')'}
-            </>
-          )}
-        </span>
+        {legs.length > 0
+          ? <LegList legs={legs} unit={unit} />
+          : <span className="flex-shrink-0 text-geo-muted">{legCount} leg{legCount === 1 ? '' : 's'}</span>}
+        {shut && (
+          <span className="flex-shrink-0 text-geo-muted">
+            {formatDistance(shut.perimeterM, unit)} · closure{' '}
+            <span className="font-mono">{formatDistance(shut.distanceM, unit)}</span>
+            {' ('}{formatRatio(shut.ratio)}{')'}
+          </span>
+        )}
       </div>
     </div>
   )

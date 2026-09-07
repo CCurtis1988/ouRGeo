@@ -128,6 +128,22 @@ describe('bearings', () => {
     expect(a.ok && a.value).toBeCloseTo(225, 12)
   })
 
+  it('takes an L/R deflection in any notation, since nothing else starts with one', () => {
+    // Found by driving the real app: typing R90 with the selector on Azimuth
+    // was refused, and the message talked about unsigned numbers.
+    const r = parseBearing('R90', 'azimuth', 45)
+    expect(r.ok && r.value).toBeCloseTo(135, 12)
+    const l = parseBearing('L12°30\'', 'quadrant', 45)
+    expect(l.ok && l.value).toBeCloseTo(32.5, 12)
+  })
+
+  it('still sends a bare minus to the Deflection notation rather than guessing', () => {
+    // `-12` could be a mistyped azimuth as easily as a left turn, and guessing
+    // wrong puts the leg 24° out with nothing on screen to say so.
+    const r = parseBearing('-12', 'azimuth', 45)
+    expect(r.ok).toBe(false)
+  })
+
   it('names the quadrant form when half of one was typed', () => {
     const r = parseBearing('N45', 'azimuth', null)
     expect(r.ok).toBe(false)

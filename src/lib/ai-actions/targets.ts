@@ -60,6 +60,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'draw.traverse.bearing', label: 'Leg bearing', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.mode', label: 'Bearing notation', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.basis', label: 'What the numbers are measured on', where: 'Distance & Bearing strip, right' },
+  { id: 'draw.traverse.legs', label: 'The legs entered so far', where: 'Distance & Bearing strip, right' },
 
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },

@@ -18,6 +18,8 @@ export async function loadSpatialSettings(): Promise<{
   calcCrs: string
   defaultCrs: string
   lastExportMode: ExportCodeMode
+  traverseUnit: string | null
+  traverseNotation: string
 }> {
   const data = await store.read<{
     initialExtentMode?: unknown
@@ -26,6 +28,8 @@ export async function loadSpatialSettings(): Promise<{
     calcCrs?: unknown
     defaultCrs?: unknown
     lastExportMode?: unknown
+    traverseUnit?: unknown
+    traverseNotation?: unknown
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userExtent?: any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,8 +65,15 @@ export async function loadSpatialSettings(): Promise<{
   const defaultCrs =
     typeof data.defaultCrs === 'string' && data.defaultCrs.trim() ? data.defaultCrs.trim() : '4326'
   const lastExportMode: ExportCodeMode = data.lastExportMode === 'ggplot' ? 'ggplot' : 'tmap'
+  // Validated as strings and no further: the unions live in `lib/draw/cogo.ts`
+  // and the strip checks them against the live tables on the way in. A unit
+  // this build no longer ships must fall back rather than throw.
+  const traverseUnit = typeof data.traverseUnit === 'string' ? data.traverseUnit : null
+  const traverseNotation =
+    typeof data.traverseNotation === 'string' ? data.traverseNotation : 'azimuth'
   return {
-    mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs, lastExportMode
+    mode, userExtent, snapSettings, showAttributePopup, calcCrs, defaultCrs, lastExportMode,
+    traverseUnit, traverseNotation
   }
 }
 
@@ -80,6 +91,8 @@ export async function saveSpatialSettings(
     showAttributePopup: showAttributePopup ?? state.showAttributePopup,
     calcCrs: state.calcCrs,
     defaultCrs: state.defaultCrs,
-    lastExportMode: state.lastExportMode
+    lastExportMode: state.lastExportMode,
+    traverseUnit: state.traverseUnit,
+    traverseNotation: state.traverseNotation
   })
 }

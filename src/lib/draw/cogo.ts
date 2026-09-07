@@ -335,6 +335,14 @@ export function parseBearing(
   const s = text.trim()
   if (!s) return bad(`Enter a bearing — ${BEARING_MODES[mode].hint}`)
 
+  // A leading L or R is a deflection in any notation — nothing else starts
+  // with one — so it is read as one rather than refused for being in the wrong
+  // dropdown. Same rule as the two absolute notations below, and the same
+  // reason: an entry that can only mean one thing should mean it.
+  if ((mode === 'azimuth' || mode === 'quadrant') && /^[LlRr]\s*[0-9]/.test(s)) {
+    return parseBearing(s, 'deflection', incomingAzimuth)
+  }
+
   // The two ABSOLUTE notations each accept the other's form, and that is not
   // laxity. `N45°30'E` is a quadrant bearing whatever a dropdown says, and
   // refusing it because the selector reads "Azimuth" answers an unambiguous
