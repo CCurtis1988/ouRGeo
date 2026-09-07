@@ -102,7 +102,7 @@ describe('bearings', () => {
   it('sends a negative azimuth to the mode that means it', () => {
     const r = parseBearing('-12', 'azimuth', null)
     expect(r.ok).toBe(false)
-    expect(!r.ok && r.error).toMatch(/Deflection/)
+    expect(!r.ok && r.error).toMatch(/Deflection notation/)
   })
 
   it('reads all four quadrants', () => {
@@ -116,6 +116,22 @@ describe('bearings', () => {
     expect(q('S45W')).toBeCloseTo(225, 12)
     expect(q('N45W')).toBeCloseTo(315, 12)
     expect(q('n 45 30 15 e')).toBeCloseTo(45 + 30 / 60 + 15 / 3600, 12)
+  })
+
+  it('takes a quadrant bearing while the notation says azimuth, and the reverse', () => {
+    // Found by driving the real strip: typing N45°30'E with the selector on
+    // Azimuth was answered with "angles are unsigned numbers", which is a
+    // complaint about a bearing that was never ambiguous.
+    const q = parseBearing("N45°30'E", 'azimuth', null)
+    expect(q.ok && q.value).toBeCloseTo(45.5, 12)
+    const a = parseBearing('225', 'quadrant', null)
+    expect(a.ok && a.value).toBeCloseTo(225, 12)
+  })
+
+  it('names the quadrant form when half of one was typed', () => {
+    const r = parseBearing('N45', 'azimuth', null)
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.error).toMatch(/N…E, N…W, S…E or S…W/)
   })
 
   it('refuses a quadrant angle that leaves its quadrant', () => {

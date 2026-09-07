@@ -10,6 +10,7 @@ import { rectangleTool } from './tools/rectangle'
 import { circleTool } from './tools/circle'
 import { freehandTool } from './tools/freehand'
 import { traceTool, offsetTraceTool } from './tools/trace'
+import { distanceBearingTool } from './tools/distance-bearing'
 
 const ALL_TOOLS: DrawTool[] = [
   selectTool,
@@ -21,7 +22,8 @@ const ALL_TOOLS: DrawTool[] = [
   circleTool,
   freehandTool,
   traceTool,
-  offsetTraceTool
+  offsetTraceTool,
+  distanceBearingTool
 ]
 
 /**

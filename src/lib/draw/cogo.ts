@@ -335,28 +335,35 @@ export function parseBearing(
   const s = text.trim()
   if (!s) return bad(`Enter a bearing — ${BEARING_MODES[mode].hint}`)
 
-  if (mode === 'azimuth') {
+  // The two ABSOLUTE notations each accept the other's form, and that is not
+  // laxity. `N45°30'E` is a quadrant bearing whatever a dropdown says, and
+  // refusing it because the selector reads "Azimuth" answers an unambiguous
+  // number with a complaint about the number — which is how a first traverse
+  // ends in the wrong dropdown rather than on the map. The selector still
+  // decides the placeholder and how the leg reads back in the list.
+  if (mode === 'azimuth' || mode === 'quadrant') {
+    const m = s.match(/^([NnSs])\s*(.*?)\s*([EeWw])$/)
+    if (m) {
+      const a = parseAngle(m[2])
+      if (!a.ok) return a
+      if (a.value > 90) return bad('A quadrant bearing turns 0–90° away from north or south.')
+      const ns = m[1].toUpperCase()
+      const ew = m[3].toUpperCase()
+      if (ns === 'N' && ew === 'E') return good(norm360(a.value))
+      if (ns === 'S' && ew === 'E') return good(norm360(180 - a.value))
+      if (ns === 'S' && ew === 'W') return good(norm360(180 + a.value))
+      return good(norm360(360 - a.value))
+    }
+    if (/^[NnSs]|[EeWw]$/.test(s)) {
+      return bad('Quadrant bearings read N…E, N…W, S…E or S…W — for example N45°30\'E or S30W.')
+    }
     if (/^[-−+]/.test(s)) {
-      return bad('Azimuths run 0–360 from north. To turn left from the last leg, use the Deflection mode.')
+      return bad('Azimuths run 0–360 from north. To turn left from the last leg, use the Deflection notation.')
     }
     const a = parseAngle(s)
     if (!a.ok) return a
     if (a.value > 360) return bad('Azimuths run 0–360 from north.')
     return good(norm360(a.value))
-  }
-
-  if (mode === 'quadrant') {
-    const m = s.match(/^([NnSs])\s*(.*?)\s*([EeWw])$/)
-    if (!m) return bad('Quadrant bearings read N…E, N…W, S…E or S…W — for example N45°30\'E or S30W.')
-    const a = parseAngle(m[2])
-    if (!a.ok) return a
-    if (a.value > 90) return bad('A quadrant bearing turns 0–90° away from north or south.')
-    const ns = m[1].toUpperCase()
-    const ew = m[3].toUpperCase()
-    if (ns === 'N' && ew === 'E') return good(norm360(a.value))
-    if (ns === 'S' && ew === 'E') return good(norm360(180 - a.value))
-    if (ns === 'S' && ew === 'W') return good(norm360(180 + a.value))
-    return good(norm360(360 - a.value))
   }
 
   if (incomingAzimuth === null) {

@@ -52,6 +52,15 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'map.canvas', label: 'The map itself', where: 'spatial editor' },
   { id: 'map.addAgain', label: 'Add again', where: 'the "Already on the map" prompt' },
 
+  // The Distance & Bearing entry strip, under the map while that tool is up.
+  { id: 'draw.traverse', label: 'Distance & Bearing entry', where: 'under the map, with the Distance & Bearing tool' },
+  { id: 'draw.traverse.start', label: 'Start coordinate', where: 'Distance & Bearing strip, before the first point' },
+  { id: 'draw.traverse.distance', label: 'Leg distance', where: 'Distance & Bearing strip' },
+  { id: 'draw.traverse.unit', label: 'Distance unit', where: 'Distance & Bearing strip' },
+  { id: 'draw.traverse.bearing', label: 'Leg bearing', where: 'Distance & Bearing strip' },
+  { id: 'draw.traverse.mode', label: 'Bearing notation', where: 'Distance & Bearing strip' },
+  { id: 'draw.traverse.basis', label: 'What the numbers are measured on', where: 'Distance & Bearing strip, right' },
+
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },
 

@@ -18,7 +18,8 @@ import { useAddFeature } from './useAddFeature'
  *   Delete         remove selected vertex (edit-vertices tool)
  *   N              start next part (MULTI* drafts)
  *   H              start polygon hole
- *   S / D / E / M  switch tool: select / draw / edit vertices / move
+ *   S / D / B / E / M  switch tool: select / draw / distance & bearing /
+ *                  edit vertices / move
  */
 export function useDrawHotkeys() {
   const { finish, cancel, undoLast } = useDrawActions()
@@ -86,7 +87,7 @@ export function useDrawHotkeys() {
         cancel()
         return
       }
-      if (e.key === 'Backspace' && store.activeToolId === 'draw') {
+      if (e.key === 'Backspace' && (store.activeToolId === 'draw' || store.activeToolId === 'distance-bearing')) {
         e.preventDefault()
         store.undoVertex()
         return
@@ -113,6 +114,7 @@ export function useDrawHotkeys() {
         else if (k === 'd') store.setActiveTool('draw')
         else if (k === 'e') store.setActiveTool('edit-vertices')
         else if (k === 'm') store.setActiveTool('move-feature')
+        else if (k === 'b') store.setActiveTool('distance-bearing')
         else if (k === 'r' && isPolygon) store.setActiveTool('rectangle')
         else if (k === 'c' && isPolygon) store.setActiveTool('circle')
         else if (k === 'f' && (isPolygon || isLine)) store.setActiveTool('freehand')

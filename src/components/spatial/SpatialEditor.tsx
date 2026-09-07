@@ -3,6 +3,7 @@ import { SpatialRibbon } from './SpatialRibbon'
 import { MapView, MapViewHandle } from './MapView'
 import { AddFeaturesDialog } from './AddFeaturesDialog'
 import { GeometryEditRibbon } from './GeometryEditRibbon'
+import { TraverseBar } from './TraverseBar'
 import { useSpatialStore } from '@/store/spatial'
 import { useSelectionStore } from '@/store/selection'
 import { useDraftLayerSync } from '@/hooks/useDraftLayerSync'
@@ -146,6 +147,7 @@ export function SpatialEditor(): React.ReactElement {
         <SelectionPopup />
         <IdentifyPopup />
       </div>
+      <TraverseBar />
       <GeometryEditRibbon />
       <DrawContextMenu />
       <AddFeaturesDialog onLayersAdded={onLayersAdded} />

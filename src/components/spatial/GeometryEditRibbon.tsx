@@ -20,7 +20,8 @@ import {
   Minus,
   Radius,
   Waypoints,
-  PenTool
+  PenTool,
+  Compass
 } from 'lucide-react'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
 import type { ToolId, CurveMode } from '@/store/geometryEdit'
@@ -57,7 +58,8 @@ const TOOL_DEFS: Record<ToolId, ToolDef> = {
   'offset-trace': { id: 'offset-trace', label: 'Offset', icon: <FlipHorizontal2 className="w-3 h-3" />, hotkey: 'O · Tab flips direction' },
   'edit-vertices': { id: 'edit-vertices', label: 'Edit Vertices', icon: <Move className="w-3 h-3" />, hotkey: 'E' },
   'move-feature': { id: 'move-feature', label: 'Move Feature', icon: <Maximize className="w-3 h-3" />, hotkey: 'M' },
-  'add-point': { id: 'add-point', label: 'Add Point(s)', icon: <MapPin className="w-3 h-3" />, hotkey: 'P' }
+  'add-point': { id: 'add-point', label: 'Add Point(s)', icon: <MapPin className="w-3 h-3" />, hotkey: 'P' },
+  'distance-bearing': { id: 'distance-bearing', label: 'Distance & Bearing', icon: <Compass className="w-3 h-3" />, hotkey: 'B' }
 }
 
 /** Applicable tools per section, gated on geometry — mirrors the old inline conditionals. */
@@ -77,6 +79,8 @@ function toolsForGeometry(
     if (isPolygon) create.push(TOOL_DEFS.rectangle, TOOL_DEFS.circle)
     if (isPolygon || isLine) create.push(TOOL_DEFS.freehand, TOOL_DEFS.trace, TOOL_DEFS['offset-trace'])
   }
+  // Every geometry, points included: a traverse of points is a traverse.
+  create.push(TOOL_DEFS['distance-bearing'])
 
   const modify: ToolDef[] = isPoint ? [] : [TOOL_DEFS['edit-vertices'], TOOL_DEFS['move-feature']]
   const select: ToolDef[] = isEditMode ? [TOOL_DEFS.select] : []

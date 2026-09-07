@@ -17,6 +17,7 @@ export type ToolId =
   | 'freehand'
   | 'trace'
   | 'offset-trace'
+  | 'distance-bearing'
 
 // ── Draft geometry model ─────────────────────────────────────────────────────
 
