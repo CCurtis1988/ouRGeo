@@ -6,13 +6,17 @@ import { useTraverseStore } from '@/store/traverse'
 import { useDrawPreviewStore } from '@/store/drawPreview'
 import { useDrawActions } from '@/hooks/useDrawActions'
 import {
-  traversePath, traverseOrigin, traverseIncoming, previewLeg,
+  traversePath, traverseOrigin, traverseIncoming, previewLeg, echoTraverse,
 } from '@/lib/draw/tools/distance-bearing'
 import {
   parseDistance, parseBearing, parseCoordinate, formatDistance, formatRatio,
   closure, formatDms, UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
 } from '@/lib/draw/cogo'
 import { canComplete } from '@/lib/draw/draft'
+import { rClient } from '@/lib/r-client'
+import type { DistanceUnit } from '@/lib/draw/cogo'
+import type { CrsInfo, TraverseBasis } from '@/store/traverse'
+import type { Position } from '@/lib/draw/types'
 
 /**
  * Where a traverse is typed.
@@ -45,6 +49,22 @@ function fmtCoord([lng, lat]: [number, number]): string {
   return `${f(lng)}, ${f(lat)}`
 }
 
+/**
+ * The unit to start in on a projected layer: its own.
+ *
+ * A plat in a State Plane zone is booked in US survey feet, and offering
+ * metres first means every distance is converted by hand before it is typed.
+ * Anything else — links, chains, a unit R could not name — is left on metres,
+ * which the entry still accepts and converts.
+ */
+function unitForCrs(info: CrsInfo): DistanceUnit | null {
+  const name = (info.unitName ?? '').toLowerCase()
+  if (name.includes('us survey')) return 'usft'
+  if (name.includes('foot') || name.includes('feet')) return 'ft'
+  if (name.includes('metre') || name.includes('meter')) return 'm'
+  return null
+}
+
 export function TraverseBar(): React.ReactElement | null {
   const session = useGeometryEditStore(selectActiveSession)
   const activeToolId = useGeometryEditStore((s) => s.activeToolId)
@@ -58,6 +78,7 @@ export function TraverseBar(): React.ReactElement | null {
   const basis = useTraverseStore((s) => s.basis)
   const crs = useTraverseStore((s) => s.crs)
   const frame = useTraverseStore((s) => s.frame)
+  const frameAt = useTraverseStore((s) => s.frameAt)
   const busy = useTraverseStore((s) => s.busy)
   const error = useTraverseStore((s) => s.error)
   const tv = useTraverseStore
@@ -76,6 +97,70 @@ export function TraverseBar(): React.ReactElement | null {
   )
   const origin = session ? traverseOrigin(session, storePath) : null
   const incoming = session ? traverseIncoming(session, storePath) : null
+  const here = !!origin && !!frameAt && frameAt[0] === origin[0] && frameAt[1] === origin[1]
+  const usableFrame = here ? frame : null
+
+  /** Put a vertex where the geometry keeps them: the draft, or a row of its
+   *  own when every leg of this traverse is a point. */
+  const place = useCallback((p: Position) => {
+    if (isPoint) {
+      tv.getState().pushVertex(p)
+      void commitPoint(p[0], p[1])
+    } else {
+      addVertex(p[0], p[1])
+    }
+  }, [isPoint, addVertex, commitPoint, tv])
+
+  // What the layer's coordinate system is, asked once when the tool comes up.
+  // The answer decides the DEFAULT basis and unit: a projected layer is one
+  // whose bearings most likely came off something drawn on that grid, and
+  // silently measuring those on the ellipsoid would rotate the traverse by the
+  // convergence. The user can still say otherwise; what they cannot do is not
+  // be told which it is.
+  useEffect(() => {
+    if (!active || !session) return
+    let cancelled = false
+    void (async () => {
+      const res = await rClient.spatialCrs({ name: session.accessPath, envName: session.envName })
+      if (cancelled) return
+      if (!res.success) { tv.getState().setCrs(null); return }
+      const info: CrsInfo = {
+        input: res.input ?? null,
+        epsg: res.epsg ?? null,
+        name: res.name ?? null,
+        isGeographic: res.isGeographic !== false,
+        unitName: res.unitName ?? null,
+        unitToMetre: res.unitToMetre ?? null,
+      }
+      tv.getState().setCrs(info)
+      if (!info.isGeographic) {
+        tv.getState().setBasis('grid')
+        const u = unitForCrs(info)
+        if (u) tv.getState().setUnit(u)
+      } else {
+        tv.getState().setBasis('geodesic')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [active, session?.accessPath, session?.envName, tv]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The grid frame at the vertex we are measuring FROM, so that even the first
+  // leg previews where it will actually be committed. Without it the first leg
+  // of a grid traverse is drawn geodesically and then jumps by the convergence
+  // when R answers — about a metre in a UTM zone, which is exactly the error
+  // this basis exists to avoid.
+  useEffect(() => {
+    if (!active || !session || basis !== 'grid' || !origin || here) return
+    let cancelled = false
+    void (async () => {
+      const res = await rClient.spatialTraverse({
+        origin, legs: [], basis: 'grid',
+        name: session.accessPath, envName: session.envName,
+      })
+      if (!cancelled && res.success && res.frame) tv.getState().setFrame(res.frame, origin)
+    })()
+    return () => { cancelled = true }
+  }, [active, session, basis, origin, here, tv])
 
   // What the fields currently describe, recomputed on every keystroke: the
   // destination for the readout, or the refusal to show under the fields.
@@ -91,12 +176,12 @@ export function TraverseBar(): React.ReactElement | null {
       return { position: null, distanceM: null, azimuth: null, complaint }
     }
     return {
-      position: previewLeg(origin, d.value, b.value, basis, frame),
+      position: previewLeg(origin, d.value, b.value, basis, usableFrame),
       distanceM: d.value,
       azimuth: b.value,
       complaint: null,
     }
-  }, [origin, entry.distance, entry.bearing, unit, mode, incoming, basis, frame])
+  }, [origin, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
 
   // The ghost is the leg being typed. Cleared when the tool goes away, or the
   // dashed line would outlive the strip that explains it.
@@ -127,15 +212,9 @@ export function TraverseBar(): React.ReactElement | null {
       tv.getState().setError(parsed.error)
       return
     }
-    const [lng, lat] = parsed.value
-    if (isPoint) {
-      tv.getState().pushVertex([lng, lat])
-      void commitPoint(lng, lat)
-    } else {
-      addVertex(lng, lat)
-    }
+    place(parsed.value)
     tv.getState().setEntry({ distance: '', bearing: '' })
-  }, [isPoint, addVertex, commitPoint, tv])
+  }, [place, tv])
 
   const submit = useCallback(() => {
     if (!session || !origin) return
@@ -144,21 +223,54 @@ export function TraverseBar(): React.ReactElement | null {
     const b = parseBearing(entry.bearing, mode, incoming)
     if (!b.ok) { tv.getState().setError(b.error); return }
 
-    const p = previewLeg(origin, d.value, b.value, basis, frame)
-    if (isPoint) {
-      tv.getState().pushVertex(p)
-      void commitPoint(p[0], p[1])
-    } else {
-      addVertex(p[0], p[1])
-    }
-    tv.getState().addLeg({
+    const leg = {
       distanceText: entry.distance.trim(),
       bearingText: entry.bearing.trim(),
       unit, mode, distanceM: d.value, azimuth: b.value,
-    })
-    setGhost(null)
-    distanceRef.current?.focus()
-  }, [session, origin, entry, unit, mode, incoming, basis, frame, isPoint, addVertex, commitPoint, setGhost, tv])
+    }
+
+    if (basis === 'geodesic') {
+      place(previewLeg(origin, d.value, b.value, 'geodesic', null))
+      tv.getState().addLeg(leg)
+      setGhost(null)
+      distanceRef.current?.focus()
+      return
+    }
+
+    // Grid: the vertex that is KEPT is R's projected arithmetic, never the
+    // local reduction the ghost was drawn with. The reply also carries the
+    // frame at the new vertex, which is what previews the next leg.
+    tv.getState().setBusy(true)
+    void (async () => {
+      try {
+        const res = await rClient.spatialTraverse({
+          origin, basis: 'grid',
+          legs: [{ distance: d.value, azimuth: b.value }],
+          name: session.accessPath, envName: session.envName,
+        })
+        if (!res.success || !res.vertices || res.vertices.length < 2) {
+          tv.getState().setError(res.error ?? 'R could not place that leg on the layer’s grid.')
+          return
+        }
+        const landed = res.vertices[res.vertices.length - 1]
+        place(landed)
+        // The reply's frame belongs to the vertex it just produced, which is
+        // where the next leg starts.
+        tv.getState().setFrame(res.frame ?? null, landed)
+        tv.getState().addLeg(leg)
+        setGhost(null)
+        distanceRef.current?.focus()
+      } catch (e) {
+        // A severed connection is not a data problem — say so, and name the
+        // basis that needs nothing from R.
+        tv.getState().setError(
+          `${String(e)} — the geodesic basis needs nothing from R if this keeps happening.`
+        )
+      } finally {
+        tv.getState().setBusy(false)
+      }
+    })()
+  }, [session, origin, entry, unit, mode, incoming, basis, place, setGhost, tv])
 
   const undoLeg = useCallback(() => {
     if (!session) return
@@ -169,16 +281,11 @@ export function TraverseBar(): React.ReactElement | null {
 
   const closeRing = useCallback(() => {
     if (!session || path.length < 3) return
-    const first = path[0]
-    if (isPoint) {
-      tv.getState().pushVertex(first)
-      void commitPoint(first[0], first[1])
-    } else {
-      addVertex(first[0], first[1])
-    }
+    place(path[0])
     setGhost(null)
+    echoTraverse()
     if (!isPoint) void finish()
-  }, [session, path, isPoint, addVertex, commitPoint, setGhost, finish, tv])
+  }, [session, path, isPoint, place, setGhost, finish])
 
   const shut = useMemo(() => closure(path), [path])
 
@@ -237,17 +344,30 @@ export function TraverseBar(): React.ReactElement | null {
         </span>
 
         <div className="flex-1 min-w-0" />
-        <span
-          className="flex-shrink-0 text-geo-muted"
-          title={
-            basis === 'geodesic'
-              ? 'Distances are measured on the WGS84 ellipsoid and bearings are from true north — the same numbers anywhere on Earth, whatever the layer’s CRS.'
-              : 'Distances and bearings are measured on the layer’s own projected grid.'
-          }
-          data-ourgeo-id="draw.traverse.basis"
-        >
-          {basis === 'geodesic' ? 'Geodesic · WGS 84' : `Grid · ${crs?.input ?? 'layer CRS'}`}
-        </span>
+        {/* What the numbers mean, stated rather than assumed — and changeable,
+            because only the person holding the plat knows whether the bearings
+            on it were measured from true north or from the grid. */}
+        <label className="flex flex-shrink-0 items-center gap-1 text-geo-muted">
+          Measured on
+          <select
+            className={selectCls}
+            value={basis}
+            data-ourgeo-id="draw.traverse.basis"
+            title={
+              basis === 'geodesic'
+                ? 'Distances on the WGS84 ellipsoid, bearings from true north — the same numbers anywhere on Earth, whatever the layer’s CRS.'
+                : 'Distances and bearings on the layer’s own projected grid, which is what a survey plat in a projected CRS is drawn to.'
+            }
+            onChange={(e) => tv.getState().setBasis(e.target.value as TraverseBasis)}
+          >
+            <option value="geodesic">Geodesic · WGS 84</option>
+            <option value="grid" disabled={!crs || crs.isGeographic}>
+              {crs && !crs.isGeographic
+                ? `Grid · ${crs.input ?? crs.name ?? 'layer CRS'}`
+                : 'Grid · (layer is not projected)'}
+            </option>
+          </select>
+        </label>
       </div>
 
       {/* Row 2 — the numbers, what they produce, and what to do with them. */}
@@ -304,7 +424,12 @@ export function TraverseBar(): React.ReactElement | null {
           </select>
         </label>
 
-        <RibbonButton accent title="Place this leg (Enter)" disabled={!origin || busy} onClick={submit}>
+        <RibbonButton
+          accent
+          title={busy ? 'Asking R for the grid position…' : 'Place this leg (Enter)'}
+          disabled={!origin || busy}
+          onClick={submit}
+        >
           <Check className="w-3 h-3" />
           Add leg
           <kbd className="ml-1 text-[9px] text-geo-muted">⏎</kbd>
@@ -322,7 +447,11 @@ export function TraverseBar(): React.ReactElement | null {
           Close
         </RibbonButton>
         {!isPoint && (
-          <RibbonButton title="Finish this feature (Enter on an empty form)" disabled={!canFinish} onClick={() => void finish()}>
+          <RibbonButton
+            title="Finish this feature (Enter on an empty form)"
+            disabled={!canFinish}
+            onClick={() => { echoTraverse(); void finish() }}
+          >
             <MapPin className="w-3 h-3" />
             Finish
           </RibbonButton>

@@ -170,6 +170,16 @@ route <- function(req) {
       return(handle_spatial_wkt(body))
     }
 
+    if (path == "/spatial/crs" && method == "POST") {
+      body <- parse_body(req)
+      return(handle_spatial_crs(body))
+    }
+
+    if (path == "/spatial/traverse" && method == "POST") {
+      body <- parse_body(req)
+      return(handle_spatial_traverse(body))
+    }
+
     if (path == "/data/preview" && method == "POST") {
       body <- parse_body(req)
       return(handle_data_preview(body))

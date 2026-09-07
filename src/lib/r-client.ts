@@ -645,6 +645,54 @@ class RClient {
     return res.data
   }
 
+  /**
+   * What a layer's coordinate system is, in the terms the Distance & Bearing
+   * strip needs: is it projected, and what linear unit is it defined in.
+   * `crs$input` alone cannot answer either — it is whatever string the CRS was
+   * built from — so R is asked rather than the string parsed.
+   */
+  async spatialCrs(
+    target: { name: string; envName?: string } | { crs: string | number }
+  ): Promise<{
+    success: boolean
+    input?: string | null
+    epsg?: number | null
+    name?: string | null
+    isGeographic?: boolean
+    unitName?: string | null
+    unitToMetre?: number | null
+    error?: string
+  }> {
+    const res = await this.http.post('/spatial/crs', target, { timeout: 15_000 })
+    return res.data as Awaited<ReturnType<RClient['spatialCrs']>>
+  }
+
+  /**
+   * Walk a traverse in the layer's own projected grid.
+   *
+   * Only the GRID basis comes here: a geodesic leg is computed in the renderer
+   * (`lib/draw/cogo.ts`) and needs no round trip, which matters because the R
+   * server is serial and somebody may be running a long command. What comes
+   * back is the vertices in WGS84 plus the projected frame at the last of them,
+   * so the NEXT leg can be previewed while it is typed without asking again.
+   */
+  async spatialTraverse(body: {
+    origin: [number, number]
+    legs: { distance: number; azimuth: number }[]
+    basis: 'geodesic' | 'grid'
+    name?: string
+    envName?: string
+    crs?: string | number
+  }): Promise<{
+    success: boolean
+    vertices?: [number, number][]
+    frame?: { x: number; y: number; convergence: number; scale: number } | null
+    error?: string
+  }> {
+    const res = await this.http.post('/spatial/traverse', body, { timeout: 20_000 })
+    return res.data as Awaited<ReturnType<RClient['spatialTraverse']>>
+  }
+
   async searchHelp(query: string, limit = 20): Promise<RResponse<{ results: HelpSearchResult[] }>> {
     const res = await this.http.post<RResponse<{ results: HelpSearchResult[] }>>(
       '/help/search', { query, limit }, { timeout: 15_000 }

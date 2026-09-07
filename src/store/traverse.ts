@@ -57,9 +57,17 @@ interface TraverseState {
   mode: BearingMode
   basis: TraverseBasis
   crs: CrsInfo | null
-  /** The projected frame at the current vertex, for previewing a grid leg
-   *  without a round trip. Null in geodesic mode and until R answers. */
+  /**
+   * The projected frame for previewing a grid leg without a round trip, and
+   * the vertex it was measured at.
+   *
+   * The pair is deliberate. A frame is only true of one point, and the origin
+   * moves — a typed leg, a click, an undo — so a frame kept on its own goes
+   * stale silently and previews the next leg with the convergence of the last
+   * one. `frameAt` is what lets the reader check before using it.
+   */
   frame: GridFrame | null
+  frameAt: Position | null
   /** A leg is being computed by R (grid basis only). */
   busy: boolean
   /** A refusal to show under the fields — a parse error or R's own. */
@@ -74,7 +82,7 @@ interface TraverseState {
   setMode: (m: BearingMode) => void
   setBasis: (b: TraverseBasis) => void
   setCrs: (c: CrsInfo | null) => void
-  setFrame: (f: GridFrame | null) => void
+  setFrame: (f: GridFrame | null, at: Position | null) => void
   setBusy: (busy: boolean) => void
   setError: (error: string | null) => void
   /** Put the tool down: forget the run, keep the preferences. */
@@ -94,6 +102,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   basis: 'geodesic',
   crs: null,
   frame: null,
+  frameAt: null,
   busy: false,
   error: null,
 
@@ -106,9 +115,12 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   setMode: (mode) => set({ mode }),
   setBasis: (basis) => set({ basis, error: null }),
   setCrs: (crs) => set({ crs }),
-  setFrame: (frame) => set({ frame }),
+  setFrame: (frame, frameAt) => set({ frame, frameAt }),
   setBusy: (busy) => set({ busy }),
   setError: (error) => set({ error }),
 
-  reset: () => set({ path: [], legs: [], entry: EMPTY_ENTRY, frame: null, busy: false, error: null }),
+  reset: () => set({
+    path: [], legs: [], entry: EMPTY_ENTRY,
+    frame: null, frameAt: null, busy: false, error: null,
+  }),
 }))

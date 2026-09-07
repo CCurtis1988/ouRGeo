@@ -6,6 +6,8 @@ import { useDrawPreviewStore } from '@/store/drawPreview'
 import { useTraverseStore } from '@/store/traverse'
 import { canComplete, getPath } from '../draft'
 import { destination, incomingAzimuth, reduceGridLeg } from '../cogo'
+import { buildTraverseRCode } from '../traverse-rcode'
+import { useSessionStore } from '@/store/session'
 
 /**
  * Distance & Bearing — the tool the website has always described.
@@ -77,6 +79,23 @@ export function previewLeg(
   return destination(origin, distanceM, azimuth)
 }
 
+/**
+ * The runnable R for the traverse just entered, as a console entry.
+ *
+ * Shared by the entry strip (which calls it on Finish and Close) and by the
+ * tool being put down, and it clears the legs — so whichever happens first
+ * echoes, and the other finds nothing to say.
+ */
+export function echoTraverse(): void {
+  const st = useTraverseStore.getState()
+  const session = selectActiveSession(useGeometryEditStore.getState())
+  const path = session ? traversePath(session, st.path) : st.path
+  if (path.length === 0 || st.legs.length === 0) return
+  const code = buildTraverseRCode(path[0], st.legs, st.basis, st.crs)
+  if (code) useSessionStore.getState().addConsoleEntry('info', code)
+  st.reset()
+}
+
 export const distanceBearingTool: DrawTool = {
   id: 'distance-bearing',
 
@@ -91,6 +110,11 @@ export const distanceBearingTool: DrawTool = {
   },
 
   onDeactivate() {
+    // Putting the tool down ends the traverse, so this is the last moment to
+    // say in R what was measured. A POINT traverse has no Finish button — each
+    // leg is its own committed row — so without this the only traverses that
+    // ever echoed would be the ones on lines and polygons.
+    echoTraverse()
     useTraverseStore.getState().reset()
     const preview = useDrawPreviewStore.getState()
     preview.setCursor(null)

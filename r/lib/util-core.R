@@ -52,14 +52,21 @@ parse_body <- function(req) {
   tryCatch(fromJSON(rawToChar(body), simplifyVector = FALSE), error = function(e) list())
 }
 
-json_response <- function(data, status = 200L) {
+# `digits` is jsonlite's, and its default of 4 is the reason this parameter
+# exists: every number in every response is rounded to four decimal places
+# before it leaves R. That is fine for a band statistic and wrong for a
+# coordinate — 0.0001° of longitude is eleven metres, which would quietly
+# undo the whole point of typing a distance and a bearing. Callers carrying
+# positions pass `digits = NA` (full precision); everything else keeps the
+# behaviour it has always had.
+json_response <- function(data, status = 200L, digits = 4) {
   list(
     status = status,
     headers = list("Content-Type" = "application/json",
                    "Access-Control-Allow-Origin" = "*",
                    "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
                    "Access-Control-Allow-Headers" = "Content-Type"),
-    body = toJSON(data, auto_unbox = TRUE, null = "null")
+    body = toJSON(data, auto_unbox = TRUE, null = "null", digits = digits)
   )
 }
 
