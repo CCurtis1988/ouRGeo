@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Compass, Check, Undo2, Flag, MapPin } from 'lucide-react'
+import { Compass, Check, Undo2, Flag, MapPin, Crosshair } from 'lucide-react'
 import { RibbonButton } from '../ui/ribbon'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
 import { useTraverseStore } from '@/store/traverse'
 import { useDrawPreviewStore } from '@/store/drawPreview'
 import { useDrawActions } from '@/hooks/useDrawActions'
+import { useAddFeature } from '@/hooks/useAddFeature'
 import {
   traversePath, traverseOrigin, traverseIncoming, previewLeg, echoTraverse,
+  usesReferencePoint, appendsRows, startTraverseRun, undoTraverseLeg,
 } from '@/lib/draw/tools/distance-bearing'
 import {
   parseDistance, parseBearing, parseCoordinate, formatDistance, formatRatio,
@@ -35,6 +37,15 @@ import type { Position } from '@/lib/draw/types'
  * drawing hotkeys already ignore keystrokes aimed at an input
  * (`useDrawHotkeys.ts`), so D does not swap the tool out from under a distance
  * of "d150" being typed.
+ *
+ * **A leg goes where the other drawing tools put one.** On a line or polygon
+ * it is a draft vertex, finished with Finish. On a POINT layer it is the
+ * geometry of the row the session is on, and placing it moves to the next row
+ * — the same walk down the dataset the draw tool does, so the data viewer's
+ * row indicator follows a typed traverse exactly as it follows a clicked one.
+ * When the rows run out the ribbon asks whether to add another; typing the
+ * next distance and pressing Enter is that answer, so the strip gives it
+ * rather than making the user reach for the mouse.
  */
 
 const inputCls =
@@ -132,7 +143,7 @@ export function TraverseBar(): React.ReactElement | null {
   const session = useGeometryEditStore(selectActiveSession)
   const activeToolId = useGeometryEditStore((s) => s.activeToolId)
   const addVertex = useGeometryEditStore((s) => s.addVertex)
-  const undoVertex = useGeometryEditStore((s) => s.undoVertex)
+  const pendingRowAdd = useGeometryEditStore((s) => s.pendingRowAdd)
 
   const storePath = useTraverseStore((s) => s.path)
   const legs = useTraverseStore((s) => s.legs)
@@ -148,13 +159,17 @@ export function TraverseBar(): React.ReactElement | null {
   const tv = useTraverseStore
 
   const setGhost = useDrawPreviewStore((s) => s.setGhost)
-  const { finish, commitPoint } = useDrawActions()
+  const { finish, commitPoint, undoLast } = useDrawActions()
+  const { confirmPendingRowAdd } = useAddFeature()
 
   const distanceRef = useRef<HTMLInputElement>(null)
   const startRef = useRef<HTMLInputElement>(null)
 
   const active = activeToolId === 'distance-bearing' && !!session
-  const isPoint = session?.geometryType === 'POINT'
+  // A point traverse measures from a reference point rather than from a
+  // vertex, because a point layer's rows are separate features and the mark
+  // they were shot from is usually not one of them.
+  const isPoint = !!session && usesReferencePoint(session)
   const path = useMemo(
     () => (session ? traversePath(session, storePath) : []),
     [session, storePath]
@@ -164,16 +179,32 @@ export function TraverseBar(): React.ReactElement | null {
   const here = !!origin && !!frameAt && frameAt[0] === origin[0] && frameAt[1] === origin[1]
   const usableFrame = here ? frame : null
 
-  /** Put a vertex where the geometry keeps them: the draft, or a row of its
-   *  own when every leg of this traverse is a point. */
-  const place = useCallback((p: Position) => {
-    if (isPoint) {
-      tv.getState().pushVertex(p)
-      void commitPoint(p[0], p[1])
-    } else {
-      addVertex(p[0], p[1])
-    }
-  }, [isPoint, addVertex, commitPoint, tv])
+  /**
+   * Say where the measuring starts.
+   *
+   * On a chain that IS the first vertex. On a point layer it is a reference
+   * point and nothing else: no row, no geometry, no attributes — just the mark
+   * the first distance and bearing are turned from.
+   */
+  const anchor = useCallback((p: Position) => {
+    if (isPoint) startTraverseRun(p)
+    else addVertex(p[0], p[1])
+  }, [isPoint, addVertex])
+
+  /**
+   * Put the point a leg landed on where this session keeps its geometry.
+   *
+   * A chain appends a vertex. A point session writes a feature — into the row
+   * it is on (and moves to the next), or as a new row when the session was
+   * opened by "Add Point(s)", which means append by construction.
+   */
+  const advance = useCallback(async (p: Position) => {
+    if (!isPoint) { addVertex(p[0], p[1]); return }
+    tv.getState().pushVertex(p)
+    const sess = selectActiveSession(useGeometryEditStore.getState())
+    if (sess && appendsRows(sess)) await commitPoint(p[0], p[1])
+    else { addVertex(p[0], p[1]); await finish() }
+  }, [isPoint, addVertex, commitPoint, finish, tv])
 
   // The two preferences that outlive a session: the unit distances are typed
   // in and the notation bearings are written in. Seeded here rather than in
@@ -306,9 +337,9 @@ export function TraverseBar(): React.ReactElement | null {
       tv.getState().setError(parsed.error)
       return
     }
-    place(parsed.value)
+    anchor(parsed.value)
     tv.getState().setEntry({ distance: '', bearing: '' })
-  }, [place, tv])
+  }, [anchor, tv])
 
   const submit = useCallback(() => {
     if (!session || !origin) return
@@ -323,20 +354,32 @@ export function TraverseBar(): React.ReactElement | null {
       unit, mode, distanceM: d.value, azimuth: b.value,
     }
 
-    if (basis === 'geodesic') {
-      place(previewLeg(origin, d.value, b.value, 'geodesic', null))
-      tv.getState().addLeg(leg)
-      setGhost(null)
-      distanceRef.current?.focus()
-      return
-    }
-
-    // Grid: the vertex that is KEPT is R's projected arithmetic, never the
-    // local reduction the ghost was drawn with. The reply also carries the
-    // frame at the new vertex, which is what previews the next leg.
     tv.getState().setBusy(true)
     void (async () => {
       try {
+        // The last leg used up the dataset and the ribbon is asking whether to
+        // add another row. Typing the next distance and pressing Enter is an
+        // unambiguous yes, so answer it here: the alternative is a traverse
+        // that stops dead every time it reaches the end of the table.
+        if (useGeometryEditStore.getState().pendingRowAdd) {
+          await confirmPendingRowAdd()
+          if (!selectActiveSession(useGeometryEditStore.getState())) {
+            tv.getState().setError('The row could not be added, so nothing was placed.')
+            return
+          }
+        }
+
+        if (basis === 'geodesic') {
+          await advance(previewLeg(origin, d.value, b.value, 'geodesic', null))
+          tv.getState().addLeg(leg)
+          setGhost(null)
+          distanceRef.current?.focus()
+          return
+        }
+
+        // Grid: the vertex that is KEPT is R's projected arithmetic, never the
+        // local reduction the ghost was drawn with. The reply also carries the
+        // frame at the new vertex, which is what previews the next leg.
         const res = await rClient.spatialTraverse({
           origin, basis: 'grid',
           legs: [{ distance: d.value, azimuth: b.value }],
@@ -347,7 +390,7 @@ export function TraverseBar(): React.ReactElement | null {
           return
         }
         const landed = res.vertices[res.vertices.length - 1]
-        place(landed)
+        await advance(landed)
         // The reply's frame belongs to the vertex it just produced, which is
         // where the next leg starts.
         tv.getState().setFrame(res.frame ?? null, landed)
@@ -364,22 +407,21 @@ export function TraverseBar(): React.ReactElement | null {
         tv.getState().setBusy(false)
       }
     })()
-  }, [session, origin, entry, unit, mode, incoming, basis, place, setGhost, tv])
+  }, [session, origin, entry, unit, mode, incoming, basis, advance, confirmPendingRowAdd, setGhost, tv])
 
   const undoLeg = useCallback(() => {
-    if (!session) return
-    if (isPoint) tv.getState().popVertex()
-    else undoVertex()
-    tv.getState().dropLastLeg()
-  }, [session, isPoint, undoVertex, tv])
+    void undoTraverseLeg({ undoLast })
+  }, [undoLast])
 
-  const closeRing = useCallback(() => {
-    if (!session || path.length < 3) return
-    place(path[0])
+  /** Return to the first vertex and finish. Chains only: a point layer's
+   *  reference is not one of its features, so there is nothing to return to. */
+  const closeRing = useCallback(async () => {
+    if (!session || isPoint || path.length < 3) return
+    await advance(path[0])
     setGhost(null)
     echoTraverse()
-    if (!isPoint) void finish()
-  }, [session, path, isPoint, place, setGhost, finish])
+    void finish()
+  }, [session, path, isPoint, advance, setGhost, finish])
 
   const shut = useMemo(() => closure(path), [path])
 
@@ -387,6 +429,10 @@ export function TraverseBar(): React.ReactElement | null {
 
   const legCount = path.length > 0 ? path.length - 1 : 0
   const canFinish = !isPoint && canComplete(session)
+  // On a point traverse path[0] is the reference and is not a leg, so there is
+  // nothing to take back until something has actually been placed.
+  const canUndoLeg = path.length > (isPoint ? 1 : 0)
+  const atReference = isPoint && path.length === 1
 
   return (
     <div
@@ -402,11 +448,16 @@ export function TraverseBar(): React.ReactElement | null {
         {origin ? (
           <span className="flex-shrink-0 text-geo-muted">
             From <span className="font-mono text-foreground">{fmtCoord(origin)}</span>
-            {legCount > 0 && <span className="ml-1">· vertex {path.length}</span>}
+            {atReference && <span className="ml-1">· reference</span>}
+            {legCount > 0 && (
+              <span className="ml-1">· {isPoint ? 'point' : 'vertex'} {path.length}</span>
+            )}
           </span>
         ) : (
           <span className="flex-shrink-0 text-geo-muted">
-            Click the map to place the start point — or type one:
+            {isPoint
+              ? 'Click the map to place a reference point to measure from — or type one:'
+              : 'Click the map to place the start point — or type one:'}
           </span>
         )}
         {!origin && (
@@ -526,26 +577,50 @@ export function TraverseBar(): React.ReactElement | null {
 
         <RibbonButton
           accent
-          title={busy ? 'Asking R for the grid position…' : 'Place this leg (Enter)'}
+          title={
+            busy
+              ? 'Asking R for the grid position…'
+              : pendingRowAdd
+                ? 'Add a row and place this leg in it (Enter)'
+                : isPoint
+                  ? 'Place this point and move to the next row (Enter)'
+                  : 'Place this leg (Enter)'
+          }
           disabled={!origin || busy}
           onClick={submit}
         >
           <Check className="w-3 h-3" />
-          Add leg
+          {pendingRowAdd ? 'Add row + leg' : 'Add leg'}
           <kbd className="ml-1 text-[9px] text-geo-muted">⏎</kbd>
         </RibbonButton>
-        <RibbonButton title="Remove the last leg" disabled={path.length === 0} onClick={undoLeg}>
+        <RibbonButton
+          title={isPoint ? 'Take back the last point and step back a row' : 'Remove the last leg'}
+          disabled={!canUndoLeg || busy}
+          onClick={undoLeg}
+        >
           <Undo2 className="w-3 h-3" />
           Undo leg
         </RibbonButton>
-        <RibbonButton
-          title="Return to the first vertex and finish"
-          disabled={path.length < 3}
-          onClick={closeRing}
-        >
-          <Flag className="w-3 h-3" />
-          Close
-        </RibbonButton>
+        {isPoint ? (
+          <RibbonButton
+            title="Measure from somewhere else — click the map, or type a coordinate"
+            disabled={!origin || busy}
+            data-ourgeo-id="draw.traverse.reference"
+            onClick={() => { echoTraverse(); setGhost(null); startRef.current?.focus() }}
+          >
+            <Crosshair className="w-3 h-3" />
+            New reference
+          </RibbonButton>
+        ) : (
+          <RibbonButton
+            title="Return to the first vertex and finish"
+            disabled={path.length < 3}
+            onClick={() => void closeRing()}
+          >
+            <Flag className="w-3 h-3" />
+            Close
+          </RibbonButton>
+        )}
         {!isPoint && (
           <RibbonButton
             title="Finish this feature (Enter on an empty form)"

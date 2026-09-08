@@ -16,6 +16,25 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.14',
+    date: 'September 2026',
+    title: 'Type It, Don\u2019t Eyeball It',
+    summary:
+      'Distance & Bearing \u2014 place the next point by typing how far and which way, on the grid your survey was measured on.',
+    highlights: [
+      'A Distance & Bearing tool beside Draw, for every kind of layer \u2014 lines, polygons and points. Press B, say where you are measuring from, then type each leg: 150 \u21b9 N45\u00b030\u2032E \u23ce, and the vertex lands exactly there.',
+      'Bearings in the notation your notes are already written in: azimuths, degrees-minutes-seconds, quadrant bearings like N45\u00b030\u2032E, deflections (L/R) and angles right. Distances in metres, feet, US survey feet, chains, miles \u2014 or type 150ft and the unit comes with it.',
+      'Distances are geodesic on the WGS 84 ellipsoid, computed with Vincenty\u2019s method rather than on a sphere, so a leg is the length you typed anywhere on Earth.',
+      'A bearing off a plat means something different on a projected map, and ouRGeo now says which it is using. On a projected layer it measures on that layer\u2019s own grid \u2014 in the layer\u2019s own unit \u2014 so grid north and the scale factor are accounted for instead of quietly rotating your traverse by the convergence.',
+      'On a point layer you place a reference point first \u2014 a temporary mark to measure from, not a row in your data \u2014 and every leg after it fills the row you are on and moves to the next, so the data viewer\u2019s row indicator walks the table exactly as it does when you click. Run out of rows and it asks whether to add another, as always.',
+      'The reference point snaps if snapping is on, carries forward from the last point you placed, and can be moved anywhere at any time by clicking the map.',
+      'It shows its working: where the leg lands as you type, the numbers written on the leg itself on the map, a list of everything entered in the words you entered it in, and \u2014 once a figure could close \u2014 how far it is from closing and the 1:N a surveyor judges it by.',
+      'Finishing a traverse echoes a runnable ourgeo_traverse() call naming the origin, the legs and the CRS \u2014 because the geometry ouRGeo writes records the coordinates, not the distances and bearings they came from.',
+      'The AI assistant can lay one out for you from a list of legs, staged for review like any drawn geometry.',
+      'Fixed: coordinates in the R server\u2019s replies were rounded to four decimal places \u2014 eleven metres of longitude \u2014 which no feature had needed to more than four until this one did.',
+    ],
+  },
+  {
     version: '1.13',
     date: 'September 2026',
     title: 'Run Anything',

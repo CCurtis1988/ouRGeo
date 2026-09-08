@@ -20,6 +20,7 @@ export function DrawingLayer(): React.ReactElement | null {
   const previewCursor = useDrawPreviewStore((s) => s.cursor)
   const ghost = useDrawPreviewStore((s) => s.ghost)
   const legLabel = useTraverseStore((s) => s.legLabel)
+  const traverseRun = useTraverseStore((s) => s.path)
   const layers = useSpatialStore((s) => s.layers)
   const currentTheme = useThemeStore((s) => s.current)
   const theme = THEMES[currentTheme] ?? THEMES.dark
@@ -159,6 +160,29 @@ export function DrawingLayer(): React.ReactElement | null {
     }
   }
 
+  // A point traverse's reference point and the chain it has measured.
+  //
+  // Neither is geometry — the reference is a temporary mark and the chain is
+  // the order the points were shot in, not a line in the dataset — but a
+  // reference point that drew nothing would be a control with no feedback,
+  // and the run tells the user which points belong to the traverse they are
+  // typing. Drawn muted and dashed so nothing here reads as a feature.
+  if (session && activeToolId === 'distance-bearing' && session.geometryType === 'POINT'
+      && traverseRun.length > 0) {
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'traverse-reference' },
+      geometry: { type: 'Point', coordinates: [traverseRun[0][0], traverseRun[0][1]] } as Geometry
+    })
+    if (traverseRun.length > 1) {
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'traverse-run' },
+        geometry: { type: 'LineString', coordinates: traverseRun.map(([x, y]) => [x, y]) } as Geometry
+      })
+    }
+  }
+
   // Ghost shape preview (rectangle/circle/freehand while dragging)
   if (ghost) {
     features.push({
@@ -242,6 +266,30 @@ export function DrawingLayer(): React.ReactElement | null {
           'line-color': accent,
           'line-width': 2,
           'line-dasharray': [4, 2]
+        }}
+      />
+      {/* Distance & Bearing on a point layer: the mark being measured from,
+          and the order the points were shot in. */}
+      <Layer
+        id="drawing-traverse-run"
+        type="line"
+        filter={['==', ['get', 'kind'], 'traverse-run']}
+        paint={{
+          'line-color': muted,
+          'line-width': 1,
+          'line-dasharray': [1, 2],
+          'line-opacity': 0.8
+        }}
+      />
+      <Layer
+        id="drawing-traverse-reference"
+        type="circle"
+        filter={['==', ['get', 'kind'], 'traverse-reference']}
+        paint={{
+          'circle-radius': 5,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': success,
+          'circle-stroke-width': 2
         }}
       />
       {/* Distance & Bearing: the pending leg's own numbers, on the leg. */}

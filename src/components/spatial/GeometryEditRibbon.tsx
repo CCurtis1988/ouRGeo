@@ -476,6 +476,9 @@ export function GeometryEditRibbon(): React.ReactElement | null {
                 geometryType: 'POINT',
                 currentRow: 0,
                 totalRows: pointLayer.geojson.features.length,
+                // Every click appends — this session must never fill the rows
+                // the layer already has, whichever point tool is picked.
+                appendRows: true,
                 originalGeometry: null
               })
               setActiveTool('add-point')

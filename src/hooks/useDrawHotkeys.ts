@@ -110,6 +110,13 @@ export function useDrawHotkeys() {
         const gt = session.geometryType
         const isPolygon = gt === 'POLYGON' || gt === 'MULTIPOLYGON'
         const isLine = gt === 'LINESTRING' || gt === 'MULTILINESTRING'
+        // A matched hotkey is consumed. That was invisible until Distance &
+        // Bearing: B activates a tool whose strip focuses a text field, React
+        // flushes a discrete event's state update DURING dispatch, and the
+        // keystroke's own default action then typed "b" into the field that
+        // had just taken focus. Found by driving the app — the first typed
+        // coordinate came back as "b-122.4200, 37.7750".
+        let handled = true
         if (k === 's') store.setActiveTool('select')
         else if (k === 'd') store.setActiveTool('draw')
         else if (k === 'e') store.setActiveTool('edit-vertices')
@@ -123,6 +130,8 @@ export function useDrawHotkeys() {
         else if (k === 'a' && (isPolygon || isLine) && store.activeToolId === 'draw') store.setCurveType(store.curveType === 'arc' ? 'none' : 'arc')
         else if (k === 'n' && canStartNextPart(session)) store.startNextPart()
         else if (k === 'h' && canStartHole(session)) store.startNewHole()
+        else handled = false
+        if (handled) e.preventDefault()
       }
     }
 

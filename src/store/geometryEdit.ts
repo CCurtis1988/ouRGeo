@@ -68,6 +68,18 @@ export interface GeometryEditSession {
   geometryType: GeometryType
   currentRow: number
   totalRows: number
+  /**
+   * The session appends a row per feature instead of filling the rows it was
+   * opened on.
+   *
+   * "Add Point(s)" starts a session at row 0 of a dataset that already has
+   * rows, and means *append* by every click — while a session opened from the
+   * data viewer's "Redraw geometry…" means *fill this row, then the next one*.
+   * Nothing else on the session tells those two apart, and Distance & Bearing
+   * has to know which it is: filling row 1 of a layer the user asked to add
+   * points to would overwrite a point that is already there.
+   */
+  appendRows?: boolean
   /** The in-progress drawing (parts → exterior ring + holes). */
   draft: DraftGeometry
   /** The path new vertices are appended to (draw tool). */
@@ -210,6 +222,16 @@ interface GeometryEditState {
   redoDraft: () => void
 
   advanceRow: (nextOriginalGeometry: GeoJSON.Geometry | null) => void
+  /**
+   * Step back to the row the last commit was written into — the inverse of the
+   * advance `commitAndAdvance` performs, for a tool that can undo one placed
+   * feature at a time (Distance & Bearing on a POINT layer).
+   *
+   * A commit that ran out of dataset did not advance anything; it raised the
+   * "add another?" prompt instead, so undoing that one cancels the prompt
+   * rather than moving the row.
+   */
+  retreatRow: () => void
   recordCommitted: (feature: GeoJSON.Feature) => void
   setEditMode: (active: boolean) => void
   setActiveTool: (id: ToolId | null) => void
@@ -604,6 +626,22 @@ export const useGeometryEditStore = create<GeometryEditState>((set, get) => ({
         }))
       })
     }
+  },
+
+  retreatRow: () => {
+    const s = get()
+    if (!s.activeSessionId) return
+    if (s.pendingRowAdd) { set({ pendingRowAdd: false }); return }
+    set({
+      namedSessions: patchActiveSession(s.namedSessions, s.activeSessionId, (sess) => ({
+        ...sess,
+        currentRow: Math.max(0, sess.currentRow - 1),
+        draft: emptyDraft(),
+        activePath: { part: 0, ring: 0 },
+        undoStack: [],
+        redoStack: []
+      }))
+    })
   },
 
   recordCommitted: (feature) =>

@@ -99,6 +99,13 @@ export interface DrawToolContext {
   cancel(): void
   /** add-point tool: append a new row with a POINT at lng/lat. */
   commitPoint(lng: number, lat: number): Promise<void>
+  /**
+   * Take back the newest staged commit — the ribbon's Ctrl+Z, reachable from a
+   * tool. Distance & Bearing needs it because one of its legs is a committed
+   * row rather than a draft vertex, and undoing that is not something the
+   * draft knows how to do.
+   */
+  undoLast(): Promise<void>
 }
 
 /**

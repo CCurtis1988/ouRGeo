@@ -55,6 +55,7 @@ const FIXED_TARGETS: UiTarget[] = [
   // The Distance & Bearing entry strip, under the map while that tool is up.
   { id: 'draw.traverse', label: 'Distance & Bearing entry', where: 'under the map, with the Distance & Bearing tool' },
   { id: 'draw.traverse.start', label: 'Start coordinate', where: 'Distance & Bearing strip, before the first point' },
+  { id: 'draw.traverse.reference', label: 'New reference point', where: 'Distance & Bearing strip, on a point layer' },
   { id: 'draw.traverse.distance', label: 'Leg distance', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.unit', label: 'Distance unit', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.bearing', label: 'Leg bearing', where: 'Distance & Bearing strip' },

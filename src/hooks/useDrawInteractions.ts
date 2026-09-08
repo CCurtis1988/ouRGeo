@@ -40,7 +40,8 @@ export function useDrawInteractions(mapRef: React.RefObject<MapRef>, layers: Spa
       getMap: () => mapRef.current?.getMap() ?? null,
       finish: () => actionsRef.current.finish(),
       cancel: () => actionsRef.current.cancel(),
-      commitPoint: (lng, lat) => actionsRef.current.commitPoint(lng, lat)
+      commitPoint: (lng, lat) => actionsRef.current.commitPoint(lng, lat),
+      undoLast: () => actionsRef.current.undoLast()
     })
   }
   useEffect(() => {

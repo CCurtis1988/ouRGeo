@@ -11,7 +11,11 @@ export function RibbonButton({
   accent,
   title,
   onClick,
-  children
+  children,
+  // Ribbon buttons are things the assistant points at (`ui:highlight` finds a
+  // control by this attribute), so the shared primitive has to be able to
+  // carry one.
+  'data-ourgeo-id': ourgeoId
 }: {
   active?: boolean
   disabled?: boolean
@@ -20,6 +24,7 @@ export function RibbonButton({
   title?: string
   onClick: () => void
   children: React.ReactNode
+  'data-ourgeo-id'?: string
 }): React.ReactElement {
   const base = 'px-2 py-1 text-xs rounded border flex items-center gap-1 flex-shrink-0 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed'
   const cls = active
@@ -30,7 +35,13 @@ export function RibbonButton({
         ? 'border-geo-accent bg-geo-accent/10 text-geo-accent hover:bg-geo-accent/20'
         : 'border-geo-border text-foreground hover:bg-geo-bg'
   return (
-    <button className={`${base} ${cls}`} disabled={disabled} title={title} onClick={onClick}>
+    <button
+      className={`${base} ${cls}`}
+      disabled={disabled}
+      title={title}
+      data-ourgeo-id={ourgeoId}
+      onClick={onClick}
+    >
       {children}
     </button>
   )

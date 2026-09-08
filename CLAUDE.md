@@ -494,14 +494,62 @@ repository's own author could not find it.
 - **A leg is an ordinary vertex append.** The tool (`tools/distance-bearing.ts`)
   places vertices through the same store calls the draw tool uses, so undo,
   snapping, Save Edits and the R write know nothing about it. Clicking still
-  works after the first click: a traverse with one eyeballed corner is a real
-  thing, and the tool is about being *able* to type, not forbidden to point.
+  works after the first click on a chain: a traverse with one eyeballed corner
+  is a real thing, and the tool is about being *able* to type, not forbidden to
+  point.
 - **`traversePath` is a discriminated read, and that is the POINT session.**
   A line or polygon keeps its trail in the draft, where the ribbon's undo can
-  reach it; a POINT session has no draft at all (each leg commits a row and the
-  geometry goes to the layer), so its trail is the one `store/traverse.ts`
-  keeps. Reading the store for both would go stale under Undo Vertex; reading
-  the draft for both would give a point traverse no trail whatsoever.
+  reach it; a POINT session has no draft that outlives a leg (each leg commits
+  and the draft is cleared), so its trail is the one `store/traverse.ts` keeps.
+  Reading the store for both would go stale under Undo Vertex; reading the
+  draft for both would give a point traverse no trail whatsoever.
+- **A point traverse measures from a reference point, and the reference is not
+  data.** The first version committed it — first click, first row — which is
+  the one thing a click there must not do: the monument a set of points is shot
+  from is usually not one of them, every row of a point layer is a separate
+  feature, and answering *where am I measuring from?* by writing a row answers
+  a different question. `usesReferencePoint` is the discriminator (POINT, and
+  deliberately not MULTIPOINT, whose parts live in one draft and commit
+  together), `startTraverseRun` places it, and `DrawingLayer` draws it as a
+  hollow ring with the run dashed behind it — muted, so nothing there reads as
+  a feature. A later click re-places it and **flushes the run first**, because
+  the R a traverse echoes describes one chain from one origin and the chain has
+  just been broken.
+- **A leg walks the dataset, exactly as the draw tool does.** It used to call
+  `commitPoint`, which is *add-point* semantics: open "Redraw geometry…" on row
+  3 of ten and the typed points landed in rows 11, 12, 13. A leg now stages the
+  geometry of the row the session is on and advances (`ctx.finish()`), so the
+  data viewer's row indicator follows a typed traverse the way it follows a
+  clicked one, and running out of rows raises the same "add another?" prompt.
+  Typing the next distance and pressing Enter *is* that prompt's answer, so
+  `submit` gives it — a traverse that stopped dead at the end of the table
+  would be one the user finishes with the mouse.
+- **`GeometryEditSession.appendRows` is what "Add Point(s)" means**, and it
+  exists because nothing else on the session told the two intents apart. That
+  button opens a session at row 0 of a dataset that already has rows and means
+  *append per click*; the data viewer means *fill this row, then the next*.
+  Without the flag, picking Distance & Bearing inside an Add Point(s) session
+  would overwrite the layer's first point.
+- **`commitAndAdvance` reads the session, it does not subscribe to it.** It
+  used to close over the `session` its render saw, which is fine for every
+  caller that commits what the user just drew — and wrong the moment a caller
+  moves the session on first. Answering the row-add prompt and placing the leg
+  in one keystroke did exactly that, and the point went into the row *before*
+  the one just appended, overwriting the previous one with nothing on screen to
+  say so. Pinned by `useGeometryCommit.test.tsx`, which holds a stale callback
+  on purpose.
+- **A matched drawing hotkey is now consumed** (`useDrawHotkeys`). Nothing
+  needed it until B, whose strip focuses a text field on activation: React
+  flushes a discrete event's update DURING dispatch, so the keystroke's own
+  default action typed "b" into the field that had just taken focus. The first
+  coordinate driven through the app came back as `b-122.4200, 37.7750`.
+- **Undoing a placed point is two facts, not one.** The staged geometry
+  (`ctx.undoLast`, the ribbon's own Ctrl+Z, reachable from a tool through the
+  new `DrawToolContext.undoLast`) *and* the row the session moved on to
+  (`retreatRow`). Undoing only the first leaves the next leg writing into the
+  row it has just emptied. A commit that ran out of dataset never advanced
+  anything — it raised the prompt — so undoing that one cancels the prompt
+  instead, which is what `retreatRow` checks first.
 - **The strip is docked, not floating** (`TraverseBar.tsx`): it never covers the
   geometry it is building and never has to be moved. It **wraps rather than
   scrolls** — the drawing ribbon below scrolls because a hidden tool can be

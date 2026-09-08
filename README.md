@@ -32,9 +32,12 @@ the whole analysis.
   deflections from the last leg (`R90`); metres, feet, US survey feet, chains.
   Distances are geodesic on the WGS84 ellipsoid — or on the layer's own
   projected grid, which is what a bearing off a survey plat means, and which
-  ouRGeo picks by default when the layer is projected. It shows where the next
-  vertex lands as you type, reports a ring's closure and its 1:N, and echoes a
-  runnable `ourgeo_traverse()` call when you are done.
+  ouRGeo picks by default when the layer is projected. On a point layer you set
+  a reference point to measure from — a temporary mark, not a row — and each
+  leg fills the row you are on and moves to the next, exactly as clicking does.
+  It shows where the next vertex lands as you type, reports a ring's closure
+  and its 1:N, and echoes a runnable `ourgeo_traverse()` call when you are
+  done.
 - **87-tool geoprocessing toolbox** across seven categories (table, joins,
   aggregate, type/string, sf, geos, raster), each one generating clean R.
 - **First-class rasters.** R-served XYZ tiles with a full symbology editor —

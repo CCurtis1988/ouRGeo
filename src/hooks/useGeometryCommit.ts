@@ -19,7 +19,6 @@ import { triggerDataViewerRefresh } from '@/lib/data-viewer-refresh'
  * itself is appended immediately (echoed R) and tracked for undo.
  */
 export function useGeometryCommit() {
-  const session = useGeometryEditStore(selectActiveSession)
   const advanceRow = useGeometryEditStore((s) => s.advanceRow)
   const finishEditingAndExitToSelect = useGeometryEditStore((s) => s.finishEditingAndExitToSelect)
   const requestRowAdd = useGeometryEditStore((s) => s.requestRowAdd)
@@ -28,14 +27,26 @@ export function useGeometryCommit() {
   const logCommit = useGeometryEditStore((s) => s.logCommit)
   const addEntry = useSessionStore((s) => s.addConsoleEntry)
   const addHistory = useSessionStore((s) => s.addInputHistory)
-  const layers = useSpatialStore((s) => s.layers)
   const addPendingGeometryEdit = useSpatialStore((s) => s.addPendingGeometryEdit)
   const appendLayerFeature = useSpatialStore((s) => s.appendLayerFeature)
   const commitGeometryEdit = useSpatialStore((s) => s.commitGeometryEdit)
 
   const commitAndAdvance = useCallback(
     async (geometry: GeoJSON.Geometry | null, draftWkt?: string) => {
+      // The session and the layers are read HERE, not subscribed to.
+      //
+      // A subscribed `session` is the one that existed when this callback was
+      // built, and a caller is entitled to move the session on immediately
+      // before committing: Distance & Bearing answers the "add another row?"
+      // prompt and then places its leg in the same keystroke, and with the
+      // captured session that leg was staged into the row BEFORE the one just
+      // appended — silently overwriting the previous point. Every caller
+      // reaches this within a tick of mutating the store, so the fresh read is
+      // the right one for all of them (`useDrawActions.finish` already did it
+      // for the draft it hands over).
+      const session = selectActiveSession(useGeometryEditStore.getState())
       if (!session || !geometry) return
+      const layers = useSpatialStore.getState().layers
       const layer = findMatchingLayer(layers, session)
       const isDb = !!layer?.tileSource
       const curved = !!draftWkt && isCurvedWkt(draftWkt)
@@ -163,13 +174,14 @@ export function useGeometryCommit() {
       }
     },
     [
-      session, advanceRow, finishEditingAndExitToSelect, requestRowAdd, recordCommitted,
-      logCommit, addEntry, layers, addPendingGeometryEdit, commitGeometryEdit
+      advanceRow, finishEditingAndExitToSelect, requestRowAdd, recordCommitted,
+      logCommit, addEntry, addPendingGeometryEdit, commitGeometryEdit
     ]
   )
 
   const commitNewPoint = useCallback(
     async (lng: number, lat: number) => {
+      const session = selectActiveSession(useGeometryEditStore.getState())
       if (!session) return
       // The row itself is appended immediately (the grid reads rows from R);
       // its geometry stages like any other edit until Save.
@@ -188,6 +200,7 @@ export function useGeometryCommit() {
       }
 
       const geometry: GeoJSON.Geometry = { type: 'Point', coordinates: [lng, lat] }
+      const layers = useSpatialStore.getState().layers
       const layer = findMatchingLayer(layers, session)
       const rowIdx = session.totalRows
       const meta: PendingEditMeta = {
@@ -230,8 +243,8 @@ export function useGeometryCommit() {
       triggerDataViewerRefresh(session.accessPath, session.envName)
     },
     [
-      session, addEntry, addHistory, recordCommitted, incrementTotalRows, logCommit,
-      layers, appendLayerFeature, addPendingGeometryEdit
+      addEntry, addHistory, recordCommitted, incrementTotalRows, logCommit,
+      appendLayerFeature, addPendingGeometryEdit
     ]
   )
 

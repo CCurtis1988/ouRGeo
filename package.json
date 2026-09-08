@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.13.5",
+  "version": "1.14.0",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -138,7 +138,7 @@
       ],
       "category": "public.app-category.developer-tools",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant\u2019s message box."
+        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant’s message box."
       }
     },
     "win": {
