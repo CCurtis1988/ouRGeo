@@ -31,6 +31,7 @@ const DEFAULTS: AiPreferences = {
   modelByProvider: {
     openai: 'gpt-4o',
     anthropic: 'claude-opus-4-6',
+    'claude-cli': 'sonnet',
     google: 'gemini-2.0-flash',
     ollama: 'llama3.1',
     lmstudio: '',

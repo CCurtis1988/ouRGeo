@@ -840,6 +840,78 @@ record of what the assistant did.
   `buildToolGuidance` states the *current* switch positions so the model never
   claims a capability it wasn't given.
 
+### A Claude subscription as a provider (`ai-claude-args.ts`, `electron/main/claude-*.ts`)
+
+Every other provider is an HTTP API reached with a key the user pastes into
+Settings. A Claude Pro/Max subscription is not a key and cannot be turned into
+one — but it authenticates the **Claude Code CLI the user already installed**,
+and `claude -p --output-format stream-json` wraps the *verbatim Anthropic
+Messages streaming events* `sendAnthropic` already parses. So ouRGeo does not
+need access to anybody's credits; it needs to ask the program on the machine.
+
+- **The line this must never cross.** ouRGeo does not read, copy or reuse the
+  CLI's stored credentials — not `~/.claude/.credentials.json`, not the OS
+  keychain, not a token lifted from either — to call the API itself. It spawns
+  the user's program and lets it authenticate. Nothing in this code should ever
+  need to know what a Claude token looks like. `--bare` is therefore unusable
+  here: it says outright that OAuth and keychain are never read, i.e. it is the
+  API-key path.
+- **`--tools ""`, not `--disallowedTools`.** Every built-in tool off — Bash,
+  Read, Write, Edit, WebFetch. An allowlist that starts empty cannot be widened
+  by a settings file ouRGeo did not write, and the whole audit story is that
+  what the assistant does appears in the R console. A CLI that can quietly
+  `Write` has stepped outside it, and the Autopilot, Web and Terminal switches
+  become decorative. `--setting-sources ""` and `--strict-mcp-config` are the
+  same argument for the user's own CLAUDE.md, hooks, skills and MCP servers: a
+  repository instruction telling an agent to run the test suite has no business
+  in a spatial IDE's chat panel.
+- **The CLI owns the agent loop, so tools reach it over MCP.** It does not hand
+  a tool call back to its caller; it calls tools *it* can see.
+  `electron/main/claude-mcp.ts` is a loopback HTTP MCP server — three JSON-RPC
+  methods, hand-written, because this repository has two runtime dependencies
+  and each is a paragraph here. `tools/list` is `SendOptions.tools` re-encoded
+  and `tools/call` round-trips to the renderer, so **`AiChatPanel.runTool` is
+  untouched**: the same switches, the same confirm modal, the same console
+  echo, decided in the same place. If a change to this provider needs to edit
+  `AiChatPanel`, the bridge is wrong. Bound to 127.0.0.1 on a random port with
+  a per-run bearer token, closed when the child exits.
+- **A tool call can block on a human.** The confirm-tier modal holds the MCP
+  request open; the timeout is ten minutes and returns a refusal the model can
+  *read*, because "the user has not decided yet" is not a severed socket.
+- **The CLI owns the transcript**, so continuity is `--session-id` then
+  `--resume`, not the message array every other transport posts. Clearing the
+  chat mints a new session — leaving it would resume a conversation the user
+  just said to forget. `withEarlierTurns` covers the other direction: a session
+  starting mid-conversation (the user switched provider) is handed a capped
+  catch-up block, or a follow-up would be answered by a model that had silently
+  forgotten the question it follows.
+- **The system prompt goes in a file and the user turn on stdin.** Both carry
+  the session's context — the environment listing, the console tail, the open
+  documents — and Windows caps a command line at 32,767 characters. The MCP
+  config is a file for a second reason: a `.cmd` shim has to be spawned through
+  the shell on Windows, and a shell would have to quote a blob full of braces
+  and quotes correctly on the one platform this repository cannot test.
+- **`requiresApiKey` is not `!isLocalProvider`.** This provider runs on the
+  machine but is not a self-hosted server, and the chat panel's send gate asked
+  the wrong question — it refused to send a single message while every other
+  part of the provider worked, which is the failure that makes a whole feature
+  look broken.
+- **Detection probes concurrently.** Each miss is one CLI start-up, about a
+  second; sequentially the settings row sat on "Looking for the Claude Code
+  CLI…" for six seconds on a machine where it was installed. Candidates are
+  confirmed by running `--version`, never by `existsSync` — a stale shim from
+  an uninstalled npm global exists right up until you run it. macOS has the
+  PATH problem the terminal section already documents.
+- **Usage is a subscription window, not a token count.** `rate_limit_event`
+  carries `five_hour.utilization` and `resetsAt`, which is what a subscriber
+  plans around; `contextWindow` comes from the run's own `result` event rather
+  than a table of ours that goes stale when an alias moves.
+- **The settings copy says what this is.** No API key field, the resolved
+  binary, `claude auth status --json` rendered as who is signed in and on what
+  plan, and the plain sentence that usage counts against that plan and that
+  whether it covers this use is between the user and Anthropic's terms. It must
+  not claim endorsement, and the feature must not be sold as free Claude.
+
 ### The document skill (`ai-skill-documents.ts`, `ai-doc-context.ts`, `ai-doc-tools.ts`)
 
 A local model once produced an excellent earthquake report in which every figure

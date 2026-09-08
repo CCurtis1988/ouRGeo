@@ -186,6 +186,36 @@ declare global {
           }
         ): () => void
       }
+      claudeCli: {
+        detect(): Promise<{ path: string; version: string } | null>
+        getPath(): Promise<string | null>
+        setPath(p: string | null): Promise<void>
+        authStatus(binary?: string): Promise<{
+          loggedIn: boolean
+          authMethod: string | null
+          subscriptionType: string | null
+          email: string | null
+          error?: string
+        }>
+        browse(): Promise<string | null>
+        start(
+          req: {
+            prompt: string
+            systemPrompt: string
+            model: string
+            sessionId: string
+            resume: boolean
+            tools: { name: string; description: string; inputSchema: unknown }[]
+            cwd: string
+          },
+          handlers: {
+            onLine: (line: string) => void
+            onToolCall: (call: { name: string; input: Record<string, unknown> }) => Promise<string>
+            onDone: (code: number | null, stderr: string) => void
+            onError: (message: string) => void
+          }
+        ): () => void
+      }
       voice: {
         transcribe(req: {
           url: string

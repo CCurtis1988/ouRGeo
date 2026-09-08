@@ -2,6 +2,7 @@ import type { AiProvider, ChatMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
+import { parseClaudeLine, claudeFailureMessage } from '@/lib/ai-claude-stream'
 
 // ── Context window sizes ───────────────────────────────────────────────────
 export const CONTEXT_SIZES: Record<string, number> = {
@@ -159,6 +160,20 @@ export const LOCAL_PROVIDER_MAP: Record<string, LocalProviderMeta> = Object.from
   LOCAL_PROVIDERS.map((p) => [p.id, p]),
 )
 
+/**
+ * Whether this provider needs a key pasted into Settings before it can be used.
+ *
+ * Not the same question as "is it local": the Claude Code transport runs on
+ * this machine but is not a self-hosted server, and it is credential-free
+ * because the CLI holds the credentials, not ouRGeo. The chat panel's send
+ * gate asked `!isLocalProvider(p) && !apiKey` and therefore refused to send a
+ * single message through it — the one failure that makes a whole provider look
+ * broken while every part of it works.
+ */
+export function requiresApiKey(provider: AiProvider): boolean {
+  return !isLocalProvider(provider) && provider !== 'claude-cli'
+}
+
 export function isLocalProvider(provider: AiProvider): boolean {
   return provider in LOCAL_PROVIDER_MAP
 }
@@ -201,6 +216,9 @@ export const PROVIDER_MODELS: Record<AiProvider, string[]> = {
     'claude-3-5-haiku-latest',
   ],
   openai: ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o3-mini', 'o1'],
+  // Aliases, not dated ids: which model an alias resolves to is the user's
+  // plan's business, and the CLI's `result` event reports what answered.
+  'claude-cli': ['opus', 'sonnet', 'haiku'],
   google: [
     'gemini-2.5-pro',
     'gemini-2.0-flash',
@@ -224,6 +242,7 @@ export const PROVIDER_MODELS: Record<AiProvider, string[]> = {
 export const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
+  'claude-cli': 'Claude subscription (Claude Code)',
   google: 'Google Gemini',
   ollama: 'Ollama (Local)',
   lmstudio: 'LM Studio (Local)',
@@ -509,10 +528,24 @@ export interface SendOptions {
   onToolCall?: (call: ToolCall) => Promise<string>
   onUsage?: (used: number, total: number) => void
   signal?: AbortSignal
+  // ── Claude Code CLI only ────────────────────────────────────────────────
+  /** The CLI keeps the transcript, so continuity is a session uuid rather than
+   *  a message array. Minted on the first turn of a conversation. */
+  claudeSessionId?: string
+  /** False on the first turn (`--session-id`), true after (`--resume`). */
+  claudeResume?: boolean
+  /** R's working directory, so a path in the answer means what it means in the
+   *  console. */
+  claudeCwd?: string
+  onClaudeSession?: (sessionId: string) => void
+  /** Fraction of the subscription's rolling windows used — the number a
+   *  subscriber plans around, where an API user watches tokens. */
+  onClaudeRateLimit?: (fiveHour: number, sevenDay: number, resetsAt: number) => void
 }
 
 export async function sendMessage(opts: SendOptions): Promise<string> {
   if (opts.provider === 'anthropic') return sendAnthropic(opts)
+  if (opts.provider === 'claude-cli') return sendClaudeCli(opts)
   if (opts.provider === 'google') return sendGoogle(opts)
   if (opts.provider === 'ollama') return sendOllama(opts)
   if (opts.provider === 'openai') {
@@ -968,4 +1001,145 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     }
   })
   return fullText
+}
+
+
+// ── Claude Code CLI (a Claude subscription) ────────────────────────────────
+/** How much of an existing conversation to hand a session that is starting
+ *  fresh. Enough to answer a follow-up; not so much that the first turn after
+ *  a provider switch costs a whole context window. */
+const CLAUDE_CATCHUP_CHARS = 12000
+
+export function withEarlierTurns(messages: ChatMessage[], latest: string): string {
+  const earlier = messages.slice(0, -1).filter((m) => m.content.trim())
+  if (earlier.length === 0) return latest
+  const lines: string[] = []
+  let budget = CLAUDE_CATCHUP_CHARS
+  // Newest first while filling, so what survives the cap is what the follow-up
+  // most likely refers to.
+  for (const m of [...earlier].reverse()) {
+    const line = `${m.role === 'user' ? 'User' : 'You'}: ${m.content.trim()}`
+    if (line.length > budget) break
+    budget -= line.length
+    lines.unshift(line)
+  }
+  if (lines.length === 0) return latest
+  return `<earlier-conversation>\nThis conversation started with another provider, so you do not have these turns. They are here for reference only — do not answer them again.\n\n${lines.join('\n\n')}\n</earlier-conversation>\n\n${latest}`
+}
+
+/**
+ * The one transport that is not an HTTP request.
+ *
+ * A Claude subscription cannot be turned into an API key, but it authenticates
+ * the CLI the user already installed — and `claude -p --output-format
+ * stream-json` wraps the **verbatim Anthropic Messages streaming events** this
+ * file already parses. So the work here is demultiplexing, plus the two things
+ * that are genuinely different:
+ *
+ * - **The CLI owns the agent loop.** It does not hand a tool call back to its
+ *   caller; it calls tools it can see. `SendOptions.tools` therefore reaches
+ *   it as an MCP server on loopback (`electron/main/claude-mcp.ts`), and
+ *   `onToolCall` is what answers — so the switches, the confirm modal and the
+ *   console echo are the same ones, decided in the same place, as for every
+ *   other provider.
+ * - **The CLI owns the transcript.** Every other transport posts the whole
+ *   conversation each turn; this one sends the newest turn and names a session
+ *   to resume. `SendOptions.messages` is therefore read for its LAST user
+ *   message only, and `claudeSessionId` on the store is what continuity means.
+ */
+async function sendClaudeCli(opts: SendOptions): Promise<string> {
+  const { model, messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
+  const api = window.electronAPI?.claudeCli
+  if (!api) throw new Error('The Claude Code provider needs the desktop app.')
+
+  const last = [...messages].reverse().find((m) => m.role === 'user')
+  if (!last) throw new Error('Nothing to send.')
+
+  // Starting a session mid-conversation — the user switched to this provider,
+  // or cleared the CLI's session — means the CLI has none of what is on
+  // screen. Every other transport posts the whole array each turn, so without
+  // this the assistant would answer a follow-up having silently forgotten the
+  // question it follows. Only on the FIRST turn: after that the CLI's own
+  // transcript is the record, and repeating it would double every message.
+  const prompt = opts.claudeResume
+    ? last.content
+    : withEarlierTurns(messages, last.content)
+
+  const tools = (opts.tools ?? []).map((t) => ({
+    name: t.name, description: t.description, inputSchema: t.inputSchema,
+  }))
+
+  return new Promise<string>((resolve, reject) => {
+    let answer = ''
+    let sawResult = false
+    let settled = false
+    const finish = (fn: () => void): void => { if (!settled) { settled = true; fn() } }
+
+    const abort = api.start(
+      {
+        prompt,
+        systemPrompt,
+        model: model || 'sonnet',
+        sessionId: opts.claudeSessionId ?? crypto.randomUUID(),
+        resume: opts.claudeResume === true,
+        tools,
+        cwd: opts.claudeCwd ?? '.',
+      },
+      {
+        onLine: (line) => {
+          const ev = parseClaudeLine(line)
+          if (ev.kind === 'text') { answer += ev.text; onChunk(ev.text) }
+          else if (ev.kind === 'init') {
+            opts.onClaudeSession?.(ev.sessionId)
+            // An MCP server that failed to connect is why every tool call is
+            // about to fail, and it is invisible from inside the model.
+            if (ev.mcpFailed.length > 0 && tools.length > 0) {
+              finish(() => reject(new Error(
+                'ouRGeo could not offer its tools to Claude Code (the local bridge did not connect). '
+                + 'Nothing was run.'
+              )))
+              abort()
+            }
+          } else if (ev.kind === 'rateLimit') {
+            opts.onClaudeRateLimit?.(ev.fiveHour, ev.sevenDay, ev.resetsAt)
+          } else if (ev.kind === 'result') {
+            sawResult = true
+            if (ev.contextWindow) onUsage?.(ev.inputTokens + ev.outputTokens, ev.contextWindow)
+            // The CLI assembles the final text itself; prefer it over the
+            // deltas, which omit anything it emitted without streaming.
+            if (ev.text) answer = ev.text
+            if (ev.isError) {
+              finish(() => reject(new Error(
+                ev.errorStatus
+                  ? `Claude Code reported an API error (${ev.errorStatus}).`
+                  : 'Claude Code did not complete the turn.'
+              )))
+            }
+          }
+        },
+        onToolCall: async (call) => {
+          if (!onToolCall) return 'Error: no tools are available in this session.'
+          return onToolCall({ id: call.name, name: call.name, input: call.input })
+        },
+        onDone: (code, stderr) => {
+          finish(() => {
+            if (code === 0 && sawResult) resolve(answer)
+            else reject(new Error(claudeFailureMessage(code, stderr, sawResult)))
+          })
+        },
+        onError: (message) => finish(() => reject(new Error(message))),
+      },
+    )
+
+    const onAbort = (): void => {
+      abort()
+      finish(() => {
+        const err = new Error('Aborted')
+        err.name = 'AbortError'
+        reject(err)
+      })
+    }
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }

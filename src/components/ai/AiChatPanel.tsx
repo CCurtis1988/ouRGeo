@@ -17,7 +17,7 @@ import { useEnvironmentStore } from '@/store/environment'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
 import type { AiTool, ToolCall } from '@/lib/ai-client'
-import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
+import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, requiresApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
 import { WEB_TOOLS, WEB_TOOL_NAMES, runWebTool, describeWebCall } from '@/lib/ai-web-tools'
 import { AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance } from '@/lib/ai-system-prompt'
 import { buildDocumentSkill } from '@/lib/ai-skill-documents'
@@ -152,7 +152,7 @@ export function AiChatPanel(): React.ReactElement {
 
     const local = isLocalProvider(provider)
     const apiKey = getApiKey()
-    if (!local && !apiKey) {
+    if (requiresApiKey(provider) && !apiKey) {
       setSendError(`${PROVIDER_LABELS[provider]} API key not set. Add it in Settings → AI Assistant.`)
       return
     }
@@ -188,6 +188,7 @@ export function AiChatPanel(): React.ReactElement {
         autoPilot: autoPilotEnabled,
         webAccess: webAccessEnabled,
         terminal: terminalEnabled,
+        viaMcp: provider === 'claude-cli',
       }),
       envContext,
     ].filter(Boolean).join('\n\n')
@@ -287,6 +288,11 @@ export function AiChatPanel(): React.ReactElement {
     const conversationMessages = [...allMessages, userMsg]
 
     try {
+      // The Claude Code transport keeps its own transcript, so it takes a
+      // session to resume rather than the whole conversation, and reports a
+      // subscription window rather than a token count. Everything else — the
+      // tools, `runTool`, the system prompt — is identical, which is the point.
+      const st = useAiStore.getState()
       const fullContent = await sendMessage({
         provider,
         model: currentModel,
@@ -301,6 +307,11 @@ export function AiChatPanel(): React.ReactElement {
         onToolCall: tools.length > 0 ? runTool : undefined,
         onUsage: (used, total) => setTokenUsage(used, total),
         signal: ac.signal,
+        claudeSessionId: st.claudeSessionId ?? undefined,
+        claudeResume: st.claudeSessionId !== null,
+        claudeCwd: useSessionStore.getState().workingDir || undefined,
+        onClaudeSession: (id) => useAiStore.getState().setClaudeSession(id),
+        onClaudeRateLimit: (f, s7, r) => useAiStore.getState().setClaudeUsage(f, s7, r),
       })
 
       // Attach tool calls/results to the finalized message if in autopilot

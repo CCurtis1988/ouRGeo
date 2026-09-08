@@ -228,6 +228,71 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => { ipcRenderer.send('ai:abort', id); cleanup() }
     }
   },
+  claudeCli: {
+    detect: (): Promise<{ path: string; version: string } | null> =>
+      ipcRenderer.invoke('claude:detect'),
+    getPath: (): Promise<string | null> => ipcRenderer.invoke('claude:getPath'),
+    setPath: (p: string | null): Promise<void> => ipcRenderer.invoke('claude:setPath', p),
+    authStatus: (binary?: string): Promise<{
+      loggedIn: boolean; authMethod: string | null
+      subscriptionType: string | null; email: string | null; error?: string
+    }> => ipcRenderer.invoke('claude:authStatus', binary),
+    browse: (): Promise<string | null> => ipcRenderer.invoke('claude:browse'),
+    // One headless Claude Code turn. Lines of the CLI's NDJSON arrive on
+    // onLine; a tool the model calls arrives on onToolCall, whose resolved
+    // string is handed straight back to the waiting MCP request. Returns
+    // abort().
+    start: (
+      req: {
+        prompt: string; systemPrompt: string; model: string; sessionId: string
+        resume: boolean
+        tools: { name: string; description: string; inputSchema: unknown }[]
+        cwd: string
+      },
+      handlers: {
+        onLine: (line: string) => void
+        onToolCall: (call: { name: string; input: Record<string, unknown> }) => Promise<string>
+        onDone: (code: number | null, stderr: string) => void
+        onError: (message: string) => void
+      }
+    ): (() => void) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const chunkCh = `claude:chunk:${id}`
+      const toolCh = `claude:tool:${id}`
+      const doneCh = `claude:done:${id}`
+      const errCh = `claude:error:${id}`
+      const chunkL = (_e: Electron.IpcRendererEvent, line: string): void => handlers.onLine(line)
+      const toolL = (
+        _e: Electron.IpcRendererEvent,
+        call: { callId: string; name: string; input: Record<string, unknown> }
+      ): void => {
+        void handlers
+          .onToolCall({ name: call.name, input: call.input })
+          .then(
+            (out) => ipcRenderer.send('claude:toolResult', id, call.callId, out),
+            (err) => ipcRenderer.send('claude:toolResult', id, call.callId, `Error: ${String(err)}`),
+          )
+      }
+      const cleanup = (): void => {
+        ipcRenderer.removeListener(chunkCh, chunkL)
+        ipcRenderer.removeListener(toolCh, toolL)
+        ipcRenderer.removeListener(doneCh, doneL)
+        ipcRenderer.removeListener(errCh, errL)
+      }
+      const doneL = (_e: Electron.IpcRendererEvent, code: number | null, stderr: string): void => {
+        cleanup(); handlers.onDone(code, stderr)
+      }
+      const errL = (_e: Electron.IpcRendererEvent, msg: string): void => {
+        cleanup(); handlers.onError(msg)
+      }
+      ipcRenderer.on(chunkCh, chunkL)
+      ipcRenderer.on(toolCh, toolL)
+      ipcRenderer.once(doneCh, doneL)
+      ipcRenderer.once(errCh, errL)
+      ipcRenderer.send('claude:start', id, req)
+      return () => { ipcRenderer.send('claude:abort', id); cleanup() }
+    },
+  },
   voice: {
     // Upload a recording to a transcription service. The audio crosses as a
     // Uint8Array (structured clone), not base64 — see electron/main/voice.ts.

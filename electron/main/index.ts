@@ -8,6 +8,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
 import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
+import { registerClaudeCliHandlers } from './claude-cli'
 import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
 import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
@@ -167,6 +168,7 @@ app.whenReady().then(async () => {
 
   setupIpcHandlers(ipcMain)
   registerAiProxy(ipcMain)
+  registerClaudeCliHandlers(ipcMain)
   registerVoiceHandlers(ipcMain)
   registerVoiceModelHandlers(ipcMain)
   registerVoiceModelProtocol()

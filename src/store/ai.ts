@@ -10,6 +10,10 @@ import { TIERS, type Tier } from '@/lib/ai-actions/types'
 export type AiProvider =
   | 'openai'
   | 'anthropic'
+  /** Not an API at all: the Claude Code CLI on this machine, authenticated by
+   *  whatever the user signed it in with — a Claude subscription, usually.
+   *  See `sendClaudeCli` in ai-client.ts. */
+  | 'claude-cli'
   | 'google'
   | 'ollama'
   | 'lmstudio'
@@ -56,6 +60,19 @@ interface AiState {
    *  Sparse: only what the user changed. See lib/ai-actions/permissions.ts. */
   actionTiers: Record<string, Tier>
   tokenUsage: { used: number; total: number }
+  /**
+   * The Claude Code CLI keeps its own transcript, so continuity there is a
+   * session uuid rather than the message array every other provider is posted.
+   *
+   * Null means the next turn starts a session; it is cleared when the chat is,
+   * which is the honest reset — ouRGeo's panel and the CLI's transcript can
+   * otherwise disagree, since deleting a message here does not delete it
+   * there.
+   */
+  claudeSessionId: string | null
+  /** Fraction of the subscription's rolling windows used, from the CLI's
+   *  `rate_limit_event`. Null until a turn has run. */
+  claudeUsage: { fiveHour: number; sevenDay: number; resetsAt: number } | null
   abortController: AbortController | null
 
   toggleOpen: () => void
@@ -75,6 +92,8 @@ interface AiState {
   setActionTier: (actionId: string, tier: Tier | null) => void
   resetActionTiers: () => void
   setTokenUsage: (used: number, total: number) => void
+  setClaudeSession: (sessionId: string) => void
+  setClaudeUsage: (fiveHour: number, sevenDay: number, resetsAt: number) => void
   beginStream: () => AbortController
   currentModel: () => string
 }
@@ -87,6 +106,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     openai: 'gpt-4o',
     anthropic: 'claude-opus-4-6',
     google: 'gemini-2.0-flash',
+    'claude-cli': 'sonnet',
     ollama: 'llama3.1',
     // Local OpenAI-compatible providers — models are fetched from the server at runtime
     lmstudio: '',
@@ -108,6 +128,8 @@ export const useAiStore = create<AiState>((set, get) => ({
   terminalEnabled: false,
   actionTiers: {},
   tokenUsage: { used: 0, total: 200000 },
+  claudeSessionId: null,
+  claudeUsage: null,
   abortController: null,
 
   toggleOpen: () => set((s) => ({ isOpen: !s.isOpen })),
@@ -170,7 +192,13 @@ export const useAiStore = create<AiState>((set, get) => ({
     set({ isStreaming: false, streamingContent: '', abortController: null })
   },
 
-  clearMessages: () => set({ messages: [], tokenUsage: { used: 0, total: get().tokenUsage.total } }),
+  // Clearing the chat also drops the CLI's session: leaving it would resume a
+  // transcript the user has just told us to forget, and the model would answer
+  // from messages that are no longer on screen.
+  clearMessages: () => set({
+    messages: [], claudeSessionId: null,
+    tokenUsage: { used: 0, total: get().tokenUsage.total },
+  }),
 
   setAutoPilot: (on) => set({ autoPilotEnabled: on }),
 
@@ -204,6 +232,9 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   setTokenUsage: (used, total) => set({ tokenUsage: { used, total } }),
+  setClaudeSession: (claudeSessionId) => set({ claudeSessionId }),
+  setClaudeUsage: (fiveHour, sevenDay, resetsAt) =>
+    set({ claudeUsage: { fiveHour, sevenDay, resetsAt } }),
 
   beginStream: () => {
     const ac = new AbortController()

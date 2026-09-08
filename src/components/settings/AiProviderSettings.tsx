@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAiStore, type AiProvider } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { SecretField, UrlField } from './fields'
+import { ClaudeCliSettings } from './ClaudeCliSettings'
 import {
   PROVIDER_MODELS,
   LOCAL_PROVIDERS,
@@ -139,6 +140,9 @@ export function AiProviderSettings(): React.ReactElement {
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </optgroup>
+          <optgroup label="On this machine">
+            <option value="claude-cli">Claude subscription (Claude Code)</option>
+          </optgroup>
           <optgroup label="Local (self-hosted)">
             {LOCAL_PROVIDERS.map((p) => (
               <option key={p.id} value={p.id}>{p.label}</option>
@@ -156,6 +160,9 @@ export function AiProviderSettings(): React.ReactElement {
           placeholder={cloudDef.keyPlaceholder}
         />
       )}
+
+      {/* The subscription provider: no key, a binary and a sign-in instead. */}
+      {provider === 'claude-cli' && <ClaudeCliSettings />}
 
       {/* Local provider configuration */}
       {local && localMeta && (

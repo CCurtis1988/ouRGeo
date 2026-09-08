@@ -39,14 +39,30 @@ export interface ToolGuidanceOptions {
   webAccess: boolean
   /** The Terminal switch in the panel footer, AND-ed with Autopilot. */
   terminal: boolean
+  /**
+   * The tools reach the model through ouRGeo's MCP bridge (the Claude Code
+   * transport), so it sees them under prefixed names.
+   *
+   * Worth one sentence rather than none: everything else in this prompt, and
+   * the whole `ourgeo_docs` reference, calls them `execute_r_code` and
+   * `run_ui_action`, and a model that cannot match those to the
+   * `mcp__ourgeo__…` entries in its tool list concludes it has neither.
+   */
+  viaMcp?: boolean
 }
 
 /** Describes the tools actually attached to this request, and the limits on
  *  what each may be used to justify. */
 export function buildToolGuidance(
-  { autoPilot, webAccess, terminal }: ToolGuidanceOptions,
+  { autoPilot, webAccess, terminal, viaMcp }: ToolGuidanceOptions,
 ): string {
   const parts: string[] = []
+
+  if (viaMcp) {
+    parts.push(`## How your tools are named
+
+Your tools arrive from ouRGeo over MCP and are listed as \`mcp__ourgeo__<name>\` — \`mcp__ourgeo__execute_r_code\`, \`mcp__ourgeo__run_ui_action\`, and so on. Everything below, and everything in \`ourgeo_docs\`, calls them by their bare names. They are the same tools. You have no file, shell or web tools of your own here; ouRGeo's are the only ones you have.`)
+  }
 
   parts.push(autoPilot
     ? `## Running R code

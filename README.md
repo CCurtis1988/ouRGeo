@@ -50,10 +50,13 @@ the whole analysis.
   axes: every interface and editor colour, your own backdrop image behind the
   code, a card image for the picker, a default basemap, and import/export as
   portable `.ourgeotheme.json` files.
-- **In-app AI assistant** with optional Autopilot, usable with cloud providers
-  or a fully local model — it can drive the interface, run the toolbox, write
-  R Markdown, rearrange your workspace, build a theme to your description, and
-  **write plugins that add capabilities ouRGeo does not ship with**.
+- **In-app AI assistant** with optional Autopilot, usable with cloud providers,
+  a fully local model, or **your Claude subscription** — pick "Claude
+  subscription (Claude Code)" and ouRGeo runs the `claude` CLI you already
+  installed and signed in to, with no API key to paste and no credentials it
+  can see. It can drive the interface, run the toolbox, write R Markdown,
+  rearrange your workspace, build a theme to your description, and **write
+  plugins that add capabilities ouRGeo does not ship with**.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by
