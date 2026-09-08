@@ -329,6 +329,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     modelRemove: (id: string): Promise<boolean> => ipcRenderer.invoke('voice:modelRemove', id),
   },
 
+  clipboard: {
+    /** The system clipboard's text, read in the main process so the renderer
+     *  needs no standing `clipboard-read` permission. Writing stays
+     *  `navigator.clipboard.writeText`, which is allowlisted. */
+    readText: (): Promise<string> => ipcRenderer.invoke('clipboard:readText'),
+  },
   terminal: {
     /** Whether a pty can be spawned at all — asked before the panel draws, so
      *  an unsupported platform gets a sentence instead of a broken terminal. */

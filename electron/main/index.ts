@@ -1,6 +1,7 @@
 import {
   app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
 } from 'electron'
+import { isPermissionAllowed } from '../../src/lib/app-permissions'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
@@ -150,15 +151,33 @@ app.whenReady().then(async () => {
   // Permissions: an allowlist, not a hole for the microphone.
   //
   // Electron grants permission requests by default when no handler is
-  // registered, and none was — so until now the renderer could have asked for
-  // geolocation, notifications, HID or MIDI and been given them without
+  // registered, and none was — so until v1.12 the renderer could have asked
+  // for geolocation, notifications, HID or MIDI and been given them without
   // anything on screen. Voice input needs exactly one of these, so the handler
   // that grants it also closes the rest.
   //
   // The check handler matters as much as the request handler: it is what
   // `enumerateDevices` consults to decide whether to reveal device LABELS, and
-  // without it the microphone picker is a list of blanks.
-  const allowed = (permission: string): boolean => permission === 'media'
+  // without it the microphone picker is a list of blanks. It is also — and
+  // this is what an allowlist costs if you write one without listing what the
+  // app already did — the handler `navigator.clipboard` consults, WITHOUT ever
+  // reaching the request handler. So closing the door on everything but
+  // `media` silently broke every Copy button in ouRGeo: the AI chat's code
+  // blocks, the two Export Code dialogs, the toolbox, the console's and the
+  // terminal's "copy path", and the terminal's own Ctrl+Shift+C. None of them
+  // noticed, because none checked the promise — every one showed a tick over
+  // an unchanged clipboard.
+  //
+  // `clipboard-sanitized-write` is granted: writing is an action the user
+  // asked for and can see the result of, and it cannot read anything.
+  //
+  // `clipboard-read` is NOT, and the difference is the point of having a list.
+  // It would let any code in the renderer read whatever the user last copied —
+  // a password, a token — silently and at any time. The one place ouRGeo needs
+  // the clipboard's CONTENTS is the terminal's Ctrl+Shift+V, which goes
+  // through `clipboard:readText` instead: a main-process read that happens
+  // once, on a keystroke, rather than a standing capability.
+  const allowed = isPermissionAllowed
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
     callback(allowed(permission) && contents === mainWindow?.webContents)
   })

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
+import { Copy, Check, X, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
 import type { ChatMessage } from '@/store/ai'
 import { cn } from '@/lib/utils'
 
@@ -12,19 +12,43 @@ interface Props {
   streamingContent?: string
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+/**
+ * Put `text` on the clipboard and say so.
+ *
+ * `failed` is a real state, not defensive padding: the old version set
+ * `copied` before the write had resolved, so a rejected write — no permission,
+ * a non-secure context — showed a tick over an unchanged clipboard, and the
+ * user only found out when they pasted. A copy button that lies is worse than
+ * one that is missing.
+ */
+function CopyButton({ text, className, title }: {
+  text: string
+  className?: string
+  title?: string
+}) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const copy = (e: React.MouseEvent): void => {
+    // Inside the message, which in a chat panel is a click target for other
+    // things (a code block's own selection, a link).
+    e.stopPropagation()
+    navigator.clipboard.writeText(text).then(
+      () => setState('copied'),
+      () => setState('failed'),
+    ).finally(() => { setTimeout(() => setState('idle'), 1500) })
   }
   return (
     <button
       onClick={copy}
-      className="absolute top-2 right-2 p-1 rounded text-geo-muted hover:text-foreground bg-geo-panel/80 opacity-0 group-hover:opacity-100 transition-opacity"
+      title={state === 'failed' ? 'Could not reach the clipboard' : title ?? 'Copy'}
+      aria-label={title ?? 'Copy'}
+      className={cn(
+        'p-1 rounded text-geo-muted hover:text-foreground hover:bg-white/5 transition-colors',
+        className,
+      )}
     >
-      {copied ? <Check className="w-3 h-3 text-geo-success" /> : <Copy className="w-3 h-3" />}
+      {state === 'copied' ? <Check className="w-3 h-3 text-geo-success" />
+        : state === 'failed' ? <X className="w-3 h-3 text-geo-error" />
+        : <Copy className="w-3 h-3" />}
     </button>
   )
 }
@@ -64,7 +88,7 @@ export function AiChatMessage({ message, isStreaming, streamingContent }: Props)
   const content = isStreaming ? streamingContent ?? '' : message.content
 
   return (
-    <div className={cn('flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
+    <div className={cn('group flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}>
       {/* Tool calls (Autopilot) */}
       {message.toolCalls?.map((tc, i) => (
         <ToolCallBlock
@@ -100,7 +124,11 @@ export function AiChatMessage({ message, isStreaming, streamingContent }: Props)
                       {children}
                     </pre>
                     {/* Extract text from code node for copy */}
-                    <CopyButton text={extractText(children)} />
+                    <CopyButton
+                      text={extractText(children)}
+                      title="Copy this code"
+                      className="absolute top-2 right-2 bg-geo-panel/80 opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
                   </div>
                 ),
                 code: ({ className, children, ...props }) => {
@@ -143,6 +171,36 @@ export function AiChatMessage({ message, isStreaming, streamingContent }: Props)
           </div>
         )}
       </div>
+
+      {/*
+        One copy button per message, on the side its bubble is on.
+
+        BELOW the bubble, not in a corner of it: the assistant's own code
+        blocks already carry a copy button at their top-right, and a second one
+        in the bubble's corner would sit on top of the first whenever a message
+        opens with code. Below, the two can never collide, and it reads as what
+        it is — an action on the whole message rather than on part of it.
+
+        The row is always in the layout and only its opacity changes. Revealing
+        it on hover would grow the column by its height at the moment the
+        pointer arrives, nudging every message below it — a list that moves
+        under the cursor is a list you cannot click accurately.
+
+        Not shown while streaming: the answer is not finished, and a button
+        offering to copy a partial one is offering the wrong thing.
+      */}
+      {!isStreaming && content.trim() !== '' && (
+        <div className={cn(
+          'flex h-4 items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity',
+          isUser ? 'pr-0.5' : 'pl-0.5',
+        )}>
+          <CopyButton
+            text={content}
+            title={isUser ? 'Copy your message' : 'Copy this reply'}
+            className="-my-1"
+          />
+        </div>
+      )}
     </div>
   )
 }

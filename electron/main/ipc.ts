@@ -1,4 +1,4 @@
-import { IpcMain, dialog, app, shell, powerSaveBlocker } from 'electron'
+import { IpcMain, dialog, app, shell, powerSaveBlocker, clipboard } from 'electron'
 import { readFile, writeFile, readdir, stat, unlink } from 'fs/promises'
 import { existsSync, readdirSync, realpathSync, mkdtempSync } from 'fs'
 import { join } from 'path'
@@ -131,6 +131,17 @@ function detectRInstallations(configuredPath: string | null): { path: string; ve
 }
 
 export function setupIpcHandlers(ipcMain: IpcMain): void {
+
+  /**
+   * Read the system clipboard, for the terminal's Ctrl+Shift+V.
+   *
+   * Here rather than `navigator.clipboard.readText()` because that needs the
+   * `clipboard-read` permission, and granting it would let anything in the
+   * renderer read whatever the user last copied — a password, a token —
+   * silently and at any time. This read happens once, when a keystroke asks
+   * for it. See the permission allowlist in index.ts.
+   */
+  ipcMain.handle('clipboard:readText', () => clipboard.readText())
   // File dialog: open a document (R script, Markdown, R Markdown)
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog({

@@ -56,7 +56,9 @@ the whole analysis.
   installed and signed in to, with no API key to paste and no credentials it
   can see. It can drive the interface, run the toolbox, write R Markdown,
   rearrange your workspace, build a theme to your description, and **write
-  plugins that add capabilities ouRGeo does not ship with**.
+  plugins that add capabilities ouRGeo does not ship with**. Every message in
+  the chat — yours and the reply — has its own copy button, and code blocks
+  keep theirs.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by

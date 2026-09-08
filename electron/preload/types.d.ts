@@ -239,6 +239,9 @@ declare global {
         modelCancel(id: string): Promise<boolean>
         modelRemove(id: string): Promise<boolean>
       }
+      clipboard: {
+        readText(): Promise<string>
+      }
       terminal: {
         available(): Promise<{ ok: boolean; error?: string }>
         shells(): Promise<TerminalShellProfile[]>

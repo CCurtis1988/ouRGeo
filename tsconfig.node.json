@@ -18,6 +18,7 @@
     "src/lib/markdown/knit-errors.ts",
     "src/lib/terminal/shells.ts",
     "src/lib/ai-claude-args.ts",
-    "src/lib/ai-fetch-error.ts"
+    "src/lib/ai-fetch-error.ts",
+    "src/lib/app-permissions.ts"
   ]
 }

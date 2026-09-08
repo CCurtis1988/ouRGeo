@@ -908,6 +908,23 @@ is enough", not "undo that". And `finalizeStream` adds no message when there is
 nothing to add, because a blank assistant bubble reads as the assistant having
 answered with nothing.
 
+**Every message carries a copy button, on the side its bubble is on** — below
+the bubble rather than in a corner of it, because the assistant's own code
+blocks already carry one at their top-right and a second in the corner would
+sit on top of the first whenever a message opens with code. The row is always
+in the layout and only its opacity changes: revealing it on hover would grow
+the column at the moment the pointer arrives and nudge every message below it,
+and a list that moves under the cursor is one you cannot click accurately. It
+copies `message.content` — for the assistant that is the raw MARKDOWN, which is
+what pastes usefully into a document and what round-trips; and it is not shown
+while streaming, because an unfinished answer is the wrong thing to offer.
+
+`CopyButton` has a `failed` state, and it is not defensive padding: it is what
+found the permission bug above. The old version set `copied` before the write
+had resolved, so a rejected write showed a tick over an unchanged clipboard and
+the user only learned otherwise when they pasted. A copy button that lies is
+worse than one that is missing.
+
 **`detectMentionedObjects` reads the user's environments only.** It used to
 scan the search path too, so an ordinary English sentence matched
 `package:base` and "Reply with one word" asked R for the first five rows of the
@@ -1975,6 +1992,30 @@ revealing device labels, and without it the microphone picker is a list of
 blanks. macOS additionally needs `NSMicrophoneUsageDescription` in
 electron-builder's `mac.extendInfo`, and is asked up front so a blocked
 microphone is visible before the first click.
+
+**The allowlist is only as good as the list of things the app already did**
+(`src/lib/app-permissions.ts`, tested). Written as `permission === 'media'`, it
+silently broke **every Copy button in ouRGeo** — the AI chat's code blocks,
+both Export Code dialogs, the toolbox, the console's and the terminal's "copy
+path", and the terminal's own Ctrl+Shift+C and Ctrl+Shift+V. `navigator.clipboard`
+asks the permission **CHECK** handler, never the request handler, so the same
+predicate that reveals device labels also decides whether a copy works — and
+none of those call sites checked the promise, so each showed a success tick
+over an unchanged clipboard. Nothing was on screen to say otherwise, and the
+app had shipped that way since 1.12.
+
+- `clipboard-sanitized-write` is granted: writing is an action the user asked
+  for and can see the result of, and it cannot read anything.
+- `clipboard-read` is **not**, and the difference is the point of having a
+  list. It is a standing licence for any renderer code to read whatever the
+  user last copied — a password, a token — silently and at any time. The one
+  place ouRGeo needs the clipboard's CONTENTS is the terminal's Ctrl+Shift+V,
+  which goes through `clipboard:readText`: a main-process read that happens
+  once, on the keystroke.
+- The predicate lives in its own pure module so it is a list you can read and a
+  test can hold you to. `REFUSED_WITH_REASON` records why each refusal is a
+  refusal, so nobody grants one back to make a symptom go away.
+
 ## The terminal (v1.13)
 
 A real pseudo-terminal running the user's own shell, tabbed with the R console

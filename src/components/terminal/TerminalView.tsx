@@ -195,7 +195,12 @@ export function TerminalView({ id, active }: Props): React.ReactElement {
         // SIGINT, which would kill whatever is running.
         if (text) void navigator.clipboard.writeText(text)
       } else if (chord === 'paste') {
-        void navigator.clipboard.readText().then((text) => {
+        // Read in the main process: `navigator.clipboard.readText()` needs the
+        // `clipboard-read` permission, which ouRGeo deliberately does not
+        // grant — a standing licence to read whatever the user last copied is
+        // not what a paste keystroke should cost. See the allowlist in
+        // electron/main/index.ts.
+        void window.electronAPI.clipboard.readText().then((text) => {
           if (text) window.electronAPI.terminal.write(id, text)
         })
       } else {
