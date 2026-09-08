@@ -7,6 +7,7 @@ import {
 import { languageOf, isMarkdownDoc } from '@/lib/markdown/doc-kind'
 import { panelInfo } from '@/lib/layout/panel-meta'
 import { startContentDrag } from '@/lib/content-drag'
+import { tabTooltip } from '@/lib/tab-tooltip'
 import { usePanelId } from '../layout/panel-context'
 import { editorPanels } from '@/lib/panel-content'
 import { useLayoutStore } from '@/store/layout'
@@ -118,6 +119,9 @@ export function TabBar(): React.ReactElement {
               ? (e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, tab }) }
               : undefined}
             onClick={() => setActiveTab(tab.id)}
+            // The label is truncated at 180px; this is where the whole name —
+            // and the path or R expression behind it — can still be read.
+            title={tabTooltip(tab)}
           >
             <TabIcon tab={tab} />
             <span className="truncate">

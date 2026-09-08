@@ -1046,15 +1046,23 @@ export function DataFrameView({
   }
   const dropLeft = getDropLeft()
 
+  const headerSummary =
+    `${name} — ${cls === 'tbl_dbi' ? 'database tbl (lazy)' : cls} — ${totalRows} x ${columns.length}`
+
   return (
     <div className="flex flex-col h-full">
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-1 border-b border-geo-border flex-shrink-0">
-        <span className="text-xs text-geo-muted flex items-center gap-1.5 min-w-0 truncate">
+        {/* Truncated in a narrow pane, and the dataset's name is the first
+            thing to go — so the whole line is also the hover title. */}
+        <span
+          className="text-xs text-geo-muted flex items-center gap-1.5 min-w-0 truncate"
+          title={headerSummary}
+        >
           {cls === 'tbl_dbi' && (
             <Database className="w-3 h-3 text-geo-accent" />
           )}
-          {name} — {cls === 'tbl_dbi' ? 'database tbl (lazy)' : cls} — {totalRows} x {columns.length}
+          {headerSummary}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
           {hasSelection && (
