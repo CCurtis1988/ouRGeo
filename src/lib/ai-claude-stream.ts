@@ -18,6 +18,22 @@ export type ClaudeEvent =
   /** A token of the answer. THINKING deltas never arrive here — they come on
    *  the same channel and are not the answer. */
   | { kind: 'text'; text: string }
+  /**
+   * How full the context window is RIGHT NOW, read off one API call's own
+   * `message_start` / `message_delta`.
+   *
+   * This is the only honest source for the context bar, and the reason is
+   * measured: a run's `result.usage` is the SUM over every API call the agent
+   * loop made. A two-call run reported in=4 read=6680 create=6862 — 13,546
+   * "input tokens" — while the context actually sent on the second call was
+   * 2 + 6680 + 182 = 6,864. The sum grows with the number of tool calls, not
+   * with the conversation, so a long autopilot turn reported several times the
+   * window it was using and the bar pegged at 100%.
+   *
+   * `contextTokens` is 0 when a delta carried no input counts; the caller keeps
+   * the last number it saw. `outputTokens` is cumulative for the current call.
+   */
+  | { kind: 'usage'; contextTokens: number; outputTokens: number }
   /** How much of the subscription window this run has used. For a subscriber
    *  this is the number worth showing; tokens are the API's unit, not theirs. */
   | { kind: 'rateLimit'; fiveHour: number; sevenDay: number; resetsAt: number }
@@ -26,6 +42,8 @@ export type ClaudeEvent =
       kind: 'result'
       text: string
       isError: boolean
+      /** Tokens BILLED across every API call this run made — cumulative, and
+       *  therefore not the context window's occupancy. See `usage`. */
       inputTokens: number
       outputTokens: number
       contextWindow: number | null
@@ -41,6 +59,17 @@ const obj = (v: unknown): Json | null =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Json) : null
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+/**
+ * Everything the model was sent on one API call.
+ *
+ * Cached tokens are still context — they occupy the window exactly as fresh
+ * ones do; caching changes what they cost, not what they take up. A prompt of
+ * which 6,680 tokens were a cache hit is a 6,680-token prompt.
+ */
+function promptTokens(u: Json): number {
+  return num(u.input_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens)
+}
 
 export function parseClaudeLine(line: string): ClaudeEvent {
   let msg: Json | null
@@ -68,7 +97,23 @@ export function parseClaudeLine(line: string): ClaudeEvent {
 
   if (msg.type === 'stream_event') {
     const ev = obj(msg.event)
-    if (!ev || ev.type !== 'content_block_delta') return { kind: 'ignore' }
+    if (!ev) return { kind: 'ignore' }
+
+    // Both of these carry this ONE call's usage, and both arrive while the run
+    // is still going — which is what makes the context bar live rather than a
+    // number that appears once the answer has finished.
+    if (ev.type === 'message_start') {
+      const u = obj(obj(ev.message)?.usage)
+      if (u) return { kind: 'usage', contextTokens: promptTokens(u), outputTokens: num(u.output_tokens) }
+      return { kind: 'ignore' }
+    }
+    if (ev.type === 'message_delta') {
+      const u = obj(ev.usage)
+      if (u) return { kind: 'usage', contextTokens: promptTokens(u), outputTokens: num(u.output_tokens) }
+      return { kind: 'ignore' }
+    }
+
+    if (ev.type !== 'content_block_delta') return { kind: 'ignore' }
     const delta = obj(ev.delta)
     // `thinking_delta` and `signature_delta` ride the same channel. Neither is
     // the answer, and forwarding either would print the model's scratch work

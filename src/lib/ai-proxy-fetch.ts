@@ -37,25 +37,44 @@ export function proxyFetch(url: string, init: ProxyFetchInit = {}): Promise<Prox
     const queue: Uint8Array[] = []
     let waiting: ((r: ProxyReadResult) => void) | null = null
     let ended = false
-    let errored: string | null = null
+    let errored: Error | null = null
     let meta: { ok: boolean; status: number } | null = null
     let settled = false
+    let failWaiting: ((e: Error) => void) | null = null
 
     const pushChunk = (c: Uint8Array): void => {
-      if (waiting) { const w = waiting; waiting = null; w({ done: false, value: c }) }
+      if (waiting) { const w = waiting; waiting = null; failWaiting = null; w({ done: false, value: c }) }
       else queue.push(c)
     }
     const finish = (): void => {
       ended = true
-      if (waiting) { const w = waiting; waiting = null; w({ done: true }) }
+      if (waiting) { const w = waiting; waiting = null; failWaiting = null; w({ done: true }) }
+    }
+    /**
+     * The stream died after the response had already been handed over.
+     *
+     * This has to REJECT the pending read, not resolve it as a clean end. It
+     * used to call `finish()`, so a connection that dropped half way through
+     * an answer was indistinguishable from a server that had finished
+     * speaking: the caller returned the truncated text as the complete reply
+     * and nothing anywhere said otherwise. A half-answer presented as whole is
+     * worse than an error, because only the error can be acted on.
+     */
+    const fail = (err: Error): void => {
+      errored = err
+      if (failWaiting) {
+        const f = failWaiting
+        waiting = null; failWaiting = null
+        f(err)
+      }
     }
 
     const reader = {
       read(): Promise<ProxyReadResult> {
         if (queue.length > 0) return Promise.resolve({ done: false, value: queue.shift()! })
-        if (errored) return Promise.reject(new Error(errored))
+        if (errored) return Promise.reject(errored)
         if (ended) return Promise.resolve({ done: true })
-        return new Promise<ProxyReadResult>((res) => { waiting = res })
+        return new Promise<ProxyReadResult>((res, rej) => { waiting = res; failWaiting = rej })
       },
     }
 
@@ -87,16 +106,35 @@ export function proxyFetch(url: string, init: ProxyFetchInit = {}): Promise<Prox
         onChunk: (c) => pushChunk(c instanceof Uint8Array ? c : new Uint8Array(c)),
         onDone: () => finish(),
         onError: (msg) => {
-          errored = msg
-          if (!settled) { settled = true; reject(new Error(msg)) }
-          else finish()
+          const err = new Error(msg)
+          if (!settled) { settled = true; errored = err; reject(err) }
+          else fail(err)
         },
       }
     )
 
+    /**
+     * Stop, from this side.
+     *
+     * The abort has to settle THIS promise and any pending read, rather than
+     * wait for the main process to say something: telling main to abort also
+     * removes the listeners that would carry its answer back, so a read left
+     * waiting on them would never settle. That is not a leak you can see — the
+     * panel looks idle — but the turn's promise never resolves, and anything
+     * waiting on it (the guard that stops a message being sent twice) waits
+     * for ever.
+     */
+    const onAbort = (): void => {
+      abort()
+      const err = new Error('The request was stopped.')
+      err.name = 'AbortError'
+      if (!settled) { settled = true; errored = err; reject(err) }
+      else fail(err)
+    }
+
     if (init.signal) {
-      if (init.signal.aborted) abort()
-      else init.signal.addEventListener('abort', () => abort(), { once: true })
+      if (init.signal.aborted) onAbort()
+      else init.signal.addEventListener('abort', onAbort, { once: true })
     }
   })
 }

@@ -61,7 +61,8 @@ Electron Main Process  (electron/main/)
   ├── r-bridge.ts     — Spawns Rscript, captures port from stdout, auto-restarts on crash
   ├── ipc.ts          — All IPC handlers: file dialogs, R management, plot popout
   ├── ai-proxy.ts     — Proxies AI-provider HTTP calls (ai:fetch/ai:chunk/ai:abort) so the
-  │                     renderer keeps webSecurity enabled
+  │                     renderer keeps webSecurity enabled. Uses `net.fetch`, NOT
+  │                     Node's global fetch — see "The transport" below
   ├── plot-window.ts  — Creates/updates a secondary BrowserWindow for plot popout
   └── index.ts        — BrowserWindow (1000×700); on resume/GPU-loss forces a
                          state-preserving repaint (invalidate + resize nudge) so
@@ -840,6 +841,91 @@ record of what the assistant did.
   `buildToolGuidance` states the *current* switch positions so the model never
   claims a capability it wasn't given.
 
+### The transport (`electron/main/ai-proxy.ts`, `src/lib/ai-fetch-error.ts`)
+
+Two bugs lived here, and both presented as the same four words in the chat
+panel: **"Error: fetch failed"**.
+
+- **`net.fetch`, not Node's `fetch`.** Node's is undici, whose `headersTimeout`
+  and `bodyTimeout` are both **five minutes** — a deadline ouRGeo never chose
+  and never mentioned. A local model given a large prompt on a busy GPU
+  routinely exceeds it, and a request queued behind another waits for the whole
+  of that one first. Measured against a server holding its headers for 320 s:
+  Node's fetch threw at **300.8 s** with `UND_ERR_HEADERS_TIMEOUT`; Electron's
+  `net.fetch` returned the answer. Chromium's stack imposes no such deadline,
+  and streaming, custom headers and `AbortSignal` were each verified against a
+  local server before the swap rather than assumed. The user can already see a
+  slow request and stop it; ouRGeo does not need a timer of its own.
+- **A dropped stream is an ERROR, not an end.** `proxyFetch`'s `onError` called
+  `finish()` once the response had been handed over, which resolves the pending
+  read as a clean end-of-stream — so a connection that died mid-sentence was
+  indistinguishable from a model that had finished speaking, and the truncated
+  text was returned as the complete answer with nothing anywhere saying
+  otherwise. A half-answer presented as whole is worse than an error, because
+  only the error can be acted on. It now rejects, and the partial text is kept
+  (see `finalizeStream`).
+- **`describeFetchFailure` names the recovery move.** `fetch` reports a server
+  that is not running, a server that never answered, and a connection that
+  dropped identically; the cause is one level down in `err.cause` (undici) or
+  in a bare `net::ERR_…` string (Chromium), and the host is in the URL. It
+  reads both vocabularies, walks the cause chain, and answers with a sentence
+  naming the host and what to do — the same argument `transport-retry.ts` makes
+  about axios reporting a severed socket as `Network Error`. `isLoopbackHost`
+  decides who is being blamed: a local server is a process the user can go and
+  look at.
+- **An abort settles on the renderer side.** Telling main to abort also removes
+  the listeners that would carry its reply back, so a read left waiting on them
+  would never settle — an invisible failure: the panel looks idle while the
+  turn's promise hangs for ever, and with it the guard that stops a message
+  being sent twice.
+
+### Sending a message (`AiChatPanel.handleSend` / `runTurn`)
+
+**The send is claimed synchronously, before the first `await`.** Preparing a
+turn asks R for the environment listing and a preview of every object the
+message names — and R is serial, so with a long command running that wait is as
+long as the command. Nothing used to say a send was under way until all of it
+had finished: the box still held the text, Send was still enabled,
+`isStreaming` was still false. A user who clicked again because nothing had
+happened sent the message **twice**, and two turns then ran at once against the
+same model. `sendingRef` covers the same tick (Enter and a click); `beginStream`
+covers every tick after it, and now runs before the preparation rather than
+after it. `runTurn` is split out so the ordering rule — claim, commit, then
+await — fits on one screen.
+
+**A failed turn keeps what was streamed.** The catch used to call
+`finalizeStream(streamingContent)`, closing over the value from the render that
+built the callback — which is empty, always, because the turn had not started.
+So a transport that died mid-answer finalized an EMPTY message and everything
+the user had been reading vanished at the moment the error appeared. It reads
+`useAiStore.getState().streamingContent` instead: the same class of bug as
+`useGeometryCommit`, and the same fix.
+
+**Stop keeps the half-written answer too.** `cancelStream` used to clear
+`streamingContent`, so pressing Stop deleted every word just read — including
+the part the user stopped it because they had already got. Stopping means "that
+is enough", not "undo that". And `finalizeStream` adds no message when there is
+nothing to add, because a blank assistant bubble reads as the assistant having
+answered with nothing.
+
+**`detectMentionedObjects` reads the user's environments only.** It used to
+scan the search path too, so an ordinary English sentence matched
+`package:base` and "Reply with one word" asked R for the first five rows of the
+`with` FUNCTION. R refuses with a 500, the preview is dropped silently, and
+nothing looks wrong — but `base`, `stats` and `utils` are full of words people
+write in sentences (`with`, `data`, `table`, `max`, `range`, `format`, `file`,
+`date`, `sort`), so a plain question fired several doomed round trips at a
+SERIAL R server before it could be sent. That wait is the window in which a
+user sees nothing happen and clicks Send again. `!isSearchPath` is the same
+predicate the Environment panel uses, and it is right twice over: a package
+function has no rows to preview, and a preview is only useful for something the
+user put there.
+
+**`tokenUsage.total` starts at 0, meaning "no provider has said yet"**, and the
+panel draws against the resolved per-model size until one has. It is reset by a
+provider or model switch: the reading describes ONE model's window, so carrying
+it across would show the new model's bar filled by the old one's conversation.
+
 ### A Claude subscription as a provider (`ai-claude-args.ts`, `electron/main/claude-*.ts`)
 
 Every other provider is an HTTP API reached with a key the user pastes into
@@ -891,6 +977,40 @@ need access to anybody's credits; it needs to ask the program on the machine.
   config is a file for a second reason: a `.cmd` shim has to be spawned through
   the shell on Windows, and a shell would have to quote a blob full of braces
   and quotes correctly on the one platform this repository cannot test.
+- **The session context rides the USER turn, never the system prompt** — the
+  one decision in this provider with a price tag on it. Claude Code caches the
+  prompt prefix, and the system prompt is the front of it: change a byte and
+  the whole conversation is re-sent as a cache WRITE. Measured on a trivial
+  two-turn chat against CLI 2.1.263: resuming with an identical system prompt
+  read 5,762 tokens from cache and cost $0.0014; resuming with one whose TAIL
+  had changed read 0, wrote 5,874, and cost $0.0235 — **16× for the same
+  question**. ouRGeo's session context changes with every console line, so the
+  original shape paid the full price of the whole conversation on every turn.
+  `SendOptions.sessionContext` is the split: `systemPrompt` is the same bytes
+  every turn, and what moves is appended to the turn, where it extends the
+  cached prefix instead of breaking it — and where the freshest state sits
+  closest to the question. **Anything added to the system prompt for this
+  provider must be constant, or it costs the conversation.**
+- **And it is sent only when it has CHANGED** (`ai.lastSessionContext`). The
+  block stays in the CLI's transcript, so an identical listing costs its tokens
+  again on every following turn — ten turns, ten copies of the same
+  environment. It carries the sentence "This replaces any earlier session-state
+  block", so the newest one the model has seen is the one in force. Cleared by
+  New conversation and by a provider switch, because the next provider has been
+  sent nothing.
+- **The context bar reads the per-call `usage`, not the run's total.** A run's
+  `result.usage` is the SUM over every API call the agent loop made, and each
+  of those re-sends the conversation: a two-call run measured in=4,
+  cache_read=6,680, cache_creation=6,862 — 13,546 "input tokens" — while the
+  largest prompt actually sent was 6,864. The sum grows with the number of tool
+  calls, so a long autopilot turn reported several times the window it was
+  using and the bar pegged at 100%. `parseClaudeLine` therefore emits a
+  `usage` event for `message_start` and `message_delta`, which arrive DURING
+  the run — that is also what makes the bar move rather than jump once at the
+  end — and `sendClaudeCli` keeps the last one rather than adding them up.
+  Cached tokens count: caching changes what a token costs, not the space it
+  occupies. The `result` event still supplies the window, since an alias
+  resolves to a model only that run can name.
 - **`requiresApiKey` is not `!isLocalProvider`.** This provider runs on the
   machine but is not a self-hosted server, and the chat panel's send gate asked
   the wrong question — it refused to send a single message while every other

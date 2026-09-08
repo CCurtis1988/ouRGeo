@@ -96,6 +96,9 @@ export function AiChatPanel(): React.ReactElement {
   // Resolved context window (manual override → auto-detected → static → 128k)
   const [contextSize, setContextSize] = useState(() => getContextSize(currentModel))
 
+  // A turn is in flight. A ref, not state: it has to be readable and writable
+  // within one event's dispatch, which is where the double send happened.
+  const sendingRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const modelBtnRef = useRef<HTMLButtonElement>(null)
@@ -146,38 +149,34 @@ export function AiChatPanel(): React.ReactElement {
     return '' // local providers don't require a cloud key
   }
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim()
-    if (!text || isStreaming) return
-
-    const local = isLocalProvider(provider)
-    const apiKey = getApiKey()
-    if (requiresApiKey(provider) && !apiKey) {
-      setSendError(`${PROVIDER_LABELS[provider]} API key not set. Add it in Settings → AI Assistant.`)
-      return
-    }
-
-    setSendError(null)
-
-    // Refresh environment data so the system prompt reflects the current session state
+  /**
+   * Everything after the send is committed: gather the session's state, build
+   * the prompt, stream the answer.
+   *
+   * Split out so `handleSend` is short enough to see the ordering rule in one
+   * screen — claim, commit, then await.
+   */
+  const runTurn = useCallback(async (
+    userMsg: { id: string; role: 'user'; content: string; timestamp: number },
+    text: string,
+    apiKey: string,
+    local: boolean,
+    ac: AbortController,
+  ) => {
+    // Refresh environment data so the prompt reflects the current session state
     const envRes = await rClient.listEnvironments().catch(() => null)
     const currentEnvs = envRes?.success ? envRes.environments : environments
     if (envRes?.success) setEnvironments(envRes.environments)
+    // Stop pressed while R was answering: the turn was never sent, so there is
+    // nothing to finalize and nothing to say.
+    if (ac.signal.aborted) return
 
-    // Add user message
-    const userMsg = {
-      id: crypto.randomUUID(),
-      role: 'user' as const,
-      content: text,
-      timestamp: Date.now(),
-    }
-    addMessage(userMsg)
-    setInput('')
-
-    // Build system prompt: role → evidence rules → the tools actually attached
-    // this turn → live session context.
-    const envContext = buildEnvContext(currentEnvs)
-    let systemPrompt = [
+    // The prompt has two halves, and which half a piece belongs in is a cost
+    // decision for any provider that caches a prefix (see
+    // `SendOptions.sessionContext`): the STABLE half is the same bytes every
+    // turn, the VOLATILE half changes with the session and must never sit in
+    // front of the stable one.
+    const stablePrompt = [
       AI_BASE_PROMPT,
       buildOurgeoCore(),
       buildProvenanceRules(),
@@ -190,16 +189,18 @@ export function AiChatPanel(): React.ReactElement {
         terminal: terminalEnabled,
         viaMcp: provider === 'claude-cli',
       }),
-      envContext,
     ].filter(Boolean).join('\n\n')
-    // Give the model awareness of the live console — commands the user ran by
-    // hand plus their output — so it knows the session's recent history.
+
+    // The live session: the objects, the console the user has been typing in,
+    // and the documents that are open.
+    const volatile: string[] = []
+    const envContext = buildEnvContext(currentEnvs)
+    if (envContext) volatile.push(envContext)
     const consoleContext = buildConsoleContext(useSessionStore.getState().consoleHistory)
-    if (consoleContext) systemPrompt += `\n\n${consoleContext}`
-    // …and of the editor, so "write this up" can start from what is already open.
+    if (consoleContext) volatile.push(consoleContext)
     const editorState = useEditorStore.getState()
     const docContext = buildDocumentContext(editorState.tabs, editorState.activeTabId)
-    if (docContext) systemPrompt += `\n\n${docContext}`
+    if (docContext) volatile.push(docContext)
 
     // Fetch rich context for mentioned objects
     const mentioned = detectMentionedObjects(text, currentEnvs)
@@ -212,15 +213,33 @@ export function AiChatPanel(): React.ReactElement {
           if (df.success && df.columns.length > 0) {
             const header = df.columns.map((c) => c.name).join(' | ')
             const sep = df.columns.map(() => '---').join(' | ')
-            const rows = df.rows.map((r) => r.join(' | ')).join('\n')
             snippets.push(`### \`${name}\` preview\n| ${header} |\n| ${sep} |\n${df.rows.length > 0 ? df.rows.map(r => `| ${r.join(' | ')} |`).join('\n') : ''}`)
           }
         } catch { /* ignore */ }
       }
       if (snippets.length > 0) {
-        systemPrompt += `\n\n## Referenced Object Previews\n${snippets.join('\n\n')}`
+        volatile.push(`## Referenced Object Previews\n${snippets.join('\n\n')}`)
       }
     }
+
+    // A transport that keeps its own transcript is sent this beside the turn;
+    // everything else is posted the whole conversation each time and has no
+    // prefix to protect, so it keeps the shape it has always had.
+    const keepsTranscript = provider === 'claude-cli'
+    const sessionContext = volatile.length > 0
+      ? `# Session state at this turn\nThis replaces any earlier session-state block.\n\n${volatile.join('\n\n')}`
+      : ''
+    const systemPrompt = keepsTranscript || !sessionContext
+      ? stablePrompt
+      : `${stablePrompt}\n\n${volatile.join('\n\n')}`
+
+    // Send it only when it has changed. The block stays in the CLI's
+    // transcript, so an identical one costs its tokens again on every turn for
+    // the rest of the conversation. Nothing else posts a transcript, so
+    // nothing else can skip it.
+    const sendContext = keepsTranscript
+      && sessionContext !== ''
+      && sessionContext !== useAiStore.getState().lastSessionContext
 
     // Only the enabled capabilities are attached to the request, so a switch that
     // is off is invisible to the model rather than merely discouraged.
@@ -282,7 +301,6 @@ export function AiChatPanel(): React.ReactElement {
       return `Error: unknown tool "${call.name}".`
     }
 
-    const ac = beginStream()
     const allMessages = [...useAiStore.getState().messages.filter((m) => m.id !== userMsg.id)]
     // include the new user message
     const conversationMessages = [...allMessages, userMsg]
@@ -302,6 +320,7 @@ export function AiChatPanel(): React.ReactElement {
         contextSize,
         messages: conversationMessages,
         systemPrompt,
+        sessionContext: sendContext ? sessionContext : undefined,
         tools,
         onChunk: (chunk) => appendStreamChunk(chunk),
         onToolCall: tools.length > 0 ? runTool : undefined,
@@ -314,16 +333,83 @@ export function AiChatPanel(): React.ReactElement {
         onClaudeRateLimit: (f, s7, r) => useAiStore.getState().setClaudeUsage(f, s7, r),
       })
 
-      // Attach tool calls/results to the finalized message if in autopilot
-      finalizeStream(fullContent)
+      // Recorded only on success: a turn that failed may never have reached
+      // the model, and the next one must not assume it has this state.
+      if (sendContext) useAiStore.getState().setLastSessionContext(sessionContext)
+      // Stop was pressed: `cancelStream` has already kept whatever had been
+      // streamed, and finalizing again would post the answer twice.
+      if (!ac.signal.aborted) finalizeStream(fullContent)
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') {
-        setSendError(String(e))
-        finalizeStream(streamingContent || '')
-      }
+      // Stop was pressed — by name, or because the controller says so, since a
+      // transport is free to reject with something of its own once aborted.
+      if (ac.signal.aborted || (e as Error).name === 'AbortError') return
+      setSendError(String(e))
+      // The partial answer is READ HERE, not closed over.
+      //
+      // `streamingContent` in this callback's scope is the value from the
+      // render that built it — empty, always, because the turn had not
+      // started. So a transport that failed mid-answer (a local server
+      // dropping the connection is the ordinary case) finalized an EMPTY
+      // message, and everything the user had been reading disappeared at the
+      // moment the error appeared. Same class of bug as `useGeometryCommit`,
+      // and the same fix.
+      finalizeStream(useAiStore.getState().streamingContent)
     }
-  }, [input, isStreaming, provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
-      addMessage, appendStreamChunk, finalizeStream, beginStream, setTokenUsage, addConsoleEntry, streamingContent, setEnvironments])
+  }, [provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
+      appendStreamChunk, finalizeStream, setTokenUsage, addConsoleEntry, setEnvironments])
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim()
+    if (!text || isStreaming) return
+
+    const local = isLocalProvider(provider)
+    const apiKey = getApiKey()
+    if (requiresApiKey(provider) && !apiKey) {
+      setSendError(`${PROVIDER_LABELS[provider]} API key not set. Add it in Settings → AI Assistant.`)
+      return
+    }
+
+    // A send is claimed SYNCHRONOUSLY, before the first await.
+    //
+    // Preparing a turn asks R for the environment listing and a preview of
+    // every object the message names, and R is serial: with a long command
+    // running, that wait is as long as the command. On the old order nothing
+    // said a send was under way until all of it had finished — the box still
+    // held the text, Send was still enabled, `isStreaming` was still false —
+    // so a user who clicked again because nothing had happened sent the
+    // message twice, and two turns then ran against the same model at once.
+    // The ref covers the same tick (Enter and a click, a double click); the
+    // state below covers every tick after it.
+    if (sendingRef.current) return
+    sendingRef.current = true
+
+    setSendError(null)
+
+    const userMsg = {
+      id: crypto.randomUUID(),
+      role: 'user' as const,
+      content: text,
+      timestamp: Date.now(),
+    }
+    addMessage(userMsg)
+    setInput('')
+    // Streaming starts here, not after the preparation: it is what puts the
+    // Stop button up, disables the box, and makes a second Enter a no-op.
+    const ac = beginStream()
+
+    try {
+      await runTurn(userMsg, text, apiKey, local, ac)
+    } catch (e) {
+      // `runTurn` handles its own send failures; this is the belt for a throw
+      // while the turn is being PREPARED. Without it the panel would be left
+      // streaming for ever — a Stop button over a turn that is not running,
+      // and no way back to a Send button.
+      setSendError(String(e))
+      finalizeStream(useAiStore.getState().streamingContent)
+    } finally {
+      sendingRef.current = false
+    }
+  }, [input, isStreaming, provider, keys, addMessage, beginStream, finalizeStream, runTurn])
 
   /**
    * Put a transcript into the message box at the caret.
@@ -407,7 +493,10 @@ export function AiChatPanel(): React.ReactElement {
             anchorRef={modelBtnRef as React.RefObject<HTMLElement>}
           />
         </div>
-        <TokenBar used={tokenUsage.used} total={contextSize} />
+        {/* The provider's own reported window wins when there is one: a
+            Claude Code alias resolves to a model whose window only that run
+            can name. `contextSize` is the fallback until it has. */}
+        <TokenBar used={tokenUsage.used} total={tokenUsage.total || contextSize} />
         <button
           onClick={clearMessages}
           className="flex items-center gap-1 text-[10px] text-geo-muted hover:text-foreground px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors flex-shrink-0"

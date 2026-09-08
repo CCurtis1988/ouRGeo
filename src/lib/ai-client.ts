@@ -31,6 +31,10 @@ export function getContextSize(model: string): number {
   return CONTEXT_SIZES[model] ?? 128_000
 }
 
+/** What to show for a Claude Code alias until the run reports its real
+ *  window. Every current Claude model is at least this. */
+export const CLAUDE_CLI_MIN_CONTEXT = 200_000
+
 // ── Local provider registry ────────────────────────────────────────────────
 // Every local backend below is OpenAI-compatible (exposes /v1/chat/completions
 // and /v1/models) EXCEPT Ollama, which uses its native /api/chat + /api/tags.
@@ -372,14 +376,39 @@ export function buildConsoleContext(
 }
 
 // ── Mention detection ─────────────────────────────────────────────────────
+/**
+ * Objects in the message worth previewing for the model.
+ *
+ * **The user's environments only.** It used to scan every environment,
+ * including the search path — so an ordinary English sentence matched
+ * `package:base`, and "Reply with one word" asked R for the first five rows of
+ * the `with` FUNCTION. R refused (HTTP 500), the preview was silently dropped,
+ * and nothing was visibly wrong; but `base`, `stats` and `utils` are full of
+ * words people write in sentences — `with`, `data`, `table`, `max`, `range`,
+ * `format`, `file`, `date`, `sort`, `order`, `rev`, `c`, `t` — so a plain
+ * question routinely fired several doomed round trips at a SERIAL R server
+ * before it could be sent. That wait is the window in which a user, seeing
+ * nothing happen, clicks Send again.
+ *
+ * `!isSearchPath` is the same predicate the Environment panel uses for
+ * "an environment whose objects can be named directly in generated R"
+ * (see the Environment panel section of CLAUDE.md), and it is the right one
+ * twice over: a package function has no rows to preview, and a preview is only
+ * useful for something the user put there.
+ *
+ * A name in brackets is still an explicit request and is kept even when it is
+ * only one letter; a bare word must be at least two, because `a` and `b` are
+ * ordinary English as well as ordinary column names.
+ */
 export function detectMentionedObjects(text: string, envs: REnvironmentInfo[]): string[] {
   const names = new Set<string>()
   for (const env of envs) {
+    if (env.isSearchPath) continue
     for (const obj of env.objects) {
       names.add(obj.name)
     }
   }
-  const bareWords = text.match(/\b[a-zA-Z_.][a-zA-Z0-9_.]*\b/g) ?? []
+  const bareWords = (text.match(/\b[a-zA-Z_.][a-zA-Z0-9_.]*\b/g) ?? []).filter((w) => w.length > 1)
   const bracketNames = [...text.matchAll(/\[([a-zA-Z_.][a-zA-Z0-9_.]*)\]/g)].map((m) => m[1])
   return [...new Set([...bareWords, ...bracketNames].filter((w) => names.has(w)))]
 }
@@ -502,6 +531,13 @@ export function resolveContextSize(
     if (override) return override
     if (detected && detected > 0) return detected
   }
+  // The CLI is given an ALIAS — `opus`, `sonnet`, `haiku` — and which model
+  // and window that resolves to is the user's plan's business (a `sonnet`
+  // alias reported a 1,000,000-token window on the plan this was written
+  // against). So this is a floor to draw the first bar against, and the run's
+  // own `result` event replaces it with the truth. A table of aliases here
+  // would be a number that goes stale the day one moves.
+  if (provider === 'claude-cli') return CLAUDE_CLI_MIN_CONTEXT
   return getContextSize(model)
 }
 
@@ -537,6 +573,25 @@ export interface SendOptions {
   /** R's working directory, so a path in the answer means what it means in the
    *  console. */
   claudeCwd?: string
+  /**
+   * The volatile half of the prompt — the environment listing, the console
+   * tail, the open documents — for a transport that keeps its own transcript.
+   *
+   * It rides the USER turn rather than the system prompt, and that is a
+   * measured cost decision, not a stylistic one. Claude Code caches the prompt
+   * prefix; a system prompt that changes invalidates it, and every token of
+   * the conversation is then re-sent as a cache WRITE. Measured on a trivial
+   * two-turn conversation against CLI 2.1.263: resuming with an identical
+   * system prompt read 5,762 tokens from cache and cost $0.0014; resuming with
+   * one whose tail had changed read 0, wrote 5,874, and cost $0.0235 — 16×,
+   * for the same question. ouRGeo's session context changes on every console
+   * line, so on the old shape EVERY turn paid the full price of the whole
+   * conversation.
+   *
+   * Appending to the user turn extends the cached prefix instead of breaking
+   * it, and puts the freshest state closest to the question.
+   */
+  sessionContext?: string
   onClaudeSession?: (sessionId: string) => void
   /** Fraction of the subscription's rolling windows used — the number a
    *  subscriber plans around, where an API user watches tokens. */
@@ -1061,9 +1116,13 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
   // this the assistant would answer a follow-up having silently forgotten the
   // question it follows. Only on the FIRST turn: after that the CLI's own
   // transcript is the record, and repeating it would double every message.
-  const prompt = opts.claudeResume
+  const turn = opts.claudeResume
     ? last.content
     : withEarlierTurns(messages, last.content)
+  // The session context leads the turn rather than the system prompt, so the
+  // CLI's cached prefix survives from one turn to the next. See
+  // `SendOptions.sessionContext` for what that is worth in money.
+  const prompt = opts.sessionContext ? `${opts.sessionContext}\n\n---\n\n${turn}` : turn
 
   const tools = (opts.tools ?? []).map((t) => ({
     name: t.name, description: t.description, inputSchema: t.inputSchema,
@@ -1073,6 +1132,14 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
     let answer = ''
     let sawResult = false
     let settled = false
+    // The context the LAST API call carried, and that call's output so far.
+    // Kept rather than summed: the agent loop makes several calls per turn and
+    // each one re-sends the conversation, so adding them up measures how many
+    // tool calls happened, not how full the window is.
+    let contextTokens = 0
+    let outputTokens = 0
+    let contextWindow = opts.contextSize ?? CLAUDE_CLI_MIN_CONTEXT
+    const reportUsage = (): void => onUsage?.(contextTokens + outputTokens, contextWindow)
     const finish = (fn: () => void): void => { if (!settled) { settled = true; fn() } }
 
     const abort = api.start(
@@ -1100,11 +1167,20 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
               )))
               abort()
             }
+          } else if (ev.kind === 'usage') {
+            // A delta may carry only the output count; the prompt cannot
+            // shrink mid-call, so the last figure stands.
+            if (ev.contextTokens > 0) contextTokens = ev.contextTokens
+            outputTokens = ev.outputTokens
+            reportUsage()
           } else if (ev.kind === 'rateLimit') {
             opts.onClaudeRateLimit?.(ev.fiveHour, ev.sevenDay, ev.resetsAt)
           } else if (ev.kind === 'result') {
             sawResult = true
-            if (ev.contextWindow) onUsage?.(ev.inputTokens + ev.outputTokens, ev.contextWindow)
+            // The window the model that answered actually has. Its token
+            // counts are cumulative across the run's API calls and are NOT
+            // the context — that comes from the per-call `usage` events.
+            if (ev.contextWindow) { contextWindow = ev.contextWindow; reportUsage() }
             // The CLI assembles the final text itself; prefer it over the
             // deltas, which omit anything it emitted without streaming.
             if (ev.text) answer = ev.text

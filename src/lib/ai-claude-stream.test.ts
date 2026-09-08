@@ -121,3 +121,74 @@ describe('what the user is told when a run fails', () => {
     expect(claudeFailureMessage(0, '', false)).toContain('Nothing was changed')
   })
 })
+
+describe('how full the context window is', () => {
+  // These four lines are the real thing, trimmed: one run of CLI 2.1.263 in
+  // which the model called a tool, so the agent loop made TWO API calls.
+  const start1 = JSON.stringify({
+    type: 'stream_event',
+    event: { type: 'message_start', message: { usage: {
+      input_tokens: 2, cache_creation_input_tokens: 6680, cache_read_input_tokens: 0, output_tokens: 17,
+    } } },
+  })
+  const delta1 = JSON.stringify({
+    type: 'stream_event',
+    event: { type: 'message_delta', usage: {
+      input_tokens: 2, cache_creation_input_tokens: 6680, cache_read_input_tokens: 0, output_tokens: 124,
+    } },
+  })
+  const start2 = JSON.stringify({
+    type: 'stream_event',
+    event: { type: 'message_start', message: { usage: {
+      input_tokens: 2, cache_creation_input_tokens: 182, cache_read_input_tokens: 6680, output_tokens: 3,
+    } } },
+  })
+  const result = JSON.stringify({
+    type: 'result', result: 'the word is', is_error: false,
+    usage: {
+      input_tokens: 4, cache_creation_input_tokens: 6862, cache_read_input_tokens: 6680, output_tokens: 132,
+    },
+    modelUsage: { 'claude-sonnet-5': { contextWindow: 1000000 } },
+  })
+
+  it('counts a cached token as context, because it occupies the window', () => {
+    expect(parseClaudeLine(start1)).toEqual({
+      kind: 'usage', contextTokens: 2 + 6680 + 0, outputTokens: 17,
+    })
+  })
+
+  it('follows the answer growing, so the bar moves during the run', () => {
+    expect(parseClaudeLine(delta1)).toEqual({
+      kind: 'usage', contextTokens: 6682, outputTokens: 124,
+    })
+  })
+
+  it('reports the SECOND call against the window, not the two added up', () => {
+    // The whole bug. The result event's own figures are cumulative — 4 + 6680
+    // + 6862 = 13,546 "input tokens" for a run whose largest single prompt was
+    // 6,864 — and a longer autopilot turn pegs the bar at 100% while the model
+    // is nowhere near full.
+    const call2 = parseClaudeLine(start2)
+    expect(call2).toEqual({ kind: 'usage', contextTokens: 2 + 182 + 6680, outputTokens: 3 })
+
+    const done = parseClaudeLine(result)
+    expect(done.kind).toBe('result')
+    if (done.kind !== 'result') return
+    expect(done.inputTokens).toBe(4 + 6680 + 6862)
+    expect(done.inputTokens).toBeGreaterThan(
+      (call2 as { contextTokens: number }).contextTokens * 1.9,
+    )
+    // The window itself is still the result's to report: an alias resolves to
+    // a model whose window only that run can name.
+    expect(done.contextWindow).toBe(1_000_000)
+  })
+
+  it('ignores a message event carrying no usage at all', () => {
+    expect(parseClaudeLine(JSON.stringify({
+      type: 'stream_event', event: { type: 'message_start', message: {} },
+    }))).toEqual({ kind: 'ignore' })
+    expect(parseClaudeLine(JSON.stringify({
+      type: 'stream_event', event: { type: 'message_stop' },
+    }))).toEqual({ kind: 'ignore' })
+  })
+})
