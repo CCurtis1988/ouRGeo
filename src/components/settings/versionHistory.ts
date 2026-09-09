@@ -16,6 +16,25 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.15',
+    date: 'September 2026',
+    title: 'The Assistant Remembers',
+    summary:
+      'Chats belong to the project \u2014 keep as many as you like, switch between them, and find them again tomorrow. Plus your Claude subscription as a provider, and an honest context meter.',
+    highlights: [
+      'Every AI chat is saved with the project. Start a new one whenever you like and the last one is still there \u2014 switch back from the header, carry on where you left off, and find them all again after a restart. They travel inside a .ourgeoproj too, so a project you send someone carries the conversations that shaped it.',
+      'Each chat remembers the model it was held with, and switching back restores it \u2014 so a conversation written by a large cloud model is never quietly continued by a small local one. Chats name themselves from your first question, and you can rename or delete any of them.',
+      'Use your Claude Pro or Max subscription as an AI provider. ouRGeo runs the Claude Code command-line tool you already installed and signed in to \u2014 no API key to paste, and ouRGeo never sees a credential of yours. Usage counts against your Claude plan.',
+      'The context meter tells the truth. It used to report the total of every request a single answer made \u2014 several times the real figure on a long Autopilot turn \u2014 and only once the answer had finished. It now follows the live conversation as it grows.',
+      'Much less of your Claude subscription spent per question: the session context ouRGeo sends now extends the cached conversation instead of invalidating it, which on a measured two-turn chat was the difference between $0.0014 and $0.0235 for the same question.',
+      'Local models get the time they need. ouRGeo no longer imposes a hidden five-minute deadline on a reply \u2014 a large prompt on a busy GPU used to fail with the words "fetch failed" and nothing else. Failures now name the server and what to do about it.',
+      'Nothing you were reading disappears any more. A dropped connection used to replace a half-written answer with an empty one; pressing Stop used to delete it outright. Both keep what was said.',
+      'Send does something the moment you press it, so a slow session can no longer turn one click into two messages.',
+      'Copy buttons throughout the app work again \u2014 they had been silently doing nothing since 1.12 while still showing a tick, along with the terminal\u2019s copy and paste.',
+      'Hover any tab to read its full name, the file it came from, and whether it has unsaved changes.',
+    ],
+  },
+  {
     version: '1.14',
     date: 'September 2026',
     title: 'Type It, Don\u2019t Eyeball It',

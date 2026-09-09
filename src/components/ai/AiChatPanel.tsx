@@ -9,8 +9,9 @@ import { ModelSelectorPopup } from './ModelSelectorPopup'
 import { AutopilotWarningDialog } from './AutopilotWarningDialog'
 import { VoiceButton, VoiceStatusLine } from './VoiceButton'
 import { AiPermissionsDialog } from './AiPermissionsDialog'
+import { AiChatSwitcher } from './AiChatSwitcher'
 import { AiActionConfirmDialog } from './AiActionConfirmDialog'
-import { useAiStore } from '@/store/ai'
+import { useAiStore, selectMessages, selectActiveChat } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useEditorStore } from '@/store/editor'
 import { useEnvironmentStore } from '@/store/environment'
@@ -60,19 +61,23 @@ function useAutocomplete(value: string, envNames: string[]) {
 export function AiChatPanel(): React.ReactElement {
   const provider = useAiStore((s) => s.provider)
   const currentModel = useAiStore((s) => s.currentModel())
-  const messages = useAiStore((s) => s.messages)
+  // Selectors, not fields: a conversation is now one of a set. Both return a
+  // stable reference when nothing changed — see NO_MESSAGES in store/ai.ts.
+  const messages = useAiStore(selectMessages)
+  const activeChat = useAiStore(selectActiveChat)
+  const chatCount = useAiStore((s) => s.chats.length)
   const isStreaming = useAiStore((s) => s.isStreaming)
   const streamingContent = useAiStore((s) => s.streamingContent)
   const autoPilotEnabled = useAiStore((s) => s.autoPilotEnabled)
   const autopilotWarningDismissed = useAiStore((s) => s.autopilotWarningDismissed)
   const webAccessEnabled = useAiStore((s) => s.webAccessEnabled)
-  const tokenUsage = useAiStore((s) => s.tokenUsage)
+  const tokenUsage = activeChat?.tokenUsage ?? { used: 0, total: 0 }
   const init = useAiStore((s) => s.init)
   const addMessage = useAiStore((s) => s.addMessage)
   const appendStreamChunk = useAiStore((s) => s.appendStreamChunk)
   const finalizeStream = useAiStore((s) => s.finalizeStream)
   const cancelStream = useAiStore((s) => s.cancelStream)
-  const clearMessages = useAiStore((s) => s.clearMessages)
+  const newChat = useAiStore((s) => s.newChat)
   const setAutoPilot = useAiStore((s) => s.setAutoPilot)
   const setAutopilotWarningDismissed = useAiStore((s) => s.setAutopilotWarningDismissed)
   const setWebAccess = useAiStore((s) => s.setWebAccess)
@@ -239,7 +244,7 @@ export function AiChatPanel(): React.ReactElement {
     // nothing else can skip it.
     const sendContext = keepsTranscript
       && sessionContext !== ''
-      && sessionContext !== useAiStore.getState().lastSessionContext
+      && sessionContext !== selectActiveChat(useAiStore.getState())?.lastSessionContext
 
     // Only the enabled capabilities are attached to the request, so a switch that
     // is off is invisible to the model rather than merely discouraged.
@@ -301,16 +306,17 @@ export function AiChatPanel(): React.ReactElement {
       return `Error: unknown tool "${call.name}".`
     }
 
-    const allMessages = [...useAiStore.getState().messages.filter((m) => m.id !== userMsg.id)]
-    // include the new user message
-    const conversationMessages = [...allMessages, userMsg]
+    // The ACTIVE chat's history, read fresh — the user may have switched chats
+    // while R was answering, and the turn belongs to the one it was sent from.
+    const prior = selectMessages(useAiStore.getState()).filter((m) => m.id !== userMsg.id)
+    const conversationMessages = [...prior, userMsg]
 
     try {
       // The Claude Code transport keeps its own transcript, so it takes a
       // session to resume rather than the whole conversation, and reports a
       // subscription window rather than a token count. Everything else — the
       // tools, `runTool`, the system prompt — is identical, which is the point.
-      const st = useAiStore.getState()
+      const chat = selectActiveChat(useAiStore.getState())
       const fullContent = await sendMessage({
         provider,
         model: currentModel,
@@ -326,10 +332,14 @@ export function AiChatPanel(): React.ReactElement {
         onToolCall: tools.length > 0 ? runTool : undefined,
         onUsage: (used, total) => setTokenUsage(used, total),
         signal: ac.signal,
-        claudeSessionId: st.claudeSessionId ?? undefined,
-        claudeResume: st.claudeSessionId !== null,
+        claudeSessionId: chat?.claudeSessionId ?? undefined,
+        claudeResume: !!chat?.claudeSessionId,
         claudeCwd: useSessionStore.getState().workingDir || undefined,
         onClaudeSession: (id) => useAiStore.getState().setClaudeSession(id),
+        // The stored transcript was not on this machine — a project opened
+        // elsewhere. The turn is being replayed as a new session, so drop the
+        // dead id rather than trying it again next turn.
+        onClaudeSessionLost: () => useAiStore.getState().clearClaudeSession(),
         onClaudeRateLimit: (f, s7, r) => useAiStore.getState().setClaudeUsage(f, s7, r),
       })
 
@@ -497,13 +507,17 @@ export function AiChatPanel(): React.ReactElement {
             Claude Code alias resolves to a model whose window only that run
             can name. `contextSize` is the fallback until it has. */}
         <TokenBar used={tokenUsage.used} total={tokenUsage.total || contextSize} />
+        {/* The switcher lists every chat in this project; `+` starts another
+            without disturbing them. This used to be one button that DELETED
+            the conversation, which is why it said "New" and meant "discard". */}
+        <AiChatSwitcher />
         <button
-          onClick={clearMessages}
+          onClick={() => newChat()}
+          data-ourgeo-id="ai.newChat"
           className="flex items-center gap-1 text-[10px] text-geo-muted hover:text-foreground px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors flex-shrink-0"
-          title="New conversation"
+          title="Start a new chat — the current one is kept"
         >
           <Plus className="w-3 h-3" />
-          New
         </button>
       </div>
 
@@ -517,6 +531,14 @@ export function AiChatPanel(): React.ReactElement {
                 ? `${allEnvNames.length} object${allEnvNames.length !== 1 ? 's' : ''} in environment`
                 : 'No objects loaded yet'}
             </p>
+            {/* An empty chat used to be the only chat, so there was nothing to
+                say. Now it can mean "you started a new one" — and the ones you
+                were in are a click away rather than gone. */}
+            {chatCount > 1 && (
+              <p className="text-[10px] text-geo-muted">
+                {chatCount - 1} other chat{chatCount === 2 ? '' : 's'} in this project.
+              </p>
+            )}
           </div>
         )}
         {messages.map((msg) => (

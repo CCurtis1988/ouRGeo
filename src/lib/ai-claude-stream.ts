@@ -42,6 +42,10 @@ export type ClaudeEvent =
       kind: 'result'
       text: string
       isError: boolean
+      /** The CLI's own word for how the run ended. `error_during_execution` is
+       *  what a `--resume` of a session this machine does not have produces —
+       *  see `isMissingSession`. */
+      subtype: string
       /** Tokens BILLED across every API call this run made — cumulative, and
        *  therefore not the context window's occupancy. See `usage`. */
       inputTokens: number
@@ -146,6 +150,7 @@ export function parseClaudeLine(line: string): ClaudeEvent {
       kind: 'result',
       text: str(msg.result),
       isError: msg.is_error === true,
+      subtype: str(msg.subtype),
       inputTokens: num(usage?.input_tokens) + num(usage?.cache_read_input_tokens)
         + num(usage?.cache_creation_input_tokens),
       outputTokens: num(usage?.output_tokens),
@@ -160,6 +165,31 @@ export function parseClaudeLine(line: string): ClaudeEvent {
   }
 
   return { kind: 'ignore' }
+}
+
+/**
+ * Did this run fail because the CLI has never heard of the session?
+ *
+ * A chat's `claudeSessionId` is a cache, not the record, and the cache can be
+ * cold for entirely ordinary reasons: a `.ourgeoproj` opened on another
+ * machine, a cleared `~/.claude`, a transcript the user pruned. Measured
+ * against CLI 2.1.263:
+ *
+ *     $ claude --resume <unknown-uuid> …
+ *     exit=1
+ *     stderr: No conversation found with session ID: 137dfee0-…
+ *     stdout: {"type":"result","subtype":"error_during_execution",…}
+ *
+ * Left alone this is unrecoverable rather than merely broken — the dead id is
+ * stored, so every retry fails identically and the conversation can never be
+ * continued again. The caller answers it by starting a fresh session from
+ * ouRGeo's own messages, which is why they are the record.
+ */
+export function isMissingSession(stderr: string, resultSubtype: string | null): boolean {
+  if (/no conversation found/i.test(stderr)) return true
+  // The message can be absent when stderr was consumed elsewhere; the subtype
+  // is the same run's own account of itself.
+  return resultSubtype === 'error_during_execution' && /session id/i.test(stderr)
 }
 
 /**

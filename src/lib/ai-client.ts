@@ -2,7 +2,7 @@ import type { AiProvider, ChatMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
-import { parseClaudeLine, claudeFailureMessage } from '@/lib/ai-claude-stream'
+import { parseClaudeLine, claudeFailureMessage, isMissingSession } from '@/lib/ai-claude-stream'
 
 // ── Context window sizes ───────────────────────────────────────────────────
 export const CONTEXT_SIZES: Record<string, number> = {
@@ -593,6 +593,9 @@ export interface SendOptions {
    */
   sessionContext?: string
   onClaudeSession?: (sessionId: string) => void
+  /** The stored session turned out not to exist on this machine, so the turn
+   *  is being replayed as a new one. Lets the caller drop the dead id. */
+  onClaudeSessionLost?: () => void
   /** Fraction of the subscription's rolling windows used — the number a
    *  subscriber plans around, where an API user watches tokens. */
   onClaudeRateLimit?: (fiveHour: number, sevenDay: number, resetsAt: number) => void
@@ -1102,7 +1105,37 @@ export function withEarlierTurns(messages: ChatMessage[], latest: string): strin
  *   to resume. `SendOptions.messages` is therefore read for its LAST user
  *   message only, and `claudeSessionId` on the store is what continuity means.
  */
+/**
+ * One run of the CLI, plus the recovery that makes a stored session id safe to
+ * keep.
+ *
+ * A chat carries `claudeSessionId` so its transcript survives a restart — but
+ * that id names a file on THIS machine, and a project is a portable document.
+ * Open a `.ourgeoproj` somewhere else and every chat in it resumes a session
+ * that does not exist; the CLI exits 1 with `No conversation found`, and since
+ * the dead id is what we stored, the conversation is finished for good.
+ *
+ * So the resume is attempted once and, if the session is gone, the whole run
+ * is repeated as a NEW one carrying the catch-up block `withEarlierTurns`
+ * already builds for a conversation the CLI has not seen. The user is told
+ * nothing, because nothing went wrong from where they are sitting: they asked
+ * a question and got an answer with the history intact.
+ */
 async function sendClaudeCli(opts: SendOptions): Promise<string> {
+  try {
+    return await runClaudeCli(opts, opts.claudeResume === true)
+  } catch (err) {
+    if (!(err instanceof MissingClaudeSession)) throw err
+    opts.onClaudeSessionLost?.()
+    return runClaudeCli({ ...opts, claudeSessionId: crypto.randomUUID() }, false)
+  }
+}
+
+/** Thrown by `runClaudeCli` when the CLI has no such transcript, so
+ *  `sendClaudeCli` can retry rather than surface it. */
+class MissingClaudeSession extends Error {}
+
+async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string> {
   const { model, messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
   const api = window.electronAPI?.claudeCli
   if (!api) throw new Error('The Claude Code provider needs the desktop app.')
@@ -1116,9 +1149,7 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
   // this the assistant would answer a follow-up having silently forgotten the
   // question it follows. Only on the FIRST turn: after that the CLI's own
   // transcript is the record, and repeating it would double every message.
-  const turn = opts.claudeResume
-    ? last.content
-    : withEarlierTurns(messages, last.content)
+  const turn = resume ? last.content : withEarlierTurns(messages, last.content)
   // The session context leads the turn rather than the system prompt, so the
   // CLI's cached prefix survives from one turn to the next. See
   // `SendOptions.sessionContext` for what that is worth in money.
@@ -1132,6 +1163,8 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
     let answer = ''
     let sawResult = false
     let settled = false
+    let resultSubtype: string | null = null
+    let resultIsError = false
     // The context the LAST API call carried, and that call's output so far.
     // Kept rather than summed: the agent loop makes several calls per turn and
     // each one re-sends the conversation, so adding them up measures how many
@@ -1148,7 +1181,7 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
         systemPrompt,
         model: model || 'sonnet',
         sessionId: opts.claudeSessionId ?? crypto.randomUUID(),
-        resume: opts.claudeResume === true,
+        resume,
         tools,
         cwd: opts.claudeCwd ?? '.',
       },
@@ -1177,6 +1210,8 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
             opts.onClaudeRateLimit?.(ev.fiveHour, ev.sevenDay, ev.resetsAt)
           } else if (ev.kind === 'result') {
             sawResult = true
+            resultSubtype = ev.subtype
+            resultIsError = ev.isError
             // The window the model that answered actually has. Its token
             // counts are cumulative across the run's API calls and are NOT
             // the context — that comes from the per-call `usage` events.
@@ -1184,7 +1219,12 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
             // The CLI assembles the final text itself; prefer it over the
             // deltas, which omit anything it emitted without streaming.
             if (ev.text) answer = ev.text
-            if (ev.isError) {
+            // A resume that failed is CLASSIFIED BY `onDone`, which is the
+            // only place stderr — the thing that says "No conversation found"
+            // — is available. Settling here would reject first and turn a cold
+            // session cache into a permanent failure, which is the whole bug
+            // the retry exists to prevent.
+            if (ev.isError && !(resume && ev.subtype === 'error_during_execution')) {
               finish(() => reject(new Error(
                 ev.errorStatus
                   ? `Claude Code reported an API error (${ev.errorStatus}).`
@@ -1199,8 +1239,13 @@ async function sendClaudeCli(opts: SendOptions): Promise<string> {
         },
         onDone: (code, stderr) => {
           finish(() => {
-            if (code === 0 && sawResult) resolve(answer)
-            else reject(new Error(claudeFailureMessage(code, stderr, sawResult)))
+            if (code === 0 && sawResult && !resultIsError) { resolve(answer); return }
+            // A cold cache, not a failure — `sendClaudeCli` retries this one.
+            if (resume && isMissingSession(stderr, resultSubtype)) {
+              reject(new MissingClaudeSession('the stored Claude Code session is gone'))
+              return
+            }
+            reject(new Error(claudeFailureMessage(code, stderr, sawResult)))
           })
         },
         onError: (message) => finish(() => reject(new Error(message))),

@@ -85,6 +85,10 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'console.clear', label: 'Clear console', where: 'console header, right' },
 
   { id: 'ai.terminalSwitch', label: 'Terminal switch', where: 'AI panel footer, beside Autopilot' },
+  // Pointable, never pressable — the same rule the microphone follows. An
+  // assistant that can switch its own chat can walk out of the conversation.
+  { id: 'ai.chatSwitcher', label: 'Chat switcher', where: 'AI panel header, right of the token bar' },
+  { id: 'ai.newChat', label: 'New chat', where: 'AI panel header, far right' },
 
   // Terminal.
   { id: 'terminal.tab', label: 'Terminal tab', where: 'Terminal panel, tab strip' },

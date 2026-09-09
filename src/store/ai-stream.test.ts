@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useAiStore } from './ai'
+import { useAiStore, selectActiveChat, selectMessages, makeChat } from './ai'
 
+/** A store with exactly one empty conversation — what the panel opens on. */
 const reset = (): void => {
+  const chat = makeChat('anthropic', 'claude-opus-4-6')
   useAiStore.setState({
-    messages: [], isStreaming: false, streamingContent: '', abortController: null,
-    tokenUsage: { used: 0, total: 0 }, lastSessionContext: null, claudeSessionId: null,
+    chats: [chat], activeChatId: chat.id,
+    isStreaming: false, streamingContent: '', abortController: null,
   })
 }
+
+const messages = (): ReturnType<typeof selectMessages> => selectMessages(useAiStore.getState())
+const active = () => selectActiveChat(useAiStore.getState())!
 
 beforeEach(reset)
 
@@ -17,9 +22,9 @@ describe('ending a turn', () => {
     useAiStore.getState().appendStreamChunk('first five rows.')
     useAiStore.getState().finalizeStream('Here are the first five rows.')
 
-    const { messages, isStreaming, streamingContent } = useAiStore.getState()
-    expect(messages).toHaveLength(1)
-    expect(messages[0].content).toBe('Here are the first five rows.')
+    const { isStreaming, streamingContent } = useAiStore.getState()
+    expect(messages()).toHaveLength(1)
+    expect(messages()[0].content).toBe('Here are the first five rows.')
     expect(isStreaming).toBe(false)
     expect(streamingContent).toBe('')
   })
@@ -29,7 +34,7 @@ describe('ending a turn', () => {
     // nothing; the error line under the box is the honest report.
     useAiStore.getState().beginStream()
     useAiStore.getState().finalizeStream('')
-    expect(useAiStore.getState().messages).toHaveLength(0)
+    expect(messages()).toHaveLength(0)
     expect(useAiStore.getState().isStreaming).toBe(false)
   })
 })
@@ -43,7 +48,7 @@ describe('pressing Stop', () => {
     useAiStore.getState().cancelStream()
 
     expect(ac.signal.aborted).toBe(true)
-    expect(useAiStore.getState().messages.map((m) => m.content))
+    expect(messages().map((m) => m.content))
       .toEqual(['The buffer has 41 features'])
     expect(useAiStore.getState().isStreaming).toBe(false)
   })
@@ -51,30 +56,40 @@ describe('pressing Stop', () => {
   it('leaves nothing behind when nothing had arrived', () => {
     useAiStore.getState().beginStream()
     useAiStore.getState().cancelStream()
-    expect(useAiStore.getState().messages).toHaveLength(0)
+    expect(messages()).toHaveLength(0)
   })
 })
 
 describe('the token reading', () => {
   it('is dropped when the model changes, because it described the old one', () => {
-    useAiStore.setState({ tokenUsage: { used: 120_000, total: 200_000 } })
+    useAiStore.getState().setTokenUsage(120_000, 200_000)
     useAiStore.getState().setModel('some-8k-local-model')
-    expect(useAiStore.getState().tokenUsage).toEqual({ used: 0, total: 0 })
+    expect(active().tokenUsage).toEqual({ used: 0, total: 0 })
   })
 })
 
 describe('the session-state block a transcript-keeping provider was sent', () => {
-  it('is forgotten when the conversation is, so the next turn carries it again', () => {
+  it('starts fresh in a new chat, which has its own transcript', () => {
     useAiStore.getState().setLastSessionContext('# Session state\nObjects: pts')
-    useAiStore.getState().clearMessages()
-    expect(useAiStore.getState().lastSessionContext).toBeNull()
-    // …and so is the CLI's transcript, which is what "New conversation" means.
-    expect(useAiStore.getState().claudeSessionId).toBeNull()
+    useAiStore.getState().setClaudeSession('sid-1')
+    useAiStore.getState().newChat()
+    expect(active().lastSessionContext).toBeNull()
+    expect(active().claudeSessionId).toBeNull()
   })
 
   it('is forgotten on a provider switch — the new one has been sent nothing', () => {
     useAiStore.getState().setLastSessionContext('# Session state\nObjects: pts')
-    useAiStore.getState().setProvider('anthropic')
-    expect(useAiStore.getState().lastSessionContext).toBeNull()
+    useAiStore.getState().setProvider('openai')
+    expect(active().lastSessionContext).toBeNull()
+  })
+
+  it('is dropped with a Claude session the CLI turned out not to have', () => {
+    useAiStore.getState().setClaudeSession('sid-gone')
+    useAiStore.getState().setLastSessionContext('# Session state')
+    useAiStore.getState().clearClaudeSession()
+    expect(active().claudeSessionId).toBeNull()
+    // The replacement transcript has been sent nothing, so the next turn must
+    // carry the session state in full.
+    expect(active().lastSessionContext).toBeNull()
   })
 })

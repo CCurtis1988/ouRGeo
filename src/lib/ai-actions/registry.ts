@@ -26,6 +26,7 @@ import { layoutActions } from './layout'
 import { pluginActions } from './plugin'
 import { connectorActions } from './connector'
 import { terminalActions } from './terminal'
+import { chatActions } from './chat'
 import { GROUP_LABELS, describeAction, groupLabel, type UiAction } from './types'
 import { resolveTier, type Switches } from './permissions'
 
@@ -47,6 +48,7 @@ const BUILTIN: UiAction[] = [
   ...pluginActions,
   ...connectorActions,
   ...terminalActions,
+  ...chatActions,
 ]
 
 /** The actions ouRGeo ships. The integrity test walks these, not the live set:

@@ -27,7 +27,11 @@ import { useSessionStore } from '@/store/session'
 import { useEnvironmentStore } from '@/store/environment'
 import { usePackagesStore } from '@/store/packages'
 import { useDatabaseStore } from '@/store/database'
+import { useAiStore } from '@/store/ai'
 import { retryOnNetworkError } from '@/lib/transport-retry'
+import {
+  buildChatsData, applyChatsData, resetChats, loadChats, type ChatsData,
+} from '@/lib/ai-chats-persistence'
 
 const PROJECT_VERSION = 1
 
@@ -41,6 +45,11 @@ interface ProjectManifest {
     // `plots` is read through normalizePersistedPlots, which also accepts the
     // legacy `string[]` shape written by bundles saved before plot ids existed.
     plots: { plots: PlotEntry[]; currentIndex: number }
+    /** The AI panel's conversations. Optional because every bundle written
+     *  before chats were kept has no such key, and must still open — the same
+     *  tolerance `activeByPanel` and `TabState.language` rely on. Absent means
+     *  "this project has no chats", which is one empty one. */
+    chats?: ChatsData
   }
   databases: DbReconnectEntry[]
 }
@@ -109,12 +118,17 @@ function buildManifest(name: string, databases: DbReconnectEntry[]): ProjectMani
       session: buildSessionData(),
       workspace: buildWorkspaceData(),
       plots: { plots: p.plots, currentIndex: p.currentIndex },
+      chats: buildChatsData(),
     },
     databases,
   }
 }
 
 async function applyUiState(ui: ProjectManifest['ui']): Promise<void> {
+  // A bundle from before chats existed carries none, and `clearWorkspaceStores`
+  // has already left one empty conversation — which is the right answer for a
+  // project that has never had any.
+  applyChatsData(ui.chats)
   if (ui.session) await applySessionData(ui.session)
   if (ui.workspace) applyWorkspaceData(ui.workspace)
   if (ui.plots) {
@@ -136,6 +150,10 @@ function clearWorkspaceStores(): void {
   useSessionStore.setState({ consoleHistory: [], consoleInputHistory: [] })
   useEnvironmentStore.setState({ environments: [] })
   useDatabaseStore.setState({ openDbs: {} })
+  // Conversations belong to the project they were held in. Carrying them into
+  // the next one would put a chat about someone else's data in front of a user
+  // who has just opened something unrelated.
+  resetChats()
 }
 
 // Reset the editor to a single blank scratch tab (used when temp has no
@@ -340,6 +358,9 @@ export async function newProject(): Promise<void> {
     clearWorkspaceStores()
     const restored = await loadSession()
     if (!restored) resetToBlankScratch()
+    // Scratch's own conversations, beside its own code tabs. `clearWorkspaceStores`
+    // reset them a moment ago; this is what brings the user's back.
+    await loadChats()
     await refreshRPanels()
   })
   useProjectStore.getState().clearDirty()
@@ -370,7 +391,15 @@ export function setupProjectTracking(): () => void {
     }
   })
 
+  // A conversation is project content now — it goes in the bundle — so a chat
+  // held since the last save is unsaved work, and the quit prompt has to say
+  // so. `chats` identity only: `streamingContent` changes per token and would
+  // mark the project dirty hundreds of times per answer.
+  const unsubChats = useAiStore.subscribe((s, p) => {
+    if (s.chats !== p.chats) mark()
+  })
+
   return () => {
-    unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs()
+    unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs(); unsubChats()
   }
 }

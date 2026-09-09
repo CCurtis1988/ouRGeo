@@ -64,7 +64,7 @@ describe('registry integrity', () => {
       environment: ['env'], packages: ['packages'], help: ['help'], map: ['map'],
       draw: ['draw'], plots: ['plots'], session: ['session'], settings: ['settings'],
       theme: ['theme'], layout: ['layout'], plugin: ['plugin'], connector: ['connector'],
-      terminal: ['terminal'],
+      terminal: ['terminal'], chat: ['chat'],
     }
     for (const a of BUILTIN_ACTIONS) {
       const allowed = prefixes[a.group]

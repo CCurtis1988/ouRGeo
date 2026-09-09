@@ -9,6 +9,7 @@ import { usePackagesStore } from './store/packages'
 import { usePlottingStore } from './store/plotting'
 import { useWidgetsStore } from './store/widgets'
 import { loadSession, setupSessionAutosave, saveSessionImmediate } from './lib/session-persistence'
+import { loadChats, setupChatsAutosave, saveChatsImmediate } from './lib/ai-chats-persistence'
 import { flushLayout } from './store/layout'
 import { loadPlugins } from './lib/plugins/loader'
 import { APP_VERSION } from './components/settings/versionHistory'
@@ -66,6 +67,10 @@ function MainApp(): React.ReactElement {
 
       // Restore previous session (tabs, files)
       await loadSession()
+
+      // Restore scratch's AI conversations. Beside the code tabs because it is
+      // the same kind of thing: state a clean exit deliberately keeps.
+      try { await loadChats() } catch { /* no saved chats yet */ }
 
       // Restore plots from previous session
       try { await loadPlots() } catch { /* no saved plots yet */ }
@@ -258,6 +263,7 @@ function MainApp(): React.ReactElement {
     init()
 
     const cleanupAutosave = setupSessionAutosave()
+    const cleanupChatsAutosave = setupChatsAutosave()
     const cleanupPlotsAutosave = setupPlotsAutosave()
     const cleanupPlotPopoutSync = setupPlotPopoutSync()
     const cleanupWorkspaceAutosave = setupWorkspaceAutosave()
@@ -290,6 +296,7 @@ function MainApp(): React.ReactElement {
           if (!saved) return // Save As dialog cancelled → abort quit
         }
         saveSessionImmediate()
+        saveChatsImmediate()
         // Awaited: confirmQuit destroys the window, and an in-flight write to
         // layout.json does not survive that.
         await flushLayout()
@@ -309,6 +316,7 @@ function MainApp(): React.ReactElement {
 
     return () => {
       cleanupAutosave()
+      cleanupChatsAutosave()
       cleanupPlotsAutosave()
       cleanupPlotPopoutSync()
       cleanupWorkspaceAutosave()

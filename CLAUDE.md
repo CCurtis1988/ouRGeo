@@ -841,6 +841,89 @@ record of what the assistant did.
   `buildToolGuidance` states the *current* switch positions so the model never
   claims a capability it wasn't given.
 
+### Chats belong to the project (v1.15)
+
+The panel held ONE conversation, in memory only. A renderer reload lost it, and
+the only way to ask an unrelated question was the "New" button — which called
+`clearMessages()`. So the analysis that produced a map was unfindable an hour
+later, and a second question cost you the first exchange.
+
+`AiChat` is now the unit, and `useAiStore` owns a set of them (`chats`,
+`activeChatId`) the way the editor owns tabs and the terminal owns shells.
+Shaped after `NamedSession` (`store/geometryEdit.ts`) for its selectors and
+after `TerminalSession` (`store/terminal.ts`) for two rules worth copying: a
+title that follows the content until the user renames it (`renamed`), and a
+delete that activates the **neighbour** rather than the first.
+
+- **`selectMessages` returns a module-level `NO_MESSAGES`**, never `?? []`. The
+  panel subscribes to it directly, and a selector that BUILDS a value returns a
+  new one every call, which zustand reads as a change and re-renders for ever.
+  Pinned by a test that asserts reference identity, because the symptom is a
+  hung panel rather than a wrong value.
+- **Everything per-conversation moved onto the chat** — `messages`,
+  `claudeSessionId`, `lastSessionContext`, `tokenUsage` — through
+  `patchActiveChat`, lifted from `patchActiveSession`. `isStreaming`,
+  `streamingContent` and `abortController` stay top-level: one turn runs at a
+  time, and `streamingContent` changes per token, so putting it inside the
+  array every switcher row subscribes to would re-render the list for the whole
+  of an answer.
+- **A chat remembers the provider and model it was held with**, and switching
+  restores them — a conversation written by Opus and one written by a local 8B
+  are not the same artefact, and the model selector is a global. But
+  `switchChat` deliberately does NOT go through `setProvider`/`setModel`: those
+  write `ai-preferences.json`, so opening an old chat would silently change
+  what the next NEW one starts on and would survive a restart having never been
+  asked for. That file keeps its old meaning — the default a new chat begins
+  with.
+- **Switching while a turn is running stops it first**, which since 1.14.3
+  files the partial answer in the chat it belonged to rather than letting the
+  next chunk land in the conversation being opened.
+- **`deleteChat` never leaves zero.** A panel with no chat has nowhere to put
+  the next message, and an empty switcher is a dead end rather than a clean
+  slate.
+
+**Where they live** (`lib/ai-chats-persistence.ts`) is `session-persistence.ts`
+copied, because that module already solves "one slice, two homes": scratch's
+chats go to `ai-chats.json` behind the same `path === null` gate, a named
+project's go in `manifest.ui.chats`, and one `buildChatsData`/`applyChatsData`
+pair serves both. **`ai-chats.json` is NOT in the `will-quit` delete list** —
+that list is for state a clean exit should forget, and a conversation is
+history. It sits beside `session.json` on the kept side. `ui.chats` is optional
+so every bundle written before this opens unchanged, and a conversation is
+project content now, so `setupProjectTracking` gained a fifth subscription and
+the unsaved-changes prompt covers it.
+
+**A stored Claude Code session can be a cold cache, and that is routine.**
+`claudeSessionId` names a transcript on THIS machine; a portable `.ourgeoproj`
+opened elsewhere names one that does not exist. Measured against 2.1.263:
+
+```
+$ claude --resume <unknown-uuid> …
+exit=1   stderr: No conversation found with session ID: …
+stdout: {"type":"result","subtype":"error_during_execution",…}
+```
+
+Left alone the dead id is what we stored, so every retry fails identically and
+the conversation is finished for good. So **ouRGeo's `messages` are the record
+and the session id is an optimisation**: `sendClaudeCli` runs the resume, and
+on `isMissingSession` replays the whole turn once as a new session carrying the
+catch-up block `withEarlierTurns` already builds. The user is told nothing,
+because nothing went wrong from where they sit.
+
+One ordering trap, found by the test: the `result` event's `isError` branch
+settles the promise *during* the stream, and only `onDone` has the stderr that
+distinguishes a cold cache from a real failure. So a resume whose subtype is
+`error_during_execution` is deliberately left for `onDone` to classify.
+
+**The assistant reads chats and cannot move between them** (`ai-actions/chat.ts`:
+`chat:list`, `chat:read`, both `always`). The rule below still stands — the AI
+panel is never exposed, because an assistant that can close its own panel can
+end the conversation — and switching or deleting a chat is that hazard one step
+worse: it takes the user out of the conversation they are in. Looking carries
+none of it, and "what did we decide last week?" is answerable from this project
+and nowhere else. `chat:list` says outright that it cannot switch or delete, so
+a model spends no turn discovering it and points at the switcher instead.
+
 ### The transport (`electron/main/ai-proxy.ts`, `src/lib/ai-fetch-error.ts`)
 
 Two bugs lived here, and both presented as the same four words in the chat
