@@ -89,18 +89,30 @@ describe('resetChats', () => {
 })
 
 describe('which project owns the file', () => {
-  it('writes ai-chats.json for scratch', async () => {
+  it('writes ai-chats.json for scratch, so a reload does not lose the turn', async () => {
+    // The file is session-scoped — `will-quit` deletes it, so scratch does not
+    // carry conversations into the next launch. What it buys is the middle: a
+    // renderer reload or a crash does not throw away the conversation the user
+    // is in the middle of having.
     await saveChats()
     expect(written).toHaveLength(1)
     expect(written[0].path).toBe('/data/ai-chats.json')
   })
 
   it('writes nothing while a named project is open', async () => {
-    // A named project's chats live in its bundle. Writing them here too would
-    // overwrite scratch's own — which is exactly what makes scratch's survive
-    // a switch into a project and back.
+    // A named project's chats live in its bundle. A copy here as well would
+    // be read back by the next launch — which opens scratch — as scratch's
+    // own conversations.
     useProjectStore.setState({ name: 'survey', path: '/home/ada/survey.ourgeoproj' })
     await saveChats()
     expect(written).toEqual([])
+  })
+
+  it('is listed among the files a clean exit deletes', async () => {
+    // The invariant the whole scratch rule rests on. Leaving it off the list
+    // is silent: the file simply survives, and scratch quietly becomes an
+    // archive of every conversation the user ever had in it.
+    const { SESSION_SCOPED_FILES } = await import('./session-scoped-files')
+    expect(SESSION_SCOPED_FILES).toContain('ai-chats.json')
   })
 })

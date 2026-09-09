@@ -19,6 +19,7 @@
     "src/lib/terminal/shells.ts",
     "src/lib/ai-claude-args.ts",
     "src/lib/ai-fetch-error.ts",
-    "src/lib/app-permissions.ts"
+    "src/lib/app-permissions.ts",
+    "src/lib/session-scoped-files.ts"
   ]
 }

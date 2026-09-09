@@ -5,16 +5,28 @@ import { getDataPath } from '@/lib/persistence'
 /**
  * Where the AI panel's conversations are kept.
  *
- * Modelled on `session-persistence.ts`, which already solves the problem this
- * has: one slice of state with TWO homes. Scratch's chats live in
- * `ai-chats.json`; a named project's live in its `.ourgeoproj`, and the same
- * build/apply pair serves both.
+ * One slice of state with two homes, the shape `session-persistence.ts`
+ * already solves: `buildChatsData`/`applyChatsData` serve both the
+ * `ai-chats.json` autosave and the `.ourgeoproj` bundle.
  *
- * **Not session-scoped.** `ai-chats.json` must never join the `will-quit`
- * delete list in `electron/main/index.ts` — that list is for state a clean
- * exit should forget (plots, layers, console tail). A conversation is history,
- * and the whole point of this feature is that it is still there tomorrow. It
- * sits on the same side of that line as `session.json`.
+ * **Scratch does not keep chats, and that is the point of scratch.** It is the
+ * workspace ouRGeo always launches into — a clean R session every time, never
+ * savable in place — and a conversation worth keeping is a reason to make a
+ * real project out of it: Save As, and from then on the chats travel with the
+ * project and are there next time it is opened. Scratch that quietly
+ * accumulated every conversation the user ever had in it would be a filing
+ * cabinet nobody chose to open.
+ *
+ * So `ai-chats.json` is **session-scoped**: it is in the `will-quit` delete
+ * list (`electron/main/index.ts`), beside `plots.json` and `console.json`.
+ * That is not the same as "never written". It is written while the user is
+ * working, so a renderer reload — Ctrl+R, or the automatic one when the
+ * renderer dies — does not cost them the conversation, and a crash leaves it
+ * for recovery. Every other panel in ouRGeo behaves that way; a chat that
+ * alone did not would be the one thing a reload destroyed.
+ *
+ * A NAMED project's chats are a different thing entirely: they live in the
+ * bundle, are kept for good, and travel with the file.
  */
 
 export interface ChatsData {
@@ -63,10 +75,10 @@ export function resetChats(): void {
 }
 
 export async function saveChats(): Promise<void> {
-  // Same gate as `saveSession`: `ai-chats.json` holds the SCRATCH project's
-  // chats only. While a named project is active its chats live in the bundle,
-  // so scratch's are left untouched here — which is what lets them still be
-  // there after a switch into a project and back out again.
+  // Scratch only. A named project's chats live in its bundle and are written
+  // by a save, not by this; writing them here as well would leave a copy on
+  // disk that the next launch — which opens scratch — would read back as
+  // scratch's own.
   if (useProjectStore.getState().path !== null) return
   try {
     await window.electronAPI.file.write(
@@ -77,10 +89,16 @@ export async function saveChats(): Promise<void> {
   }
 }
 
-export function saveChatsImmediate(): void {
-  if (saveTimer) clearTimeout(saveTimer)
-  void saveChats()
-}
+/**
+ * There is deliberately NO flush on the way out.
+ *
+ * A write started as the window closes races the `will-quit` handler that
+ * deletes this file, and the loser is whichever the OS schedules second — so
+ * an exit could leave scratch's chats on disk for the next launch to read.
+ * The debounced saves during the session are what reload recovery needs, and
+ * that is all this file is for. `workspace-persistence.ts` omits its
+ * `beforeunload` flush for exactly this reason.
+ */
 
 export async function loadChats(): Promise<boolean> {
   try {

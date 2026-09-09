@@ -882,16 +882,41 @@ delete that activates the **neighbour** rather than the first.
   the next message, and an empty switcher is a dead end rather than a clean
   slate.
 
-**Where they live** (`lib/ai-chats-persistence.ts`) is `session-persistence.ts`
-copied, because that module already solves "one slice, two homes": scratch's
-chats go to `ai-chats.json` behind the same `path === null` gate, a named
-project's go in `manifest.ui.chats`, and one `buildChatsData`/`applyChatsData`
-pair serves both. **`ai-chats.json` is NOT in the `will-quit` delete list** —
-that list is for state a clean exit should forget, and a conversation is
-history. It sits beside `session.json` on the kept side. `ui.chats` is optional
-so every bundle written before this opens unchanged, and a conversation is
-project content now, so `setupProjectTracking` gained a fifth subscription and
-the unsaved-changes prompt covers it.
+**Where they live** (`lib/ai-chats-persistence.ts`) is one slice with two
+homes, the shape `session-persistence.ts` already solves: one
+`buildChatsData`/`applyChatsData` pair serves both the `ai-chats.json` autosave
+and `manifest.ui.chats`. `ui.chats` is optional so every bundle written before
+this opens unchanged, and a conversation is project content now, so
+`setupProjectTracking` gained a fifth subscription and the unsaved-changes
+prompt covers it.
+
+**Scratch does not keep chats, and that is the point of scratch.** It is the
+workspace ouRGeo always launches into, with a clean R session every time and no
+Save; a conversation worth keeping is a reason to make a real project out of it,
+after which the chats travel with the file. Scratch that quietly accumulated
+every conversation the user ever had in it would be a filing cabinet nobody
+chose to open. So `ai-chats.json` is **session-scoped** — in
+`SESSION_SCOPED_FILES` beside `plots.json` and `console.json` — and `newProject`
+restores nothing, leaving the one empty chat `clearWorkspaceStores` made.
+
+Session-scoped is not the same as never written. The file exists so a renderer
+reload — Ctrl+R, or the automatic one when the renderer dies — does not cost
+the user the conversation they are in the middle of, and so a crash leaves it
+for recovery. Every other panel behaves that way; a chat that alone did not
+would be the one thing a reload destroyed. Two consequences:
+
+- **There is no flush on quit.** A write started as the window closes races the
+  `will-quit` unlink, and the loser is whichever the OS schedules second — so
+  an exit could leave scratch's chats on disk for the next launch to read back
+  as its own. `workspace-persistence.ts` omits its `beforeunload` flush for
+  exactly this reason.
+- **`SESSION_SCOPED_FILES` moved into `src/lib/session-scoped-files.ts`**, with
+  a test. The list was inline in `index.ts`, and an omission there is silent in
+  the way that matters: a file left off it survives a clean exit, and the
+  symptom is yesterday's state in a session the user expected to be fresh, with
+  nothing on screen to explain it. Same argument as `app-permissions.ts`. The
+  test also asserts the preference files are NOT in it, because the opposite
+  mistake — a setting that silently reverts — is just as unexplainable.
 
 **A stored Claude Code session can be a cold cache, and that is routine.**
 `claudeSessionId` names a transcript on THIS machine; a portable `.ourgeoproj`

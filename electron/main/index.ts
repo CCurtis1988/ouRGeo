@@ -2,6 +2,7 @@ import {
   app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
 } from 'electron'
 import { isPermissionAllowed } from '../../src/lib/app-permissions'
+import { SESSION_SCOPED_FILES } from '../../src/lib/session-scoped-files'
 import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
@@ -296,14 +297,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   killAllTerminals()
   const dir = app.getPath('userData')
-  const sessionScoped = [
-    'plots.json',
-    'spatial-layers.json',
-    'spatial-ui.json',
-    'console.json',
-    'object-tabs.json'
-  ]
-  for (const file of sessionScoped) {
+  for (const file of SESSION_SCOPED_FILES) {
     try { unlinkSync(join(dir, file)) } catch { /* file may not exist */ }
   }
 })

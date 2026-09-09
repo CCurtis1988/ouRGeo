@@ -30,7 +30,7 @@ import { useDatabaseStore } from '@/store/database'
 import { useAiStore } from '@/store/ai'
 import { retryOnNetworkError } from '@/lib/transport-retry'
 import {
-  buildChatsData, applyChatsData, resetChats, loadChats, type ChatsData,
+  buildChatsData, applyChatsData, resetChats, type ChatsData,
 } from '@/lib/ai-chats-persistence'
 
 const PROJECT_VERSION = 1
@@ -358,9 +358,10 @@ export async function newProject(): Promise<void> {
     clearWorkspaceStores()
     const restored = await loadSession()
     if (!restored) resetToBlankScratch()
-    // Scratch's own conversations, beside its own code tabs. `clearWorkspaceStores`
-    // reset them a moment ago; this is what brings the user's back.
-    await loadChats()
+    // No chats are restored here. `clearWorkspaceStores` has left one empty
+    // conversation, and that is what New Project should give you: scratch does
+    // not carry conversations between sessions or between projects, which is
+    // the reason to Save As when one turns out to be worth keeping.
     await refreshRPanels()
   })
   useProjectStore.getState().clearDirty()

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { MessagesSquare, Pencil, Check, Trash2, Plus, Loader2 } from 'lucide-react'
 import { useAiStore, type AiChat } from '@/store/ai'
+import { useProjectStore } from '@/store/project'
 import { PROVIDER_LABELS } from '@/lib/ai-client'
 import { cn } from '@/lib/utils'
 
@@ -135,6 +136,8 @@ export function AiChatSwitcher(): React.ReactElement {
   const renameChat = useAiStore((s) => s.renameChat)
   const deleteChat = useAiStore((s) => s.deleteChat)
   const newChat = useAiStore((s) => s.newChat)
+  // `path === null` IS scratch — the sentinel the whole project layer uses.
+  const isScratch = useProjectStore((s) => s.path === null)
 
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
@@ -235,6 +238,17 @@ export function AiChatSwitcher(): React.ReactElement {
                   />
                 ))}
               </ul>
+              {/* Said here rather than on the way out, because here is where
+                  the user is looking at the conversations and can act on it.
+                  A prompt at quit would be the first mention of a rule that
+                  had already been in force for the whole session. */}
+              {isScratch && (
+                <p className="px-2 py-1.5 text-[10px] text-geo-muted border-t border-geo-border leading-snug">
+                  Scratch chats are not kept — they go when you quit.
+                  <br />
+                  Save this as a project to keep them.
+                </p>
+              )}
               <button
                 className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-geo-muted hover:text-foreground hover:bg-geo-bg border-t border-geo-border"
                 onClick={() => { newChat(); setOpen(false) }}

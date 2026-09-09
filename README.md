@@ -59,9 +59,10 @@ the whole analysis.
   plugins that add capabilities ouRGeo does not ship with**. Every message in
   the chat — yours and the reply — has its own copy button, and code blocks
   keep theirs. **Chats belong to the project**: start a new one whenever you
-  like without losing the last, switch back to any of them from the header, and
-  find them all still there tomorrow — they are saved with the project and
-  travel inside a `.ourgeoproj`.
+  like without losing the last, and switch back to any of them from the header.
+  Save the session as a project and its conversations are kept with it and
+  travel inside the `.ourgeoproj`; in the scratch workspace they last until you
+  quit, like everything else there.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by
