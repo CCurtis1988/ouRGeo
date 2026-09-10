@@ -2,6 +2,9 @@ import { ipcMain, app, shell, type IpcMain } from 'electron'
 import { join, resolve, sep, dirname, extname } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat } from 'fs/promises'
 import AdmZip from 'adm-zip'
+import {
+  planExtraction, readArchiveId, isDotPath, MANIFEST_ENTRY,
+} from '../../src/lib/plugins/archive-policy'
 
 // Plugin files, and the one rule about them.
 //
@@ -69,7 +72,7 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
       out.push({
         id: e.name,
         dir: full,
-        hasManifest: await exists(join(full, 'ourgeo-plugin.json')),
+        hasManifest: await exists(join(full, MANIFEST_ENTRY)),
       })
     }
     return out.sort((a, b) => a.id.localeCompare(b.id))
@@ -131,38 +134,15 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
   ipc.handle('plugins:pack', async (_e, id: string, outPath: string): Promise<void> => {
     const dir = contain(id)
     const zip = new AdmZip()
-    zip.addLocalFolder(dir)
+    // The filter is not tidiness. adm-zip's `addLocalFolder` walks dotfiles, so
+    // without it the compile cache `.build/<key>.js` ships inside the archive —
+    // see the header of `archive-policy.ts` for what that let an archive do.
+    zip.addLocalFolder(dir, '', (name: string) => !isDotPath(name))
     zip.writeZip(outPath)
   })
 
   ipc.handle('plugins:unpack', async (_e, zipPath: string): Promise<string> => {
-    const zip = new AdmZip(zipPath)
-    const manifest = zip.getEntry('ourgeo-plugin.json')
-    if (!manifest) {
-      throw new Error('That file has no ourgeo-plugin.json at its top level, so it is not an ouRGeo plugin.')
-    }
-    let id: string
-    try {
-      id = String(JSON.parse(manifest.getData().toString('utf-8')).id ?? '')
-    } catch {
-      throw new Error('That plugin’s ourgeo-plugin.json is not valid JSON.')
-    }
-    // Re-run the id rule here rather than trusting the archive: the id becomes
-    // a directory name, and this is the one place a hostile one could traverse.
-    if (!/^[a-z][a-z0-9-]{0,63}$/.test(id)) {
-      throw new Error(`That plugin's id ("${id}") is not a valid plugin id, so it cannot be installed.`)
-    }
-    const target = contain(id)
-    await rm(target, { recursive: true, force: true })
-    await mkdir(target, { recursive: true })
-    // `extractAllTo` with the target inside the plugins folder; entries are
-    // still checked, because a zip can carry `../` in an entry name.
-    for (const entry of zip.getEntries()) {
-      if (entry.entryName.includes('..')) {
-        throw new Error(`That plugin archive contains an unsafe path ("${entry.entryName}").`)
-      }
-    }
-    zip.extractAllTo(target, true)
+    const id = await unpackArchive(zipPath)
     return id
   })
 
@@ -182,6 +162,61 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
     await mkdir(dirname(target), { recursive: true })
     await writeFile(target, code, 'utf-8')
   })
+}
+
+/**
+ * Extract a `.ourgeoplugin` into `<plugins>/<id>`, replacing what is there.
+ *
+ * Exported because the plugin store installs through this same function: one
+ * place decides what an archive may contain, so a hostile archive cannot be
+ * made acceptable by arriving through the other door.
+ *
+ * What is allowed lives in `src/lib/plugins/archive-policy.ts`, which is pure
+ * and tested. This function is the I/O around it.
+ */
+export async function unpackArchive(zipPath: string): Promise<string> {
+  const zip = new AdmZip(zipPath)
+
+  const plan = planExtraction(zip.getEntries().map((e) => ({
+    name: e.entryName,
+    size: e.header.size,
+    isDirectory: e.isDirectory,
+  })))
+  if (!plan.ok) throw new Error(plan.error)
+
+  const manifestEntry = zip.getEntry(MANIFEST_ENTRY)
+  if (!manifestEntry) {
+    throw new Error(`That file has no ${MANIFEST_ENTRY} at its top level, so it is not an ouRGeo plugin.`)
+  }
+  const read = readArchiveId(manifestEntry.getData().toString('utf-8'))
+  if ('error' in read) throw new Error(read.error)
+
+  const target = contain(read.id)
+
+  // Every entry is decompressed BEFORE anything is deleted: a failure halfway
+  // through would otherwise leave the user with neither the old plugin nor the
+  // new one.
+  const files: { path: string; data: Buffer }[] = []
+  for (const planned of plan.entries) {
+    const entry = zip.getEntry(planned.name)
+    if (!entry) continue
+    const dest = resolve(target, planned.path)
+    // `planExtraction` already refused anything that could land here, so this
+    // cannot fire. It stays because this is the line that writes to a disk, and
+    // a containment check belongs where the write happens.
+    if (dest !== target && !dest.startsWith(target + sep)) {
+      throw new Error(`That plugin archive contains an unsafe path ("${planned.name}").`)
+    }
+    files.push({ path: dest, data: entry.getData() })
+  }
+
+  await rm(target, { recursive: true, force: true })
+  await mkdir(target, { recursive: true })
+  for (const f of files) {
+    await mkdir(dirname(f.path), { recursive: true })
+    await writeFile(f.path, f.data)
+  }
+  return read.id
 }
 
 function safeKey(key: string): string {

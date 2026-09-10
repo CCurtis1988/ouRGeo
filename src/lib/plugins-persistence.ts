@@ -1,4 +1,5 @@
 import { createJsonFileStore } from '@/lib/persistence'
+import type { StoreOrigin } from '@/lib/plugins/types'
 
 // Which plugins are switched on, and which one was mid-activation when the app
 // last went down.
@@ -23,15 +24,32 @@ export interface PluginPrefs {
    * inside the app that crashes on launch.
    */
   activating?: string | null
+  /**
+   * id → what the plugin store recorded when it installed that plugin.
+   *
+   * A CACHE of each plugin's `.ourgeo-store.json`, so the update poll needs no
+   * directory scan. The sidecar is the authority; losing this file costs one
+   * scan and nothing else, which is what keeps the promise in the header above
+   * true.
+   */
+  store?: Record<string, StoreOrigin>
 }
 
-const EMPTY: PluginPrefs = { enabled: {}, activating: null }
+const EMPTY: PluginPrefs = { enabled: {}, activating: null, store: {} }
 
 export async function loadPluginPrefs(): Promise<PluginPrefs> {
   const data = await store.read<Partial<PluginPrefs>>()
   return {
     enabled: (data.enabled && typeof data.enabled === 'object') ? data.enabled as Record<string, boolean> : {},
     activating: typeof data.activating === 'string' ? data.activating : null,
+    // Reconstructed field by field rather than spread, so a hand-edited file
+    // cannot smuggle in a key nothing reads. That is also why every field has
+    // to be listed HERE as well as in the interface: `savePluginPrefs` writes
+    // this object whole, so a field the loader forgets is a field the next
+    // enable/disable deletes.
+    store: (data.store && typeof data.store === 'object')
+      ? data.store as Record<string, StoreOrigin>
+      : {},
   }
 }
 

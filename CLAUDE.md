@@ -1919,6 +1919,41 @@ registry is built to give.
   `file:read`/`file:write` for one reason: **every path is confined to the
   plugins directory**. Plugin authoring is something the assistant does on the
   user's behalf, and `file:write` takes an unchecked absolute path.
+- `lib/plugins/archive-policy.ts` — what a `.ourgeoplugin` may contain. Pure and
+  tested, listed in `tsconfig.node.json` so `plugins.ts` compiles against it,
+  the arrangement `terminal/shells.ts` already has with `terminal.ts`.
+
+### What an archive is allowed to contain
+
+A `.ourgeoplugin` used to arrive from the user's own machine — someone sent you
+a file and you chose to open it. Three things about the import were only safe
+under that assumption, and the one that matters is not a hardening detail, it
+is a way for an archive to decide what runs:
+
+- **The compile cache travelled inside the archive.** `plugins:pack` used
+  adm-zip's `addLocalFolder`, which walks dotfiles, so `.build/<key>.js` went
+  in; `plugins:unpack` restored it. `runMain` then keys the cache on
+  `hashOf(JSON.stringify(files))` over the files `plugins:listFiles` reports —
+  and that call SKIPS dotfiles — so an archive could carry innocuous sources
+  plus a cache entry under the key those sources hash to, and the loader would
+  run the cache entry **without compiling anything**. A reviewer would have read
+  code that never executed. Dot-prefixed paths are now dropped at both ends,
+  which also means an archive cannot forge the store's `.ourgeo-store.json`.
+- **The traversal guard was `entryName.includes('..')`** — a substring test that
+  refuses the innocent `a..b.ts` and accepts the absolute `/etc/passwd`. It is
+  now a normalisation that can express neither, and `isDotPath` deliberately
+  exempts `.` and `..`: counting them would turn `../../evil.js` into a silent
+  drop rather than the refusal it has to be.
+- **There was no ceiling**, so an archive that unpacked to a full disk was a
+  supported input. Entry count and total unpacked size are capped, and each
+  refusal says the reading it is actually pointing at — that you picked the
+  wrong file.
+
+`unpackArchive` is exported because the plugin store installs through it: one
+place decides what an archive may contain, so a hostile one cannot be made
+acceptable by arriving through the other door. Every entry is decompressed
+before anything is deleted, or a failure halfway would leave the user with
+neither the old plugin nor the new one.
 
 ### The registries went live
 
