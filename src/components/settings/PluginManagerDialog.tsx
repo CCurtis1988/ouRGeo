@@ -8,6 +8,7 @@ import { ScrollArea } from '../ui/scroll-area'
 import { loadedPlugins, pluginEnabled, setPluginEnabled, reloadPlugins } from '@/lib/plugins/loader'
 import { PERMISSION_LABELS, type LoadedPlugin, type PluginPermission } from '@/lib/plugins/types'
 import { Store } from 'lucide-react'
+import { useUiStore } from '@/store/ui'
 import { usePluginStore } from '@/store/plugins'
 import { APP_VERSION } from './versionHistory'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,7 @@ interface Props {
 
 export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactElement {
   const revision = usePluginStore((s) => s.revision)
+  const showDialog = useUiStore((s) => s.showDialog)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -133,6 +135,16 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
           </div>
 
           <div className="flex items-center gap-2 px-5 py-2 border-b border-geo-border shrink-0">
+            {/* First, because it is the route most people will take. Installing
+                from a file stays beside it rather than under it: a plugin
+                somebody sent you is not a lesser way to get one. */}
+            <Button
+              variant="ghost" size="sm" className="h-6 text-xs gap-1.5"
+              data-ourgeo-id="plugins.browseStore"
+              onClick={() => { onOpenChange(false); showDialog('plugin-store') }}
+            >
+              <Store className="w-3 h-3" /> Browse the store…
+            </Button>
             <Button variant="ghost" size="sm" className="h-6 text-xs gap-1.5" onClick={install}>
               <Upload className="w-3 h-3" /> Install from file…
             </Button>
@@ -161,8 +173,9 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
                   <Puzzle className="w-8 h-8 mx-auto text-geo-muted mb-3" />
                   <p className="text-xs text-geo-muted">No plugins installed.</p>
                   <p className="text-[11px] text-geo-muted mt-2 max-w-sm mx-auto leading-snug">
-                    Ask the AI assistant for one — “add a connector for this API” — or install a
-                    <code className="text-foreground"> .ourgeoplugin</code> file someone sent you.
+                    Browse the store, ask the AI assistant for one — “add a connector for this
+                    API” — or install a <code className="text-foreground">.ourgeoplugin</code> file
+                    someone sent you.
                   </p>
                 </div>
               )}

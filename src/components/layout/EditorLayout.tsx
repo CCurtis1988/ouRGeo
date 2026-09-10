@@ -3,6 +3,7 @@ import { Settings } from 'lucide-react'
 import { SettingsDialog } from '../settings/SettingsDialog'
 import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
 import { PluginManagerDialog } from '../settings/PluginManagerDialog'
+import { PluginStoreDialog } from '../plugins/PluginStoreDialog'
 import { VoiceModelDialog } from '../voice/VoiceModelDialog'
 import { ProjectDropdown } from '../project/ProjectDropdown'
 import { LoadDataDialog } from '../editor/LoadDataDialog'
@@ -342,6 +343,12 @@ export function EditorLayout(): React.ReactElement {
       <PluginManagerDialog
         open={openDialog === 'plugins'}
         onOpenChange={dialogToggle('plugins')}
+      />
+      {/* Also a sibling, and of the Plugin Manager as well as of Settings:
+          three stacked focus traps would be worse than two. */}
+      <PluginStoreDialog
+        open={openDialog === 'plugin-store'}
+        onOpenChange={dialogToggle('plugin-store')}
       />
       <RecordingDestinationDialog
         open={openDialog === 'recording'}

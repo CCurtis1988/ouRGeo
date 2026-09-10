@@ -351,6 +351,20 @@ export function friendly(message: string, status: number, subject = 'ourgeo.dev'
     return `${cap(subject)} refused that: your account may not do it yet.`
   }
   if (status === 401 || status === 403) return 'Your ourgeo.dev sign-in has expired. Sign in again.'
+
+  // PostgREST's answer when a function or table is not in its schema cache.
+  // It reads as a developer's message — "Could not find the function
+  // public.plugin_catalogue(p_category, p_limit, …) in the schema cache" — and
+  // for a user it means one thing: this copy of ouRGeo is asking ourgeo.dev for
+  // something that is not there yet. Almost always because the app updated
+  // first.
+  if (/schema cache|does not exist|PGRST\d+/i.test(m) && status >= 400 && status < 500) {
+    return (
+      `${cap(subject)} does not have what this version of ouRGeo asked for. ` +
+      'That usually means ouRGeo updated ahead of ourgeo.dev — try again later, and report it ' +
+      'on the forum if it persists.'
+    )
+  }
   // Trigger messages (trust level, quota, per-post cap) arrive already written
   // for a person — pass them through untouched.
   return m || `${cap(subject)} returned an error (${status}).`

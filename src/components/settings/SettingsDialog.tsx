@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal,
+  SquareTerminal, Store,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -174,6 +174,28 @@ function PluginManagerLink(): React.ReactElement {
         <span className="block text-[10px] text-geo-muted leading-snug">
           Capabilities added to ouRGeo without rebuilding it — data connectors, toolbox tools,
           panels. Install, enable and remove them here.
+        </span>
+      </span>
+    </button>
+  )
+}
+
+/** And the way into the store, beside it. Also a sibling, for the same reason. */
+function PluginStoreLink(): React.ReactElement {
+  const showDialog = useUiStore((s) => s.showDialog)
+  return (
+    <button
+      onClick={() => showDialog('plugin-store')}
+      data-ourgeo-id="settings.pluginStore"
+      className="mt-2 w-full flex items-center gap-2 rounded-md border border-geo-border
+        px-2.5 py-2 text-left hover:border-geo-accent group transition-colors"
+    >
+      <Store className="w-3.5 h-3.5 text-geo-muted group-hover:text-geo-accent shrink-0" />
+      <span className="flex-1 min-w-0">
+        <span className="block text-xs text-foreground">Plugin Store…</span>
+        <span className="block text-[10px] text-geo-muted leading-snug">
+          Plugins written by other ouRGeo users, reviewed before they appear. Anything you
+          install arrives switched off.
         </span>
       </span>
     </button>
@@ -383,6 +405,7 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
               title="Plugins"
               description="Capabilities added to ouRGeo without rebuilding it"
             >
+              <PluginStoreLink />
               <PluginManagerLink />
             </SettingsSection>
           </div>
