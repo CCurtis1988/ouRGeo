@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** The two archives a store submission is built from — see main/plugins.ts. */
+interface BuiltPackage {
+  distPath: string
+  sourcePath: string
+  distBytes: number
+  sourceBytes: number
+  sha256: string
+}
+
 /** Mirror of the main window's current plot selection, sent to the popout. */
 interface PlotPopoutState {
   dataUrl: string | null
@@ -148,6 +157,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reveal: (relative: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', relative),
     pack: (id: string, outPath: string): Promise<void> => ipcRenderer.invoke('plugins:pack', id, outPath),
     unpack: (zipPath: string): Promise<string> => ipcRenderer.invoke('plugins:unpack', zipPath),
+    packBuilt: (id: string, files: Record<string, string>): Promise<BuiltPackage> =>
+      ipcRenderer.invoke('plugins:packBuilt', id, files),
+    saveSubmission: (id: string, submission: unknown, outPath: string): Promise<void> =>
+      ipcRenderer.invoke('plugins:saveSubmission', id, submission, outPath),
     cacheRead: (id: string, key: string): Promise<string | null> =>
       ipcRenderer.invoke('plugins:cacheRead', id, key),
     cacheWrite: (id: string, key: string, code: string): Promise<void> =>

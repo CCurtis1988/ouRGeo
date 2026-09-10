@@ -82,6 +82,62 @@ export async function compilePlugin({ files, entry }: CompileInput): Promise<Com
     return { ok: false, error: `Could not start the plugin compiler: ${message(e)}` }
   }
 
+  return runBuild(build, loadBuildOptions({ files, entry }))
+}
+
+/**
+ * The load-time build.
+ *
+ * Separate from `compilePlugin` so it can be handed to an esbuild that was
+ * started some other way. What is worth testing here is these options and the
+ * two resolver plugins, not the six lines that fetch a wasm blob over IPC —
+ * and esbuild-wasm's `wasmModule` path is browser-only, so a test that went
+ * through the loader could not run at all.
+ */
+export function loadBuildOptions({ files, entry }: CompileInput): ESBuild.BuildOptions {
+  return {
+    entryPoints: [entry],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    globalName: BUNDLE_GLOBAL,
+    platform: 'browser',
+    target: 'es2020',
+    jsx: 'automatic',
+    // React is not in the map, so automatic JSX would try to import
+    // `react/jsx-runtime`. Point it at the host instead: `ctx.ui.jsx` is the
+    // real runtime, injected rather than bundled, so a plugin's React is
+    // always the app's React and hooks work.
+    jsxImportSource: 'ourgeo-jsx',
+    plugins: [jsxRuntimeShim(), virtualFiles(files)],
+    logLevel: 'silent',
+  }
+}
+
+async function runBuild(build: typeof ESBuild, options: ESBuild.BuildOptions): Promise<CompileResult> {
+  try {
+    const out = await build.build(options)
+    const code = out.outputFiles?.[0]?.text
+    if (!code) return { ok: false, error: 'The compiler produced no output.' }
+    return { ok: true, code }
+  } catch (e) {
+    return { ok: false, error: formatBuildFailure(e) }
+  }
+}
+
+/**
+ * Resolve a plugin's imports from the file map, and nothing else.
+ *
+ * There is no filesystem in the browser build, so the plugin's files come from
+ * the map read over IPC. That is not a workaround — it is also the
+ * containment: a plugin cannot `import` anything outside its own folder,
+ * because nothing outside its folder is in the map.
+ *
+ * `hostShim: false` leaves `ourgeo` and the JSX runtime as EXTERNAL imports
+ * instead of inlining them. See `bundleForDistribution` for why that matters.
+ */
+function virtualFiles(files: Record<string, string>, opts: { hostShim?: boolean } = {}): ESBuild.Plugin {
+  const hostShim = opts.hostShim !== false
   const resolveIn = (from: string, spec: string): string | null => {
     const base = spec.startsWith('.')
       ? normalize(`${dirOf(from)}/${spec}`)
@@ -93,13 +149,17 @@ export async function compilePlugin({ files, entry }: CompileInput): Promise<Com
     return null
   }
 
-  const virtual: ESBuild.Plugin = {
+  return {
     name: 'ourgeo-plugin-files',
     setup(b) {
       // `import ... from 'ourgeo'` is the host API. It becomes a one-line
       // module re-exporting the sandbox's parameter, so a plugin can use a
       // normal import instead of reaching for a global.
-      b.onResolve({ filter: /^ourgeo$/ }, () => ({ path: 'ourgeo', namespace: 'ourgeo-host' }))
+      b.onResolve({ filter: /^ourgeo$/ }, () => (
+        hostShim
+          ? { path: 'ourgeo', namespace: 'ourgeo-host' }
+          : { path: 'ourgeo', external: true }
+      ))
       b.onLoad({ filter: /.*/, namespace: 'ourgeo-host' }, () => ({
         contents: `const host = ${HOST_GLOBAL};\nexport default host;\nexport const ourgeo = host;\n`,
         loader: 'js',
@@ -127,30 +187,86 @@ export async function compilePlugin({ files, entry }: CompileInput): Promise<Com
       })
     },
   }
+}
 
+/**
+ * Build the single minified module a plugin is DISTRIBUTED as.
+ *
+ * The plugin store ships one built file rather than the author's sources. This
+ * is that build, and it differs from the load-time pass above in exactly three
+ * ways — `format: 'esm'`, `minify: true`, and the host shims left EXTERNAL.
+ *
+ * **The externals are the part that matters, and inlining them would be a bug
+ * with a very long fuse.** The shims above bake in `HOST_GLOBAL`,
+ * `BUNDLE_GLOBAL` and the exact shape of the jsx runtime bridge, all of which
+ * are private to this file today. Inline them into a published artifact and
+ * every plugin in the store carries a frozen copy of ouRGeo's internal ABI:
+ * rename `HOST_GLOBAL` and they all die at once with
+ * `__ourgeo_host__ is not defined`, thrown inside `new Function` with a stack
+ * that points nowhere near the cause. Left external, `main.js` says
+ * `import { jsxs } from "ourgeo-jsx/jsx-runtime"` and the load-time pass hands
+ * it whatever the shim means TODAY.
+ *
+ * `format: 'esm'` is what makes the second pass possible at all: it needs an
+ * entry module with a real export clause to re-export `activate` from. Shipping
+ * the finished IIFE instead would pin the ABI *and* skip the one pass that can
+ * still be fixed in a patch release.
+ *
+ * Two smaller decisions:
+ *   * `legalComments: 'eof'`, not `'none'`. Stripping a `/*! … *\/` licence
+ *     header out of a file the author vendored into their folder is a licence
+ *     violation performed on their behalf.
+ *   * `keepNames`, because minification otherwise rewrites `fn.name`, and a
+ *     plugin that dispatches on it would work in development and not in the
+ *     store.
+ *
+ * `target` must stay in step with the load-time pass, or the second one
+ * down-levels output the first already down-levelled.
+ */
+export async function bundleForDistribution({ files, entry }: CompileInput): Promise<CompileResult> {
+  let build: typeof ESBuild
   try {
-    const out = await build.build({
-      entryPoints: [entry],
-      bundle: true,
-      write: false,
-      format: 'iife',
-      globalName: BUNDLE_GLOBAL,
-      platform: 'browser',
-      target: 'es2020',
-      jsx: 'automatic',
-      // React is not in the map, so automatic JSX would try to import
-      // `react/jsx-runtime`. Point it at the host instead: `ctx.ui.jsx` is the
-      // real runtime, injected rather than bundled, so a plugin's React is
-      // always the app's React and hooks work.
-      jsxImportSource: 'ourgeo-jsx',
-      plugins: [jsxRuntimeShim(), virtual],
-      logLevel: 'silent',
-    })
-    const code = out.outputFiles?.[0]?.text
-    if (!code) return { ok: false, error: 'The compiler produced no output.' }
-    return { ok: true, code }
+    build = await loadEsbuild()
   } catch (e) {
-    return { ok: false, error: formatBuildFailure(e) }
+    return { ok: false, error: `Could not start the plugin compiler: ${message(e)}` }
+  }
+
+  return runBuild(build, distBuildOptions({ files, entry }))
+}
+
+/** The distribution build's options. See `bundleForDistribution`. */
+export function distBuildOptions({ files, entry }: CompileInput): ESBuild.BuildOptions {
+  return {
+    entryPoints: [entry],
+    bundle: true,
+    write: false,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2020',
+    minify: true,
+    keepNames: true,
+    charset: 'utf8',
+    legalComments: 'eof',
+    sourcemap: false,
+    jsx: 'automatic',
+    jsxImportSource: 'ourgeo-jsx',
+    plugins: [externalHostShim(), virtualFiles(files, { hostShim: false })],
+    logLevel: 'silent',
+  }
+}
+
+/** Keep the JSX runtime an import rather than inlining the bridge. */
+function externalHostShim(): ESBuild.Plugin {
+  return {
+    name: 'ourgeo-external-host',
+    setup(b) {
+      // A custom onResolve fires ahead of the top-level `external:` array, so
+      // marking these here is the only thing that works alongside the virtual
+      // file map.
+      b.onResolve({ filter: /^ourgeo-jsx\/jsx-(dev-)?runtime$/ }, (args) => ({
+        path: args.path, external: true,
+      }))
+    },
   }
 }
 

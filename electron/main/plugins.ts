@@ -1,4 +1,5 @@
 import { ipcMain, app, shell, type IpcMain } from 'electron'
+import { createHash } from 'node:crypto'
 import { join, resolve, sep, dirname, extname } from 'path'
 import { readFile, writeFile, mkdir, readdir, rm, stat } from 'fs/promises'
 import AdmZip from 'adm-zip'
@@ -24,6 +25,25 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024
 
 export function pluginsDir(): string {
   return join(app.getPath('userData'), PLUGIN_DIR_NAME)
+}
+
+/** Where a built submission is staged. Dot-prefixed, so nothing lists it. */
+export function distStageDir(id: string): string {
+  return join(pluginsDir(), '.dist', id)
+}
+
+/** The two names inside a staged build, and inside a `.ourgeosubmit` file. */
+export const DIST_NAME = 'plugin.ourgeoplugin'
+export const SOURCE_NAME = 'source.zip'
+
+/** What `plugins:packBuilt` hands back. */
+export interface BuiltPackage {
+  distPath: string
+  sourcePath: string
+  distBytes: number
+  sourceBytes: number
+  /** sha256 of the distributable, hex. */
+  sha256: string
 }
 
 /**
@@ -145,6 +165,75 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
     const id = await unpackArchive(zipPath)
     return id
   })
+
+  // ── Packaging for the store ──────────────────────────────────────────────
+  //
+  // Two archives, staged on disk rather than passed back as base64. An 8 MB
+  // zip through IPC and then back again for the upload is a lot of copying to
+  // move bytes between two parts of the same process; `plugin-store.ts` reads
+  // these paths directly.
+  //
+  // They live in `.dist/<id>/` INSIDE the plugins folder: dot-prefixed, so
+  // `plugins:list` and `plugins:listFiles` skip it and a staged build can
+  // never be mistaken for an installed plugin, and inside the folder so
+  // `contain()` still covers every path.
+
+  ipc.handle(
+    'plugins:packBuilt',
+    async (_e, id: string, files: Record<string, string>): Promise<BuiltPackage> => {
+      const stage = distStageDir(id)
+      await rm(stage, { recursive: true, force: true })
+      await mkdir(stage, { recursive: true })
+
+      const dist = new AdmZip()
+      for (const [rel, content] of Object.entries(files)) {
+        if (isDotPath(rel)) continue
+        dist.addFile(rel, Buffer.from(content, 'utf-8'))
+      }
+      const distPath = join(stage, DIST_NAME)
+      dist.writeZip(distPath)
+
+      // The author's folder as it stands, for a moderator to read. Same
+      // dot-filter as `plugins:pack`, so the compile cache does not travel.
+      const src = new AdmZip()
+      src.addLocalFolder(contain(id), '', (name: string) => !isDotPath(name))
+      const sourcePath = join(stage, SOURCE_NAME)
+      src.writeZip(sourcePath)
+
+      const distBytes = await readFile(distPath)
+      const sourceBytes = await readFile(sourcePath)
+      return {
+        distPath,
+        sourcePath,
+        distBytes: distBytes.byteLength,
+        sourceBytes: sourceBytes.byteLength,
+        // The hash the store stores and the installer checks. Computed here,
+        // over the bytes that are actually uploaded, so nothing between this
+        // line and the download can change the file without being noticed.
+        sha256: createHash('sha256').update(distBytes).digest('hex'),
+      }
+    },
+  )
+
+  /**
+   * Write the submission as one file the website's upload page can take.
+   *
+   * The store can be submitted to from ouRGeo or from ourgeo.dev, and this is
+   * what makes those the same submission rather than two formats: the website
+   * cannot BUILD one (its CSP carries no `wasm-unsafe-eval`, so esbuild cannot
+   * run there), but it can read one.
+   */
+  ipc.handle(
+    'plugins:saveSubmission',
+    async (_e, id: string, submission: unknown, outPath: string): Promise<void> => {
+      const stage = distStageDir(id)
+      const zip = new AdmZip()
+      zip.addLocalFile(join(stage, DIST_NAME))
+      zip.addLocalFile(join(stage, SOURCE_NAME))
+      zip.addFile('submission.json', Buffer.from(`${JSON.stringify(submission, null, 2)}\n`, 'utf-8'))
+      zip.writeZip(outPath)
+    },
+  )
 
   // Where a compiled bundle is cached, keyed by content hash — see
   // lib/plugins/compile.ts. Kept out of `plugins:writeFile`'s path so a plugin

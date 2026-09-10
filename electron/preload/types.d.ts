@@ -6,6 +6,16 @@ interface PlotPopoutState {
   total: number
 }
 
+/** The two archives a store submission is built from. */
+interface BuiltPackage {
+  distPath: string
+  sourcePath: string
+  distBytes: number
+  sourceBytes: number
+  /** sha256 of the distributable, hex. */
+  sha256: string
+}
+
 /** A signed-in forum account, as the main process reports it. */
 interface ForumProfile {
   id: string
@@ -154,6 +164,8 @@ declare global {
         reveal(relative: string): Promise<void>
         pack(id: string, outPath: string): Promise<void>
         unpack(zipPath: string): Promise<string>
+        packBuilt(id: string, files: Record<string, string>): Promise<BuiltPackage>
+        saveSubmission(id: string, submission: unknown, outPath: string): Promise<void>
         cacheRead(id: string, key: string): Promise<string | null>
         cacheWrite(id: string, key: string, code: string): Promise<void>
         esbuildWasm(): Promise<string>
