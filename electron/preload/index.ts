@@ -1,5 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** Where an installed plugin came from — see src/lib/plugins/store-origin.ts. */
+interface StoreOrigin {
+  slug: string
+  versionId: string
+  version: string
+  sha256: string
+  installedAt: string
+  name: string
+  author?: string
+}
+
 /** The two archives a store submission is built from — see main/plugins.ts. */
 interface BuiltPackage {
   distPath: string
@@ -157,6 +168,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reveal: (relative: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', relative),
     pack: (id: string, outPath: string): Promise<void> => ipcRenderer.invoke('plugins:pack', id, outPath),
     unpack: (zipPath: string): Promise<string> => ipcRenderer.invoke('plugins:unpack', zipPath),
+    installFromStore: (zipPath: string, origin: unknown): Promise<string> =>
+      ipcRenderer.invoke('plugins:installFromStore', zipPath, origin),
+    storeOrigins: (): Promise<Record<string, StoreOrigin>> =>
+      ipcRenderer.invoke('plugins:storeOrigins'),
     packBuilt: (id: string, files: Record<string, string>): Promise<BuiltPackage> =>
       ipcRenderer.invoke('plugins:packBuilt', id, files),
     saveSubmission: (id: string, submission: unknown, outPath: string): Promise<void> =>

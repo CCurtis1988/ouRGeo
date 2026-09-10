@@ -35,6 +35,7 @@ import type { ApiProvider } from '@/lib/api-connectors/types'
 import { usePluginStore, type PluginSummary } from '@/store/plugins'
 import { loadPluginPrefs, savePluginPrefs, markActivating, type PluginPrefs } from '@/lib/plugins-persistence'
 import { readManifest } from './manifest'
+import type { StoreOrigin } from './store-origin'
 import { compilePlugin } from './compile'
 import { runBundle } from './sandbox'
 import { createHost, type Disposer, type PluginHost } from './host-api'
@@ -108,6 +109,18 @@ export async function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
   }
 
   const entries = await window.electronAPI.plugins.list()
+
+  // Where each plugin came from, read from the sidecars rather than from
+  // prefs: `plugins.json` holds a copy for the update poll, but deleting that
+  // file must not change what a plugin IS. The cache is refreshed from what we
+  // find, so the two cannot drift.
+  let origins: Record<string, StoreOrigin> = {}
+  try {
+    origins = await window.electronAPI.plugins.storeOrigins()
+    prefs.store = origins
+    await savePluginPrefs(prefs)
+  } catch { /* an unreadable sidecar costs a badge, never a plugin */ }
+
   const out: LoadedPlugin[] = []
   const collected = empty()
 
@@ -162,6 +175,9 @@ export async function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
 
   registerAll(collected)
   loaded = out
+  // One place, so no branch above can forget it.
+  for (const p of out) p.origin = origins[p.manifest.id]
+
   publish()
   return out
 }
@@ -400,6 +416,7 @@ function publish(): void {
     version: p.manifest.version,
     status: p.state === 'active' ? 'enabled' : p.state === 'failed' ? 'error' : 'disabled',
     error: p.error,
+    origin: p.origin,
   }))
   usePluginStore.getState().setPlugins(summaries)
 }

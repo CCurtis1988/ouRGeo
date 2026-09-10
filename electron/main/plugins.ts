@@ -6,6 +6,7 @@ import AdmZip from 'adm-zip'
 import {
   planExtraction, readArchiveId, isDotPath, MANIFEST_ENTRY,
 } from '../../src/lib/plugins/archive-policy'
+import { STORE_ORIGIN_FILE, type StoreOrigin } from '../../src/lib/plugins/store-origin'
 
 // Plugin files, and the one rule about them.
 //
@@ -153,6 +154,23 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
 
   ipc.handle('plugins:pack', async (_e, id: string, outPath: string): Promise<void> => {
     const dir = contain(id)
+
+    // A plugin from the store is not the user's to hand on. The refusal names
+    // where it came from and how to get it elsewhere, because "you cannot
+    // export this" on its own reads as a fault.
+    //
+    // This is a decision, not a lock: the folder belongs to the user and
+    // deleting the sidecar restores Export. ouRGeo declines to hand an author's
+    // code out; it does not pretend the code is out of reach. See "Protecting
+    // an author's code" in CLAUDE.md.
+    const origin = await readStoreOrigin(id)
+    if (origin) {
+      throw new Error(
+        `"${origin.name}" came from the plugin store, so it cannot be exported to a file. ` +
+        `Install it from the store on any machine you sign in on — ourgeo.dev/plugin.html?slug=${origin.slug}.`
+      )
+    }
+
     const zip = new AdmZip()
     // The filter is not tidiness. adm-zip's `addLocalFolder` walks dotfiles, so
     // without it the compile cache `.build/<key>.js` ships inside the archive —
@@ -164,6 +182,63 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
   ipc.handle('plugins:unpack', async (_e, zipPath: string): Promise<string> => {
     const id = await unpackArchive(zipPath)
     return id
+  })
+
+  /**
+   * Install an archive the plugin store downloaded, and record where it came
+   * from.
+   *
+   * `unpackArchive` deletes the target folder first, which is right for a
+   * reinstall and destructive for anything else — so a folder that is already
+   * there and is NOT from the store stops this, rather than quietly replacing
+   * a plugin the user wrote. Two plugins cannot share an id: the id IS the
+   * folder name, and the store makes it the slug for that reason.
+   *
+   * The sidecar is written AFTER unpacking, because unpacking would delete it.
+   * That ordering has a second benefit worth keeping: the wipe also clears
+   * `.build`, so an update can never run the previous version's cached bundle.
+   */
+  ipc.handle(
+    'plugins:installFromStore',
+    async (_e, zipPath: string, origin: StoreOrigin): Promise<string> => {
+      const target = contain(origin.slug)
+      if (await exists(target) && !(await readStoreOrigin(origin.slug))) {
+        throw new Error(
+          `You already have a plugin called "${origin.slug}" that did not come from the store, ` +
+          'and installing this one would replace it. Rename or remove yours first — ' +
+          'the Plugin Manager\'s Files button opens its folder.'
+        )
+      }
+
+      const id = await unpackArchive(zipPath)
+      if (id !== origin.slug) {
+        // The store's slug and the manifest id are the same field by design.
+        // A disagreement means the archive is not the one the store described.
+        await rm(contain(id), { recursive: true, force: true })
+        throw new Error(
+          `That download is for "${id}" but the store listed it as "${origin.slug}". Nothing was installed.`
+        )
+      }
+
+      await writeFile(
+        join(target, STORE_ORIGIN_FILE),
+        `${JSON.stringify(origin, null, 2)}\n`,
+        'utf-8',
+      )
+      return id
+    },
+  )
+
+  /** Every installed plugin's store record, for the Plugin Manager. */
+  ipc.handle('plugins:storeOrigins', async (): Promise<Record<string, StoreOrigin>> => {
+    const dir = await ensureDir()
+    const out: Record<string, StoreOrigin> = {}
+    for (const e of await readdir(dir, { withFileTypes: true, encoding: 'utf-8' })) {
+      if (!e.isDirectory() || e.name.startsWith('.')) continue
+      const origin = await readStoreOrigin(e.name)
+      if (origin) out[e.name] = origin
+    }
+    return out
   })
 
   // ── Packaging for the store ──────────────────────────────────────────────
@@ -306,6 +381,24 @@ export async function unpackArchive(zipPath: string): Promise<string> {
     await writeFile(f.path, f.data)
   }
   return read.id
+}
+
+/**
+ * Read a plugin's store record, or null.
+ *
+ * The sidecar is the AUTHORITY on where a plugin came from. `plugins.json`
+ * keeps a copy so the update poll needs no directory scan, but that file's
+ * header promises that deleting it "turns everything off and loses nothing
+ * else" — so nothing may depend on it for a fact about the plugin itself.
+ */
+export async function readStoreOrigin(id: string): Promise<StoreOrigin | null> {
+  try {
+    const text = await readFile(contain(join(id, STORE_ORIGIN_FILE)), 'utf-8')
+    const parsed = JSON.parse(text) as StoreOrigin
+    return parsed && typeof parsed.slug === 'string' ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function safeKey(key: string): string {

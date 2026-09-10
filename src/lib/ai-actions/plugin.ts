@@ -38,6 +38,26 @@ function find(id: string): LoadedPlugin | undefined {
     ?? all.find((p) => p.manifest.name.toLowerCase() === want)
 }
 
+/**
+ * Why a store plugin's code is not the assistant's to read or hand out.
+ *
+ * One function for all three surfaces, because a rule enforced at each call
+ * site holds until somebody adds a fourth. It names the recovery move — the
+ * plugin's page — since "you cannot read this" alone reads as a fault the
+ * model should work around, and a model that works around it will try
+ * `execute_r_code` and `readLines()` next.
+ */
+function storeRefusal(p: LoadedPlugin, verb: string): string {
+  const o = p.origin!
+  return (
+    `"${p.manifest.name}" was installed from the plugin store, so ouRGeo does not ${verb} it. ` +
+    'What ships from the store is a built, minified bundle rather than the author’s sources, ' +
+    'and it is not ouRGeo’s to pass on. ' +
+    `Its page is ourgeo.dev/plugin.html?slug=${o.slug} — the description, the permissions and the ` +
+    'author are all there. To build something like it, scaffold a new plugin with plugin:scaffold.'
+  )
+}
+
 function unknown(id: string): string {
   const ids = installedIds()
   return ids.length === 0
@@ -65,6 +85,7 @@ function describe(p: LoadedPlugin): string {
   if ((m.permissions ?? []).length > 0) {
     lines.push(`Permissions: ${(m.permissions ?? []).map((x) => PERMISSION_LABELS[x] ?? x).join('; ')}.`)
   }
+  if (p.origin) lines.push(`From the plugin store, version ${p.origin.version}.`)
   if (p.registered.length > 0) lines.push(`Registered: ${p.registered.join(', ')}.`)
   if (p.error) lines.push(`Problems:\n${p.error}`)
   return lines.join('\n')
@@ -105,6 +126,14 @@ export const pluginActions: UiAction[] = [
       const want = argStr(args, 'id')
       const p = find(want)
       if (!p) return fail(unknown(want))
+      // A store plugin still describes itself — version, permissions, what it
+      // registered. Only the file listing is withheld, because that is the
+      // step towards reading the code.
+      if (p.origin) {
+        return ok(`${p.manifest.name}:`,
+          `${describe(p)}\nInstalled from the plugin store (ourgeo.dev/plugin.html?slug=${p.origin.slug}). ` +
+          'Its files are a built bundle and are not listed.')
+      }
       let files: string[] = []
       try { files = await window.electronAPI.plugins.listFiles(p.manifest.id) } catch { /* fine */ }
       return ok(`${p.manifest.name}:`, `${describe(p)}\nFiles: ${files.join(', ') || '(none)'}`)
@@ -124,6 +153,7 @@ export const pluginActions: UiAction[] = [
       const id = argStr(args, 'id')
       const p = find(id)
       if (!p) return fail(unknown(id))
+      if (p.origin) return fail(storeRefusal(p, 'read the files of'))
       const target = pluginPath(p.manifest.id, argStr(args, 'file'))
       if ('error' in target) return fail(target.error)
       try {
@@ -207,6 +237,10 @@ export const pluginActions: UiAction[] = [
       const id = argStr(args, 'id')
       const p = find(id)
       if (!p) return fail(unknown(id))
+      // Editing a store plugin in place would leave the user running something
+      // that is neither what the store shipped nor anything they chose, under
+      // a badge saying it came from the store.
+      if (p.origin) return fail(storeRefusal(p, 'edit'))
       const target = pluginPath(p.manifest.id, argStr(args, 'file'))
       if ('error' in target) return fail(target.error)
       const content = argStr(args, 'content')
@@ -357,6 +391,7 @@ export const pluginActions: UiAction[] = [
       const want = argStr(args, 'id')
       const p = find(want)
       if (!p) return fail(unknown(want))
+      if (p.origin) return fail(storeRefusal(p, 'export'))
       try {
         await window.electronAPI.plugins.pack(p.manifest.id, argStr(args, 'path'))
       } catch (e) {

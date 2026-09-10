@@ -21,6 +21,7 @@
     "src/lib/ai-fetch-error.ts",
     "src/lib/app-permissions.ts",
     "src/lib/session-scoped-files.ts",
-    "src/lib/plugins/archive-policy.ts"
+    "src/lib/plugins/archive-policy.ts",
+    "src/lib/plugins/store-origin.ts"
   ]
 }

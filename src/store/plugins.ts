@@ -12,6 +12,7 @@
 // It is the same device `useThemeStore.revision` uses for the Theme Studio.
 
 import { create } from 'zustand'
+import type { StoreOrigin } from '@/lib/plugins/store-origin'
 
 /** How a plugin ended up in whatever state it is in. */
 export type PluginStatus = 'enabled' | 'disabled' | 'error'
@@ -24,6 +25,8 @@ export interface PluginSummary {
   /** Present when `status === 'error'` — shown in full in the Plugin Manager,
    *  because a truncated stack is a bug report nobody can act on. */
   error?: string
+  /** Set when the plugin came from the plugin store. */
+  origin?: StoreOrigin
 }
 
 interface PluginState {

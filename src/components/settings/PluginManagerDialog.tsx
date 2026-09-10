@@ -7,6 +7,7 @@ import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { loadedPlugins, pluginEnabled, setPluginEnabled, reloadPlugins } from '@/lib/plugins/loader'
 import { PERMISSION_LABELS, type LoadedPlugin, type PluginPermission } from '@/lib/plugins/types'
+import { Store } from 'lucide-react'
 import { usePluginStore } from '@/store/plugins'
 import { APP_VERSION } from './versionHistory'
 import { cn } from '@/lib/utils'
@@ -202,7 +203,7 @@ function PluginRow({
   onExport: () => void
   onReveal: () => void
 }): React.ReactElement {
-  const { manifest, state, error, registered } = plugin
+  const { manifest, state, error, registered, origin } = plugin
   const enabled = pluginEnabled(manifest.id)
   const permissions = (manifest.permissions ?? []) as PluginPermission[]
   const hasCode = Boolean(manifest.main)
@@ -215,6 +216,14 @@ function PluginRow({
             <span className="text-xs font-medium text-foreground truncate">{manifest.name}</span>
             <span className="text-[10px] text-geo-muted">v{manifest.version}</span>
             <StateBadge state={state} />
+            {origin && (
+              <span
+                className="flex items-center gap-0.5 text-[10px] text-geo-accent"
+                title={`Installed from the plugin store on ${new Date(origin.installedAt).toLocaleDateString()}`}
+              >
+                <Store className="w-2.5 h-2.5" /> store
+              </span>
+            )}
           </div>
           {manifest.description && (
             <p className="text-[11px] text-geo-muted mt-1 leading-snug">{manifest.description}</p>
@@ -261,12 +270,31 @@ function PluginRow({
       </div>
 
       <div className="flex items-center gap-1 mt-2">
-        <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onReveal}>
-          <FolderOpen className="w-2.5 h-2.5" /> Files
-        </Button>
-        <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onExport}>
-          <Download className="w-2.5 h-2.5" /> Export
-        </Button>
+        {/*
+          A store plugin gets neither. Export is refused in the main process, so
+          a button here would be one that reliably fails; Files would open a
+          folder whose only readable content is a minified bundle, which invites
+          exactly the misunderstanding the store's copy works to avoid. The
+          author's page is the honest destination.
+        */}
+        {origin ? (
+          <Button
+            variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted"
+            onClick={() => { void window.electronAPI.shell.openExternal(
+              `https://ourgeo.dev/plugin.html?slug=${encodeURIComponent(origin.slug)}`) }}
+          >
+            <Store className="w-2.5 h-2.5" /> Store page
+          </Button>
+        ) : (
+          <>
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onReveal}>
+              <FolderOpen className="w-2.5 h-2.5" /> Files
+            </Button>
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onExport}>
+              <Download className="w-2.5 h-2.5" /> Export
+            </Button>
+          </>
+        )}
         <div className="flex-1" />
         {confirming ? (
           <>

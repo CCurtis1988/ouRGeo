@@ -177,35 +177,15 @@ export interface PluginManifest {
 
 // ── Where a plugin came from ───────────────────────────────────────────────
 
-/**
- * What the plugin store recorded when it installed a plugin.
- *
- * Written to `.ourgeo-store.json` inside the plugin folder — dot-prefixed, so
- * `plugins:listFiles` never reports it and it is not an input to the compile
- * hash. That file is AUTHORITATIVE: the export refusal and the "From the store"
- * badge both read it. `plugins.json` keeps a copy purely so the update poll can
- * run without a directory scan, which is what lets that file keep its promise
- * that deleting it "turns everything off and loses nothing else".
- *
- * It is a record, not a lock. The folder belongs to the user and deleting the
- * sidecar restores Export — see the note on protecting an author's code in
- * CLAUDE.md. ouRGeo declines to hand the code out; it does not pretend it
- * cannot be got at.
- */
-export interface StoreOrigin {
-  /** The plugin's slug in the store, which is also its manifest id. */
-  slug: string
-  /** The `plugin_versions` row this came from. */
-  versionId: string
-  version: string
-  sha256: string
-  installedAt: string
-  name: string
-  author?: string
-}
-
-/** The file the record above lives in, beside the manifest. */
-export const STORE_ORIGIN_FILE = '.ourgeo-store.json'
+// `StoreOrigin` lives in its own module and is re-exported here.
+//
+// This file imports from the layout model, the action types, the connector
+// types and the toolbox — i.e. most of the renderer. `electron/main/plugins.ts`
+// needs the origin record and must not drag any of that into the node
+// tsconfig, which is the same split `panel-meta.ts` and `panel-render.ts`
+// exist for.
+export { STORE_ORIGIN_FILE, type StoreOrigin } from './store-origin'
+import type { StoreOrigin } from './store-origin'
 
 // ── Loaded state ───────────────────────────────────────────────────────────
 
@@ -230,4 +210,6 @@ export interface LoadedPlugin {
   error?: string
   /** What it actually registered, for the Plugin Manager's summary. */
   registered: string[]
+  /** Set when this plugin came from the plugin store. */
+  origin?: StoreOrigin
 }

@@ -6,6 +6,17 @@ interface PlotPopoutState {
   total: number
 }
 
+/** Where an installed plugin came from — see src/lib/plugins/store-origin.ts. */
+interface StoreOrigin {
+  slug: string
+  versionId: string
+  version: string
+  sha256: string
+  installedAt: string
+  name: string
+  author?: string
+}
+
 /** The two archives a store submission is built from. */
 interface BuiltPackage {
   distPath: string
@@ -164,6 +175,8 @@ declare global {
         reveal(relative: string): Promise<void>
         pack(id: string, outPath: string): Promise<void>
         unpack(zipPath: string): Promise<string>
+        installFromStore(zipPath: string, origin: StoreOrigin): Promise<string>
+        storeOrigins(): Promise<Record<string, StoreOrigin>>
         packBuilt(id: string, files: Record<string, string>): Promise<BuiltPackage>
         saveSubmission(id: string, submission: unknown, outPath: string): Promise<void>
         cacheRead(id: string, key: string): Promise<string | null>
