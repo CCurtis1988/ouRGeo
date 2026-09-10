@@ -10,6 +10,11 @@
 // dragged into the web composer. It lives in the renderer because that is where
 // a canvas exists; the main process does the network half and never sees pixels.
 
+// Two buckets share these limits, and that is not a coincidence: `plugin-media`
+// was given the same 400 KB ceiling and the same three MIME types as
+// `post-images` precisely so one transcoder could serve both. If they ever
+// diverge, this takes a target rather than growing a branch.
+
 export const IMAGE_RULES = {
   maxStoredBytes: 400_000,
   maxEdge: 1600,
@@ -82,7 +87,7 @@ function drawScaled(bitmap: ImageBitmap, maxEdge: number): {
  * quality is still too big — a 1600px map of dense vector data can be, and
  * failing at that point would block the whole publish for one figure.
  */
-export async function transcodeForForum(
+export async function transcodeForUpload(
   data: Uint8Array,
   sourceMime = 'image/png',
 ): Promise<TranscodedImage> {

@@ -7,7 +7,7 @@ import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { loadedPlugins, pluginEnabled, setPluginEnabled, reloadPlugins } from '@/lib/plugins/loader'
 import { PERMISSION_LABELS, type LoadedPlugin, type PluginPermission } from '@/lib/plugins/types'
-import { Store, ArrowUpCircle } from 'lucide-react'
+import { Store, ArrowUpCircle, UploadCloud } from 'lucide-react'
 import { usePluginStoreBrowser, hasUpdate } from '@/store/pluginStore'
 import { ensureUpdateCheck } from '@/lib/plugin-store/updates'
 import { updateFromStore } from '@/lib/plugin-store/install'
@@ -232,6 +232,7 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
                     : null}
                   onUpdate={() => void update(p.manifest.id)}
                   onDismissUpdate={() => void dismiss(p.manifest.id)}
+                  onPublish={() => { onOpenChange(false); showDialog('plugin-submit', p.manifest.id) }}
                 />
               ))}
             </div>
@@ -245,7 +246,7 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
 function PluginRow({
   plugin, busy, confirming, update,
   onToggle, onDelete, onConfirmDelete, onCancelDelete, onExport, onReveal,
-  onUpdate, onDismissUpdate,
+  onUpdate, onDismissUpdate, onPublish,
 }: {
   plugin: LoadedPlugin
   busy: boolean
@@ -260,6 +261,7 @@ function PluginRow({
   onReveal: () => void
   onUpdate: () => void
   onDismissUpdate: () => void
+  onPublish: () => void
 }): React.ReactElement {
   const { manifest, state, error, registered, origin } = plugin
   const enabled = pluginEnabled(manifest.id)
@@ -371,6 +373,12 @@ function PluginRow({
             </Button>
             <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onExport}>
               <Download className="w-2.5 h-2.5" /> Export
+            </Button>
+            {/* Only on a plugin that is the user's. A store plugin is somebody
+                else's, and the schema would refuse the slug anyway — offering
+                the button would be a promise ouRGeo cannot keep. */}
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 text-geo-muted" onClick={onPublish}>
+              <UploadCloud className="w-2.5 h-2.5" /> Publish…
             </Button>
           </>
         )}

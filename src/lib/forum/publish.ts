@@ -10,7 +10,7 @@
 // a public forum missing half its figures and no way to fix it from the app.
 
 import { preparePost, rewriteImages, type PreparedPost } from './publish-markdown'
-import { transcodeForForum } from './transcode'
+import { transcodeForUpload } from './transcode'
 
 export interface PublishRequest {
   /** Path to the saved .Rmd. Knit renders the file on disk, never the buffer. */
@@ -109,7 +109,7 @@ export async function publish(req: PublishRequest): Promise<{ url: string; image
   for (const [i, img] of req.images.entries()) {
     req.onPhase({ kind: 'uploading', done: i, total: req.images.length })
     const b64 = await window.electronAPI.file.readBinary(resolveFigure(req.outputDir, img.path))
-    const shrunk = await transcodeForForum(base64ToBytes(b64))
+    const shrunk = await transcodeForUpload(base64ToBytes(b64))
     const up = await window.electronAPI.forum.uploadImage({
       bytes: shrunk.bytes,
       mime: shrunk.mime,

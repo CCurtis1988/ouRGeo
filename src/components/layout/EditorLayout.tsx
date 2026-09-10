@@ -4,6 +4,7 @@ import { SettingsDialog } from '../settings/SettingsDialog'
 import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
 import { PluginManagerDialog } from '../settings/PluginManagerDialog'
 import { PluginStoreDialog } from '../plugins/PluginStoreDialog'
+import { PluginSubmitDialog } from '../plugins/PluginSubmitDialog'
 import { VoiceModelDialog } from '../voice/VoiceModelDialog'
 import { ProjectDropdown } from '../project/ProjectDropdown'
 import { LoadDataDialog } from '../editor/LoadDataDialog'
@@ -57,6 +58,7 @@ export function EditorLayout(): React.ReactElement {
   // — the AI assistant walking a user through a workflow, the database panel
   // asking for Load Data — can open one. See src/store/ui.ts.
   const openDialog = useUiStore((s) => s.openDialog)
+  const dialogArg = useUiStore((s) => s.dialogArg)
   const showDialog = useUiStore((s) => s.showDialog)
   const hideDialog = useUiStore((s) => s.hideDialog)
   const dialogToggle = useCallback(
@@ -349,6 +351,13 @@ export function EditorLayout(): React.ReactElement {
       <PluginStoreDialog
         open={openDialog === 'plugin-store'}
         onOpenChange={dialogToggle('plugin-store')}
+      />
+      {/* `dialogArg` carries the plugin id — the one piece of context a dialog
+          needs to open ON something, which is exactly what that field is for. */}
+      <PluginSubmitDialog
+        open={openDialog === 'plugin-submit'}
+        pluginId={dialogArg}
+        onOpenChange={dialogToggle('plugin-submit')}
       />
       <RecordingDestinationDialog
         open={openDialog === 'recording'}
