@@ -13,6 +13,7 @@ import { registerAiProxy } from './ai-proxy'
 import { registerClaudeCliHandlers } from './claude-cli'
 import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
+import { registerPluginStoreHandlers } from './plugin-store'
 import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
 import { registerVoiceHandlers } from './voice'
 import { registerTerminalHandlers, killAllTerminals } from './terminal'
@@ -208,6 +209,7 @@ app.whenReady().then(async () => {
   })
   registerKnitHandlers(ipcMain)
   registerForumHandlers(ipcMain)
+  registerPluginStoreHandlers(ipcMain)
   registerPluginHandlers(ipcMain)
   registerEsbuildWasmHandler(ipcMain)
   registerTerminalHandlers(ipcMain)

@@ -200,33 +200,8 @@ export function registerPluginHandlers(ipc: IpcMain = ipcMain): void {
    */
   ipc.handle(
     'plugins:installFromStore',
-    async (_e, zipPath: string, origin: StoreOrigin): Promise<string> => {
-      const target = contain(origin.slug)
-      if (await exists(target) && !(await readStoreOrigin(origin.slug))) {
-        throw new Error(
-          `You already have a plugin called "${origin.slug}" that did not come from the store, ` +
-          'and installing this one would replace it. Rename or remove yours first — ' +
-          'the Plugin Manager\'s Files button opens its folder.'
-        )
-      }
-
-      const id = await unpackArchive(zipPath)
-      if (id !== origin.slug) {
-        // The store's slug and the manifest id are the same field by design.
-        // A disagreement means the archive is not the one the store described.
-        await rm(contain(id), { recursive: true, force: true })
-        throw new Error(
-          `That download is for "${id}" but the store listed it as "${origin.slug}". Nothing was installed.`
-        )
-      }
-
-      await writeFile(
-        join(target, STORE_ORIGIN_FILE),
-        `${JSON.stringify(origin, null, 2)}\n`,
-        'utf-8',
-      )
-      return id
-    },
+    async (_e, zipPath: string, origin: StoreOrigin): Promise<string> =>
+      installStoreArchive(zipPath, origin),
   )
 
   /** Every installed plugin's store record, for the Plugin Manager. */
@@ -381,6 +356,47 @@ export async function unpackArchive(zipPath: string): Promise<string> {
     await writeFile(f.path, f.data)
   }
   return read.id
+}
+
+/**
+ * Install an archive the plugin store downloaded, and record where it came
+ * from.
+ *
+ * Exported and shared with `plugin-store.ts`, so the download path and the IPC
+ * path cannot disagree about what installing means.
+ *
+ * `unpackArchive` deletes the target folder first, which is right for a
+ * reinstall and destructive for anything else — so a folder that is already
+ * there and is NOT from the store stops this, rather than quietly replacing a
+ * plugin the user wrote. Two plugins cannot share an id: the id IS the folder
+ * name, and the store makes it the slug for that reason.
+ *
+ * The sidecar is written AFTER unpacking, because unpacking would delete it.
+ * That ordering has a second benefit worth keeping: the wipe also clears
+ * `.build`, so an update can never run the previous version's cached bundle.
+ */
+export async function installStoreArchive(zipPath: string, origin: StoreOrigin): Promise<string> {
+  const target = contain(origin.slug)
+  if (await exists(target) && !(await readStoreOrigin(origin.slug))) {
+    throw new Error(
+      `You already have a plugin called "${origin.slug}" that did not come from the store, ` +
+      'and installing this one would replace it. Rename or remove yours first — ' +
+      "the Plugin Manager's Files button opens its folder."
+    )
+  }
+
+  const id = await unpackArchive(zipPath)
+  if (id !== origin.slug) {
+    // The store's slug and the manifest id are the same field by design. A
+    // disagreement means the archive is not the one the store described.
+    await rm(contain(id), { recursive: true, force: true })
+    throw new Error(
+      `That download is for "${id}" but the store listed it as "${origin.slug}". Nothing was installed.`
+    )
+  }
+
+  await writeFile(join(target, STORE_ORIGIN_FILE), `${JSON.stringify(origin, null, 2)}\n`, 'utf-8')
+  return id
 }
 
 /**

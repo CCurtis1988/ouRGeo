@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/** What `account:status` reports without touching the network. */
+interface AccountStatus {
+  hasStoredToken: boolean
+  signedIn: boolean
+  profile: { id: string; username: string; displayName: string; role: string } | null
+}
+
 /** Where an installed plugin came from — see src/lib/plugins/store-origin.ts. */
 interface StoreOrigin {
   slug: string
@@ -181,6 +188,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cacheWrite: (id: string, key: string, code: string): Promise<void> =>
       ipcRenderer.invoke('plugins:cacheWrite', id, key, code),
     esbuildWasm: (): Promise<string> => ipcRenderer.invoke('plugins:esbuildWasm')
+  },
+
+  // The plugin store. Everything goes through main, so the access token never
+  // reaches this process — the same rule `forum` follows, and the reason both
+  // are named operations rather than a generic query.
+  store: {
+    accountStatus: (): Promise<AccountStatus> => ipcRenderer.invoke('account:status'),
+    categories: (): Promise<unknown[]> => ipcRenderer.invoke('store:categories'),
+    catalogue: (req: unknown): Promise<unknown[]> => ipcRenderer.invoke('store:catalogue', req),
+    detail: (slug: string): Promise<unknown> => ipcRenderer.invoke('store:detail', slug),
+    updates: (installed: unknown[]): Promise<unknown[]> => ipcRenderer.invoke('store:updates', installed),
+    install: (req: { slug: string; versionId: string }): Promise<StoreOrigin> =>
+      ipcRenderer.invoke('store:install', req),
+    reviews: (slug: string): Promise<unknown[]> => ipcRenderer.invoke('store:reviews', slug),
+    writeReview: (req: unknown): Promise<void> => ipcRenderer.invoke('store:writeReview', req),
+    deleteReview: (slug: string): Promise<void> => ipcRenderer.invoke('store:deleteReview', slug),
+    mine: (): Promise<unknown[]> => ipcRenderer.invoke('store:mine'),
+    submit: (req: unknown): Promise<{ versionId: string }> => ipcRenderer.invoke('store:submit', req),
+    uploadMedia: (req: unknown): Promise<{ id: string; url: string }> =>
+      ipcRenderer.invoke('store:uploadMedia', req),
+    isModerator: (): Promise<boolean> => ipcRenderer.invoke('store:isModerator'),
   },
 
   app: {

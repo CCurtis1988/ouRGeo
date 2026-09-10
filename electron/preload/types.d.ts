@@ -6,6 +6,121 @@ interface PlotPopoutState {
   total: number
 }
 
+// ── Plugin store ────────────────────────────────────────────────────────────
+//
+// Declared here as well as in src/lib/plugin-store/types.ts, deliberately. This
+// file is ambient and belongs to the node tsconfig project; importing renderer
+// modules into it would drag them into the main process's compile. The forum
+// types are duplicated for the same reason.
+
+/** One card in the store's browse list. */
+interface StoreListing {
+  slug: string
+  name: string
+  summary: string
+  category: string
+  tags: string[]
+  installCount: number
+  ratingAvg: number | null
+  ratingCount: number
+  publishedAt: string
+  updatedAt: string
+  author: string
+  authorAvatar: string | null
+  version: string
+  ourgeoVersion: string | null
+  hasCode: boolean
+  permissions: string[]
+  iconUrl: string | null
+}
+
+interface StoreCategory {
+  slug: string
+  name: string
+  description: string
+  icon: string
+}
+
+interface StoreVersion {
+  id: string
+  version: string
+  status: string
+  bytes: number
+  sha256: string
+  ourgeoVersion: string | null
+  permissions: string[]
+  hasCode: boolean
+  changelog: string | null
+  submittedAt: string
+  reviewedAt: string | null
+  reviewNotes: string | null
+  storagePath: string | null
+  sourcePath: string | null
+}
+
+interface StoreDetail {
+  slug: string
+  name: string
+  summary: string
+  description: string | null
+  category: string
+  tags: string[]
+  homepage: string | null
+  repository: string | null
+  license: string | null
+  installCount: number
+  ratingAvg: number | null
+  ratingCount: number
+  publishedAt: string | null
+  updatedAt: string
+  isRemoved: boolean
+  isMine: boolean
+  author: { username: string; displayName: string; avatarUrl: string | null }
+  media: { path: string; url: string; alt: string | null; width: number; height: number }[]
+  versions: StoreVersion[]
+  installedByMe: boolean
+  canReview: boolean
+  pageUrl: string
+}
+
+interface StoreUpdate {
+  slug: string
+  latestVersion: string | null
+  latestId: string | null
+  ourgeoVersion: string | null
+  changelog: string | null
+  /** The status of the version the user HAS — 'revoked' is why this exists. */
+  installedStatus: string | null
+}
+
+interface StoreReview {
+  rating: number
+  body: string | null
+  created_at: string
+  updated_at: string
+  author_id: string
+}
+
+interface StoreMine {
+  slug: string
+  name: string
+  published_at: string | null
+  is_removed: boolean
+  install_count: number
+  rating_avg: number | null
+  versions: {
+    id: string; version: string; status: string
+    submittedAt: string; reviewedAt: string | null; reviewNotes: string | null
+  }[]
+}
+
+/** What `account:status` reports without touching the network. */
+interface AccountStatus {
+  hasStoredToken: boolean
+  signedIn: boolean
+  profile: { id: string; username: string; displayName: string; role: string } | null
+}
+
 /** Where an installed plugin came from — see src/lib/plugins/store-origin.ts. */
 interface StoreOrigin {
   slug: string
@@ -149,6 +264,36 @@ declare global {
         createThread(req: {
           category: string; title: string; body: string; attachmentIds: string[]
         }): Promise<{ id: number; url: string; imageError: string | null }>
+      }
+      store: {
+        accountStatus(): Promise<AccountStatus>
+        categories(): Promise<StoreCategory[]>
+        catalogue(req: {
+          query?: string; category?: string; tag?: string
+          sort?: string; limit?: number; offset?: number
+        }): Promise<StoreListing[]>
+        detail(slug: string): Promise<StoreDetail | null>
+        updates(installed: { slug: string; version: string }[]): Promise<StoreUpdate[]>
+        install(req: { slug: string; versionId: string }): Promise<StoreOrigin>
+        reviews(slug: string): Promise<StoreReview[]>
+        writeReview(req: { slug: string; rating: number; body?: string }): Promise<void>
+        deleteReview(slug: string): Promise<void>
+        mine(): Promise<StoreMine[]>
+        submit(req: {
+          pluginId: string
+          built: BuiltPackage
+          manifest: Record<string, unknown>
+          meta: {
+            name: string; summary: string; description?: string; category: string
+            tags?: string[]; homepage?: string; repository?: string; license?: string
+            changelog?: string
+          }
+        }): Promise<{ versionId: string }>
+        uploadMedia(req: {
+          slug: string; bytes: Uint8Array; mime: string
+          width: number; height: number; alt?: string; sortOrder?: number
+        }): Promise<{ id: string; url: string }>
+        isModerator(): Promise<boolean>
       }
       knit: {
         render(req: {
