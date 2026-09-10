@@ -91,9 +91,11 @@ the whole analysis.
   too, behind its own switch in the panel footer that is **off until you turn
   it on** — every command it runs is typed into a tab you can watch and logged
   to your console.
-- **Plugins.** Data connectors, geoprocessing tools, actions, toolbar buttons,
-  panels and documentation, added while the app is running — no rebuild, and
-  usually no code at all.
+- **Plugins, and a store to find them in.** Data connectors, geoprocessing
+  tools, actions, toolbar buttons, panels and documentation, added while the
+  app is running — no rebuild, and usually no code at all. Browse what other
+  people have written at [ourgeo.dev/plugins.html](https://ourgeo.dev/plugins.html)
+  and install from inside ouRGeo; publish your own for a moderator to test.
 - **Talk to the assistant.** A microphone in the AI panel dictates into the
   message box, with a ring that shows it is hearing you and a live level meter
   in Settings to check you picked the right device. Transcription runs **on your
@@ -181,6 +183,39 @@ What it produces is an ordinary plugin — editable, exportable as a
 > Enable one the way you would run `install.packages()`: because you know where
 > it came from. Plugins arrive switched **off**, and a declarative plugin —
 > the common case — runs no code at all.
+
+### The plugin store
+
+**Settings → Plugins → Plugin Store…**, or browse the same listing at
+[ourgeo.dev/plugins.html](https://ourgeo.dev/plugins.html). Every plugin there
+has been installed and run by a moderator before it appeared. Installing
+happens inside ouRGeo and needs a free ourgeo.dev account — the same one the
+forum uses — because plugin downloads are not public. What you install still
+arrives switched **off**.
+
+Updates are offered in **Settings → Plugins**, never applied for you. If a
+version is withdrawn after you installed it, ouRGeo switches that plugin off
+and says so in the console.
+
+**Publishing.** *Publish…* on your own plugin builds the submission and uploads
+it, or writes a file you can upload at
+[ourgeo.dev/plugins-submit.html](https://ourgeo.dev/plugins-submit.html). It
+needs an account that has posted a few times on the forum, the same bar as
+uploading a forum image. A moderator installs it, runs it, and either publishes
+it or sends it back with a note you will see on your account page.
+
+> **What the store does and does not do for your code.** What people download
+> is a built, minified bundle — your TypeScript is never published, and ouRGeo
+> will not export or read back a plugin installed from the store. A source
+> archive travels with every submission so a moderator can read what they are
+> approving; only you and ouRGeo's moderators can ever fetch it.
+>
+> Be clear about the limit: **minifying is obfuscation, not encryption.** The
+> bundle is on the machine that runs it, because it has to be. Anything
+> declarative — connectors, tools, actions — travels as readable JSON, because
+> ouRGeo has to read it to run it. What the store really protects is
+> distribution: bundles live in a private bucket, so your code is never on an
+> open URL and downloading it takes an account.
 
 **Changing ouRGeo itself is a different thing**, and it is not possible on an
 installed copy: the interface ships as one compiled bundle inside a read-only

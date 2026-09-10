@@ -15,6 +15,26 @@ export interface ReleaseNote {
 }
 
 export const VERSION_HISTORY: ReleaseNote[] = [
+  // 1.16 is written and waiting on a decision that is not an agent's to make:
+  // `a` and `b` belong to the maintainer (docs/AGENTS.md rule 39), so
+  // package.json is still on a 1.15 patch. Bump it to 1.16.0 to cut the
+  // release, and `currentRelease()` will match this entry.
+  {
+    version: '1.16',
+    date: 'September 2026',
+    title: 'The Plugin Store',
+    summary:
+      'Plugins other people wrote, reviewed before they appear, installed from inside ouRGeo \u2014 and a way to publish your own.',
+    highlights: [
+      'A plugin store. Browse it in Settings \u2192 Plugins \u2192 Plugin Store\u2026, or at ourgeo.dev/plugins.html \u2014 data connectors, geoprocessing tools, panels and workflows written by other ouRGeo users. Every one has been installed and run by a moderator before it appeared.',
+      'Installing happens inside ouRGeo and needs your free ourgeo.dev account, the same one the forum uses, because plugin downloads are not public. What you install still arrives switched off: turning it on stays your decision, exactly as it is for a plugin you were sent as a file.',
+      'Publish your own. Publish\u2026 on any plugin you wrote builds it, uploads it and puts it in the queue; a moderator installs it, runs it, and either publishes it or sends it back with a note you can read. What people download is a built, minified bundle \u2014 your source is never published, and ouRGeo will not export or read back a plugin installed from the store.',
+      'Updates are offered in Settings \u2192 Plugins and never applied for you, with the author\u2019s note about what changed. If a version is withdrawn after you installed it, ouRGeo switches that plugin off and tells you why in the console.',
+      'Ratings and reviews, from people who have actually installed the plugin.',
+      'The assistant can search the store and install from it, and will look there before offering to write you a plugin from scratch \u2014 an installed plugin is code somebody has already read and other people are already running.',
+      'A plugin archive can no longer smuggle in code nobody read. ouRGeo used to pack its own compiled cache into an exported .ourgeoplugin and load it back without recompiling, which meant a hand-made archive could ship one thing to read and another to run. Both ends now leave it out, and imported archives are checked and bounded.',
+    ],
+  },
   {
     version: '1.15',
     date: 'September 2026',
