@@ -9,6 +9,7 @@ import { ScrollArea } from '../ui/scroll-area'
 import { cn } from '@/lib/utils'
 import * as store from '@/lib/plugin-store/client'
 import { installFromStore, updateFromStore } from '@/lib/plugin-store/install'
+import { ensureUpdateCheck } from '@/lib/plugin-store/updates'
 import { usePluginStoreBrowser } from '@/store/pluginStore'
 import { SORT_LABELS, type StoreDetail, type StoreListing, type StoreSort } from '@/lib/plugin-store/types'
 import { usePluginStore } from '@/store/plugins'
@@ -81,6 +82,9 @@ export function PluginStoreDialog({ open, onOpenChange }: Props): React.ReactEle
       .catch(() => { /* offline: the Install button says so when pressed */ })
     return () => { live = false }
   }, [open, profile])
+
+  // The same once-per-session poll the Plugin Manager fires. Either door.
+  useEffect(() => { if (open) void ensureUpdateCheck() }, [open])
 
   useEffect(() => {
     if (!open || categories.length > 0) return

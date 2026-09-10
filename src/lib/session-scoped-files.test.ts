@@ -28,6 +28,7 @@ describe('what a clean exit deletes', () => {
       'markdown-settings.json', 'plugins.json', 'spatial-settings.json',
       'terminal-preferences.json', 'voice-preferences.json',
       'recent-projects.json', 'environment-preferences.json', 'working-dirs.json',
+      'plugin-store.json',
     ]) {
       expect(SESSION_SCOPED_FILES).not.toContain(f)
     }

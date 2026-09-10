@@ -7,7 +7,11 @@ import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { loadedPlugins, pluginEnabled, setPluginEnabled, reloadPlugins } from '@/lib/plugins/loader'
 import { PERMISSION_LABELS, type LoadedPlugin, type PluginPermission } from '@/lib/plugins/types'
-import { Store } from 'lucide-react'
+import { Store, ArrowUpCircle } from 'lucide-react'
+import { usePluginStoreBrowser, hasUpdate } from '@/store/pluginStore'
+import { ensureUpdateCheck } from '@/lib/plugin-store/updates'
+import { updateFromStore } from '@/lib/plugin-store/install'
+import { dismissUpdate } from '@/lib/plugin-store-persistence'
 import { useUiStore } from '@/store/ui'
 import { usePluginStore } from '@/store/plugins'
 import { APP_VERSION } from './versionHistory'
@@ -36,12 +40,18 @@ interface Props {
 export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactElement {
   const revision = usePluginStore((s) => s.revision)
   const showDialog = useUiStore((s) => s.showDialog)
+  const updates = usePluginStoreBrowser((s) => s.updates)
+  const clearUpdate = usePluginStoreBrowser((s) => s.clearUpdate)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [plugins, setPlugins] = useState<LoadedPlugin[]>(loadedPlugins())
 
   useEffect(() => { setPlugins(loadedPlugins()) }, [revision, open])
+
+  // Once per session, on the first open of this dialog or the store — not at
+  // startup. See lib/plugin-store/updates.ts for why.
+  useEffect(() => { if (open) void ensureUpdateCheck() }, [open])
 
   const refresh = useCallback(async () => {
     setBusy('*')
@@ -96,6 +106,31 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
       setBusy(null)
     }
   }, [])
+
+  const update = useCallback(async (id: string) => {
+    const u = updates[id]
+    if (!u?.latestId) return
+    setBusy(id)
+    try {
+      const result = await updateFromStore(id, u.latestId, { ourgeoVersion: u.ourgeoVersion })
+      setNotice(result.ok
+        ? `Updated to ${u.latestVersion}.`
+        : result.error ?? 'That did not work.')
+      if (result.ok) clearUpdate(id)
+      setPlugins(loadedPlugins())
+    } finally {
+      setBusy(null)
+    }
+  }, [updates, clearUpdate])
+
+  const dismiss = useCallback(async (id: string) => {
+    const u = updates[id]
+    if (!u?.latestVersion) return
+    // Keyed by version, so a later one is offered again. "Not this one" is
+    // what a person means by dismissing an update.
+    await dismissUpdate(id, u.latestVersion)
+    clearUpdate(id)
+  }, [updates, clearUpdate])
 
   const exportPlugin = useCallback(async (id: string) => {
     const out = await window.electronAPI.dialog.saveExportFile(`${id}.ourgeoplugin`)
@@ -192,6 +227,11 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
                   onCancelDelete={() => setConfirmDelete(null)}
                   onExport={() => void exportPlugin(p.manifest.id)}
                   onReveal={() => { void window.electronAPI.plugins.reveal(p.manifest.id) }}
+                  update={hasUpdate(updates[p.manifest.id], p.manifest.version)
+                    ? updates[p.manifest.id].latestVersion
+                    : null}
+                  onUpdate={() => void update(p.manifest.id)}
+                  onDismissUpdate={() => void dismiss(p.manifest.id)}
                 />
               ))}
             </div>
@@ -203,18 +243,23 @@ export function PluginManagerDialog({ open, onOpenChange }: Props): React.ReactE
 }
 
 function PluginRow({
-  plugin, busy, confirming,
+  plugin, busy, confirming, update,
   onToggle, onDelete, onConfirmDelete, onCancelDelete, onExport, onReveal,
+  onUpdate, onDismissUpdate,
 }: {
   plugin: LoadedPlugin
   busy: boolean
   confirming: boolean
+  /** The newer version waiting in the store, or null. */
+  update: string | null
   onToggle: (enabled: boolean) => void
   onDelete: () => void
   onConfirmDelete: () => void
   onCancelDelete: () => void
   onExport: () => void
   onReveal: () => void
+  onUpdate: () => void
+  onDismissUpdate: () => void
 }): React.ReactElement {
   const { manifest, state, error, registered, origin } = plugin
   const enabled = pluginEnabled(manifest.id)
@@ -281,6 +326,27 @@ function PluginRow({
           <span className="text-[11px] text-geo-muted">{enabled ? 'On' : 'Off'}</span>
         </label>
       </div>
+
+      {update && (
+        // Offered, never applied. An update replaces code the user already
+        // decided to trust with code they have not seen, which is the same
+        // decision `plugin:enable` puts behind a confirm.
+        <div className="flex items-center gap-2 mt-2 rounded border border-geo-accent/40 bg-geo-accent/5 px-2 py-1.5">
+          <ArrowUpCircle className="w-3 h-3 text-geo-accent shrink-0" />
+          <span className="text-[10px] text-foreground flex-1 min-w-0">
+            Version {update} is in the store.
+          </span>
+          <Button
+            variant="ghost" size="sm" className="h-5 text-[10px] text-geo-muted"
+            disabled={busy} onClick={onDismissUpdate}
+          >
+            Not now
+          </Button>
+          <Button size="sm" className="h-5 text-[10px]" disabled={busy} onClick={onUpdate}>
+            Update
+          </Button>
+        </div>
+      )}
 
       <div className="flex items-center gap-1 mt-2">
         {/*
