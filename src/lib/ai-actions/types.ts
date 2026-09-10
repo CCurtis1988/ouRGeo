@@ -39,7 +39,7 @@ export const TIER_LABELS: Record<Tier, string> = {
 export type GroupId =
   | 'ui' | 'editor' | 'project' | 'data' | 'environment' | 'packages'
   | 'help' | 'map' | 'draw' | 'plots' | 'session' | 'settings' | 'theme'
-  | 'layout' | 'plugin' | 'connector' | 'terminal' | 'chat'
+  | 'layout' | 'plugin' | 'store' | 'connector' | 'terminal' | 'chat'
 
 /**
  * A group contributed by a plugin.
@@ -69,6 +69,7 @@ const BUILTIN_GROUPS: Record<GroupId, string> = {
   chat: 'AI chats',
   layout: 'Workspace layout',
   plugin: 'Plugins',
+  store: 'Plugin store',
   connector: 'Data connectors',
   terminal: 'Terminal',
 }

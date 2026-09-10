@@ -24,6 +24,7 @@ import { plotsActions, sessionActions, settingsActions } from './session'
 import { themeActions } from './theme'
 import { layoutActions } from './layout'
 import { pluginActions } from './plugin'
+import { storeActions } from './store'
 import { connectorActions } from './connector'
 import { terminalActions } from './terminal'
 import { chatActions } from './chat'
@@ -46,6 +47,7 @@ const BUILTIN: UiAction[] = [
   ...themeActions,
   ...layoutActions,
   ...pluginActions,
+  ...storeActions,
   ...connectorActions,
   ...terminalActions,
   ...chatActions,
