@@ -1116,13 +1116,21 @@ need access to anybody's credits; it needs to ask the program on the machine.
   cached prefix instead of breaking it — and where the freshest state sits
   closest to the question. **Anything added to the system prompt for this
   provider must be constant, or it costs the conversation.**
-- **And it is sent only when it has CHANGED** (`ai.lastSessionContext`). The
-  block stays in the CLI's transcript, so an identical listing costs its tokens
-  again on every following turn — ten turns, ten copies of the same
-  environment. It carries the sentence "This replaces any earlier session-state
-  block", so the newest one the model has seen is the one in force. Cleared by
-  New conversation and by a provider switch, because the next provider has been
-  sent nothing.
+- **And it is sent only when it has CHANGED** (`ai.lastSessionContext`, now a
+  `SentContext` rather than the block itself — see *What one turn actually
+  says* below). The block stays in the CLI's transcript, so an identical
+  listing costs its tokens again on every following turn — ten turns, ten
+  copies of the same environment. Cleared by New conversation and by a provider
+  switch, because the next provider has been sent nothing.
+- **The switch positions ride the turn too** (`buildToolNaming` /
+  `buildSwitchGuidance`, split out of `buildToolGuidance` in 1.15.3). They used
+  to close the system prompt, which is its TAIL — so flipping Autopilot on
+  part-way through a chat, which is simply how the panel is used, changed the
+  cached prefix and re-sent the whole conversation as a cache write. The 16×
+  turn above was not an edge case; it was what happened the moment anyone
+  reached for a toggle. Every other transport still gets the combined block:
+  they rebuild the prompt from the message array each request and have no
+  prefix to protect.
 - **The context bar reads the per-call `usage`, not the run's total.** A run's
   `result.usage` is the SUM over every API call the agent loop made, and each
   of those re-sends the conversation: a two-call run measured in=4,
@@ -1156,6 +1164,75 @@ need access to anybody's credits; it needs to ask the program on the machine.
   plan, and the plain sentence that usage counts against that plan and that
   whether it covers this use is between the user and Anthropic's terms. It must
   not claim endorsement, and the feature must not be sold as free Claude.
+
+### What one turn actually says (`ai-session-context.ts`, v1.15.3)
+
+Every turn used to carry the session state as ONE block — the environment, the
+console tail and the open documents — re-sent whole whenever any byte of it
+moved. For the transports that post the conversation array each request that is
+free: they rebuild the prompt anyway. For the Claude Code transport it is not,
+because what is sent once STAYS in the transcript and is re-read on every turn
+after, so a block that is merely large becomes a bill that compounds.
+
+Measured against the real CLI (2.1.268), six turns, four objects in the
+environment, two documents open, Autopilot running two commands a turn:
+
+| | turn 1 | turn 6 | six-turn total | growth/turn |
+|---|---|---|---|---|
+| before | 6,293 | 12,194 | 54,212 | +1,180 |
+| after | 6,220 | 8,063 | 43,060 | +369 |
+
+21% over six turns, and — the number that matters — **3.2× slower growth**,
+because the waste was proportional to how long you had been talking. Straight-
+lined to a twenty-turn conversation it is about 44%.
+
+Two rules, which are the same rule twice: **say only what has changed, and
+never say what the model already has.**
+
+- **Sections are compared independently.** One console line moving used to
+  re-send the full object listing; eleven identical copies of it over a twelve-
+  turn chat, ~2,800 tokens saying nothing.
+- **The environment is compared per OBJECT, not per block** — that is the grain
+  at which it actually changes. Autopilot creating one result is a change, so
+  the block IS sent; but a listing grows, and re-sending sixteen objects to
+  report the one that is new is the same waste in a smaller box. This is what
+  flattened the per-turn cost from "climbing to 1,118 tokens" to a level ~166.
+- **The console is a delta, and the assistant's own lines are dropped from it.**
+  `ConsoleEntry.origin === 'ai'` marks the code the assistant ran, the output
+  that came back, and the note logged for every doc/UI/web call — every one of
+  which it was handed as a TOOL RESULT moments earlier. With Autopilot on those
+  are most of the console, so the block was largely the model's own output read
+  back to it. Nothing on screen reads `origin`: the console is one record of
+  what happened to the session, and who typed a line is not what a reader wants.
+- **The mark advances past the lines that were dropped**, or they are
+  reconsidered — and re-dropped — on every turn for ever. It is an entry id, and
+  an id that is no longer in the history means `clearConsole` ran (ids keep
+  counting up across a clear, so the old mark can never match again); the honest
+  answer there is a capped tail, not silence.
+
+**A partial update read as a complete one is the failure this has to avoid**,
+and it is silent: a model told only about the console concludes the objects it
+heard about three turns ago have been deleted, and tells the user so. Hence the
+wording, which is load-bearing rather than decorative — the frame says a section
+that is absent has not changed and that the console block is additions rather
+than a replacement; the environment delta says the objects not named are still
+there; and a section that goes genuinely EMPTY (every object removed, the last
+document closed) is reported in words, because silence there would mean the
+opposite.
+
+`fullSessionContext` is what every other provider still gets, unchanged and
+including the assistant's own console lines — there is no transcript holding
+them, so dropping them would lose them.
+
+**The other half of the same problem was one tool result.** `list_ui_actions`
+has no required argument, so calling it with none is what the schema invites —
+and that answered with all 164 actions and every parameter of each, 41,833
+characters. `truncateForModel` then cut it to 24,000 by dropping the MIDDLE, so
+the model paid ~6,500 tokens — more than the entire system prompt — for a
+listing with a hole in it, permanently in the transcript. Above `MAX_DESCRIBED`
+(40, comfortably clear of `map`'s 24, so no group query is affected) the listing
+is ids by group and a sentence saying how to narrow: 2,891 characters, every id
+kept. A model that asks for everything does not yet know what it wants.
 
 ### The document skill (`ai-skill-documents.ts`, `ai-doc-context.ts`, `ai-doc-tools.ts`)
 

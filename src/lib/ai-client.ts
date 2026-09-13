@@ -326,6 +326,23 @@ const geminiTools = (tools: AiTool[]) => [{
 }]
 
 // ── Environment context builder ────────────────────────────────────────────
+/**
+ * One object as the prompt renders it — the row, plus its columns when it has
+ * any.
+ *
+ * Lifted out of `buildEnvContext` so `ai-session-context.ts` can diff the
+ * listing object by object rather than comparing the whole block. Both callers
+ * have to render identically, or an object would read as having changed the
+ * first time a delta mentioned it.
+ */
+export function describeREnvObject(obj: REnvironmentInfo['objects'][number]): string {
+  const dimStr = obj.dim ? ` [${obj.dim.join('×')}]` : obj.length != null ? ` (length ${obj.length})` : ''
+  const head = `- \`${obj.name}\`: ${obj.class}${dimStr} — ${obj.preview}`
+  return obj.columns && obj.columns.length > 0
+    ? `${head}\n  columns: ${obj.columns.map((c) => `${c.name} (${c.type})`).join(', ')}`
+    : head
+}
+
 export function buildEnvContext(environments: REnvironmentInfo[]): string {
   const lines: string[] = []
   const userEnvs = environments.filter((e) => !e.isSearchPath)
@@ -334,13 +351,7 @@ export function buildEnvContext(environments: REnvironmentInfo[]): string {
   for (const env of userEnvs) {
     if (env.objects.length === 0) continue
     if (userEnvs.length > 1) lines.push(`\n### ${env.name}`)
-    for (const obj of env.objects) {
-      const dimStr = obj.dim ? ` [${obj.dim.join('×')}]` : obj.length != null ? ` (length ${obj.length})` : ''
-      lines.push(`- \`${obj.name}\`: ${obj.class}${dimStr} — ${obj.preview}`)
-      if (obj.columns && obj.columns.length > 0) {
-        lines.push(`  columns: ${obj.columns.map((c) => `${c.name} (${c.type})`).join(', ')}`)
-      }
-    }
+    for (const obj of env.objects) lines.push(describeREnvObject(obj))
   }
   return lines.join('\n')
 }
@@ -361,6 +372,12 @@ export function truncateForModel(text: string, maxChars = 8000): string {
  *  code it executed itself. */
 export function buildConsoleContext(
   entries: ConsoleEntry[], maxEntries = 25, maxChars = 4000,
+  // What the block claims to be. The default describes the whole tail, which is
+  // what every transport that re-posts the conversation each turn is handed.
+  // `ai-session-context.ts` overrides it, because a DELTA introduced as "the
+  // user's console history" reads as a console holding only those two lines —
+  // and a model that believes that reports output as having been wiped.
+  lead = "The user's R console history (most recent last):",
 ): string {
   const recent = entries.slice(-maxEntries)
   if (recent.length === 0) return ''
@@ -372,7 +389,7 @@ export function buildConsoleContext(
   }
   let body = lines.join('\n')
   if (body.length > maxChars) body = body.slice(-maxChars) // keep most recent
-  return `## Recent Console\nThe user's R console history (most recent last):\n\n${body}`
+  return `## Recent Console\n${lead}\n\n${body}`
 }
 
 // ── Mention detection ─────────────────────────────────────────────────────

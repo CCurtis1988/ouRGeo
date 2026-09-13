@@ -51,18 +51,41 @@ export interface ToolGuidanceOptions {
   viaMcp?: boolean
 }
 
-/** Describes the tools actually attached to this request, and the limits on
- *  what each may be used to justify. */
-export function buildToolGuidance(
-  { autoPilot, webAccess, terminal, viaMcp }: ToolGuidanceOptions,
+/**
+ * The part of the tool guidance that does not move: what the tools are called.
+ *
+ * Split from the switch positions because of what a changed system prompt costs
+ * a provider that caches its prefix. The Claude Code transport keeps the
+ * conversation and re-reads the prompt on every turn, and a single changed byte
+ * at the TAIL — which this section is — re-sends the whole conversation as a
+ * cache WRITE rather than a read. Measured at 16× for the same question (see
+ * the Claude subscription section of CLAUDE.md).
+ *
+ * Flipping Autopilot on part-way through a chat is the ordinary way to use the
+ * panel, so with the switch positions in the system prompt that 16× turn was
+ * not an edge case — it was what happened the moment anyone reached for the
+ * toggle. For that transport the switches now ride the turn instead, where a
+ * change extends the cached prefix rather than breaking it.
+ */
+export function buildToolNaming({ viaMcp }: { viaMcp?: boolean }): string {
+  if (!viaMcp) return ''
+  return `## How your tools are named
+
+Your tools arrive from ouRGeo over MCP and are listed as \`mcp__ourgeo__<name>\` — \`mcp__ourgeo__execute_r_code\`, \`mcp__ourgeo__run_ui_action\`, and so on. Everything below, and everything in \`ourgeo_docs\`, calls them by their bare names. They are the same tools. You have no file, shell or web tools of your own here; ouRGeo's are the only ones you have.`
+}
+
+/**
+ * Where the three switches in the panel footer stand, and what each position
+ * means the assistant may do.
+ *
+ * Stated rather than discovered, which is the rule the web tools set: a model
+ * that finds out by being refused has already spent a turn, and often tells the
+ * user something is impossible when it is one click away.
+ */
+export function buildSwitchGuidance(
+  { autoPilot, webAccess, terminal }: Omit<ToolGuidanceOptions, 'viaMcp'>,
 ): string {
   const parts: string[] = []
-
-  if (viaMcp) {
-    parts.push(`## How your tools are named
-
-Your tools arrive from ouRGeo over MCP and are listed as \`mcp__ourgeo__<name>\` — \`mcp__ourgeo__execute_r_code\`, \`mcp__ourgeo__run_ui_action\`, and so on. Everything below, and everything in \`ourgeo_docs\`, calls them by their bare names. They are the same tools. You have no file, shell or web tools of your own here; ouRGeo's are the only ones you have.`)
-  }
 
   parts.push(autoPilot
     ? `## Running R code
@@ -109,4 +132,16 @@ ${terminal && !autoPilot
 If something genuinely needs a shell, say which command and why, and tell the user they can switch Terminal on in the AI panel footer — or run it themselves. Anything that can be done from R you can still do with \`execute_r_code\` when Autopilot is on, including \`system()\`.`)
 
   return parts.join('\n\n')
+}
+
+/**
+ * Naming and switches together — one block, the shape every transport that
+ * posts the whole conversation each turn still wants.
+ *
+ * Those transports rebuild the prompt from the message array on every request,
+ * so they have no cached prefix to protect and nothing to gain from splitting
+ * it. Only the Claude Code transport uses the two halves separately.
+ */
+export function buildToolGuidance(opts: ToolGuidanceOptions): string {
+  return [buildToolNaming(opts), buildSwitchGuidance(opts)].filter(Boolean).join('\n\n')
 }

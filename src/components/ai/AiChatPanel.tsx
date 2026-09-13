@@ -18,11 +18,15 @@ import { useEnvironmentStore } from '@/store/environment'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
 import type { AiTool, ToolCall } from '@/lib/ai-client'
-import { sendMessage, buildEnvContext, buildConsoleContext, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, requiresApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
+import { sendMessage, truncateForModel, detectMentionedObjects, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, requiresApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
 import { WEB_TOOLS, WEB_TOOL_NAMES, runWebTool, describeWebCall } from '@/lib/ai-web-tools'
-import { AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance } from '@/lib/ai-system-prompt'
+import {
+  AI_BASE_PROMPT, buildProvenanceRules, buildToolGuidance, buildToolNaming, buildSwitchGuidance,
+} from '@/lib/ai-system-prompt'
 import { buildDocumentSkill } from '@/lib/ai-skill-documents'
-import { buildDocumentContext } from '@/lib/ai-doc-context'
+import {
+  fullSessionContext, incrementalSessionContext, NOTHING_SENT, type SessionInput,
+} from '@/lib/ai-session-context'
 import { DOC_TOOLS, DOC_TOOL_NAMES, runDocTool, describeDocCall } from '@/lib/ai-doc-tools'
 import { UI_TOOLS, UI_TOOL_NAMES, runUiTool, describeUiCall } from '@/lib/ai-ui-tools'
 import { actionCallInCode, actionCodeRefusal } from '@/lib/ai-actions/action-code-guard'
@@ -181,6 +185,22 @@ export function AiChatPanel(): React.ReactElement {
     // `SendOptions.sessionContext`): the STABLE half is the same bytes every
     // turn, the VOLATILE half changes with the session and must never sit in
     // front of the stable one.
+    // A transport that keeps its own transcript is sent the volatile half beside
+    // the turn; everything else is posted the whole conversation each time and
+    // has no prefix to protect, so it keeps the shape it has always had.
+    const keepsTranscript = provider === 'claude-cli'
+
+    const switchOpts = {
+      autoPilot: autoPilotEnabled,
+      webAccess: webAccessEnabled,
+      terminal: terminalEnabled,
+      viaMcp: keepsTranscript,
+    }
+    // The switch positions are volatile for the CLI and stable for everyone
+    // else. In the prompt's TAIL they re-sent the whole conversation as a cache
+    // write every time anyone reached for a toggle; on the turn, a flip extends
+    // the cached prefix instead. See `buildToolNaming`.
+    const switchGuidance = buildSwitchGuidance(switchOpts)
     const stablePrompt = [
       AI_BASE_PROMPT,
       buildOurgeoCore(),
@@ -188,26 +208,15 @@ export function AiChatPanel(): React.ReactElement {
       // Documents are always in the prompt: the model has to know a .Rmd renders
       // in a session of its own before it writes one, not after the knit fails.
       buildDocumentSkill({ hasDocumentTools: true }),
-      buildToolGuidance({
-        autoPilot: autoPilotEnabled,
-        webAccess: webAccessEnabled,
-        terminal: terminalEnabled,
-        viaMcp: provider === 'claude-cli',
-      }),
+      keepsTranscript ? buildToolNaming(switchOpts) : buildToolGuidance(switchOpts),
     ].filter(Boolean).join('\n\n')
 
     // The live session: the objects, the console the user has been typing in,
     // and the documents that are open.
-    const volatile: string[] = []
-    const envContext = buildEnvContext(currentEnvs)
-    if (envContext) volatile.push(envContext)
-    const consoleContext = buildConsoleContext(useSessionStore.getState().consoleHistory)
-    if (consoleContext) volatile.push(consoleContext)
     const editorState = useEditorStore.getState()
-    const docContext = buildDocumentContext(editorState.tabs, editorState.activeTabId)
-    if (docContext) volatile.push(docContext)
 
     // Fetch rich context for mentioned objects
+    let previews = ''
     const mentioned = detectMentionedObjects(text, currentEnvs)
     if (mentioned.length > 0) {
       const snippets: string[] = []
@@ -223,28 +232,40 @@ export function AiChatPanel(): React.ReactElement {
         } catch { /* ignore */ }
       }
       if (snippets.length > 0) {
-        volatile.push(`## Referenced Object Previews\n${snippets.join('\n\n')}`)
+        previews = `## Referenced Object Previews\n${snippets.join('\n\n')}`
       }
     }
 
-    // A transport that keeps its own transcript is sent this beside the turn;
-    // everything else is posted the whole conversation each time and has no
-    // prefix to protect, so it keeps the shape it has always had.
-    const keepsTranscript = provider === 'claude-cli'
-    const sessionContext = volatile.length > 0
-      ? `# Session state at this turn\nThis replaces any earlier session-state block.\n\n${volatile.join('\n\n')}`
-      : ''
-    const systemPrompt = keepsTranscript || !sessionContext
-      ? stablePrompt
-      : `${stablePrompt}\n\n${volatile.join('\n\n')}`
+    const sessionInput: SessionInput = {
+      environments: currentEnvs,
+      consoleHistory: useSessionStore.getState().consoleHistory,
+      tabs: editorState.tabs,
+      activeTabId: editorState.activeTabId,
+      switches: switchGuidance,
+      previews,
+    }
 
-    // Send it only when it has changed. The block stays in the CLI's
-    // transcript, so an identical one costs its tokens again on every turn for
-    // the rest of the conversation. Nothing else posts a transcript, so
-    // nothing else can skip it.
-    const sendContext = keepsTranscript
-      && sessionContext !== ''
-      && sessionContext !== selectActiveChat(useAiStore.getState())?.lastSessionContext
+    // What rides the turn, and what the chat then remembers having said.
+    //
+    // Only the transcript-keeping transport gets a DELTA, and it gets one for a
+    // reason the other transports do not have: what it is sent once stays in
+    // the conversation and is re-read on every turn after. Everything else
+    // rebuilds its prompt from the message array each time, so sending less
+    // would buy nothing and cost the model a complete picture.
+    const update = keepsTranscript
+      ? incrementalSessionContext(
+          sessionInput,
+          selectActiveChat(useAiStore.getState())?.lastSessionContext ?? NOTHING_SENT,
+        )
+      : null
+    const fullContext = keepsTranscript ? '' : fullSessionContext(sessionInput)
+
+    const sessionContext = update?.block ?? ''
+    const systemPrompt = keepsTranscript || !fullContext
+      ? stablePrompt
+      : `${stablePrompt}\n\n${fullContext}`
+
+    const sendContext = sessionContext !== ''
 
     // Only the enabled capabilities are attached to the request, so a switch that
     // is off is invisible to the model rather than merely discouraged.
@@ -271,19 +292,22 @@ export function AiChatPanel(): React.ReactElement {
         // function" — see lib/ai-actions/action-code-guard.ts.
         const mistakenAction = actionCallInCode(code)
         if (mistakenAction) return actionCodeRefusal(mistakenAction)
-        addConsoleEntry('input', code)
+        // Marked as the assistant's own: a transcript-keeping provider is
+        // handed this back as a tool result in a moment, and the session-state
+        // block must not then read it out a second time.
+        addConsoleEntry('input', code, 'ai')
         const res = await rClient.execute(code)
         // /r/execute returns console text at the top level (`output`), not res.result
-        if (res.output) addConsoleEntry('output', res.output)
-        else if (res.error) addConsoleEntry('error', res.error)
+        if (res.output) addConsoleEntry('output', res.output, 'ai')
+        else if (res.error) addConsoleEntry('error', res.error, 'ai')
         return truncateForModel(res.output || res.error || '(no output)')
       }
       if (DOC_TOOL_NAMES.has(call.name)) {
-        addConsoleEntry('info', describeDocCall(call.name, call.input))
+        addConsoleEntry('info', describeDocCall(call.name, call.input), 'ai')
         return truncateForModel(await runDocTool(call.name, call.input), 24000)
       }
       if (UI_TOOL_NAMES.has(call.name)) {
-        addConsoleEntry('info', describeUiCall(call.name, call.input))
+        addConsoleEntry('info', describeUiCall(call.name, call.input), 'ai')
         // Autopilot is re-read at call time, so turning it off mid-answer stops
         // the next action rather than waiting for the turn to end.
         return truncateForModel(
@@ -300,7 +324,7 @@ export function AiChatPanel(): React.ReactElement {
         }
         // Log every network action so the console stays a complete record of
         // what the assistant did on the user's behalf.
-        addConsoleEntry('info', describeWebCall(call.name, call.input))
+        addConsoleEntry('info', describeWebCall(call.name, call.input), 'ai')
         return truncateForModel(await runWebTool(call.name, call.input), 16000)
       }
       return `Error: unknown tool "${call.name}".`
@@ -344,8 +368,11 @@ export function AiChatPanel(): React.ReactElement {
       })
 
       // Recorded only on success: a turn that failed may never have reached
-      // the model, and the next one must not assume it has this state.
-      if (sendContext) useAiStore.getState().setLastSessionContext(sessionContext)
+      // the model, and the next one must not assume it has this state. The
+      // whole `SentContext` is recorded, not just what was sent — the console
+      // mark advances past the assistant's own lines, which were deliberately
+      // not sent and must not be reconsidered next turn.
+      if (update) useAiStore.getState().setLastSessionContext(update.sent)
       // Stop was pressed: `cancelStream` has already kept whatever had been
       // streamed, and finalizing again would post the answer twice.
       if (!ac.signal.aborted) finalizeStream(fullContent)

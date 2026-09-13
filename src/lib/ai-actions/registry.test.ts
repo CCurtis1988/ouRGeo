@@ -118,6 +118,37 @@ describe('lookup and search', () => {
   it('tells the model the groups when nothing matches', () => {
     expect(listActions('zzzznope')).toContain('Groups:')
   })
+
+  // `list_ui_actions` takes no required argument, so a model calling it with
+  // none is doing what the schema invites. That used to answer with all 164
+  // actions and every parameter of each — 42,000 characters, which
+  // `truncateForModel` then cut to 24,000 by dropping the MIDDLE. The model
+  // paid ~6,500 tokens (more than the whole system prompt) for a listing with a
+  // hole in it, and a transcript-keeping provider re-read it on every turn
+  // after. Ids are what a model that asked for everything actually needs.
+  it('answers an unfiltered listing with ids, not 42,000 characters', () => {
+    const all = listActions('')
+    expect(all.length).toBeLessThan(8000)
+    expect(all).toContain('too many to describe')
+    expect(all).toContain('map:addLayer')
+    // Every id it is allowed to see is still there, so it can narrow without
+    // a guess. (Actions behind a switch the user has not turned on stay absent
+    // — that rule is older than this cap and is tested above.)
+    for (const a of actionList()) {
+      if (!a.requires) expect(all).toContain(a.id)
+    }
+    // And no parameters, which is where the bulk was.
+    expect(all).not.toContain('*required*')
+  })
+
+  // The cap is above every group's size on purpose — a query narrow enough to
+  // be answerable must still come back with its parameters.
+  it('still describes a whole group in full', () => {
+    const listing = listActions('', 'map')
+    expect(listing).toContain('## ')
+    expect(listing).toContain('*required*')
+    expect(listing).not.toContain('too many to describe')
+  })
 })
 
 describe('the prompt index', () => {

@@ -70,7 +70,7 @@ describe('the token reading', () => {
 
 describe('the session-state block a transcript-keeping provider was sent', () => {
   it('starts fresh in a new chat, which has its own transcript', () => {
-    useAiStore.getState().setLastSessionContext('# Session state\nObjects: pts')
+    useAiStore.getState().setLastSessionContext({ objects: { '.GlobalEnv::pts': '- `pts`' }, documents: '', switches: '', consoleMark: '7' })
     useAiStore.getState().setClaudeSession('sid-1')
     useAiStore.getState().newChat()
     expect(active().lastSessionContext).toBeNull()
@@ -78,14 +78,14 @@ describe('the session-state block a transcript-keeping provider was sent', () =>
   })
 
   it('is forgotten on a provider switch — the new one has been sent nothing', () => {
-    useAiStore.getState().setLastSessionContext('# Session state\nObjects: pts')
+    useAiStore.getState().setLastSessionContext({ objects: { '.GlobalEnv::pts': '- `pts`' }, documents: '', switches: '', consoleMark: '7' })
     useAiStore.getState().setProvider('openai')
     expect(active().lastSessionContext).toBeNull()
   })
 
   it('is dropped with a Claude session the CLI turned out not to have', () => {
     useAiStore.getState().setClaudeSession('sid-gone')
-    useAiStore.getState().setLastSessionContext('# Session state')
+    useAiStore.getState().setLastSessionContext({ objects: {}, documents: '', switches: '', consoleMark: '7' })
     useAiStore.getState().clearClaudeSession()
     expect(active().claudeSessionId).toBeNull()
     // The replacement transcript has been sent nothing, so the next turn must

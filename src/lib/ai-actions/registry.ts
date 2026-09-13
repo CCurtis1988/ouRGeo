@@ -117,6 +117,23 @@ export function searchActions(query: string, group?: string): UiAction[] {
   })
 }
 
+/**
+ * How many matches are described in full before the listing degrades to ids.
+ *
+ * Comfortably above every group's size — `map`, the largest, has 24 — so a
+ * query narrow enough to be answerable is never affected. The cap is here for
+ * the UNFILTERED call, which the tool's own `required: []` invites a model to
+ * make: `list_ui_actions({})` used to answer with all 164 actions and every
+ * parameter of each, 42,000 characters. `truncateForModel` then cut that to
+ * 24,000 by dropping the MIDDLE — so the model paid ~6,500 tokens, more than
+ * the entire system prompt, for a listing with a hole in it, and a
+ * transcript-keeping provider then re-read all of it on every turn after.
+ *
+ * A model asking for everything does not yet know what it wants. Ids are what
+ * it needs to narrow; the parameters are one more call away.
+ */
+const MAX_DESCRIBED = 40
+
 /** Full listing of matched actions, tiers resolved against the user's overrides. */
 export function listActions(query: string, group?: string, switches?: Switches): string {
   // An action behind a switch the user has not turned on is not listed at all.
@@ -135,6 +152,17 @@ export function listActions(query: string, group?: string, switches?: Switches):
     byGroup.set(a.group, list)
   }
   const out: string[] = []
+  if (hits.length > MAX_DESCRIBED) {
+    out.push(
+      `${hits.length} actions match — too many to describe at once. Their ids are below. `
+      + 'Call list_ui_actions again with a `query` or a `group` to get the parameters of the '
+      + 'ones you actually need.',
+    )
+    for (const [group, actions] of byGroup) {
+      out.push(`${groupLabel(group)}: ${actions.map((a) => a.id).join(', ')}`)
+    }
+    return out.join('\n')
+  }
   for (const [group, actions] of byGroup) {
     out.push(`## ${groupLabel(group)}`)
     for (const a of actions) out.push(describeAction(a, resolveTier(a)))

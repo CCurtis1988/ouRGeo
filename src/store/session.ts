@@ -5,6 +5,22 @@ export interface ConsoleEntry {
   type: 'input' | 'output' | 'error' | 'info'
   text: string
   timestamp: number
+  /**
+   * Set on the entries the AI assistant itself produced — the code it ran, the
+   * output that came back, and the one-line note logged for every document,
+   * interface and web call.
+   *
+   * Nothing on screen reads it: an assistant's command is drawn exactly like a
+   * typed one, because the console is one record of what happened to the
+   * session and who typed a line is not what a reader is looking for.
+   *
+   * What reads it is `ai-session-context.ts`. A transcript-keeping provider has
+   * already been handed every one of these as a TOOL RESULT, so repeating them
+   * in the next turn's session-state block bills the same bytes twice and
+   * leaves them in the transcript to be re-read on every turn after. Absent
+   * means "a person did this", which is the half the model has not seen.
+   */
+  origin?: 'ai'
 }
 
 type RStatus = 'connecting' | 'ready' | 'error' | 'disconnected'
@@ -37,7 +53,7 @@ interface SessionState {
   setWorkingDir: (path: string | null, home?: string | null) => void
   setWorkingEnv: (name: string) => void
   setExecuting: (v: boolean) => void
-  addConsoleEntry: (type: ConsoleEntry['type'], text: string) => void
+  addConsoleEntry: (type: ConsoleEntry['type'], text: string, origin?: 'ai') => void
   clearConsole: () => void
   addInputHistory: (code: string) => void
   startRecording: (targetTabId: string, destType: RecordingDestType, returnOutput: boolean) => void
@@ -73,11 +89,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     : { isExecuting: false, executingStartTime: null }
   ),
 
-  addConsoleEntry: (type, text) =>
+  addConsoleEntry: (type, text, origin) =>
     set((state) => ({
       consoleHistory: [
         ...state.consoleHistory,
-        { id: String(entryId++), type, text, timestamp: Date.now() }
+        { id: String(entryId++), type, text, timestamp: Date.now(), ...(origin ? { origin } : {}) }
       ]
     })),
 

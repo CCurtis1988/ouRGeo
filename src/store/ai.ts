@@ -4,6 +4,7 @@ import {
   setTierOverrides, setTierOverride, clearTierOverrides, type TierOverrides,
 } from '@/lib/ai-actions/permissions'
 import { TIERS, type Tier } from '@/lib/ai-actions/types'
+import type { SentContext } from '@/lib/ai-session-context'
 
 // Cloud providers have bespoke transports; local providers are OpenAI-compatible
 // (except Ollama, which uses its native API). See LOCAL_PROVIDERS in ai-client.ts.
@@ -77,10 +78,15 @@ export interface AiChat {
    * session from what is stored here. See ai-client.ts.
    */
   claudeSessionId: string | null
-  /** The session-state block last sent to a transcript-keeping provider, so an
-   *  identical one is not re-sent. Per chat, because each has its own
-   *  transcript. */
-  lastSessionContext: string | null
+  /**
+   * What this chat's transcript has already been told about the session, so
+   * nothing is said twice. Per chat, because each has its own transcript.
+   *
+   * A record rather than the block itself since 1.15.3: the sections change
+   * independently, and comparing the whole thing meant one moving console line
+   * re-sent the entire object listing. See `lib/ai-session-context.ts`.
+   */
+  lastSessionContext: SentContext | null
   /** How full this conversation's context window is. See `tokenUsage` below. */
   tokenUsage: { used: number; total: number }
 }
@@ -207,9 +213,9 @@ interface AiState {
   setClaudeSession: (sessionId: string) => void
   /** Forget a Claude Code transcript id the CLI no longer has. */
   clearClaudeSession: () => void
-  /** Note the session-state block just sent, so the next turn can skip an
-   *  identical one. */
-  setLastSessionContext: (block: string) => void
+  /** Note what this chat's transcript has now been told, so the next turn can
+   *  say only what has moved since. */
+  setLastSessionContext: (sent: SentContext) => void
   setClaudeUsage: (fiveHour: number, sevenDay: number, resetsAt: number) => void
   beginStream: () => AbortController
   currentModel: () => string
