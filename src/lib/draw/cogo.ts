@@ -1,4 +1,7 @@
 import type { Position } from './types'
+// Type-only: `curve-cogo` imports values from here, and an `import type` is
+// erased at compile time, so the cycle never exists at runtime.
+import type { CurveElements, CurveElementId, TurnDirection } from './curve-cogo'
 
 /**
  * COGO — coordinate geometry: typing a vertex instead of eyeballing it.
@@ -482,7 +485,17 @@ export function parseCoordinate(text: string): ParseResult<Position> {
 
 /** One leg as the user entered it — kept verbatim so the list reads back in
  *  the notation it was typed in, not in whatever the resolver normalised to. */
+/**
+ * One straight course: a distance and a bearing, as typed and as resolved.
+ *
+ * `type` was added when curves arrived. It is required rather than optional
+ * because the discriminant is the whole point of the union below — an
+ * optional one would let a curve course be read as a line by anything that
+ * forgot to check, and the symptom would be a closure computed on a figure
+ * missing its curves.
+ */
 export interface TraverseLeg {
+  type: 'line'
   distanceText: string
   bearingText: string
   unit: DistanceUnit
@@ -490,6 +503,40 @@ export interface TraverseLeg {
   /** Resolved at entry: metres, and degrees clockwise from true north. */
   distanceM: number
   azimuth: number
+}
+
+/**
+ * One curved course. The elements are what the plat quoted; `inAzimuth` and
+ * `outAzimuth` are the tangents it leaves and arrives on, and they differ by
+ * the central angle — which is exactly why the next course's relative bearing
+ * has to turn from `outAzimuth` and not from the chord.
+ */
+export interface TraverseCurve {
+  type: 'curve'
+  /** Whether the tangent was inherited from the previous course or typed. */
+  tangential: boolean
+  turn: TurnDirection
+  /** The two elements as typed, for reading back against the page. */
+  entered: { id: CurveElementId; text: string }[]
+  unit: DistanceUnit
+  /** How a non-tangent curve was oriented, when it was not inherited. */
+  orientation: { kind: 'chord' | 'radial'; text: string; mode: BearingMode } | null
+  elements: CurveElements
+  inAzimuth: number
+  outAzimuth: number
+}
+
+/** A course of any kind. Discriminate on `type`. */
+export type TraverseCourse = TraverseLeg | TraverseCurve
+
+/** Ground length of a course — the arc for a curve, never its chord. */
+export function courseLengthM(c: TraverseCourse): number {
+  return c.type === 'line' ? c.distanceM : c.elements.arcLengthM
+}
+
+/** The azimuth a course arrives on, which a relative bearing turns from. */
+export function courseOutAzimuth(c: TraverseCourse): number {
+  return c.type === 'line' ? c.azimuth : c.outAzimuth
 }
 
 /**
@@ -512,11 +559,24 @@ export interface Closure {
   ratio: number
 }
 
-/** How badly a ring fails to close, and how good that is relative to its size. */
-export function closure(vertices: Position[]): Closure | null {
+/**
+ * How badly a ring fails to close, and how good that is relative to its size.
+ *
+ * **The perimeter has to come from the COURSES when there are any.** A curve
+ * reaches the draft as a chain of arc segments, so summing the distances
+ * between consecutive vertices measures its chords and not its arc — and the
+ * 1:N a traverse is judged by would read better than the figure deserves, by
+ * exactly the amount the curves were shortened. Quietly. The misclosure itself
+ * is unaffected: that is still the last vertex against the first.
+ *
+ * Without courses it falls back to the vertex walk, which is right for a figure
+ * that has none — a ring drawn with the pencil, or one read back off the map.
+ */
+export function closure(vertices: Position[], courses?: TraverseCourse[]): Closure | null {
   if (vertices.length < 3) return null
-  let perimeterM = 0
-  for (let i = 1; i < vertices.length; i++) perimeterM += inverse(vertices[i - 1], vertices[i]).distanceM
+  const perimeterM = courses && courses.length > 0
+    ? courses.reduce((t, c) => t + courseLengthM(c), 0)
+    : vertices.slice(1).reduce((t, v, i) => t + inverse(vertices[i], v).distanceM, 0)
   const gap = inverse(vertices[vertices.length - 1], vertices[0])
   return {
     distanceM: gap.distanceM,

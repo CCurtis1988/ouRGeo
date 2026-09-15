@@ -348,7 +348,7 @@ export const drawActions: UiAction[] = [
         const b = parseBearing(bearingText, notation, incomingAzimuth(vertices))
         if (!b.ok) return fail(`Leg ${i + 1}: ${b.error}`)
         vertices.push(destination(vertices[vertices.length - 1], d.value, b.value))
-        legs.push({ distanceText, bearingText, unit, mode: notation, distanceM: d.value, azimuth: b.value })
+        legs.push({ type: 'line', distanceText, bearingText, unit, mode: notation, distanceM: d.value, azimuth: b.value })
       }
       if (argBool(args, 'close', false)) vertices.push(vertices[0])
 

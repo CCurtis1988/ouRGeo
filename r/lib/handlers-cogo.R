@@ -95,14 +95,28 @@ handle_spatial_traverse <- function(body) {
     return(error_response("sf package is not installed"))
   }
   origin <- body$origin %||% return(error_response("origin required", 400L))
-  legs <- body$legs %||% list()
+  # `courses` is the current name and carries curves; `legs` is what the
+  # straight-only callers have always sent and still means the same thing.
+  legs <- body$courses %||% body$legs %||% list()
   basis <- body$basis %||% "geodesic"
 
   tryCatch({
     origin <- as.numeric(unlist(origin))
     if (length(origin) != 2L || any(!is.finite(origin))) stop("origin must be [lng, lat]")
-    dist <- vapply(legs, function(l) as.numeric(l$distance), numeric(1))
-    azim <- vapply(legs, function(l) as.numeric(l$azimuth), numeric(1))
+    num <- function(l, name) {
+      v <- l[[name]]
+      if (is.null(v)) NA_real_ else as.numeric(v)
+    }
+    courses <- if (length(legs) == 0L) NULL else data.frame(
+      type     = vapply(legs, function(l) as.character(l$type %||% "line"), character(1)),
+      distance = vapply(legs, function(l) num(l, "distance"), numeric(1)),
+      azimuth  = vapply(legs, function(l) num(l, "azimuth"), numeric(1)),
+      radius   = vapply(legs, function(l) num(l, "radius"), numeric(1)),
+      delta    = vapply(legs, function(l) num(l, "delta"), numeric(1)),
+      turn     = vapply(legs, function(l) as.character(l$turn %||% NA_character_), character(1)),
+      samples  = vapply(legs, function(l) num(l, "samples"), numeric(1)),
+      stringsAsFactors = FALSE
+    )
 
     crs <- if (identical(basis, "grid")) {
       if (!is.null(body$crs)) {
@@ -121,11 +135,10 @@ handle_spatial_traverse <- function(body) {
     # the grid, and what does the projection do to a bearing there?" It is what
     # the entry strip asks the moment a start point is placed, so that even the
     # FIRST leg previews on the grid it will be committed on.
-    verts <- if (length(dist) == 0L) {
+    verts <- if (is.null(courses)) {
       matrix(origin, nrow = 1L, dimnames = list(NULL, c("lng", "lat")))
     } else {
-      ourgeo_traverse(origin, data.frame(distance = dist, azimuth = azim),
-                      crs = if (is.null(crs)) NULL else crs, as_sfc = FALSE)
+      ourgeo_traverse(origin, courses, crs = if (is.null(crs)) NULL else crs, as_sfc = FALSE)
     }
     last <- verts[nrow(verts), ]
 
@@ -186,22 +199,48 @@ handle_spatial_traverse <- function(body) {
 # one `src/lib/draw/cogo.ts` implements, so the geometry this reproduces is the
 # geometry that was on screen. The two must stay in step; each names the other.
 #
-# With a `crs`, the legs are laid out on that CRS's own grid — plane arithmetic
-# in projected coordinates, which is what a bearing off a survey plat means —
-# and the result comes back in WGS84 like everything else the drawing surface
-# holds.
+# With a `crs`, the courses are laid out on that CRS's own grid — plane
+# arithmetic in projected coordinates, which is what a bearing off a survey plat
+# means, and where a plat's curve is a TRUE circle — and the result comes back
+# in WGS84 like everything else the drawing surface holds.
+#
+# `legs` is a data.frame of courses. The straight-course contract is unchanged:
+#
+#   data.frame(distance = c(150, 82), azimuth = c(45.5, 102))
+#
+# Curves are ADDITIVE COLUMNS, so a call written before they existed still means
+# exactly what it meant — no `type` column reads as all-straight:
+#
+#   data.frame(
+#     type     = c("line", "curve", "line"),
+#     distance = c(150,    NA,      82),     # metres, straight courses
+#     azimuth  = c(45.5,   NA,      102),    # degrees; NA on a TANGENT curve,
+#                                            #   which inherits the previous
+#                                            #   course's arrival azimuth
+#     radius   = c(NA,     250,     NA),     # metres
+#     delta    = c(NA,     45.5,    NA),     # degrees of central angle
+#     turn     = c(NA,     "R",     NA)      # "L" or "R"
+#   )
+#
+# A curve is emitted as vertices at roughly one degree of sweep. The drawing
+# surface keeps it symbolically as a CIRCULARSTRING instead, so the two agree on
+# where the curve GOES and differ in how they store it — worth knowing before
+# comparing this geometry byte for byte with a saved layer.
 # ---------------------------------------------------------------------------
 ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   origin <- as.numeric(origin)
   stopifnot(length(origin) == 2L)
-  d <- as.numeric(legs$distance)
-  a <- as.numeric(legs$azimuth)
-  stopifnot(length(d) == length(a), length(d) >= 1L)
+  legs <- as.data.frame(legs, stringsAsFactors = FALSE)
+  stopifnot(nrow(legs) >= 1L)
+  courses <- .ourgeo_normalise_courses(legs)
 
   if (is.null(crs)) {
     pts <- matrix(origin, nrow = 1L)
-    for (i in seq_along(d)) {
-      pts <- rbind(pts, .ourgeo_geod_direct(pts[nrow(pts), ], d[i], a[i]))
+    az_in <- NA_real_
+    for (i in seq_len(nrow(courses))) {
+      step <- .ourgeo_course_geodesic(pts[nrow(pts), ], courses[i, ], az_in)
+      pts <- rbind(pts, step$pts)
+      az_in <- step$az_out
     }
   } else {
     if (!requireNamespace("sf", quietly = TRUE)) stop("sf package is not installed")
@@ -210,15 +249,19 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
       sf::st_sfc(sf::st_point(origin), crs = 4326L), crs
     ))
     # A projected CRS is not necessarily in metres — State Plane zones are
-    # commonly US survey feet — and the legs arrive in metres. Scaling here
+    # commonly US survey feet — and the courses arrive in metres. Scaling here
     # rather than at the caller keeps "150 m" meaning 150 m on every layer.
     per_unit <- .ourgeo_unit_to_metre(tryCatch(crs$units_gdal, error = function(e) "metre"))
     if (is.null(per_unit)) stop("This CRS's linear unit is not one ouRGeo can convert; use the geodesic basis.")
+    grid <- courses
+    grid$distance <- grid$distance / per_unit
+    grid$radius <- grid$radius / per_unit
     xy <- matrix(c(start[1, 1], start[1, 2]), nrow = 1L)
-    for (i in seq_along(d)) {
-      s <- d[i] / per_unit
-      th <- a[i] * pi / 180
-      xy <- rbind(xy, c(xy[nrow(xy), 1] + s * sin(th), xy[nrow(xy), 2] + s * cos(th)))
+    az_in <- NA_real_
+    for (i in seq_len(nrow(grid))) {
+      step <- .ourgeo_course_grid(xy[nrow(xy), ], grid[i, ], az_in)
+      xy <- rbind(xy, step$pts)
+      az_in <- step$az_out
     }
     back <- sf::st_transform(
       sf::st_sfc(lapply(seq_len(nrow(xy)), function(i) sf::st_point(xy[i, ])), crs = crs),
@@ -268,9 +311,15 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   c(lng2, lat2 * 180 / pi)
 }
 
-# Vincenty's inverse solution, distance only — used to measure what a one-metre
-# step actually is on the ground when deriving the point scale factor.
-.ourgeo_geod_inverse <- function(p1, p2) {
+# Vincenty's inverse solution: how far apart two points are, and on what
+# azimuths the geodesic between them leaves and arrives.
+#
+# A curve needs the ARRIVAL azimuth. The tangent at the end of a curve is a
+# quarter turn from the radius there, and the radius there is not simply the
+# reverse of the radius at the start — a geodesic arrives on a different azimuth
+# than it left on. Assuming otherwise put the start of a 122 m curve 2 mm out in
+# the renderer before the same correction was made there.
+.ourgeo_geod_inverse_full <- function(p1, p2) {
   a <- 6378137.0; f <- 1 / 298.257223563; b <- a * (1 - f)
   L <- (p2[1] - p1[1]) * pi / 180
   U1 <- atan((1 - f) * tan(p1[2] * pi / 180)); U2 <- atan((1 - f) * tan(p2[2] * pi / 180))
@@ -279,7 +328,7 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   for (i in 1:200) {
     sl <- sin(lam); cl <- cos(lam)
     ss <- sqrt((cU2 * sl)^2 + (cU1 * sU2 - sU1 * cU2 * cl)^2)
-    if (ss == 0) return(0)
+    if (ss == 0) return(list(distance = 0, azi1 = 0, azi2 = 0))
     cs <- sU1 * sU2 + cU1 * cU2 * cl
     sig <- atan2(ss, cs)
     sal <- cU1 * cU2 * sl / ss
@@ -295,5 +344,106 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   B <- u2 / 1024 * (256 + u2 * (-128 + u2 * (74 - 47 * u2)))
   dsig <- B * ss * (c2sm + B / 4 * (cs * (-1 + 2 * c2sm^2) -
     B / 6 * c2sm * (-3 + 4 * ss^2) * (-3 + 4 * c2sm^2)))
-  b * A * (sig - dsig)
+  sl <- sin(lam); cl <- cos(lam)
+  list(
+    distance = b * A * (sig - dsig),
+    azi1 = (atan2(cU2 * sl, cU1 * sU2 - sU1 * cU2 * cl) * 180 / pi) %% 360,
+    azi2 = (atan2(cU1 * sl, -sU1 * cU2 + cU1 * sU2 * cl) * 180 / pi) %% 360
+  )
+}
+
+# Distance only — what the point scale factor is derived from.
+.ourgeo_geod_inverse <- function(p1, p2) .ourgeo_geod_inverse_full(p1, p2)$distance
+
+# How many vertices a curve is cut into.
+#
+# The default is roughly one per degree of sweep, which is what makes the echoed
+# `ourgeo_traverse()` draw a smooth curve on its own. The drawing surface asks
+# for a specific count instead — a power of two — because it fits circular arcs
+# through these points and needs every piece boundary and midpoint to land
+# exactly on one, rather than interpolated between two.
+.ourgeo_curve_samples <- function(course) {
+  n <- suppressWarnings(as.integer(course$samples))
+  if (length(n) == 1L && !is.na(n) && n >= 2L) return(min(n, 4096L))
+  max(2L, as.integer(ceiling(abs(course$delta))))
+}
+
+# One course's worth of vertices, walking the WGS84 ellipsoid.
+#
+# A curve is a locus of constant geodesic radius about its centre, which meets
+# every one of its radii at a right angle — so it leaves PC on the incoming
+# tangent and arrives at PT on the deflected one with nothing to correct. It is
+# emitted at roughly one degree of sweep per vertex: the drawing surface keeps
+# the curve symbolically as a CIRCULARSTRING, and this is its linearisation, so
+# the POSITIONS agree and the storage differs.
+.ourgeo_course_geodesic <- function(p, course, az_in) {
+  if (identical(course$type, "line")) {
+    q <- .ourgeo_geod_direct(p, course$distance, course$azimuth)
+    return(list(pts = matrix(q, nrow = 1L),
+                az_out = .ourgeo_geod_inverse_full(p, q)$azi2))
+  }
+  az0 <- if (is.na(course$azimuth)) az_in else course$azimuth
+  if (is.na(az0)) {
+    stop("A tangent curve needs a course before it to be tangent to, or an azimuth of its own.")
+  }
+  sgn <- if (identical(course$turn, "L")) -1 else 1
+  centre <- .ourgeo_geod_direct(p, course$radius, az0 + sgn * 90)
+  radial0 <- .ourgeo_geod_inverse_full(centre, p)$azi1
+  n <- .ourgeo_curve_samples(course)
+  pts <- matrix(NA_real_, nrow = n, ncol = 2L)
+  for (k in seq_len(n)) {
+    pts[k, ] <- .ourgeo_geod_direct(centre, course$radius, radial0 + sgn * course$delta * k / n)
+  }
+  list(pts = pts,
+       az_out = (.ourgeo_geod_inverse_full(centre, pts[n, ])$azi2 + sgn * 90) %% 360)
+}
+
+# The same, on a projected grid — where a plat's curve is a TRUE circle and the
+# arithmetic is plane. `xy` and `radius` are in the CRS's own linear unit.
+.ourgeo_course_grid <- function(xy, course, az_in) {
+  if (identical(course$type, "line")) {
+    th <- course$azimuth * pi / 180
+    q <- c(xy[1] + course$distance * sin(th), xy[2] + course$distance * cos(th))
+    return(list(pts = matrix(q, nrow = 1L), az_out = course$azimuth))
+  }
+  az0 <- if (is.na(course$azimuth)) az_in else course$azimuth
+  if (is.na(az0)) {
+    stop("A tangent curve needs a course before it to be tangent to, or an azimuth of its own.")
+  }
+  sgn <- if (identical(course$turn, "L")) -1 else 1
+  ct <- (az0 + sgn * 90) * pi / 180
+  centre <- c(xy[1] + course$radius * sin(ct), xy[2] + course$radius * cos(ct))
+  radial0 <- atan2(xy[1] - centre[1], xy[2] - centre[2]) * 180 / pi
+  n <- .ourgeo_curve_samples(course)
+  pts <- matrix(NA_real_, nrow = n, ncol = 2L)
+  for (k in seq_len(n)) {
+    th <- (radial0 + sgn * course$delta * k / n) * pi / 180
+    pts[k, ] <- c(centre[1] + course$radius * sin(th), centre[2] + course$radius * cos(th))
+  }
+  # On a plane the deflection IS the central angle, exactly.
+  list(pts = pts, az_out = (az0 + sgn * course$delta) %% 360)
+}
+
+# Fill in the columns a straight-only call does not carry, so a two-column
+# data.frame written before curves existed still means exactly what it meant.
+.ourgeo_normalise_courses <- function(legs) {
+  n <- nrow(legs)
+  type <- if (is.null(legs$type)) rep("line", n) else as.character(legs$type)
+  get <- function(name) if (is.null(legs[[name]])) rep(NA_real_, n) else as.numeric(legs[[name]])
+  turn <- if (is.null(legs$turn)) rep(NA_character_, n) else toupper(substr(as.character(legs$turn), 1L, 1L))
+  out <- data.frame(
+    type = type, distance = get("distance"), azimuth = get("azimuth"),
+    radius = get("radius"), delta = get("delta"), turn = turn,
+    samples = get("samples"),
+    stringsAsFactors = FALSE
+  )
+  bad <- !(out$type %in% c("line", "curve"))
+  if (any(bad)) stop("Course type must be \"line\" or \"curve\"; got ", out$type[which(bad)[1]])
+  if (any(out$type == "line" & (!is.finite(out$distance) | !is.finite(out$azimuth)))) {
+    stop("Every straight course needs a distance and an azimuth.")
+  }
+  if (any(out$type == "curve" & (!is.finite(out$radius) | !is.finite(out$delta)))) {
+    stop("Every curved course needs a radius and a delta.")
+  }
+  out
 }

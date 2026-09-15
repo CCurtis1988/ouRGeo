@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Position } from '@/lib/draw/types'
-import type { BearingMode, DistanceUnit, GridFrame, TraverseLeg } from '@/lib/draw/cogo'
+import type { BearingMode, DistanceUnit, GridFrame, TraverseCourse } from '@/lib/draw/cogo'
+import type { CurveElementId, DegreeDefinition, TurnDirection } from '@/lib/draw/curve-cogo'
 
 /**
  * What the Distance & Bearing tool is in the middle of.
@@ -12,10 +13,17 @@ import type { BearingMode, DistanceUnit, GridFrame, TraverseLeg } from '@/lib/dr
  * `store/panelDrag.ts` for the panel grip: correct as `useState` right up until
  * something outside the component needs to read it.
  *
- * The legs kept here are a RECORD of what was typed, not the geometry. The
- * geometry is vertices in the draft, exactly as if they had been clicked —
- * which is what makes undo, snapping, Save Edits and the R write work with no
- * knowledge of this tool at all.
+ * The courses kept here are a RECORD of what was typed, not the geometry. The
+ * geometry is vertices and arc segments in the draft, exactly as if they had
+ * been clicked — which is what makes undo, snapping, Save Edits and the R write
+ * work with no knowledge of this tool at all.
+ *
+ * Straight courses and curved ones live in ONE list, and that is the decision
+ * the whole feature turns on. A deed call runs *"N45°30'E 150.00 feet; thence
+ * along a curve to the right, R = 250, Δ = 45°30'; thence S12°E 82.00 feet"* —
+ * one figure. Keep the curves somewhere else and the closure ratio is computed
+ * on a path missing them, and the echoed `ourgeo_traverse()` reproduces a
+ * different shape from the one on screen. Neither failure announces itself.
  */
 
 /** Where the numbers are measured. */
@@ -38,6 +46,34 @@ export interface TraverseEntry {
   bearing: string
 }
 
+/**
+ * Which kind of course the strip is taking. Two doors in the ribbon lead here
+ * — Distance & Bearing and Curve — and they differ only in what this starts on.
+ */
+export type CourseType = 'line' | 'tangent-curve' | 'curve'
+
+/**
+ * A curve being typed.
+ *
+ * Two element slots rather than named fields, because a plan quotes whichever
+ * two it likes: radius and delta, radius and arc length, chord and tangent.
+ * Each slot carries WHAT it is as well as its value, so the pair the page uses
+ * is chosen rather than converted by hand before typing.
+ *
+ * `orientation` only applies to a non-tangent curve. A tangent curve continues
+ * the previous course, so its direction is not a question.
+ */
+export interface CurveEntry {
+  turn: TurnDirection
+  aId: CurveElementId
+  aText: string
+  bId: CurveElementId
+  bText: string
+  orientKind: 'chord' | 'radial'
+  orientText: string
+  degreeDefinition: DegreeDefinition
+}
+
 interface TraverseState {
   /**
    * The vertices this traverse has placed, for a POINT session only.
@@ -50,7 +86,11 @@ interface TraverseState {
    */
   path: Position[]
   /** Entered this run, in order. Cleared when the tool is put down. */
-  legs: TraverseLeg[]
+  courses: TraverseCourse[]
+  /** Which kind of course the next one is. */
+  courseType: CourseType
+  /** What is in the curve fields right now — drives the ghost, not the draft. */
+  curve: CurveEntry
   /** What is in the two fields right now — drives the ghost, not the draft. */
   entry: TraverseEntry
   unit: DistanceUnit
@@ -72,15 +112,18 @@ interface TraverseState {
   busy: boolean
   /** A refusal to show under the fields — a parse error or R's own. */
   error: string | null
-  /** What the leg being typed says, for the label beside it on the map:
-   *  "150.00 m · N45°30'E". Null when there is nothing to draw. */
+  /** What the course being typed says, for the label beside it on the map:
+   *  "150.00 m · N45°30'E", or "R 250.00 ft · Δ 45°30' · L 198.53". Null when
+   *  there is nothing to draw. */
   legLabel: string | null
 
   pushVertex: (p: Position) => void
   popVertex: () => void
   setEntry: (e: Partial<TraverseEntry>) => void
-  addLeg: (leg: TraverseLeg) => void
-  dropLastLeg: () => void
+  setCourseType: (t: CourseType) => void
+  setCurve: (c: Partial<CurveEntry>) => void
+  addCourse: (course: TraverseCourse) => void
+  dropLastCourse: () => void
   setUnit: (u: DistanceUnit) => void
   setMode: (m: BearingMode) => void
   setBasis: (b: TraverseBasis) => void
@@ -95,9 +138,25 @@ interface TraverseState {
 
 const EMPTY_ENTRY: TraverseEntry = { distance: '', bearing: '' }
 
+/**
+ * Radius and delta first, because that is what the overwhelming majority of
+ * plats quote. The element CHOICES persist across courses within a run — a plan
+ * that books its curves by radius and arc length books all of them that way —
+ * while the values clear, like the distance and bearing fields do.
+ */
+const EMPTY_CURVE: CurveEntry = {
+  turn: 'right',
+  aId: 'radius', aText: '',
+  bId: 'delta', bText: '',
+  orientKind: 'chord', orientText: '',
+  degreeDefinition: 'arc',
+}
+
 export const useTraverseStore = create<TraverseState>((set) => ({
   path: [],
-  legs: [],
+  courses: [],
+  courseType: 'line',
+  curve: EMPTY_CURVE,
   entry: EMPTY_ENTRY,
   // Seeded from `spatial-settings.json` on load (see spatialSettings) — these
   // are the shipped defaults, not the user's.
@@ -114,8 +173,16 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   pushVertex: (p) => set((s) => ({ path: [...s.path, p], error: null })),
   popVertex: () => set((s) => ({ path: s.path.slice(0, -1) })),
   setEntry: (e) => set((s) => ({ entry: { ...s.entry, ...e }, error: null })),
-  addLeg: (leg) => set((s) => ({ legs: [...s.legs, leg], entry: EMPTY_ENTRY, error: null })),
-  dropLastLeg: () => set((s) => ({ legs: s.legs.slice(0, -1), error: null })),
+  setCourseType: (courseType) => set({ courseType, error: null }),
+  setCurve: (c) => set((s) => ({ curve: { ...s.curve, ...c }, error: null })),
+  addCourse: (course) => set((s) => ({
+    courses: [...s.courses, course],
+    entry: EMPTY_ENTRY,
+    // The element ids stay; only what was typed into them clears.
+    curve: { ...s.curve, aText: '', bText: '', orientText: '' },
+    error: null,
+  })),
+  dropLastCourse: () => set((s) => ({ courses: s.courses.slice(0, -1), error: null })),
   setUnit: (unit) => set({ unit }),
   setMode: (mode) => set({ mode }),
   setBasis: (basis) => set({ basis, error: null }),
@@ -125,8 +192,9 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   setError: (error) => set({ error }),
   setLegLabel: (legLabel) => set({ legLabel }),
 
-  reset: () => set({
-    path: [], legs: [], entry: EMPTY_ENTRY,
+  reset: () => set((s) => ({
+    path: [], courses: [], entry: EMPTY_ENTRY,
+    curve: { ...s.curve, aText: '', bText: '', orientText: '' },
     frame: null, frameAt: null, busy: false, error: null, legLabel: null,
-  }),
+  })),
 }))

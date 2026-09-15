@@ -24,7 +24,9 @@ import {
   Compass
 } from 'lucide-react'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
+import { useTraverseStore } from '@/store/traverse'
 import type { ToolId, CurveMode } from '@/store/geometryEdit'
+import type { CourseType } from '@/store/traverse'
 import { useDrawActions } from '@/hooks/useDrawActions'
 import { useAddFeature } from '@/hooks/useAddFeature'
 import { useSpatialStore } from '@/store/spatial'
@@ -41,25 +43,65 @@ import { RibbonButton, RibbonDivider as Divider } from '../ui/ribbon'
 // flat toolBtn row; switching still funnels through setActiveTool(id), so this
 // is presentation only — no store changes, and the hotkeys (useDrawHotkeys)
 // keep working independently.
+//
+// **Two entries can share one tool.** Distance & Bearing and Curve are the same
+// engine and the same entry strip; they differ only in which course the strip
+// starts on. That is not a shortcut — a traverse mixes straight courses and
+// curves in ONE figure, so they have to share the course list, the closure and
+// the echoed R. Two tools would have split the figure in half and computed the
+// closure on the half that had no curves in it, quietly. What the ribbon owes
+// the user is a door with the right name on it, and that is all this is.
 interface ToolDef {
+  /** Unique within the ribbon — `key`, not `id`, because two entries share a tool. */
+  key: string
   id: ToolId
   label: string
   icon: React.ReactNode
   hotkey: string
+  /** For an entry that also sets what kind of course the strip starts on. */
+  opensCurve?: boolean
 }
 
-const TOOL_DEFS: Record<ToolId, ToolDef> = {
-  select: { id: 'select', label: 'Select', icon: <MousePointer2 className="w-3 h-3" />, hotkey: 'S' },
-  draw: { id: 'draw', label: 'Draw', icon: <Pencil className="w-3 h-3" />, hotkey: 'D' },
-  rectangle: { id: 'rectangle', label: 'Rectangle', icon: <Square className="w-3 h-3" />, hotkey: 'R' },
-  circle: { id: 'circle', label: 'Circle', icon: <Circle className="w-3 h-3" />, hotkey: 'C' },
-  freehand: { id: 'freehand', label: 'Freehand', icon: <Spline className="w-3 h-3" />, hotkey: 'F' },
-  trace: { id: 'trace', label: 'Trace', icon: <Route className="w-3 h-3" />, hotkey: 'T · Tab flips direction' },
-  'offset-trace': { id: 'offset-trace', label: 'Offset', icon: <FlipHorizontal2 className="w-3 h-3" />, hotkey: 'O · Tab flips direction' },
-  'edit-vertices': { id: 'edit-vertices', label: 'Edit Vertices', icon: <Move className="w-3 h-3" />, hotkey: 'E' },
-  'move-feature': { id: 'move-feature', label: 'Move Feature', icon: <Maximize className="w-3 h-3" />, hotkey: 'M' },
-  'add-point': { id: 'add-point', label: 'Add Point(s)', icon: <MapPin className="w-3 h-3" />, hotkey: 'P' },
-  'distance-bearing': { id: 'distance-bearing', label: 'Distance & Bearing', icon: <Compass className="w-3 h-3" />, hotkey: 'B' }
+const TOOL_DEFS: Record<string, ToolDef> = {
+  select: { key: 'select', id: 'select', label: 'Select', icon: <MousePointer2 className="w-3 h-3" />, hotkey: 'S' },
+  draw: { key: 'draw', id: 'draw', label: 'Draw', icon: <Pencil className="w-3 h-3" />, hotkey: 'D' },
+  rectangle: { key: 'rectangle', id: 'rectangle', label: 'Rectangle', icon: <Square className="w-3 h-3" />, hotkey: 'R' },
+  circle: { key: 'circle', id: 'circle', label: 'Circle', icon: <Circle className="w-3 h-3" />, hotkey: 'C' },
+  freehand: { key: 'freehand', id: 'freehand', label: 'Freehand', icon: <Spline className="w-3 h-3" />, hotkey: 'F' },
+  trace: { key: 'trace', id: 'trace', label: 'Trace', icon: <Route className="w-3 h-3" />, hotkey: 'T · Tab flips direction' },
+  'offset-trace': { key: 'offset-trace', id: 'offset-trace', label: 'Offset', icon: <FlipHorizontal2 className="w-3 h-3" />, hotkey: 'O · Tab flips direction' },
+  'edit-vertices': { key: 'edit-vertices', id: 'edit-vertices', label: 'Edit Vertices', icon: <Move className="w-3 h-3" />, hotkey: 'E' },
+  'move-feature': { key: 'move-feature', id: 'move-feature', label: 'Move Feature', icon: <Maximize className="w-3 h-3" />, hotkey: 'M' },
+  'add-point': { key: 'add-point', id: 'add-point', label: 'Add Point(s)', icon: <MapPin className="w-3 h-3" />, hotkey: 'P' },
+  'distance-bearing': { key: 'distance-bearing', id: 'distance-bearing', label: 'Distance & Bearing', icon: <Compass className="w-3 h-3" />, hotkey: 'B' },
+  curve: { key: 'curve', id: 'distance-bearing', label: 'Curve', icon: <Spline className="w-3 h-3" />, hotkey: 'U', opensCurve: true }
+}
+
+/**
+ * Which ribbon entry is lit.
+ *
+ * Two entries share `distance-bearing`, so the active tool alone cannot say
+ * which — the course the strip is on is the other half of the answer, and
+ * without it both would light up at once.
+ */
+function activeEntryKey(activeToolId: ToolId | null, courseType: CourseType): string | null {
+  if (!activeToolId) return null
+  if (activeToolId !== 'distance-bearing') return activeToolId
+  return courseType === 'line' ? 'distance-bearing' : 'curve'
+}
+
+/** Picking up Curve mid-traverse means the curve continues what is there; with
+ *  nothing to continue it has to be oriented by its own chord or radial. */
+function curveTypeToStart(): CourseType {
+  return useTraverseStore.getState().courses.length > 0 ? 'tangent-curve' : 'curve'
+}
+
+/** Switch tool, and say which course the entry strip starts on. */
+function activateEntry(t: ToolDef): void {
+  useGeometryEditStore.getState().setActiveTool(t.id)
+  if (t.id === 'distance-bearing') {
+    useTraverseStore.getState().setCourseType(t.opensCurve ? curveTypeToStart() : 'line')
+  }
 }
 
 /** Applicable tools per section, gated on geometry — mirrors the old inline conditionals. */
@@ -80,7 +122,7 @@ function toolsForGeometry(
     if (isPolygon || isLine) create.push(TOOL_DEFS.freehand, TOOL_DEFS.trace, TOOL_DEFS['offset-trace'])
   }
   // Every geometry, points included: a traverse of points is a traverse.
-  create.push(TOOL_DEFS['distance-bearing'])
+  create.push(TOOL_DEFS['distance-bearing'], TOOL_DEFS.curve)
 
   const modify: ToolDef[] = isPoint ? [] : [TOOL_DEFS['edit-vertices'], TOOL_DEFS['move-feature']]
   const select: ToolDef[] = isEditMode ? [TOOL_DEFS.select] : []
@@ -141,14 +183,16 @@ function ToolMenu({
   isEditMode: boolean
 }): React.ReactElement {
   const activeToolId = useGeometryEditStore((s) => s.activeToolId)
-  const setActiveTool = useGeometryEditStore((s) => s.setActiveTool)
+  const courseType = useTraverseStore((s) => s.courseType)
   const { open, setOpen, toggle, ref, menuStyle } = useUpwardMenu()
 
   const groups = toolsForGeometry(geometryType, isEditMode)
-  // Primary button always reflects the active tool; when nothing is active yet,
-  // fall back to the first applicable create tool so the button still labels.
+  // Primary button always reflects the active entry; when nothing is active
+  // yet, fall back to the first applicable create tool so the button still
+  // labels. The ENTRY, not the tool — Distance & Bearing and Curve share one.
   const fallback = groups.create[0] ?? groups.select[0] ?? groups.modify[0] ?? TOOL_DEFS.draw
-  const active = (activeToolId && TOOL_DEFS[activeToolId]) || fallback
+  const activeKey = activeEntryKey(activeToolId, courseType)
+  const active = (activeKey && TOOL_DEFS[activeKey]) || fallback
 
   const sections: { key: string; label: string; tools: ToolDef[] }[] = [
     { key: 'select', label: 'Select', tools: groups.select },
@@ -160,7 +204,7 @@ function ToolMenu({
     <div className="relative flex items-center flex-shrink-0" ref={ref}>
       <button
         className={`pl-2 pr-1.5 py-1 text-xs rounded-l border border-r-0 flex items-center gap-1 whitespace-nowrap bg-geo-accent/10 text-geo-accent border-geo-accent`}
-        onClick={() => setActiveTool(active.id)}
+        onClick={() => activateEntry(active)}
         title={`${active.label} (${active.hotkey})`}
       >
         {active.icon}
@@ -182,17 +226,17 @@ function ToolMenu({
                 <div className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wide text-geo-muted">{s.label}</div>
                 {s.tools.map((t) => (
                   <button
-                    key={t.id}
+                    key={t.key}
                     className="flex items-center gap-2 w-full px-3 py-1 text-xs text-foreground hover:bg-geo-bg"
                     onClick={() => {
-                      setActiveTool(t.id)
+                      activateEntry(t)
                       setOpen(false)
                     }}
                   >
-                    <span className={t.id === activeToolId ? 'text-geo-accent' : 'text-geo-muted'}>{t.icon}</span>
+                    <span className={t.key === activeKey ? 'text-geo-accent' : 'text-geo-muted'}>{t.icon}</span>
                     <span className="flex-1 text-left">{t.label}</span>
                     <kbd className="text-[9px] text-geo-muted">{t.hotkey.split(' ·')[0]}</kbd>
-                    {t.id === activeToolId && <Check className="w-3 h-3 text-geo-accent" />}
+                    {t.key === activeKey && <Check className="w-3 h-3 text-geo-accent" />}
                   </button>
                 ))}
               </div>

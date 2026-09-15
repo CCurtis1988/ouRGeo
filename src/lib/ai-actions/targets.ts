@@ -69,7 +69,17 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'draw.traverse.bearing', label: 'Leg bearing', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.mode', label: 'Bearing notation', where: 'Distance & Bearing strip' },
   { id: 'draw.traverse.basis', label: 'What the numbers are measured on', where: 'Distance & Bearing strip, right' },
-  { id: 'draw.traverse.legs', label: 'The legs entered so far', where: 'Distance & Bearing strip, right' },
+  { id: 'draw.traverse.legs', label: 'The courses entered so far', where: 'Distance & Bearing strip, right' },
+  { id: 'draw.traverse.course', label: 'Course type — straight or curve', where: 'Distance & Bearing strip, left of the fields' },
+  { id: 'draw.traverse.turn.left', label: 'Curve to the left', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.turn.right', label: 'Curve to the right', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.curve.aId', label: 'First curve element', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.curve.a', label: 'First curve element value', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.curve.bId', label: 'Second curve element', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.curve.b', label: 'Second curve element value', where: 'Distance & Bearing strip, on a curve course' },
+  { id: 'draw.traverse.curve.degreeDef', label: 'Degree of curve definition', where: 'Distance & Bearing strip, when a degree of curve is being entered' },
+  { id: 'draw.traverse.curve.orientKind', label: 'How a non-tangent curve is oriented', where: 'Distance & Bearing strip, on a Curve course' },
+  { id: 'draw.traverse.curve.orient', label: 'Chord or radial bearing', where: 'Distance & Bearing strip, on a Curve course' },
 
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },

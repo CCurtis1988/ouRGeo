@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Compass, Check, Undo2, Flag, MapPin, Crosshair } from 'lucide-react'
+import { Compass, Check, Undo2, Flag, MapPin, Crosshair, Spline } from 'lucide-react'
 import { RibbonButton } from '../ui/ribbon'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
 import { useTraverseStore } from '@/store/traverse'
@@ -11,16 +11,23 @@ import {
   usesReferencePoint, appendsRows, startTraverseRun, undoTraverseLeg,
 } from '@/lib/draw/tools/distance-bearing'
 import {
-  parseDistance, parseBearing, parseCoordinate, formatDistance, formatRatio,
-  closure, formatDms, formatBearing, UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
-  type TraverseLeg,
+  parseDistance, parseBearing, parseAngle, parseCoordinate, formatDistance, formatRatio,
+  closure, formatDms, formatBearing, norm360, toMetres,
+  UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
+  type TraverseLeg, type TraverseCourse, type ParseResult,
 } from '@/lib/draw/cogo'
+import {
+  solveCurve, curveGeometry, tangentAzimuthFromChord, tangentAzimuthFromRadial,
+  CURVE_ELEMENTS, CURVE_ELEMENT_IDS,
+  type CurveElementId, type CurveElements, type CurveGeometry,
+} from '@/lib/draw/curve-cogo'
+import { arcSplineFit, arcSplineFromSamples, type ArcPiece } from '@/lib/draw/arc-spline'
 import { canComplete } from '@/lib/draw/draft'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
 import { rClient } from '@/lib/r-client'
 import type { DistanceUnit } from '@/lib/draw/cogo'
-import type { CrsInfo, TraverseBasis } from '@/store/traverse'
+import type { CrsInfo, TraverseBasis, CourseType } from '@/store/traverse'
 import type { Position } from '@/lib/draw/types'
 
 /**
@@ -31,21 +38,24 @@ import type { Position } from '@/lib/draw/types'
  * way. It appears only while the Distance & Bearing tool is active, so the map
  * loses those 60 pixels only to someone who asked for them.
  *
- * **The keyboard is the point.** Distance takes focus the moment there is a
- * start point; Enter places the leg and hands focus back to Distance, so a
+ * **The keyboard is the point.** The first field takes focus the moment there
+ * is a start point; Enter places the course and hands focus back to it, so a
  * traverse is `150 ⇥ N45-30-E ⏎ 82 ⇥ S12E ⏎` with no pointer at all. The
  * drawing hotkeys already ignore keystrokes aimed at an input
  * (`useDrawHotkeys.ts`), so D does not swap the tool out from under a distance
  * of "d150" being typed.
  *
- * **A leg goes where the other drawing tools put one.** On a line or polygon
- * it is a draft vertex, finished with Finish. On a POINT layer it is the
- * geometry of the row the session is on, and placing it moves to the next row
- * — the same walk down the dataset the draw tool does, so the data viewer's
- * row indicator follows a typed traverse exactly as it follows a clicked one.
- * When the rows run out the ribbon asks whether to add another; typing the
- * next distance and pressing Enter is that answer, so the strip gives it
- * rather than making the user reach for the mouse.
+ * **Straight courses and curves are one figure, and one strip.** A deed call
+ * runs *"N45°30'E 150.00 feet; thence along a curve to the right, R = 250,
+ * Δ = 45°30'; thence S12°E 82.00 feet"*. The Course selector changes which
+ * fields are shown; everything else — the origin, the basis, the closure, the
+ * echoed R — spans the whole figure, because the figure is what it is.
+ *
+ * **A course goes where the other drawing tools put one.** On a line or polygon
+ * a straight course is a draft vertex and a curve is a run of arc segments,
+ * finished with Finish. On a POINT layer either one writes the geometry of the
+ * row the session is on and moves to the next row — for a curve that is its END
+ * point, since a point layer's rows are points and not the path between them.
  */
 
 const inputCls =
@@ -55,6 +65,22 @@ const inputCls =
 const selectCls =
   'bg-geo-bg border border-geo-border rounded px-1 py-1 text-xs text-foreground ' +
   'outline-none focus:border-geo-accent'
+
+/**
+ * How far the committed arcs may sit from the curve that was typed.
+ *
+ * A millimetre: below survey noise, well below what a CRS round trip
+ * preserves, and — the number that actually sets it — two orders of magnitude
+ * finer than the 10 cm a coordinate readout is quoted to.
+ */
+const CURVE_TOLERANCE_M = 0.001
+
+/**
+ * Samples asked of R for a grid curve. A power of two, because
+ * `arcSplineFromSamples` fits pieces at 1, 2, 4 … and every boundary and
+ * midpoint has to land exactly on a sample rather than between two of them.
+ */
+const GRID_CURVE_SAMPLES = 128
 
 /** A coordinate, in the form the readouts print and `parseCoordinate` reads
  *  back — six decimals is ~10 cm, which is the resolution of the claim. */
@@ -79,19 +105,52 @@ function unitForCrs(info: CrsInfo): DistanceUnit | null {
   return null
 }
 
+/** The segmented Turn control's two states. */
+function turnCls(on: boolean): string {
+  return on ? 'bg-geo-accent/10 text-geo-accent' : 'text-foreground hover:bg-geo-bg'
+}
+
+/** A curve element parses as a distance or as an angle, depending which it is. */
+function parseElement(id: CurveElementId, text: string, unit: DistanceUnit): ParseResult<number> {
+  return CURVE_ELEMENTS[id].quantity === 'length' ? parseDistance(text, unit) : parseAngle(text)
+}
+
+/**
+ * Degree of curve is defined on 100-unit stations and is a US highway
+ * convention, so it is offered only where the station means something: feet.
+ * Showing it against metres would invite a number that is right on the page
+ * and wrong in the field.
+ */
+function elementIdsFor(unit: DistanceUnit): CurveElementId[] {
+  const feet = unit === 'ft' || unit === 'usft'
+  return CURVE_ELEMENT_IDS.filter((id) => feet || id !== 'degreeOfCurve')
+}
+
+/** One course in the words it was entered in. */
+function describeCourse(c: TraverseCourse): string {
+  const abbr = UNITS[c.unit].abbr
+  if (c.type === 'line') return `${c.distanceText} ${abbr} · ${c.bearingText}`
+  const typed = c.entered
+    .map((e) => `${CURVE_ELEMENTS[e.id].symbol} ${e.text}`)
+    .join('  ')
+  return `${c.turn === 'left' ? '↰' : '↱'} ${typed}`
+}
+
 /**
  * What has been entered so far, in the words it was entered in.
  *
- * The list keeps each leg's RAW text rather than the azimuth it resolved to,
+ * The list keeps each course's RAW text rather than the numbers it resolved to,
  * because that is what a user checks against their notes: "S44-30-W" is what
  * the page says, and 224°30' is what the computer made of it. Both are shown,
  * in that order.
  *
- * Read-only, deliberately. Editing a leg in the middle moves every vertex
- * after it, which is a different feature (and a bigger one); Undo leg walks
- * back from the end, which is how a traverse is corrected in practice.
+ * Read-only, deliberately. Editing a course in the middle moves everything
+ * after it, which is a different feature (and a bigger one); Undo walks back
+ * from the end, which is how a traverse is corrected in practice.
  */
-function LegList({ legs, unit }: { legs: TraverseLeg[]; unit: DistanceUnit }): React.ReactElement | null {
+function CourseList(
+  { courses, unit }: { courses: TraverseCourse[]; unit: DistanceUnit }
+): React.ReactElement | null {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!open) return
@@ -107,7 +166,10 @@ function LegList({ legs, unit }: { legs: TraverseLeg[]; unit: DistanceUnit }): R
     }
   }, [open])
 
-  if (legs.length === 0) return null
+  if (courses.length === 0) return null
+  const total = courses.reduce(
+    (t, c) => t + (c.type === 'line' ? c.distanceM : c.elements.arcLengthM), 0
+  )
   return (
     <div className="relative flex-shrink-0" data-ourgeo-id="draw.traverse.legs">
       <button
@@ -116,27 +178,34 @@ function LegList({ legs, unit }: { legs: TraverseLeg[]; unit: DistanceUnit }): R
         title="What has been entered so far"
         onClick={() => setOpen((v) => !v)}
       >
-        {legs.length} leg{legs.length === 1 ? '' : 's'}
+        {courses.length} course{courses.length === 1 ? '' : 's'}
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 mb-1 z-50 max-h-64 w-72 overflow-y-auto
+        <div className="absolute bottom-full right-0 mb-1 z-50 max-h-64 w-80 overflow-y-auto
           rounded border border-geo-border bg-geo-panel py-1 shadow-lg">
-          {legs.map((l, i) => (
+          {courses.map((c, i) => (
             <div key={i} className="flex items-baseline gap-2 px-2 py-0.5 text-[11px]">
               <span className="w-5 flex-shrink-0 text-right text-geo-muted">{i + 1}</span>
-              <span className="flex-1 font-mono text-foreground">
-                {l.distanceText} {UNITS[l.unit].abbr} · {l.bearingText}
+              <span className="flex-1 font-mono text-foreground">{describeCourse(c)}</span>
+              <span className="flex-shrink-0 font-mono text-geo-muted">
+                {c.type === 'line' ? formatDms(c.azimuth) : formatDms(c.elements.deltaDeg)}
               </span>
-              <span className="flex-shrink-0 font-mono text-geo-muted">{formatDms(l.azimuth)}</span>
             </div>
           ))}
           <div className="mt-1 border-t border-geo-border px-2 pt-1 text-[10px] text-geo-muted">
-            {formatDistance(legs.reduce((t, l) => t + l.distanceM, 0), unit)} entered
+            {formatDistance(total, unit)} entered
+            {courses.some((c) => c.type === 'curve') && ' (curves measured along the arc)'}
           </div>
         </div>
       )}
     </div>
   )
+}
+
+const COURSE_LABELS: Record<CourseType, string> = {
+  line: 'Distance & bearing',
+  'tangent-curve': 'Tangent curve',
+  curve: 'Curve',
 }
 
 export function TraverseBar(): React.ReactElement | null {
@@ -146,7 +215,9 @@ export function TraverseBar(): React.ReactElement | null {
   const pendingRowAdd = useGeometryEditStore((s) => s.pendingRowAdd)
 
   const storePath = useTraverseStore((s) => s.path)
-  const legs = useTraverseStore((s) => s.legs)
+  const courses = useTraverseStore((s) => s.courses)
+  const courseType = useTraverseStore((s) => s.courseType)
+  const curve = useTraverseStore((s) => s.curve)
   const entry = useTraverseStore((s) => s.entry)
   const unit = useTraverseStore((s) => s.unit)
   const mode = useTraverseStore((s) => s.mode)
@@ -162,10 +233,11 @@ export function TraverseBar(): React.ReactElement | null {
   const { finish, commitPoint, undoLast } = useDrawActions()
   const { confirmPendingRowAdd } = useAddFeature()
 
-  const distanceRef = useRef<HTMLInputElement>(null)
+  const firstFieldRef = useRef<HTMLInputElement>(null)
   const startRef = useRef<HTMLInputElement>(null)
 
   const active = activeToolId === 'distance-bearing' && !!session
+  const isCurve = courseType !== 'line'
   // A point traverse measures from a reference point rather than from a
   // vertex, because a point layer's rows are separate features and the mark
   // they were shot from is usually not one of them.
@@ -175,7 +247,7 @@ export function TraverseBar(): React.ReactElement | null {
     [session, storePath]
   )
   const origin = session ? traverseOrigin(session, storePath) : null
-  const incoming = session ? traverseIncoming(session, storePath) : null
+  const incoming = session ? traverseIncoming(session, storePath, courses) : null
   const here = !!origin && !!frameAt && frameAt[0] === origin[0] && frameAt[1] === origin[1]
   const usableFrame = here ? frame : null
 
@@ -192,7 +264,7 @@ export function TraverseBar(): React.ReactElement | null {
   }, [isPoint, addVertex])
 
   /**
-   * Put the point a leg landed on where this session keeps its geometry.
+   * Put the point a course landed on where this session keeps its geometry.
    *
    * A chain appends a vertex. A point session writes a feature — into the row
    * it is on (and moves to the next), or as a new row when the session was
@@ -205,6 +277,22 @@ export function TraverseBar(): React.ReactElement | null {
     if (sess && appendsRows(sess)) await commitPoint(p[0], p[1])
     else { addVertex(p[0], p[1]); await finish() }
   }, [isPoint, addVertex, commitPoint, finish, tv])
+
+  /**
+   * Put a curve where this session keeps its geometry.
+   *
+   * On a chain the arc pieces are appended as ordinary arc segments — the same
+   * thing the draw tool's Arc mode produces, so the WKT emitter writes a real
+   * CIRCULARSTRING and nothing downstream knows this came from a form.
+   *
+   * On a point layer only the END lands. Every row there is its own feature and
+   * the path between two of them is not data; a curve says where the next point
+   * is, and the arc it travelled is kept in the course record and the echoed R.
+   */
+  const placeCurve = useCallback(async (pieces: ArcPiece[], pt: Position) => {
+    if (isPoint) { await advance(pt); return }
+    useGeometryEditStore.getState().appendArcSegmentsToActivePath(pieces)
+  }, [isPoint, advance])
 
   // The two preferences that outlive a session: the unit distances are typed
   // in and the notation bearings are written in. Seeded here rather than in
@@ -264,16 +352,16 @@ export function TraverseBar(): React.ReactElement | null {
   }, [active, session?.accessPath, session?.envName, tv]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The grid frame at the vertex we are measuring FROM, so that even the first
-  // leg previews where it will actually be committed. Without it the first leg
-  // of a grid traverse is drawn geodesically and then jumps by the convergence
-  // when R answers — about a metre in a UTM zone, which is exactly the error
-  // this basis exists to avoid.
+  // course previews where it will actually be committed. Without it the first
+  // leg of a grid traverse is drawn geodesically and then jumps by the
+  // convergence when R answers — about a metre in a UTM zone, which is exactly
+  // the error this basis exists to avoid.
   useEffect(() => {
     if (!active || !session || basis !== 'grid' || !origin || here) return
     let cancelled = false
     void (async () => {
       const res = await rClient.spatialTraverse({
-        origin, legs: [], basis: 'grid',
+        origin, courses: [], basis: 'grid',
         name: session.accessPath, envName: session.envName,
       })
       if (!cancelled && res.success && res.frame) tv.getState().setFrame(res.frame, origin)
@@ -281,10 +369,10 @@ export function TraverseBar(): React.ReactElement | null {
     return () => { cancelled = true }
   }, [active, session, basis, origin, here, tv])
 
-  // What the fields currently describe, recomputed on every keystroke: the
-  // destination for the readout, or the refusal to show under the fields.
+  // What the straight-course fields describe, recomputed on every keystroke:
+  // the destination for the readout, or the refusal to show under the fields.
   const pending = useMemo(() => {
-    if (!origin) return null
+    if (!origin || isCurve) return null
     const d = parseDistance(entry.distance, unit)
     const b = parseBearing(entry.bearing, mode, incoming)
     if (!d.ok || !b.ok) {
@@ -300,16 +388,105 @@ export function TraverseBar(): React.ReactElement | null {
       azimuth: b.value,
       complaint: null,
     }
-  }, [origin, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
+  }, [origin, isCurve, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
 
-  // The ghost is the leg being typed. Cleared when the tool goes away, or the
-  // dashed line would outlive the strip that explains it.
+  /**
+   * What the curve fields describe.
+   *
+   * `tangentAz` is in the BASIS's own terms — a grid bearing on the grid basis,
+   * because that is what the user is typing and what R will be given. The
+   * preview then converts back: a geodesic curve is the only thing the renderer
+   * can draw, so the radius is divided by the point scale factor and the
+   * tangent turned by the convergence, exactly the reduction `reduceGridLeg`
+   * makes for a straight leg.
+   */
+  const pendingCurve = useMemo((): {
+    elements: CurveElements | null
+    geometry: CurveGeometry | null
+    tangentAz: number | null
+    complaint: string | null
+  } | null => {
+    if (!origin || !isCurve) return null
+    const none = { elements: null, geometry: null, tangentAz: null }
+
+    const a = parseElement(curve.aId, curve.aText, unit)
+    const b = parseElement(curve.bId, curve.bText, unit)
+    if (!a.ok || !b.ok) {
+      const complaint = (!a.ok && curve.aText.trim() && a.error)
+        || (!b.ok && curve.bText.trim() && b.error) || null
+      return { ...none, complaint }
+    }
+
+    const solved = solveCurve({
+      turn: curve.turn,
+      a: { id: curve.aId, value: a.value },
+      b: { id: curve.bId, value: b.value },
+      stationM: toMetres(100, unit),
+      degreeDefinition: curve.degreeDefinition,
+    })
+    if (!solved.ok) return { ...none, complaint: solved.error }
+
+    let tangentAz: number
+    if (courseType === 'tangent-curve') {
+      if (incoming === null) {
+        return {
+          ...none,
+          complaint: 'A tangent curve continues the course before it, and there is not one yet. '
+            + 'Use Curve and give it a chord or radial bearing.',
+        }
+      }
+      // `incoming` is read off the geometry, which is geodesic. On the grid
+      // basis every number in this strip is a grid number, so the tangent has
+      // to be turned back onto the grid before it joins them.
+      tangentAz = basis === 'grid' && usableFrame
+        ? norm360(incoming - usableFrame.convergence)
+        : incoming
+    } else {
+      const ob = parseBearing(curve.orientText, mode, incoming)
+      if (!ob.ok) return { ...none, complaint: curve.orientText.trim() ? ob.error : null }
+      tangentAz = curve.orientKind === 'chord'
+        ? tangentAzimuthFromChord(ob.value, solved.value.deltaDeg, curve.turn)
+        : tangentAzimuthFromRadial(ob.value, curve.turn)
+    }
+
+    const reduce = basis === 'grid' && usableFrame
+    const drawElements = reduce
+      ? { ...solved.value, radiusM: solved.value.radiusM / usableFrame.scale }
+      : solved.value
+    const drawTangent = reduce ? norm360(tangentAz + usableFrame.convergence) : tangentAz
+
+    return {
+      elements: solved.value,
+      geometry: curveGeometry(origin, drawTangent, drawElements),
+      tangentAz,
+      complaint: null,
+    }
+  }, [origin, isCurve, courseType, curve, unit, mode, incoming, basis, usableFrame])
+
+  const complaint = pending?.complaint ?? pendingCurve?.complaint ?? null
+
+  // The ghost is the course being typed. Cleared when the tool goes away, or
+  // the dashed line would outlive the strip that explains it.
   useEffect(() => {
-    if (!active || !origin || !pending?.position) {
+    if (!active || !origin) {
       setGhost(null)
       tv.getState().setLegLabel(null)
       return
     }
+    if (isCurve) {
+      const g = pendingCurve?.geometry
+      const el = pendingCurve?.elements
+      if (!g || !el) { setGhost(null); tv.getState().setLegLabel(null); return }
+      const coords: Position[] = []
+      for (let i = 0; i <= 96; i++) coords.push(g.at(i / 96))
+      setGhost({ type: 'LineString', coordinates: coords.map(([x, y]) => [x, y]) })
+      tv.getState().setLegLabel(
+        `R ${formatDistance(el.radiusM, unit)} · Δ ${formatDms(el.deltaDeg)}`
+        + ` · L ${formatDistance(el.arcLengthM, unit)}`
+      )
+      return
+    }
+    if (!pending?.position) { setGhost(null); tv.getState().setLegLabel(null); return }
     setGhost({
       type: 'LineString',
       coordinates: [[origin[0], origin[1]], [pending.position[0], pending.position[1]]],
@@ -319,17 +496,17 @@ export function TraverseBar(): React.ReactElement | null {
     tv.getState().setLegLabel(
       `${formatDistance(pending.distanceM ?? 0, unit)} · ${formatBearing(pending.azimuth ?? 0, mode, incoming)}`
     )
-  }, [active, origin, pending, setGhost, unit, mode, incoming, tv])
+  }, [active, origin, isCurve, pending, pendingCurve, setGhost, unit, mode, incoming, tv])
 
   useEffect(() => () => setGhost(null), [setGhost])
 
   // Focus follows the state of the traverse: the coordinate box while there is
-  // no start point, the distance the moment there is one.
+  // no start point, the first number the moment there is one.
   useEffect(() => {
     if (!active) return
-    if (origin) distanceRef.current?.focus()
+    if (origin) firstFieldRef.current?.focus()
     else startRef.current?.focus()
-  }, [active, !!origin]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, !!origin, courseType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const placeStart = useCallback((text: string) => {
     const parsed = parseCoordinate(text)
@@ -341,14 +518,29 @@ export function TraverseBar(): React.ReactElement | null {
     tv.getState().setEntry({ distance: '', bearing: '' })
   }, [anchor, tv])
 
-  const submit = useCallback(() => {
+  /** The last leg used up the dataset and the ribbon is asking whether to add
+   *  another row. Typing the next course and pressing Enter is an unambiguous
+   *  yes, so answer it here: the alternative is a traverse that stops dead
+   *  every time it reaches the end of the table. */
+  const answerRowPrompt = useCallback(async (): Promise<boolean> => {
+    if (!useGeometryEditStore.getState().pendingRowAdd) return true
+    await confirmPendingRowAdd()
+    if (!selectActiveSession(useGeometryEditStore.getState())) {
+      tv.getState().setError('The row could not be added, so nothing was placed.')
+      return false
+    }
+    return true
+  }, [confirmPendingRowAdd, tv])
+
+  const submitLine = useCallback(() => {
     if (!session || !origin) return
     const d = parseDistance(entry.distance, unit)
     if (!d.ok) { tv.getState().setError(d.error); return }
     const b = parseBearing(entry.bearing, mode, incoming)
     if (!b.ok) { tv.getState().setError(b.error); return }
 
-    const leg = {
+    const leg: TraverseLeg = {
+      type: 'line',
       distanceText: entry.distance.trim(),
       bearingText: entry.bearing.trim(),
       unit, mode, distanceM: d.value, azimuth: b.value,
@@ -357,32 +549,22 @@ export function TraverseBar(): React.ReactElement | null {
     tv.getState().setBusy(true)
     void (async () => {
       try {
-        // The last leg used up the dataset and the ribbon is asking whether to
-        // add another row. Typing the next distance and pressing Enter is an
-        // unambiguous yes, so answer it here: the alternative is a traverse
-        // that stops dead every time it reaches the end of the table.
-        if (useGeometryEditStore.getState().pendingRowAdd) {
-          await confirmPendingRowAdd()
-          if (!selectActiveSession(useGeometryEditStore.getState())) {
-            tv.getState().setError('The row could not be added, so nothing was placed.')
-            return
-          }
-        }
+        if (!(await answerRowPrompt())) return
 
         if (basis === 'geodesic') {
           await advance(previewLeg(origin, d.value, b.value, 'geodesic', null))
-          tv.getState().addLeg(leg)
+          tv.getState().addCourse(leg)
           setGhost(null)
-          distanceRef.current?.focus()
+          firstFieldRef.current?.focus()
           return
         }
 
         // Grid: the vertex that is KEPT is R's projected arithmetic, never the
         // local reduction the ghost was drawn with. The reply also carries the
-        // frame at the new vertex, which is what previews the next leg.
+        // frame at the new vertex, which is what previews the next course.
         const res = await rClient.spatialTraverse({
           origin, basis: 'grid',
-          legs: [{ distance: d.value, azimuth: b.value }],
+          courses: [{ type: 'line', distance: d.value, azimuth: b.value }],
           name: session.accessPath, envName: session.envName,
         })
         if (!res.success || !res.vertices || res.vertices.length < 2) {
@@ -391,12 +573,10 @@ export function TraverseBar(): React.ReactElement | null {
         }
         const landed = res.vertices[res.vertices.length - 1]
         await advance(landed)
-        // The reply's frame belongs to the vertex it just produced, which is
-        // where the next leg starts.
         tv.getState().setFrame(res.frame ?? null, landed)
-        tv.getState().addLeg(leg)
+        tv.getState().addCourse(leg)
         setGhost(null)
-        distanceRef.current?.focus()
+        firstFieldRef.current?.focus()
       } catch (e) {
         // A severed connection is not a data problem — say so, and name the
         // basis that needs nothing from R.
@@ -407,9 +587,97 @@ export function TraverseBar(): React.ReactElement | null {
         tv.getState().setBusy(false)
       }
     })()
-  }, [session, origin, entry, unit, mode, incoming, basis, advance, confirmPendingRowAdd, setGhost, tv])
+  }, [session, origin, entry, unit, mode, incoming, basis, advance, answerRowPrompt, setGhost, tv])
 
-  const undoLeg = useCallback(() => {
+  const submitCurve = useCallback(() => {
+    if (!session || !origin) return
+    const pc = pendingCurve
+    if (!pc?.elements || !pc.geometry || pc.tangentAz === null) {
+      tv.getState().setError(pc?.complaint ?? 'Fill in both curve elements.')
+      return
+    }
+    const elements = pc.elements
+    const tangentAz = pc.tangentAz
+    // A curve of half a turn or more cannot be one arc: three points two of
+    // which coincide define no circle, and at exactly 180° the via is the only
+    // thing distinguishing the two halves.
+    const minPieces = elements.deltaDeg >= 170 ? 2 : 1
+
+    const record: TraverseCourse = {
+      type: 'curve',
+      tangential: courseType === 'tangent-curve',
+      turn: curve.turn,
+      entered: [
+        { id: curve.aId, text: curve.aText.trim() },
+        { id: curve.bId, text: curve.bText.trim() },
+      ],
+      unit,
+      orientation: courseType === 'tangent-curve'
+        ? null
+        : { kind: curve.orientKind, text: curve.orientText.trim(), mode },
+      elements,
+      inAzimuth: tangentAz,
+      outAzimuth: norm360(tangentAz + (curve.turn === 'right' ? 1 : -1) * elements.deltaDeg),
+    }
+
+    tv.getState().setBusy(true)
+    void (async () => {
+      try {
+        if (!(await answerRowPrompt())) return
+
+        if (basis === 'geodesic') {
+          const fit = arcSplineFit(pc.geometry!.at, { toleranceM: CURVE_TOLERANCE_M, minPieces })
+          await placeCurve(fit.pieces, pc.geometry!.pt)
+          tv.getState().addCourse(record)
+          setGhost(null)
+          firstFieldRef.current?.focus()
+          return
+        }
+
+        // Grid: the curve is a true circle in the layer's projected CRS, and
+        // that arithmetic is R's. It comes back as samples at exact parameters
+        // so the arcs can be fitted through them without interpolating.
+        const res = await rClient.spatialTraverse({
+          origin, basis: 'grid',
+          courses: [{
+            type: 'curve',
+            azimuth: tangentAz,
+            radius: elements.radiusM,
+            delta: elements.deltaDeg,
+            turn: curve.turn === 'left' ? 'L' : 'R',
+            samples: GRID_CURVE_SAMPLES,
+          }],
+          name: session.accessPath, envName: session.envName,
+        })
+        if (!res.success || !res.vertices || res.vertices.length < 3) {
+          tv.getState().setError(res.error ?? 'R could not place that curve on the layer’s grid.')
+          return
+        }
+        const samples = res.vertices as Position[]
+        const landed = samples[samples.length - 1]
+        const fit = arcSplineFromSamples(samples, { toleranceM: CURVE_TOLERANCE_M, minPieces })
+        await placeCurve(fit.pieces, landed)
+        tv.getState().setFrame(res.frame ?? null, landed)
+        tv.getState().addCourse(record)
+        setGhost(null)
+        firstFieldRef.current?.focus()
+      } catch (e) {
+        tv.getState().setError(
+          `${String(e)} — the geodesic basis needs nothing from R if this keeps happening.`
+        )
+      } finally {
+        tv.getState().setBusy(false)
+      }
+    })()
+  }, [session, origin, pendingCurve, courseType, curve, unit, mode, basis,
+    placeCurve, answerRowPrompt, setGhost, tv])
+
+  const submit = useCallback(() => {
+    if (isCurve) submitCurve()
+    else submitLine()
+  }, [isCurve, submitCurve, submitLine])
+
+  const undoCourse = useCallback(() => {
     void undoTraverseLeg({ undoLast })
   }, [undoLast])
 
@@ -423,16 +691,19 @@ export function TraverseBar(): React.ReactElement | null {
     void finish()
   }, [session, path, isPoint, advance, setGhost, finish])
 
-  const shut = useMemo(() => closure(path), [path])
+  const shut = useMemo(() => closure(path, courses), [path, courses])
 
   if (!active || !session) return null
 
-  const legCount = path.length > 0 ? path.length - 1 : 0
   const canFinish = !isPoint && canComplete(session)
   // On a point traverse path[0] is the reference and is not a leg, so there is
   // nothing to take back until something has actually been placed.
-  const canUndoLeg = path.length > (isPoint ? 1 : 0)
+  const canUndo = path.length > (isPoint ? 1 : 0)
   const atReference = isPoint && path.length === 1
+  const elementIds = elementIdsFor(unit)
+  const onEnter = (e: React.KeyboardEvent): void => {
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
+  }
 
   return (
     <div
@@ -440,7 +711,7 @@ export function TraverseBar(): React.ReactElement | null {
       data-export-hide
       className="flex-shrink-0 border-t border-geo-border bg-geo-panel px-3 py-1.5 text-xs"
     >
-      {/* Row 1 — where you are measuring from, and where this leg lands. The
+      {/* Row 1 — where you are measuring from, and where this course lands. The
           tool's own name is on the ribbon button an inch below; repeating it
           here cost the width the readout needs on a narrow panel. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
@@ -449,7 +720,7 @@ export function TraverseBar(): React.ReactElement | null {
           <span className="flex-shrink-0 text-geo-muted">
             From <span className="font-mono text-foreground">{fmtCoord(origin)}</span>
             {atReference && <span className="ml-1">· reference</span>}
-            {legCount > 0 && (
+            {path.length > 1 && (
               <span className="ml-1">· {isPoint ? 'point' : 'vertex'} {path.length}</span>
             )}
           </span>
@@ -473,11 +744,13 @@ export function TraverseBar(): React.ReactElement | null {
             }}
           />
         )}
-        {/* The readout, in priority order: what is wrong, else where this leg
-            lands. A readout that showed both would be one nobody reads. */}
+        {/* The readout, in priority order: what is wrong, else where this
+            course lands. A readout that showed both would be one nobody reads. */}
         <span className="flex-shrink-0 font-mono">
-          {error || pending?.complaint ? (
-            <span className="font-sans text-geo-error">{error ?? pending?.complaint}</span>
+          {error || complaint ? (
+            <span className="font-sans text-geo-error">{error ?? complaint}</span>
+          ) : isCurve && pendingCurve?.geometry ? (
+            <span className="text-foreground">→ {fmtCoord(pendingCurve.geometry.pt)}</span>
           ) : pending?.position ? (
             <>
               <span className="text-foreground">→ {fmtCoord(pending.position)}</span>
@@ -501,7 +774,7 @@ export function TraverseBar(): React.ReactElement | null {
             title={
               basis === 'geodesic'
                 ? 'Distances on the WGS84 ellipsoid, bearings from true north — the same numbers anywhere on Earth, whatever the layer’s CRS.'
-                : 'Distances and bearings on the layer’s own projected grid, which is what a survey plat in a projected CRS is drawn to.'
+                : 'Distances and bearings on the layer’s own projected grid, which is what a survey plat in a projected CRS is drawn to. A curve there is a true circle.'
             }
             onChange={(e) => tv.getState().setBasis(e.target.value as TraverseBasis)}
           >
@@ -517,63 +790,222 @@ export function TraverseBar(): React.ReactElement | null {
 
       {/* Row 2 — the numbers, what they produce, and what to do with them. */}
       {/* Wrapping, not scrolling — the drawing ribbon below scrolls because a
-          hidden tool can be reached another way, but a hidden "Add leg" is a
+          hidden tool can be reached another way, but a hidden "Add course" is a
           form with no submit. On a narrow map pane the buttons drop to a line
           of their own instead of off the edge. */}
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 min-w-0">
-        <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
-          Distance
-          <input
-            ref={distanceRef}
-            className={`${inputCls} w-24`}
-            value={entry.distance}
-            disabled={!origin || busy}
-            placeholder="150.00"
-            data-ourgeo-id="draw.traverse.distance"
-            onChange={(e) => tv.getState().setEntry({ distance: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
-          />
-          <select
-            className={selectCls}
-            value={unit}
-            data-ourgeo-id="draw.traverse.unit"
-            onChange={(e) => {
-              tv.getState().setUnit(e.target.value as typeof unit)
-              remember({ unit: e.target.value })
-            }}
-          >
-            {UNIT_IDS.map((id) => (
-              <option key={id} value={id}>{UNITS[id].abbr}</option>
-            ))}
-          </select>
-        </label>
+        <select
+          className={selectCls}
+          value={courseType}
+          data-ourgeo-id="draw.traverse.course"
+          title="What kind of course this is. A traverse mixes them freely — the closure and the echoed R span all of it."
+          onChange={(e) => tv.getState().setCourseType(e.target.value as CourseType)}
+        >
+          {(Object.keys(COURSE_LABELS) as CourseType[]).map((id) => (
+            <option key={id} value={id}>{COURSE_LABELS[id]}</option>
+          ))}
+        </select>
 
-        <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
-          Bearing
-          <input
-            className={`${inputCls} w-28`}
-            value={entry.bearing}
-            disabled={!origin || busy}
-            placeholder={mode === 'quadrant' ? "N45°30'E" : mode === 'azimuth' ? "45°30'" : 'R90'}
-            title={BEARING_MODES[mode].hint}
-            data-ourgeo-id="draw.traverse.bearing"
-            onChange={(e) => tv.getState().setEntry({ bearing: e.target.value })}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
-          />
-          <select
-            className={selectCls}
-            value={mode}
-            data-ourgeo-id="draw.traverse.mode"
-            onChange={(e) => {
-              tv.getState().setMode(e.target.value as typeof mode)
-              remember({ notation: e.target.value })
-            }}
-          >
-            {BEARING_MODE_IDS.map((id) => (
-              <option key={id} value={id}>{BEARING_MODES[id].label}</option>
-            ))}
-          </select>
-        </label>
+        {!isCurve && (
+          <>
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              Distance
+              <input
+                ref={firstFieldRef}
+                className={`${inputCls} w-24`}
+                value={entry.distance}
+                disabled={!origin || busy}
+                placeholder="150.00"
+                data-ourgeo-id="draw.traverse.distance"
+                onChange={(e) => tv.getState().setEntry({ distance: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              <select
+                className={selectCls}
+                value={unit}
+                data-ourgeo-id="draw.traverse.unit"
+                onChange={(e) => {
+                  tv.getState().setUnit(e.target.value as typeof unit)
+                  remember({ unit: e.target.value })
+                }}
+              >
+                {UNIT_IDS.map((id) => (
+                  <option key={id} value={id}>{UNITS[id].abbr}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              Bearing
+              <input
+                className={`${inputCls} w-28`}
+                value={entry.bearing}
+                disabled={!origin || busy}
+                placeholder={mode === 'quadrant' ? "N45°30'E" : mode === 'azimuth' ? "45°30'" : 'R90'}
+                title={BEARING_MODES[mode].hint}
+                data-ourgeo-id="draw.traverse.bearing"
+                onChange={(e) => tv.getState().setEntry({ bearing: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              <select
+                className={selectCls}
+                value={mode}
+                data-ourgeo-id="draw.traverse.mode"
+                onChange={(e) => {
+                  tv.getState().setMode(e.target.value as typeof mode)
+                  remember({ notation: e.target.value })
+                }}
+              >
+                {BEARING_MODE_IDS.map((id) => (
+                  <option key={id} value={id}>{BEARING_MODES[id].label}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {isCurve && (
+          <>
+            {/* Which way it bends is the first thing a deed says, so it is a
+                pair of buttons rather than a dropdown to open. */}
+            <div className="flex flex-shrink-0 items-center gap-1 text-geo-muted">
+              Turn
+              <div className="flex overflow-hidden rounded border border-geo-border">
+                {/* Written out rather than mapped: the highlight catalogue is
+                    checked against literal id attributes found in the source,
+                    so an interpolated one would leave the assistant pointing at
+                    a control the test believes does not exist. (The scanner
+                    reads comments too, so this one says it in prose.) */}
+                <button
+                  type="button"
+                  disabled={!origin || busy}
+                  data-ourgeo-id="draw.traverse.turn.left"
+                  className={`px-2 py-1 ${turnCls(curve.turn === 'left')}`}
+                  title="Curve to the left"
+                  onClick={() => tv.getState().setCurve({ turn: 'left' })}
+                >
+                  ↰ Left
+                </button>
+                <button
+                  type="button"
+                  disabled={!origin || busy}
+                  data-ourgeo-id="draw.traverse.turn.right"
+                  className={`px-2 py-1 ${turnCls(curve.turn === 'right')}`}
+                  title="Curve to the right"
+                  onClick={() => tv.getState().setCurve({ turn: 'right' })}
+                >
+                  ↱ Right
+                </button>
+              </div>
+            </div>
+
+            {/* Two element slots, each saying WHAT it is. A plan quotes
+                whichever two it likes, and converting by hand before typing is
+                exactly what this tool exists to stop. */}
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              <select
+                className={selectCls}
+                value={curve.aId}
+                data-ourgeo-id="draw.traverse.curve.aId"
+                title={CURVE_ELEMENTS[curve.aId].hint}
+                onChange={(e) => tv.getState().setCurve({ aId: e.target.value as CurveElementId })}
+              >
+                {elementIds.map((e) => (
+                  <option key={e} value={e}>{CURVE_ELEMENTS[e].label}</option>
+                ))}
+              </select>
+              <input
+                ref={firstFieldRef}
+                className={`${inputCls} w-24`}
+                value={curve.aText}
+                disabled={!origin || busy}
+                placeholder={CURVE_ELEMENTS[curve.aId].quantity === 'angle' ? "45°30'" : '250.00'}
+                data-ourgeo-id="draw.traverse.curve.a"
+                onChange={(e) => tv.getState().setCurve({ aText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              {CURVE_ELEMENTS[curve.aId].quantity === 'length' && (
+                <span className="text-geo-muted">{UNITS[unit].abbr}</span>
+              )}
+            </label>
+
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              <select
+                className={selectCls}
+                value={curve.bId}
+                data-ourgeo-id="draw.traverse.curve.bId"
+                title={CURVE_ELEMENTS[curve.bId].hint}
+                onChange={(e) => tv.getState().setCurve({ bId: e.target.value as CurveElementId })}
+              >
+                {elementIds.map((e) => (
+                  <option key={e} value={e}>{CURVE_ELEMENTS[e].label}</option>
+                ))}
+              </select>
+              <input
+                className={`${inputCls} w-24`}
+                value={curve.bText}
+                disabled={!origin || busy}
+                placeholder={CURVE_ELEMENTS[curve.bId].quantity === 'angle' ? "45°30'" : '250.00'}
+                data-ourgeo-id="draw.traverse.curve.b"
+                onChange={(e) => tv.getState().setCurve({ bText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              {CURVE_ELEMENTS[curve.bId].quantity === 'length' && (
+                <span className="text-geo-muted">{UNITS[unit].abbr}</span>
+              )}
+            </label>
+
+            {/* Degree of curve means two different radii depending on the
+                convention the plan was drawn to, and nothing in the number says
+                which — so it is asked, and only where it applies. */}
+            {(curve.aId === 'degreeOfCurve' || curve.bId === 'degreeOfCurve') && (
+              <select
+                className={selectCls}
+                value={curve.degreeDefinition}
+                data-ourgeo-id="draw.traverse.curve.degreeDef"
+                title="Arc definition: the angle subtending a 100-unit ARC. Chord definition: a 100-unit CHORD. Highway plans usually mean arc, railroads chord."
+                onChange={(e) => tv.getState().setCurve({
+                  degreeDefinition: e.target.value as 'arc' | 'chord',
+                })}
+              >
+                <option value="arc">arc def.</option>
+                <option value="chord">chord def.</option>
+              </select>
+            )}
+
+            {/* A non-tangent curve does not continue anything, so the page has
+                to say which way it faces. */}
+            {courseType === 'curve' && (
+              <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+                <select
+                  className={selectCls}
+                  value={curve.orientKind}
+                  data-ourgeo-id="draw.traverse.curve.orientKind"
+                  onChange={(e) => tv.getState().setCurve({
+                    orientKind: e.target.value as 'chord' | 'radial',
+                  })}
+                >
+                  <option value="chord">Chord bearing</option>
+                  <option value="radial">Radial in</option>
+                </select>
+                <input
+                  className={`${inputCls} w-28`}
+                  value={curve.orientText}
+                  disabled={!origin || busy}
+                  placeholder={mode === 'quadrant' ? "S22°45'W" : "202°45'"}
+                  title={
+                    curve.orientKind === 'chord'
+                      ? 'Bearing of the long chord, start of the curve to its end — what a plat quotes.'
+                      : 'Bearing from the start of the curve to its centre.'
+                  }
+                  data-ourgeo-id="draw.traverse.curve.orient"
+                  onChange={(e) => tv.getState().setCurve({ orientText: e.target.value })}
+                  onKeyDown={onEnter}
+                />
+              </label>
+            )}
+          </>
+        )}
 
         <RibbonButton
           accent
@@ -581,25 +1013,25 @@ export function TraverseBar(): React.ReactElement | null {
             busy
               ? 'Asking R for the grid position…'
               : pendingRowAdd
-                ? 'Add a row and place this leg in it (Enter)'
+                ? 'Add a row and place this course in it (Enter)'
                 : isPoint
                   ? 'Place this point and move to the next row (Enter)'
-                  : 'Place this leg (Enter)'
+                  : 'Place this course (Enter)'
           }
           disabled={!origin || busy}
           onClick={submit}
         >
-          <Check className="w-3 h-3" />
-          {pendingRowAdd ? 'Add row + leg' : 'Add leg'}
+          {isCurve ? <Spline className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+          {pendingRowAdd ? 'Add row + course' : 'Add course'}
           <kbd className="ml-1 text-[9px] text-geo-muted">⏎</kbd>
         </RibbonButton>
         <RibbonButton
-          title={isPoint ? 'Take back the last point and step back a row' : 'Remove the last leg'}
-          disabled={!canUndoLeg || busy}
-          onClick={undoLeg}
+          title={isPoint ? 'Take back the last point and step back a row' : 'Remove the last course'}
+          disabled={!canUndo || busy}
+          onClick={undoCourse}
         >
           <Undo2 className="w-3 h-3" />
-          Undo leg
+          Undo
         </RibbonButton>
         {isPoint ? (
           <RibbonButton
@@ -636,9 +1068,9 @@ export function TraverseBar(): React.ReactElement | null {
 
         {/* How the traverse is going: what it has cost so far, and — once it
             could be a ring — how far it is from closing. */}
-        {legs.length > 0
-          ? <LegList legs={legs} unit={unit} />
-          : <span className="flex-shrink-0 text-geo-muted">{legCount} leg{legCount === 1 ? '' : 's'}</span>}
+        {courses.length > 0
+          ? <CourseList courses={courses} unit={unit} />
+          : <span className="flex-shrink-0 text-geo-muted">no courses yet</span>}
         {shut && (
           <span className="flex-shrink-0 text-geo-muted">
             {formatDistance(shut.perimeterM, unit)} · closure{' '}
@@ -647,6 +1079,50 @@ export function TraverseBar(): React.ReactElement | null {
           </span>
         )}
       </div>
+
+      {/* Row 3 — every element of the curve, not just the two that were typed.
+          Checking a curve against a plat means checking L, C, T, E and M, and
+          those are the numbers a deed quotes to be checked against. It appears
+          only while a curve is being typed, so a straight traverse looks
+          exactly as it always did. */}
+      {isCurve && pendingCurve?.elements && !complaint && (
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[11px] text-geo-muted">
+          {([
+            ['R', formatDistance(pendingCurve.elements.radiusM, unit)],
+            ['Δ', formatDms(pendingCurve.elements.deltaDeg)],
+            ['L', formatDistance(pendingCurve.elements.arcLengthM, unit)],
+            ['C', formatDistance(pendingCurve.elements.chordM, unit)],
+            ['T', pendingCurve.elements.tangentM === null
+              ? '—' : formatDistance(pendingCurve.elements.tangentM, unit)],
+            ['E', pendingCurve.elements.externalM === null
+              ? '—' : formatDistance(pendingCurve.elements.externalM, unit)],
+            ['M', formatDistance(pendingCurve.elements.midOrdinateM, unit)],
+          ] as const).map(([sym, value]) => (
+            <span key={sym}>
+              <span className="text-geo-muted/70">{sym}</span> <span className="text-foreground">{value}</span>
+            </span>
+          ))}
+          {pendingCurve.geometry && (
+            <span>
+              <span className="text-geo-muted/70">chord brg</span>{' '}
+              <span className="text-foreground">
+                {formatBearing(pendingCurve.geometry.chordAzimuthDeg, mode === 'quadrant' ? 'quadrant' : 'azimuth')}
+              </span>
+            </span>
+          )}
+          {(unit === 'ft' || unit === 'usft') && (
+            <span title="Degree of curve, arc definition, on 100-unit stations">
+              <span className="text-geo-muted/70">D</span>{' '}
+              <span className="text-foreground">{formatDms(pendingCurve.elements.degreeOfCurveArc)}</span>
+            </span>
+          )}
+          <span className="text-geo-muted/70">
+            · leaves {formatDms(pendingCurve.tangentAz ?? 0)}, arrives{' '}
+            {formatDms(norm360((pendingCurve.tangentAz ?? 0)
+              + (curve.turn === 'right' ? 1 : -1) * pendingCurve.elements.deltaDeg))}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   solveCurve, curveGeometry, tangentAzimuthFromChord, tangentAzimuthFromRadial,
-  radiusFromDegreeOfCurve, degreeOfCurveFromRadius,
+  radiusFromDegreeOfCurve, degreeOfCurveFromRadius, arcEndAzimuth, pathEndAzimuth,
   type CurveElementId, type CurveElements,
 } from './curve-cogo'
-import { inverse, norm360, toMetres, UNITS } from './cogo'
-import type { Position } from './types'
+import { closure, destination, inverse, norm360, toMetres, UNITS, type TraverseCourse } from './cogo'
+import type { DraftPath, Position } from './types'
 
 /**
  * The worked example every element is checked against: R = 400 ft, Δ = 60°.
@@ -316,5 +316,104 @@ describe('the deed call from the plan', () => {
     // puts the chord bearing half the deflection round: S 22°45' W.
     const g = curveGeometry([-122.4, 45], 180, res.value)
     expect(Math.abs(norm360(g.chordAzimuthDeg - (180 + 22.75) + 180) - 180)).toBeLessThan(0.01)
+  })
+})
+
+describe('reading a tangent back off drawn geometry', () => {
+  const pc: Position = [-122.4, 45]
+  const elementsFor = (deltaDeg: number, turn: 'left' | 'right'): CurveElements => {
+    const r = solveCurve({
+      turn, a: { id: 'radius', value: EX.radius }, b: { id: 'delta', value: deltaDeg },
+    })
+    if (!r.ok) throw new Error(r.error)
+    return r.value
+  }
+
+  /**
+   * A curve reaches the draft as ordinary arc segments — nothing left in the
+   * geometry says it was a curve — so the next course's deflection has to turn
+   * from a tangent recovered from the three points.
+   */
+  it.each([
+    ['right', 30], ['right', 90], ['right', 200], ['left', 30], ['left', 90], ['left', 200],
+  ] as const)('recovers the arrival tangent — %s %i°', (turn, delta) => {
+    const el = elementsFor(delta, turn)
+    const g = curveGeometry(pc, 40, el)
+    const via = g.at(0.5)
+    const recovered = arcEndAzimuth(pc, via, g.pt)
+    expect(recovered).not.toBeNull()
+    expect(Math.abs(norm360(recovered! - g.outAzimuthDeg + 180) - 180)).toBeLessThan(0.01)
+  })
+
+  it('is not the chord direction — that is what makes it worth computing', () => {
+    const el = elementsFor(90, 'right')
+    const g = curveGeometry(pc, 40, el)
+    const recovered = arcEndAzimuth(pc, g.at(0.5), g.pt)!
+    // The chord bisects the deflection, so it sits a full 45° away here.
+    expect(Math.abs(norm360(recovered - g.chordAzimuthDeg + 180) - 180)).toBeGreaterThan(40)
+  })
+
+  it('falls back to the bearing of a straight segment', () => {
+    const end = destination(pc, 500, 73)
+    const mid = destination(pc, 250, 73)
+    const az = arcEndAzimuth(pc, mid, end)!
+    expect(Math.abs(norm360(az - inverse(pc, end).finalAzimuth + 180) - 180)).toBeLessThan(0.01)
+  })
+
+  it('reads a whole path, arc or line, from its last segment', () => {
+    const el = elementsFor(90, 'right')
+    const g = curveGeometry(pc, 40, el)
+    const curved: DraftPath = {
+      vertices: [pc, g.pt],
+      segments: [{ kind: 'arc', via: g.at(0.5) }],
+    }
+    expect(Math.abs(norm360(pathEndAzimuth(curved)! - g.outAzimuthDeg + 180) - 180)).toBeLessThan(0.01)
+
+    const straight: DraftPath = { vertices: [pc, destination(pc, 300, 15)], segments: ['line'] }
+    expect(pathEndAzimuth(straight)).toBeCloseTo(inverse(pc, straight.vertices[1]).finalAzimuth, 6)
+
+    expect(pathEndAzimuth({ vertices: [pc], segments: [] })).toBeNull()
+  })
+})
+
+describe('closure with curves in the figure', () => {
+  /**
+   * The perimeter has to be the ARC of each curve, not its chord. A curve
+   * reaches the draft as a chain of arc segments, so a vertex walk measures the
+   * chords — and the 1:N a traverse is judged by would read better than the
+   * figure deserves, quietly, by exactly the amount the curves were shortened.
+   */
+  it('measures the arc, not the chord', () => {
+    const el = solveCurve({
+      turn: 'right', a: { id: 'radius', value: EX.radius }, b: { id: 'delta', value: 90 },
+    })
+    expect(el.ok).toBe(true)
+    if (!el.ok) return
+
+    const start: Position = [-122.4, 45]
+    const g = curveGeometry(start, 0, el.value)
+    // A closed figure: round the curve, then straight back to where it began.
+    const back = inverse(g.pt, start)
+    const vertices = [start, g.at(0.5), g.pt]
+    const courses: TraverseCourse[] = [
+      {
+        type: 'curve', tangential: true, turn: 'right', entered: [], unit: 'ft',
+        orientation: null, elements: el.value, inAzimuth: 0, outAzimuth: g.outAzimuthDeg,
+      },
+      {
+        type: 'line', distanceText: '', bearingText: '', unit: 'ft', mode: 'azimuth',
+        distanceM: back.distanceM, azimuth: back.initialAzimuth,
+      },
+    ]
+
+    const withCourses = closure(vertices, courses)!
+    const vertexWalk = closure(vertices)!
+
+    expect(withCourses.perimeterM).toBeCloseTo(el.value.arcLengthM + back.distanceM, 6)
+    // The vertex walk is short by the sagitta of both half-arcs — 5 m on a
+    // 191 m arc here, which would flatter the closure ratio by 3%.
+    expect(vertexWalk.perimeterM).toBeLessThan(withCourses.perimeterM - 4)
+    // The misclosure itself is the same either way: last vertex against first.
+    expect(withCourses.distanceM).toBeCloseTo(vertexWalk.distanceM, 9)
   })
 })

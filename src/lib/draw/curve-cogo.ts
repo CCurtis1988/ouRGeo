@@ -1,5 +1,7 @@
-import type { Position } from './types'
-import { destination, inverse, norm360, type ParseResult } from './cogo'
+import type { Position, DraftPath } from './types'
+import { destination, inverse, norm360, incomingAzimuth, type ParseResult } from './cogo'
+import { circumcircle } from './arc'
+import { localFrame } from './local-frame'
 
 /**
  * The circular curve a plat is written in.
@@ -374,4 +376,63 @@ export function tangentAzimuthFromChord(
 /** The tangent implied by a radial bearing from PC to the centre. */
 export function tangentAzimuthFromRadial(radialAzDeg: number, turn: TurnDirection): number {
   return norm360(radialAzDeg - (turn === 'right' ? 1 : -1) * 90)
+}
+
+
+// ── Reading a tangent back off geometry that is already drawn ───────────────
+
+/**
+ * The azimuth an arc segment ARRIVES on at `end`.
+ *
+ * A curve reaches the draft as ordinary arc segments, so once it is placed
+ * there is nothing left saying "this was a curve" — and the next course still
+ * has to turn from the tangent. Recovering it from the three points is what
+ * makes that work after an undo, after switching tools, and on a feature
+ * reopened from the layer, none of which any remembered value would survive.
+ *
+ * It is NOT the chord direction, and it is not what the densified display
+ * coordinates give either: `pathDisplayCoords` steps at 4°, so the last two of
+ * them are a chord across two degrees of sweep — half a degree of bearing error
+ * on a tight curve, which is a metre over a hundred.
+ */
+export function arcEndAzimuth(start: Position, via: Position, end: Position): number | null {
+  const f = localFrame(end)
+  const a = f.toLocal(start)
+  const b = f.toLocal(via)
+  const c = f.toLocal(end)
+  const cc = circumcircle(a, b, c)
+  // Collinear: the "arc" is a straight segment and arrives on its own bearing.
+  if (!cc) return inverse(start, end).finalAzimuth
+
+  const angleOf = (p: Position): number => Math.atan2(p[1] - cc.cy, p[0] - cc.cx)
+  const norm = (x: number): number => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+  const a0 = angleOf(a)
+  const ccwSweep = norm(angleOf(c) - a0)
+  const goCcw = norm(angleOf(b) - a0) <= ccwSweep
+
+  // The frame is (east, north), so the maths angle is atan2(north, east) and an
+  // azimuth is atan2(east, north) — the two are not the same rotation, which is
+  // why this is written out rather than done with an offset.
+  const phi = angleOf(c)
+  const east = goCcw ? -Math.sin(phi) : Math.sin(phi)
+  const north = goCcw ? Math.cos(phi) : -Math.cos(phi)
+  return norm360(Math.atan2(east, north) * DEG)
+}
+
+/**
+ * The azimuth the path arrives on at its last vertex — a straight leg's bearing
+ * or a curve's tangent, whichever the last segment is.
+ *
+ * This is what a relative bearing (a deflection, an angle right) turns from,
+ * and reading it off the last two VERTICES would be wrong for exactly the
+ * courses this feature adds.
+ */
+export function pathEndAzimuth(path: DraftPath): number | null {
+  const n = path.vertices.length
+  if (n < 2) return null
+  const seg = path.segments[n - 2]
+  if (seg && seg !== 'line') {
+    return arcEndAzimuth(path.vertices[n - 2], seg.via, path.vertices[n - 1])
+  }
+  return incomingAzimuth(path.vertices)
 }

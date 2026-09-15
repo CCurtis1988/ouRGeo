@@ -5,7 +5,8 @@ import {
 import { useDrawPreviewStore } from '@/store/drawPreview'
 import { useTraverseStore } from '@/store/traverse'
 import { canComplete, getPath } from '../draft'
-import { destination, incomingAzimuth, reduceGridLeg } from '../cogo'
+import { destination, incomingAzimuth, reduceGridLeg, courseOutAzimuth, type TraverseCourse } from '../cogo'
+import { pathEndAzimuth } from '../curve-cogo'
 import { buildTraverseRCode } from '../traverse-rcode'
 import { useSessionStore } from '@/store/session'
 
@@ -67,10 +68,30 @@ export function traverseOrigin(session: GeometryEditSession, storePath: Position
   return path.length > 0 ? path[path.length - 1] : null
 }
 
-/** The azimuth a relative bearing turns from — the one the last leg ARRIVED
- *  on, which is not the one it left on. See `cogo.ts`. */
-export function traverseIncoming(session: GeometryEditSession, storePath: Position[]): number | null {
-  return incomingAzimuth(traversePath(session, storePath))
+/**
+ * The azimuth a relative bearing turns from — the one the last course ARRIVED
+ * on, which is not the one it left on. See `cogo.ts`.
+ *
+ * A chain reads it off the draft's last SEGMENT rather than its last two
+ * vertices, because after a curve those two vertices are a chord and the
+ * tangent is somewhere else entirely — half the sweep of the final arc piece
+ * away. `pathEndAzimuth` recovers it from the arc's own three points, so it
+ * survives an undo and a feature reopened from the layer, neither of which a
+ * remembered value would.
+ */
+export function traverseIncoming(
+  session: GeometryEditSession, storePath: Position[], courses: TraverseCourse[] = []
+): number | null {
+  if (session.geometryType !== 'POINT') {
+    const path = getPath(session.draft, session.activePath)
+    return path ? pathEndAzimuth(path) : null
+  }
+  // A point traverse keeps only where each course LANDED, so after a curve the
+  // trail's last two points are a chord and the tangent is not in the geometry
+  // at all. The course record is the only place it survives.
+  const last = courses[courses.length - 1]
+  if (last) return courseOutAzimuth(last)
+  return incomingAzimuth(storePath)
 }
 
 /**
@@ -137,13 +158,13 @@ export async function undoTraverseLeg(ctx: Pick<DrawToolContext, 'undoLast'>): P
       // row after it.
       if (!appendsRows(session)) useGeometryEditStore.getState().retreatRow()
       traverse.popVertex()
-      traverse.dropLastLeg()
+      traverse.dropLastCourse()
     }
     return
   }
 
   store.undoVertex()
-  traverse.dropLastLeg()
+  traverse.dropLastCourse()
 }
 
 /**
@@ -178,8 +199,8 @@ export function echoTraverse(): void {
   const st = useTraverseStore.getState()
   const session = selectActiveSession(useGeometryEditStore.getState())
   const path = session ? traversePath(session, st.path) : st.path
-  if (path.length === 0 || st.legs.length === 0) return
-  const code = buildTraverseRCode(path[0], st.legs, st.basis, st.crs)
+  if (path.length === 0 || st.courses.length === 0) return
+  const code = buildTraverseRCode(path[0], st.courses, st.basis, st.crs)
   if (code) useSessionStore.getState().addConsoleEntry('info', code)
   st.reset()
 }

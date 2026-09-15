@@ -678,7 +678,28 @@ class RClient {
    */
   async spatialTraverse(body: {
     origin: [number, number]
-    legs: { distance: number; azimuth: number }[]
+    /**
+     * The courses to lay out. A straight one is a distance and an azimuth; a
+     * curve is a radius, a central angle and a turn, with `azimuth` carrying
+     * its incoming tangent — or omitted on a TANGENT curve, which inherits the
+     * previous course's arrival azimuth. `type` defaults to `'line'`, so the
+     * straight-only shape this started as still means what it meant.
+     */
+    courses: {
+      type?: 'line' | 'curve'
+      distance?: number
+      azimuth?: number
+      radius?: number
+      delta?: number
+      turn?: 'L' | 'R'
+      /**
+       * Vertices to cut the curve into. A power of two, because the renderer
+       * fits circular arcs through these points and needs every piece boundary
+       * and midpoint to land exactly on one rather than between two. Left off,
+       * R emits roughly one per degree of sweep.
+       */
+      samples?: number
+    }[]
     basis: 'geodesic' | 'grid'
     name?: string
     envName?: string

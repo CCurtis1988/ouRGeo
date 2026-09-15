@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { arcSpline, arcSplineFit } from './arc-spline'
+import { arcSpline, arcSplineFit, arcSplineFromSamples } from './arc-spline'
 import { densifyArc } from './arc'
 import { localFrame } from './local-frame'
 import { solveCurve, curveGeometry } from './curve-cogo'
@@ -166,5 +166,45 @@ describe('arcSpline on a curve that is not circular', () => {
     const fit = arcSplineFit(at, { toleranceM: 0.001, minPieces: 2 })
     expect(fit.pieces.length).toBeGreaterThanOrEqual(2)
     expect(fitError(at, fit.pieces)).toBeLessThan(0.0015)
+  })
+})
+
+describe('arcSplineFromSamples', () => {
+  /** A curve sampled at exact parameters, the way R returns a grid curve. */
+  const sampled = (deltaDeg: number, radiusFt: number, n: number): Position[] => {
+    const el = solveCurve({
+      turn: 'right', a: { id: 'radius', value: FT(radiusFt) }, b: { id: 'delta', value: deltaDeg },
+    })
+    if (!el.ok) throw new Error(el.error)
+    const at = curveGeometry([-122.4, 45], 30, el.value).at
+    return Array.from({ length: n + 1 }, (_, i) => at(i / n))
+  }
+
+  it('fits the samples it was given, with no interpolation', () => {
+    const samples = sampled(90, 400, 128)
+    const fit = arcSplineFromSamples(samples, { toleranceM: 0.001 })
+    expect(fit.truncated).toBe(false)
+    // Every via and end must BE one of the samples — interpolating between two
+    // of them is what this function exists to avoid.
+    for (const p of fit.pieces) {
+      expect(samples.some((s) => s[0] === p.via[0] && s[1] === p.via[1])).toBe(true)
+      expect(samples.some((s) => s[0] === p.end[0] && s[1] === p.end[1])).toBe(true)
+    }
+    expect(fit.pieces[fit.pieces.length - 1].end).toEqual(samples[samples.length - 1])
+  })
+
+  it('subdivides when one arc will not do', () => {
+    // A grid circle and the geodesic circle through three of its points agree
+    // to 0.03 mm at R = 250 m over 30° and diverge to 31 mm at R = 1000 m over
+    // 180°, so the piece count has to answer to the measurement, not a constant.
+    const gentle = arcSplineFromSamples(sampled(30, 250, 128), { toleranceM: 0.001 })
+    const severe = arcSplineFromSamples(sampled(340, 4000, 128), { toleranceM: 0.001 })
+    expect(gentle.pieces.length).toBeLessThan(severe.pieces.length)
+  })
+
+  it('degrades gracefully when there is almost nothing to fit', () => {
+    const two = arcSplineFromSamples([[0, 0], [0.001, 0.001]])
+    expect(two.pieces).toHaveLength(1)
+    expect(two.pieces[0].end).toEqual([0.001, 0.001])
   })
 })

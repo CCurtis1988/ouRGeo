@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTraverseStore } from '@/store/traverse'
 import { useGeometryEditStore, selectActiveSession } from '@/store/geometryEdit'
 import { useDrawPreviewStore } from '@/store/drawPreview'
 import { canStartNextPart, canStartHole } from '@/lib/draw/draft'
@@ -121,7 +122,17 @@ export function useDrawHotkeys() {
         else if (k === 'd') store.setActiveTool('draw')
         else if (k === 'e') store.setActiveTool('edit-vertices')
         else if (k === 'm') store.setActiveTool('move-feature')
-        else if (k === 'b') store.setActiveTool('distance-bearing')
+        else if (k === 'b') {
+          store.setActiveTool('distance-bearing')
+          useTraverseStore.getState().setCourseType('line')
+        } else if (k === 'u') {
+          // Same tool, same strip — a traverse mixes straight courses and
+          // curves in one figure, so they share the course list, the closure
+          // and the echoed R. The key only says which course to start on.
+          store.setActiveTool('distance-bearing')
+          const tv = useTraverseStore.getState()
+          tv.setCourseType(tv.courses.length > 0 ? 'tangent-curve' : 'curve')
+        }
         else if (k === 'r' && isPolygon) store.setActiveTool('rectangle')
         else if (k === 'c' && isPolygon) store.setActiveTool('circle')
         else if (k === 'f' && (isPolygon || isLine)) store.setActiveTool('freehand')

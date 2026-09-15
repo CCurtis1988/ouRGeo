@@ -4,6 +4,7 @@ import type { TraverseLeg } from './cogo'
 import type { CrsInfo } from '@/store/traverse'
 
 const leg = (over: Partial<TraverseLeg> = {}): TraverseLeg => ({
+  type: 'line',
   distanceText: '150', bearingText: '45', unit: 'm', mode: 'azimuth',
   distanceM: 150, azimuth: 45, ...over,
 })

@@ -140,3 +140,62 @@ export function arcSplineFit(at: (t: number) => Position, opts: ArcSplineOptions
 export function arcSpline(at: (t: number) => Position, opts: ArcSplineOptions = {}): ArcPiece[] {
   return arcSplineFit(at, opts).pieces
 }
+
+
+/**
+ * The same fit, for a curve that arrives as exact SAMPLES rather than as a
+ * function — which is how a grid curve reaches the renderer.
+ *
+ * On the grid basis the curve is a true circle in the layer's projected CRS and
+ * that arithmetic is R's, so the renderer never has a function to evaluate; it
+ * has the points R sent back. Interpolating between them to fake one would put
+ * metres of error into the probes, so instead the sample count is chosen to
+ * make interpolation unnecessary: with `2^k` intervals, every piece boundary
+ * and every via for 1, 2, 4 … `2^(k-1)` pieces lands exactly on a sample, and
+ * every remaining sample is a free error probe.
+ *
+ * Subdividing is not optional here. A grid circle and the geodesic circle
+ * through three of its points are not the same curve — measured against
+ * EPSG:32610 and EPSG:2227, they agree to 0.03 mm at R = 250 m over 30°, but
+ * diverge to 31 mm at R = 1000 m over 180°. One arc would have been fine for
+ * the common case and quietly wrong for the big one.
+ */
+export function arcSplineFromSamples(samples: Position[], opts: ArcSplineOptions = {}): ArcSplineFit {
+  const toleranceM = opts.toleranceM ?? 0.001
+  const maxPieces = opts.maxPieces ?? 64
+  const minPieces = Math.max(1, opts.minPieces ?? 1)
+  const intervals = samples.length - 1
+  if (intervals < 2) {
+    return { pieces: [{ via: samples[0], end: samples[samples.length - 1] }], errorM: 0, truncated: false }
+  }
+
+  const fit = (n: number): ArcSplineFit => {
+    const per = intervals / n
+    const pieces: ArcPiece[] = []
+    let worst = 0
+    for (let k = 0; k < n; k++) {
+      const i0 = Math.round(k * per)
+      const i1 = Math.round((k + 1) * per)
+      const im = Math.round(i0 + per / 2)
+      const start = samples[i0]
+      const via = samples[im]
+      const end = samples[i1]
+      pieces.push({ via, end })
+      for (let i = i0 + 1; i < i1; i++) {
+        if (i === im) continue
+        worst = Math.max(worst, probeErrorM(start, via, end, samples[i]))
+      }
+    }
+    return { pieces, errorM: worst, truncated: false }
+  }
+
+  // Only piece counts that divide the sample grid evenly, so a via is always a
+  // sample and never something halfway between two.
+  let best = fit(minPieces)
+  if (best.errorM <= toleranceM) return best
+  for (let n = minPieces * 2; n <= maxPieces && intervals % (2 * n) === 0; n *= 2) {
+    best = fit(n)
+    if (best.errorM <= toleranceM) return best
+  }
+  return { ...best, truncated: true }
+}
