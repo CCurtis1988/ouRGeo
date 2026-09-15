@@ -12,7 +12,7 @@ import {
 } from '@/lib/draw/tools/distance-bearing'
 import {
   parseDistance, parseBearing, parseAngle, parseCoordinate, formatDistance, formatRatio,
-  closure, formatDms, formatBearing, norm360, toMetres, courseLengthM,
+  closure, formatDms, formatBearing, norm360, toMetres, courseLengthM, inverse,
   UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
   type TraverseLeg, type TraverseCourse, type ParseResult,
 } from '@/lib/draw/cogo'
@@ -25,6 +25,7 @@ import {
   type CurveElementId, type CurveElements, type CurveGeometry,
 } from '@/lib/draw/curve-cogo'
 import { arcSplineFit, arcSplineFromSamples, type ArcPiece } from '@/lib/draw/arc-spline'
+import { bezierCourse, type BezierRun } from '@/lib/draw/curves'
 import { canComplete } from '@/lib/draw/draft'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
 import { saveSpatialSettings } from '@/lib/spatial-settings-persistence'
@@ -133,6 +134,9 @@ function elementIdsFor(unit: DistanceUnit): CurveElementId[] {
 function describeCourse(c: TraverseCourse): string {
   const abbr = UNITS[c.unit].abbr
   if (c.type === 'line') return `${c.distanceText} ${abbr} · ${c.bearingText}`
+  if (c.type === 'bezier') {
+    return `∿ ${c.distanceText} ${abbr} · ${c.bearingText} → ${c.arriveText}`
+  }
   const arrow = c.turn === 'left' ? '↰' : '↱'
   if (c.type === 'spiral') {
     return `${arrow} ${c.entered.map((e) => `${e.label} ${e.text}`).join('  ')}`
@@ -143,6 +147,7 @@ function describeCourse(c: TraverseCourse): string {
 /** The angle a course turned through, for the right-hand column of the list. */
 function courseAngle(c: TraverseCourse): number {
   if (c.type === 'line') return c.azimuth
+  if (c.type === 'bezier') return c.arriveAzimuth
   if (c.type === 'spiral') return c.elements.totalDeltaDeg
   return c.elements.deltaDeg
 }
@@ -215,6 +220,7 @@ const COURSE_LABELS: Record<CourseType, string> = {
   curve: 'Curve',
   spiral: 'Spiral',
   scs: 'Spiral–curve–spiral',
+  bezier: 'Free curve (Bézier)',
 }
 
 export function TraverseBar(): React.ReactElement | null {
@@ -228,6 +234,7 @@ export function TraverseBar(): React.ReactElement | null {
   const courseType = useTraverseStore((s) => s.courseType)
   const curve = useTraverseStore((s) => s.curve)
   const spiral = useTraverseStore((s) => s.spiral)
+  const bezier = useTraverseStore((s) => s.bezier)
   const entry = useTraverseStore((s) => s.entry)
   const unit = useTraverseStore((s) => s.unit)
   const mode = useTraverseStore((s) => s.mode)
@@ -249,9 +256,13 @@ export function TraverseBar(): React.ReactElement | null {
   const active = activeToolId === 'distance-bearing' && !!session
   const isCurve = courseType === 'curve' || courseType === 'tangent-curve'
   const isSpiral = courseType === 'spiral' || courseType === 'scs'
-  // Everything that is not a straight distance and bearing: the turn control
-  // and the element readout belong to all of them.
-  const isCurved = isCurve || isSpiral
+  const isBezier = courseType === 'bezier'
+  // A Bézier ends at a distance and a bearing like a straight course does —
+  // what makes it a curve is how it gets there, not where it goes. So it keeps
+  // those two fields and has no turn direction: its shape comes from the two
+  // headings rather than from a hand.
+  const showLineFields = courseType === 'line' || isBezier
+  const showTurn = isCurve || isSpiral
   // A point traverse measures from a reference point rather than from a
   // vertex, because a point layer's rows are separate features and the mark
   // they were shot from is usually not one of them.
@@ -386,7 +397,7 @@ export function TraverseBar(): React.ReactElement | null {
   // What the straight-course fields describe, recomputed on every keystroke:
   // the destination for the readout, or the refusal to show under the fields.
   const pending = useMemo(() => {
-    if (!origin || isCurved) return null
+    if (!origin || !showLineFields) return null
     const d = parseDistance(entry.distance, unit)
     const b = parseBearing(entry.bearing, mode, incoming)
     if (!d.ok || !b.ok) {
@@ -402,7 +413,7 @@ export function TraverseBar(): React.ReactElement | null {
       azimuth: b.value,
       complaint: null,
     }
-  }, [origin, isCurved, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
+  }, [origin, showLineFields, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
 
   /**
    * What the curve fields describe.
@@ -545,7 +556,58 @@ export function TraverseBar(): React.ReactElement | null {
     }
   }, [origin, isSpiral, courseType, spiral, curve.turn, unit, incoming, basis, usableFrame])
 
-  const complaint = pending?.complaint ?? pendingCurve?.complaint ?? pendingSpiral?.complaint ?? null
+  /**
+   * What the free-curve fields describe.
+   *
+   * The destination comes from `pending` — a Bézier ends at a distance and a
+   * bearing exactly as a straight course does — so all this adds is the
+   * heading to arrive on and how hard to bend getting there.
+   */
+  const pendingBezier = useMemo((): {
+    run: BezierRun | null
+    arriveAz: number | null
+    tension: number
+    lengthM: number
+    complaint: string | null
+  } | null => {
+    if (!origin || !isBezier) return null
+    const tension = Number(bezier.tensionText)
+    const none = { run: null, arriveAz: null, tension: 1, lengthM: 0 }
+    if (!pending?.position) return { ...none, complaint: null }
+    if (incoming === null) {
+      return {
+        ...none,
+        complaint: 'A free curve continues the course before it, and there is not one yet. '
+          + 'Place a distance and bearing first.',
+      }
+    }
+    if (!Number.isFinite(tension) || tension < 0) {
+      return { ...none, complaint: 'Bend is a number — 1 is the roundest curve between the two headings.' }
+    }
+    const arrive = parseBearing(bezier.arriveText, mode, incoming)
+    if (!arrive.ok) {
+      return { ...none, complaint: bezier.arriveText.trim() ? arrive.error : null }
+    }
+    // The typed arrival is a grid bearing on the grid basis; the curve is drawn
+    // on the ground either way, so it is turned by the convergence to be drawn
+    // and kept as typed in the record.
+    const drawArrive = basis === 'grid' && usableFrame
+      ? norm360(arrive.value + usableFrame.convergence)
+      : arrive.value
+    const run = bezierCourse(origin, incoming, pending.position, drawArrive, tension)
+    // Measured along the curve, which is what the closure has to count.
+    let lengthM = 0
+    let prev = run.at(0)
+    for (let i = 1; i <= 256; i++) {
+      const p = run.at(i / 256)
+      lengthM += inverse(prev, p).distanceM
+      prev = p
+    }
+    return { run, arriveAz: arrive.value, tension, lengthM, complaint: null }
+  }, [origin, isBezier, bezier, pending, incoming, mode, basis, usableFrame])
+
+  const complaint = pending?.complaint ?? pendingCurve?.complaint
+    ?? pendingSpiral?.complaint ?? pendingBezier?.complaint ?? null
 
   // The ghost is the course being typed. Cleared when the tool goes away, or
   // the dashed line would outlive the strip that explains it.
@@ -553,6 +615,18 @@ export function TraverseBar(): React.ReactElement | null {
     if (!active || !origin) {
       setGhost(null)
       tv.getState().setLegLabel(null)
+      return
+    }
+    if (isBezier) {
+      const run = pendingBezier?.run
+      if (!run) { setGhost(null); tv.getState().setLegLabel(null); return }
+      const coords: Position[] = []
+      for (let i = 0; i <= 96; i++) coords.push(run.at(i / 96))
+      setGhost({ type: 'LineString', coordinates: coords.map(([x, y]) => [x, y]) })
+      tv.getState().setLegLabel(
+        `${formatDistance(pendingBezier?.lengthM ?? 0, unit)} along`
+        + ` · arrives ${formatDms(run.outAzimuthDeg)}`
+      )
       return
     }
     if (isSpiral) {
@@ -594,8 +668,8 @@ export function TraverseBar(): React.ReactElement | null {
     tv.getState().setLegLabel(
       `${formatDistance(pending.distanceM ?? 0, unit)} · ${formatBearing(pending.azimuth ?? 0, mode, incoming)}`
     )
-  }, [active, origin, isCurve, isSpiral, pending, pendingCurve, pendingSpiral,
-    setGhost, unit, mode, incoming, tv])
+  }, [active, origin, isCurve, isSpiral, isBezier, pending, pendingCurve, pendingSpiral,
+    pendingBezier, setGhost, unit, mode, incoming, tv])
 
   useEffect(() => () => setGhost(null), [setGhost])
 
@@ -861,11 +935,97 @@ export function TraverseBar(): React.ReactElement | null {
   }, [session, origin, pendingSpiral, courseType, spiral, curve.turn, unit, basis,
     placeCurve, answerRowPrompt, setGhost, tv])
 
+  const submitBezier = useCallback(() => {
+    if (!session || !origin) return
+    const pb = pendingBezier
+    if (!pb?.run || pb.arriveAz === null || !pending?.position) {
+      tv.getState().setError(
+        pb?.complaint ?? 'Fill in the distance, the bearing and the heading to arrive on.'
+      )
+      return
+    }
+
+    const record: TraverseCourse = {
+      type: 'bezier',
+      unit,
+      mode,
+      distanceText: entry.distance.trim(),
+      bearingText: entry.bearing.trim(),
+      arriveText: bezier.arriveText.trim(),
+      distanceM: pending.distanceM ?? 0,
+      azimuth: pending.azimuth ?? 0,
+      arriveAzimuth: pb.arriveAz,
+      tension: pb.tension,
+      lengthM: pb.lengthM,
+      inAzimuth: incoming ?? 0,
+      outAzimuth: pb.run.outAzimuthDeg,
+    }
+
+    tv.getState().setBusy(true)
+    void (async () => {
+      try {
+        if (!(await answerRowPrompt())) return
+
+        if (basis === 'geodesic') {
+          const fit = arcSplineFit(pb.run!.at, { toleranceM: CURVE_TOLERANCE_M })
+          await placeCurve(fit.pieces, pb.run!.end)
+          tv.getState().addCourse(record)
+          setGhost(null)
+          firstFieldRef.current?.focus()
+          return
+        }
+
+        // On the grid basis the curve is R's, exactly as a circular curve or a
+        // spiral is: the ends are a distance and a bearing measured on the
+        // layer's own grid, and the shape between them is drawn in that plane.
+        // Asking only for the end point and drawing the rest here would commit
+        // a curve a few millimetres from the one the echo reproduces.
+        const gridTangent = usableFrame
+          ? norm360((incoming ?? 0) - usableFrame.convergence)
+          : incoming ?? 0
+        const res = await rClient.spatialTraverse({
+          origin, basis: 'grid',
+          courses: [{
+            type: 'bezier',
+            // `azimuth` is the bearing to the END point, so where the curve
+            // leaves is its own field rather than something R can infer from a
+            // single course sent on its own.
+            leave: gridTangent,
+            distance: record.distanceM,
+            azimuth: record.azimuth,
+            arrive: record.arriveAzimuth,
+            tension: record.tension,
+            samples: GRID_CURVE_SAMPLES,
+          }],
+          name: session.accessPath, envName: session.envName,
+        })
+        if (!res.success || !res.vertices || res.vertices.length < 3) {
+          tv.getState().setError(res.error ?? 'R could not place that curve on the layer’s grid.')
+          return
+        }
+        const samples = res.vertices as Position[]
+        const landed = samples[samples.length - 1]
+        const fit = arcSplineFromSamples(samples, { toleranceM: CURVE_TOLERANCE_M })
+        await placeCurve(fit.pieces, landed)
+        tv.getState().setFrame(res.frame ?? null, landed)
+        tv.getState().addCourse(record)
+        setGhost(null)
+        firstFieldRef.current?.focus()
+      } catch (e) {
+        tv.getState().setError(String(e))
+      } finally {
+        tv.getState().setBusy(false)
+      }
+    })()
+  }, [session, origin, pendingBezier, pending, entry, bezier, unit, mode, incoming,
+    basis, usableFrame, placeCurve, answerRowPrompt, setGhost, tv])
+
   const submit = useCallback(() => {
-    if (isSpiral) submitSpiral()
+    if (isBezier) submitBezier()
+    else if (isSpiral) submitSpiral()
     else if (isCurve) submitCurve()
     else submitLine()
-  }, [isCurve, isSpiral, submitCurve, submitLine, submitSpiral])
+  }, [isCurve, isSpiral, isBezier, submitCurve, submitLine, submitSpiral, submitBezier])
 
   const undoCourse = useCallback(() => {
     void undoTraverseLeg({ undoLast })
@@ -996,7 +1156,7 @@ export function TraverseBar(): React.ReactElement | null {
           ))}
         </select>
 
-        {!isCurved && (
+        {showLineFields && (
           <>
             <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
               Distance
@@ -1054,7 +1214,7 @@ export function TraverseBar(): React.ReactElement | null {
           </>
         )}
 
-        {isCurved && (
+        {showTurn && (
           <>
             {/* Which way it bends is the first thing a deed says, so it is a
                 pair of buttons rather than a dropdown to open. */}
@@ -1088,6 +1248,37 @@ export function TraverseBar(): React.ReactElement | null {
                 </button>
               </div>
             </div>
+          </>
+        )}
+
+        {isBezier && (
+          <>
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              Arrive
+              <input
+                className={`${inputCls} w-28`}
+                value={bezier.arriveText}
+                disabled={!origin || busy}
+                placeholder={mode === 'quadrant' ? "S30°E" : "150°"}
+                title="The heading the curve arrives on. It leaves on the one it inherited, so these two are the shape."
+                data-ourgeo-id="draw.traverse.bezier.arrive"
+                onChange={(e) => tv.getState().setBezier({ arriveText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+            </label>
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              Bend
+              <input
+                className={`${inputCls} w-14`}
+                value={bezier.tensionText}
+                disabled={!origin || busy}
+                placeholder="1"
+                title="How far the handles reach, as a multiple of a third of the chord. 1 is the roundest curve between the two headings; less tightens the bend toward the ends, more overshoots."
+                data-ourgeo-id="draw.traverse.bezier.tension"
+                onChange={(e) => tv.getState().setBezier({ tensionText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+            </label>
           </>
         )}
 
@@ -1366,6 +1557,25 @@ export function TraverseBar(): React.ReactElement | null {
           </span>
         )}
       </div>
+
+      {/* Row 3, for a free curve — what it cost to get there, which is not the
+          distance that was typed: that is the straight line to the end point
+          and this is the way round. */}
+      {isBezier && pendingBezier?.run && !complaint && (
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[11px] text-geo-muted">
+          <span>
+            <span className="text-geo-muted/70">along</span>{' '}
+            <span className="text-foreground">{formatDistance(pendingBezier.lengthM, unit)}</span>
+          </span>
+          <span>
+            <span className="text-geo-muted/70">chord</span>{' '}
+            <span className="text-foreground">{formatDistance(pendingBezier.run.chordM, unit)}</span>
+          </span>
+          <span className="text-geo-muted/70">
+            · leaves {formatDms(incoming ?? 0)}, arrives {formatDms(pendingBezier.run.outAzimuthDeg)}
+          </span>
+        </div>
+      )}
 
       {/* Row 3, for a transition course — the figures a plan-and-profile sheet
           prints beside the alignment, so the entry can be checked against it.

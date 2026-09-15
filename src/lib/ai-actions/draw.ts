@@ -24,9 +24,15 @@ import { useSessionStore } from '@/store/session'
 import { useUiStore } from '@/store/ui'
 import { rClient } from '@/lib/r-client'
 import { geometryToWKT } from '@/lib/geometry-geojson'
-import { destination, parseBearing, parseDistance, type BearingMode, type DistanceUnit, type TraverseLeg, UNIT_IDS, BEARING_MODE_IDS, incomingAzimuth } from '@/lib/draw/cogo'
+import { destination, parseBearing, parseDistance, parseAngle, norm360, toMetres, type BearingMode, type DistanceUnit, type TraverseCourse, UNIT_IDS, BEARING_MODE_IDS } from '@/lib/draw/cogo'
 import { buildTraverseRCode } from '@/lib/draw/traverse-rcode'
-import type { Position } from '@/lib/draw/types'
+import { solveCurve, curveGeometry, tangentAzimuthFromChord, pathEndAzimuth, type CurveElementId, type TurnDirection } from '@/lib/draw/curve-cogo'
+import { solveSpiral, spiralGeometry, type SpiralForm } from '@/lib/draw/spiral'
+import { bezierCourse } from '@/lib/draw/curves'
+import { arcSplineFit } from '@/lib/draw/arc-spline'
+import { draftToWkt } from '@/lib/draw/wkt'
+import { pathDisplayCoords } from '@/lib/draw/draft'
+import type { DraftPath, Position } from '@/lib/draw/types'
 import { saveEditGroups, discardEditGroups } from '@/lib/save-edits'
 import { ok, fail, argStr, argNum, argBool, argJson, argNumList, type UiAction, type ActionResult, type Args } from './types'
 
@@ -87,11 +93,22 @@ function parseGeometry(args: Args, key: string): GeoJSON.Geometry | string {
 }
 
 /** Stage one geometry against a row, exactly as a hand-drawn commit does. */
+/**
+ * `wktOverride` is how a CURVE survives this path.
+ *
+ * `geometry` is GeoJSON, which has no curve primitive, so it is the densified
+ * line the map draws. The WKT is what reaches R, and a curve typed as a curve
+ * has to arrive as a CIRCULARSTRING or it stops being one the moment the
+ * assistant places it — while the same figure typed by hand in the strip stays
+ * a curve. Two paths to the same geometry that disagree about what it IS would
+ * be the worst kind of inconsistency: invisible until someone reopens it.
+ */
 function stageGeometry(
   layer: SpatialLayer, rowId: number, geometry: GeoJSON.Geometry, isNewRow: boolean,
+  wktOverride?: string,
 ): void {
   const meta = metaFor(layer)
-  const wkt = geometryToWKT(geometry) ?? undefined
+  const wkt = wktOverride ?? geometryToWKT(geometry) ?? undefined
   const prevGeometry = layer.geojson.features[rowId]?.geometry ?? null
   const spatial = useSpatialStore.getState()
   const edit = { rowId, kind: 'geometry' as const, wkt, geometry, originalGeometry: prevGeometry }
@@ -283,8 +300,10 @@ export const drawActions: UiAction[] = [
     group: 'draw',
     tier: 'autopilot',
     summary:
-      'Build a feature from a start point and a list of distance-and-bearing legs — a traverse, ' +
-      'the way a boundary or a survey line is written down. Staged like any drawn geometry.',
+      'Build a feature from a start point and a list of courses — a traverse, the way a boundary, ' +
+      'a deed or an alignment is written down. Straight courses are a distance and a bearing; ' +
+      'curves, spirals and free curves are the other course types. Staged like any drawn geometry, ' +
+      'and curves are kept as real curves rather than densified.',
     params: [
       { name: 'layer', type: 'string', required: true, description: 'Vector layer to add to.' },
       {
@@ -294,13 +313,25 @@ export const drawActions: UiAction[] = [
       {
         name: 'legs', type: 'json', required: true,
         description:
-          'Array of legs in order, each {distance, bearing}. `distance` is a number (or a string ' +
-          'with a unit, "150ft"); `bearing` is an azimuth, a DMS azimuth (45°30\'15"), a ' +
-          'quadrant bearing (N45°30\'E) or a deflection from the previous leg (R90, L12°30\').',
+          'Array of courses in order. A straight one is {distance, bearing} — `distance` a number '
+          + 'or a string with its own unit ("150ft"), `bearing` an azimuth, a DMS azimuth '
+          + '(45°30\'15"), a quadrant bearing (N45°30\'E) or a deflection from the previous '
+          + 'course (R90, L12°30\'). Other courses carry a `type`:\n'
+          + '• {type:"curve", turn:"left"|"right", radius, and ONE of delta | arcLength | chord}. '
+          + 'It continues the previous course tangentially unless given a `chordBearing`, which is '
+          + 'what a plat quotes for a curve that does not.\n'
+          + '• {type:"spiral", turn, radius, length, form:"in"|"out"} — a clothoid transition, '
+          + 'always tangential. `radius` is the one it reaches.\n'
+          + '• {type:"scs", turn, radius, length, delta, lengthOut?} — the spiral-curve-spiral a '
+          + 'highway plan quotes as one unit. `delta` is the TOTAL deflection; `lengthOut` '
+          + 'defaults to `length`.\n'
+          + '• {type:"bezier", distance, bearing, arrive, tension?} — a free curve leaving on the '
+          + 'heading it inherited and arriving on `arrive`. `distance` and `bearing` are to its '
+          + 'END point, not along it.',
       },
       {
         name: 'unit', type: 'enum', values: [...UNIT_IDS], default: 'm',
-        description: 'Unit the distances are in, unless a leg names its own.',
+        description: 'Unit the distances, radii and spiral lengths are in, unless one names its own.',
       },
       {
         name: 'notation', type: 'enum', values: [...BEARING_MODE_IDS], default: 'azimuth',
@@ -310,7 +341,7 @@ export const drawActions: UiAction[] = [
       },
       {
         name: 'close', type: 'boolean', default: false,
-        description: 'Return to the start point after the last leg — for a closed boundary.',
+        description: 'Return to the start point after the last course — for a closed boundary.',
       },
     ],
     // Geodesic only, and the summary above says so rather than the tool
@@ -331,34 +362,196 @@ export const drawActions: UiAction[] = [
       }
       const rawLegs = argJson(args, 'legs')
       if (!Array.isArray(rawLegs) || rawLegs.length === 0) {
-        return fail('`legs` must be a non-empty array of {distance, bearing}.')
+        return fail('`legs` must be a non-empty array of courses — {distance, bearing} for a '
+          + 'straight one, or an object with a `type` for a curve, spiral or free curve.')
       }
 
       const unit = argStr(args, 'unit', 'm') as DistanceUnit
       const notation = argStr(args, 'notation', 'azimuth') as BearingMode
-      const vertices: Position[] = [start as Position]
-      const legs: TraverseLeg[] = []
+
+      // The figure is built as a draft path — vertices and the segments joining
+      // them — so a curve is arc segments here exactly as it is when somebody
+      // types one in the strip. GeoJSON has no curve, so the WKT is what keeps
+      // it one, and that is passed to `stageGeometry` below.
+      const path: DraftPath = { vertices: [start as Position], segments: [] }
+      const courses: TraverseCourse[] = []
+      const appendArcs = (pieces: { via: Position; end: Position }[]): void => {
+        for (const piece of pieces) {
+          path.vertices.push(piece.end)
+          path.segments.push({ kind: 'arc', via: piece.via })
+        }
+      }
+      const here = (): Position => path.vertices[path.vertices.length - 1]
+      const tangent = (): number | null => pathEndAzimuth(path)
 
       for (let i = 0; i < rawLegs.length; i++) {
-        const leg = rawLegs[i] as { distance?: unknown; bearing?: unknown }
-        const distanceText = String(leg?.distance ?? '')
-        const bearingText = String(leg?.bearing ?? '')
-        const d = parseDistance(distanceText, unit)
-        if (!d.ok) return fail(`Leg ${i + 1}: ${d.error}`)
-        const b = parseBearing(bearingText, notation, incomingAzimuth(vertices))
-        if (!b.ok) return fail(`Leg ${i + 1}: ${b.error}`)
-        vertices.push(destination(vertices[vertices.length - 1], d.value, b.value))
-        legs.push({ type: 'line', distanceText, bearingText, unit, mode: notation, distanceM: d.value, azimuth: b.value })
+        const raw = rawLegs[i] as Record<string, unknown>
+        const type = String(raw?.type ?? 'line')
+        const where = `Course ${i + 1}`
+
+        if (type === 'line') {
+          const distanceText = String(raw?.distance ?? '')
+          const bearingText = String(raw?.bearing ?? '')
+          const d = parseDistance(distanceText, unit)
+          if (!d.ok) return fail(`${where}: ${d.error}`)
+          const b = parseBearing(bearingText, notation, tangent())
+          if (!b.ok) return fail(`${where}: ${b.error}`)
+          path.vertices.push(destination(here(), d.value, b.value))
+          path.segments.push('line')
+          courses.push({
+            type: 'line', distanceText, bearingText, unit, mode: notation,
+            distanceM: d.value, azimuth: b.value,
+          })
+          continue
+        }
+
+        const turn = String(raw?.turn ?? 'right').toLowerCase().startsWith('l') ? 'left' : 'right'
+        const incoming = tangent()
+
+        if (type === 'curve') {
+          const radius = parseDistance(String(raw?.radius ?? ''), unit)
+          if (!radius.ok) return fail(`${where}: radius — ${radius.error}`)
+          const secondId: CurveElementId = raw?.delta !== undefined ? 'delta'
+            : raw?.arcLength !== undefined ? 'arcLength'
+              : raw?.chord !== undefined ? 'chord' : 'delta'
+          const rawSecond = String(raw?.delta ?? raw?.arcLength ?? raw?.chord ?? '')
+          const second = secondId === 'delta'
+            ? parseAngle(rawSecond) : parseDistance(rawSecond, unit)
+          if (!second.ok) return fail(`${where}: ${second.error}`)
+          const solved = solveCurve({
+            turn: turn as TurnDirection,
+            a: { id: 'radius', value: radius.value },
+            b: { id: secondId, value: second.value },
+            stationM: toMetres(100, unit),
+          })
+          if (!solved.ok) return fail(`${where}: ${solved.error}`)
+
+          let leave: number
+          if (raw?.chordBearing !== undefined) {
+            const cb = parseBearing(String(raw.chordBearing), notation, incoming)
+            if (!cb.ok) return fail(`${where}: chordBearing — ${cb.error}`)
+            leave = tangentAzimuthFromChord(cb.value, solved.value.deltaDeg, turn as TurnDirection)
+          } else if (incoming !== null) {
+            leave = incoming
+          } else {
+            return fail(`${where}: a curve continues the course before it. Put a straight course `
+              + 'first, or give the curve a `chordBearing`.')
+          }
+          const g = curveGeometry(here(), leave, solved.value)
+          appendArcs(arcSplineFit(g.at, {
+            toleranceM: 0.001, minPieces: solved.value.deltaDeg >= 170 ? 2 : 1,
+          }).pieces)
+          courses.push({
+            type: 'curve', tangential: raw?.chordBearing === undefined, turn: turn as TurnDirection,
+            entered: [{ id: 'radius', text: String(raw?.radius ?? '') }, { id: secondId, text: rawSecond }],
+            unit, orientation: null, elements: solved.value,
+            inAzimuth: leave, outAzimuth: g.outAzimuthDeg,
+          })
+          continue
+        }
+
+        if (type === 'spiral' || type === 'scs') {
+          if (incoming === null) {
+            return fail(`${where}: a transition curve continues the course before it. `
+              + 'Put a straight course first.')
+          }
+          const len = parseDistance(String(raw?.length ?? ''), unit)
+          if (!len.ok) return fail(`${where}: length — ${len.error}`)
+          const radius = parseDistance(String(raw?.radius ?? ''), unit)
+          if (!radius.ok) return fail(`${where}: radius — ${radius.error}`)
+          const lenOut = raw?.lengthOut !== undefined
+            ? parseDistance(String(raw.lengthOut), unit) : null
+          if (lenOut && !lenOut.ok) return fail(`${where}: lengthOut — ${lenOut.error}`)
+          const delta = type === 'scs' ? parseAngle(String(raw?.delta ?? '')) : null
+          if (delta && !delta.ok) return fail(`${where}: delta — ${delta.error}`)
+          const form: SpiralForm = type === 'scs' ? 'scs'
+            : String(raw?.form ?? 'in') === 'out' ? 'out' : 'in'
+          const solved = solveSpiral({
+            form, turn: turn as TurnDirection, radiusM: radius.value, lengthInM: len.value,
+            lengthOutM: lenOut && lenOut.ok ? lenOut.value : undefined,
+            totalDeltaDeg: delta && delta.ok ? delta.value : undefined,
+          })
+          if (!solved.ok) return fail(`${where}: ${solved.error}`)
+          const run = spiralGeometry(here(), incoming, solved.value, form, turn as TurnDirection)
+          for (const part of run.parts) {
+            appendArcs(arcSplineFit(part.at, { toleranceM: 0.001 }).pieces)
+          }
+          courses.push({
+            type: 'spiral', form, turn: turn as TurnDirection, unit,
+            entered: [
+              { label: 'Ls', text: String(raw?.length ?? '') },
+              { label: 'R', text: String(raw?.radius ?? '') },
+            ],
+            elements: solved.value, inAzimuth: incoming, outAzimuth: run.outAzimuthDeg,
+          })
+          continue
+        }
+
+        if (type === 'bezier') {
+          if (incoming === null) {
+            return fail(`${where}: a free curve continues the course before it. `
+              + 'Put a straight course first.')
+          }
+          const d = parseDistance(String(raw?.distance ?? ''), unit)
+          if (!d.ok) return fail(`${where}: ${d.error}`)
+          const b = parseBearing(String(raw?.bearing ?? ''), notation, incoming)
+          if (!b.ok) return fail(`${where}: ${b.error}`)
+          const arrive = parseBearing(String(raw?.arrive ?? ''), notation, incoming)
+          if (!arrive.ok) return fail(`${where}: arrive — ${arrive.error}`)
+          const tension = raw?.tension === undefined ? 1 : Number(raw.tension)
+          if (!Number.isFinite(tension) || tension < 0) {
+            return fail(`${where}: tension is a number — 1 is the roundest curve.`)
+          }
+          const end = destination(here(), d.value, b.value)
+          const run = bezierCourse(here(), incoming, end, arrive.value, tension)
+          let lengthM = 0
+          let prev = run.at(0)
+          for (let k = 1; k <= 256; k++) {
+            const q = run.at(k / 256)
+            lengthM += Math.hypot(
+              (q[0] - prev[0]) * 111320 * Math.cos((q[1] * Math.PI) / 180),
+              (q[1] - prev[1]) * 111132
+            )
+            prev = q
+          }
+          appendArcs(arcSplineFit(run.at, { toleranceM: 0.001 }).pieces)
+          courses.push({
+            type: 'bezier', unit, mode: notation,
+            distanceText: String(raw?.distance ?? ''), bearingText: String(raw?.bearing ?? ''),
+            arriveText: String(raw?.arrive ?? ''),
+            distanceM: d.value, azimuth: b.value, arriveAzimuth: norm360(arrive.value),
+            tension, lengthM, inAzimuth: incoming, outAzimuth: norm360(arrive.value),
+          })
+          continue
+        }
+
+        return fail(`${where}: unknown course type "${type}". `
+          + 'Use line, curve, spiral, scs or bezier.')
       }
-      if (argBool(args, 'close', false)) vertices.push(vertices[0])
+
+      const closing = argBool(args, 'close', false)
+      if (closing) {
+        path.vertices.push(path.vertices[0])
+        path.segments.push('line')
+      }
 
       const isPolygon = layer.geometryType.toUpperCase().includes('POLYGON')
-      if (isPolygon && vertices.length < 4) {
-        return fail('A polygon needs at least three legs and a closing leg — pass close: true.')
+      if (isPolygon && path.vertices.length < 4) {
+        return fail('A polygon needs at least three courses and a closing one — pass close: true.')
       }
+
+      // Two views of the same figure. The densified one is what the map draws,
+      // because GeoJSON has no curve; the WKT keeps the curves as curves, which
+      // is what reaches R and what the feature re-opens as.
+      const drawn = pathDisplayCoords(path) as Position[]
+      const ring = drawn[0] === drawn[drawn.length - 1] ? drawn : [...drawn, drawn[0]]
       const geometry: GeoJSON.Geometry = isPolygon
-        ? { type: 'Polygon', coordinates: [vertices[0] === vertices[vertices.length - 1] ? vertices : [...vertices, vertices[0]]] }
-        : { type: 'LineString', coordinates: vertices }
+        ? { type: 'Polygon', coordinates: [ring] }
+        : { type: 'LineString', coordinates: drawn }
+      const curvedWkt = draftToWkt(
+        { parts: [{ exterior: path, holes: [] }] },
+        isPolygon ? 'POLYGON' : 'LINESTRING'
+      ) ?? undefined
 
       const code = `${layer.name}[nrow(${layer.name}) + 1L, ] <- NA`
       const session = useSessionStore.getState()
@@ -372,18 +565,24 @@ export const drawActions: UiAction[] = [
       useSpatialStore.getState().addPendingGeometryEdit(meta, {
         rowId: newRow, kind: 'row-add', originalGeometry: null,
       })
-      stageGeometry(layer, newRow, geometry, true)
+      stageGeometry(layer, newRow, geometry, true, curvedWkt)
 
       // The same echo the strip writes when a hand-typed traverse finishes:
       // the geometry is staged, and this is the line that says where it came
       // from, in R the user can re-run.
-      const rcode = buildTraverseRCode(start as Position, legs, 'geodesic', null)
+      const rcode = buildTraverseRCode(start as Position, courses, 'geodesic', null)
       if (rcode) session.addConsoleEntry('info', rcode)
 
+      const curved = courses.filter((c) => c.type !== 'line').length
       return ok(
-        `Staged a ${geometry.type} of ${legs.length} leg${legs.length === 1 ? '' : 's'} as feature ` +
-        `${newRow + 1} of "${layer.name}", measured geodesically on WGS 84. ` +
-        'It is on the map and counted in Save Edits, but not yet written to the R object.'
+        `Staged a ${geometry.type} of ${courses.length} course`
+        + `${courses.length === 1 ? '' : 's'} as feature ${newRow + 1} of "${layer.name}", `
+        + 'measured geodesically on WGS 84.'
+        + (curved > 0
+          ? ` ${curved} of them ${curved === 1 ? 'is a curve and is' : 'are curves and are'} `
+            + 'kept as a real CIRCULARSTRING, not densified into the line.'
+          : '')
+        + ' It is on the map and counted in Save Edits, but not yet written to the R object.'
       )
     },
   },

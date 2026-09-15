@@ -117,6 +117,9 @@ handle_spatial_traverse <- function(body) {
       samples  = vapply(legs, function(l) num(l, "samples"), numeric(1)),
       form     = vapply(legs, function(l) as.character(l$form %||% NA_character_), character(1)),
       length   = vapply(legs, function(l) num(l, "length"), numeric(1)),
+      arrive   = vapply(legs, function(l) num(l, "arrive"), numeric(1)),
+      leave    = vapply(legs, function(l) num(l, "leave"), numeric(1)),
+      tension  = vapply(legs, function(l) num(l, "tension"), numeric(1)),
       length_out = vapply(legs, function(l) {
         v <- l$length_out %||% l$lengthOut
         if (is.null(v)) NA_real_ else as.numeric(v)
@@ -182,8 +185,20 @@ handle_spatial_traverse <- function(body) {
   # atan2(dx, dy), so the convergence is the negative of that — east of a UTM
   # central meridian it is positive, matching (λ − λ0)·sin φ.
   convergence <- -atan2(dx, dy) * 180 / pi
+  # The point scale factor is grid over ground and is DIMENSIONLESS, so
+  # `north_len` — which is in the CRS's own linear unit — has to be converted
+  # before the division. Without that, a State Plane zone in US survey feet
+  # reported a scale of 3.2806: the true factor of 0.99993 multiplied by 3.2808
+  # feet per metre. Everything that reads this divides a distance in METRES by
+  # it (`reduceGridLeg`, and the curve and spiral reductions beside it), so on
+  # every foot-based layer the previewed leg came out three and a quarter times
+  # too short. Only the preview: the committed vertex has always been R's own
+  # projected arithmetic, which is why this survived.
+  per_unit <- .ourgeo_unit_to_metre(tryCatch(crs$units_gdal, error = function(e) "metre"))
   ground <- .ourgeo_geod_inverse(lnglat, c(lnglat[1], lnglat[2] + d))
-  scale <- if (is.finite(ground) && ground > 0) north_len / ground else 1
+  scale <- if (is.finite(ground) && ground > 0 && !is.null(per_unit)) {
+    north_len * per_unit / ground
+  } else 1
 
   list(
     x = unname(xy[1, 1]), y = unname(xy[1, 2]),
@@ -435,6 +450,47 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   )
 }
 
+# Metres per degree of latitude and longitude — the standard WGS84 series, the
+# same one `src/lib/draw/local-frame.ts` uses.
+#
+# A free curve is built in this equirectangular frame rather than against a
+# geodesic chord, because the renderer builds it that way and the echo has to
+# reproduce what was on screen. Against a geodesic chord the two constructions
+# drift apart by the meridian convergence across the curve: measured, 4.1 mm
+# over a 400 m curve, with the endpoints still agreeing to a twentieth of a
+# millimetre. Small, and exactly the kind of difference that is impossible to
+# account for later.
+.ourgeo_m_per_deg <- function(lat) {
+  p <- lat * pi / 180
+  list(
+    mLat = 111132.92 - 559.82 * cos(2 * p) + 1.175 * cos(4 * p) - 0.0023 * cos(6 * p),
+    mLon = 111412.84 * cos(p) - 93.5 * cos(3 * p) + 0.118 * cos(5 * p)
+  )
+}
+
+# A free curve's plan offsets: a cubic Bezier leaving on one heading and
+# arriving on another, in a frame with x along the LEAVING heading.
+#
+# The handles are derived rather than given. A third of the chord is the
+# standard length and gives the roundest curve between two headings; `tension`
+# scales it, which is one number with an obvious default instead of two lengths
+# nobody has on their page.
+.ourgeo_bezier_local <- function(chord, leave_rel, arrive_rel, tension, n_out) {
+  h <- max(0, tension) * chord / 3
+  p0 <- c(0, 0)
+  p3 <- c(chord, 0)
+  # Headings relative to the chord, which is the frame these offsets are in.
+  c1 <- p0 + h * c(cos(leave_rel), sin(leave_rel))
+  # A handle points back along the arrival heading: it is where the curve is
+  # coming FROM, not where it is going.
+  c2 <- p3 - h * c(cos(arrive_rel), sin(arrive_rel))
+  t <- seq_len(n_out) / n_out
+  u <- 1 - t
+  x <- u^3 * p0[1] + 3 * u^2 * t * c1[1] + 3 * u * t^2 * c2[1] + t^3 * p3[1]
+  y <- u^3 * p0[2] + 3 * u^2 * t * c1[2] + 3 * u * t^2 * c2[2] + t^3 * p3[2]
+  list(x = x, y = y)
+}
+
 # One course's worth of vertices, walking the WGS84 ellipsoid.
 #
 # A curve is a locus of constant geodesic radius about its centre, which meets
@@ -454,6 +510,41 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
     stop("A tangent curve needs a course before it to be tangent to, or an azimuth of its own.")
   }
   sgn <- if (identical(course$turn, "L")) -1 else 1
+
+  if (identical(course$type, "bezier")) {
+    # A free curve's `azimuth` is the bearing to its END POINT, not the
+    # direction it leaves on — that is always inherited, which is what makes it
+    # a smooth continuation rather than a shape dropped next to one. So `az0`,
+    # which every other course reads from the azimuth column, is wrong here.
+    # A free curve's `azimuth` column is the bearing to its END POINT, so the
+    # direction it LEAVES on needs a column of its own — `leave`, or NA to
+    # inherit the previous course's arrival, which is the usual case and what
+    # makes it a smooth continuation rather than a shape dropped beside one.
+    az0 <- if (is.na(course$leave)) az_in else course$leave
+    if (is.na(az0)) {
+      stop("A free curve continues the course before it. Give it a `leave` bearing, or put a course before it.")
+    }
+    # The END is a distance and a bearing like any other course; what happens
+    # between the two ends is a shape, built in the local metric frame.
+    q <- .ourgeo_geod_direct(p, course$distance, course$azimuth)
+    fr <- .ourgeo_m_per_deg(p[2])
+    dx <- ((q[1] - p[1] + 180) %% 360 - 180) * fr$mLon
+    dy <- (q[2] - p[2]) * fr$mLat
+    tension <- if (is.finite(course$tension)) course$tension else 1
+    h <- max(0, tension) * sqrt(dx^2 + dy^2) / 3
+    a0 <- az0 * pi / 180
+    a1 <- course$arrive * pi / 180
+    c1 <- c(h * sin(a0), h * cos(a0))
+    # A handle points back along the arrival heading: it is where the curve is
+    # coming FROM, not where it is going.
+    c2 <- c(dx - h * sin(a1), dy - h * cos(a1))
+    tt <- seq_len(.ourgeo_curve_samples(course)) / .ourgeo_curve_samples(course)
+    uu <- 1 - tt
+    ex <- 3 * uu^2 * tt * c1[1] + 3 * uu * tt^2 * c2[1] + tt^3 * dx
+    ny <- 3 * uu^2 * tt * c1[2] + 3 * uu * tt^2 * c2[2] + tt^3 * dy
+    pts <- cbind(p[1] + ex / fr$mLon, p[2] + ny / fr$mLat)
+    return(list(pts = pts, az_out = course$arrive %% 360))
+  }
 
   if (identical(course$type, "spiral")) {
     n <- .ourgeo_curve_samples(course)
@@ -539,6 +630,29 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   }
   sgn <- if (identical(course$turn, "L")) -1 else 1
 
+  if (identical(course$type, "bezier")) {
+    az0 <- if (is.na(course$leave)) az_in else course$leave
+    if (is.na(az0)) {
+      stop("A free curve continues the course before it. Give it a `leave` bearing, or put a course before it.")
+    }
+    th <- course$azimuth * pi / 180
+    q <- c(xy[1] + course$distance * sin(th), xy[2] + course$distance * cos(th))
+    loc <- .ourgeo_bezier_local(
+      course$distance,
+      (az0 - course$azimuth) * pi / 180,
+      (course$arrive - course$azimuth) * pi / 180,
+      if (is.finite(course$tension)) course$tension else 1,
+      .ourgeo_curve_samples(course)
+    )
+    a <- th
+    b <- (course$azimuth + 90) * pi / 180
+    pts <- cbind(
+      xy[1] + loc$x * sin(a) + loc$y * sin(b),
+      xy[2] + loc$x * cos(a) + loc$y * cos(b)
+    )
+    return(list(pts = pts, az_out = course$arrive %% 360))
+  }
+
   if (identical(course$type, "spiral")) {
     loc <- .ourgeo_spiral_local(course$form, course$radius, course$length,
                                 course$length_out, course$delta,
@@ -578,12 +692,19 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
     radius = get("radius"), delta = get("delta"), turn = turn,
     samples = get("samples"), form = form,
     length = get("length"), length_out = get("length_out"),
+    arrive = get("arrive"), tension = get("tension"), leave = get("leave"),
     stringsAsFactors = FALSE
   )
-  bad <- !(out$type %in% c("line", "curve", "spiral"))
+  bad <- !(out$type %in% c("line", "curve", "spiral", "bezier"))
   if (any(bad)) {
-    stop("Course type must be \"line\", \"curve\" or \"spiral\"; got ", out$type[which(bad)[1]])
+    stop("Course type must be \"line\", \"curve\", \"spiral\" or \"bezier\"; got ",
+         out$type[which(bad)[1]])
   }
+  bz <- out$type == "bezier"
+  if (any(bz & (!is.finite(out$distance) | !is.finite(out$azimuth) | !is.finite(out$arrive)))) {
+    stop("Every free curve needs a distance, a bearing to its end point, and an arrival bearing.")
+  }
+  out$tension[bz & !is.finite(out$tension)] <- 1
   if (any(out$type == "line" & (!is.finite(out$distance) | !is.finite(out$azimuth)))) {
     stop("Every straight course needs a distance and an azimuth.")
   }

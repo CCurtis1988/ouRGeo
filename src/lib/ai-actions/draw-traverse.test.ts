@@ -53,7 +53,7 @@ describe('draw:traverse', () => {
       start: [-122.4194, 37.7749],
       legs: [{ distance: 150, bearing: 45 }, { distance: 100, bearing: '135' }],
     })
-    expect(msg).toContain('2 legs')
+    expect(msg).toContain('2 courses')
     const g = staged() as GeoJSON.LineString
     expect(g.type).toBe('LineString')
     expect(g.coordinates).toHaveLength(3)
@@ -109,7 +109,7 @@ describe('draw:traverse', () => {
       layer: 'bounds', start: [0, 0],
       legs: [{ distance: 100, bearing: 45 }, { distance: 100, bearing: 'sideways' }],
     })
-    expect(msg).toContain('Leg 2')
+    expect(msg).toContain('Course 2')
   })
 
   it('refuses a deflection with no leg to turn from, at the boundary', async () => {
@@ -117,7 +117,7 @@ describe('draw:traverse', () => {
       layer: 'bounds', start: [0, 0], notation: 'deflection',
       legs: [{ distance: 100, bearing: 'R90' }],
     })
-    expect(msg).toContain('Leg 1')
+    expect(msg).toContain('Course 1')
     expect(msg).toContain('azimuth or a quadrant bearing')
   })
 
@@ -146,5 +146,94 @@ describe('draw:traverse', () => {
       layer: 'bounds', start: [0, 0], legs: [{ distance: 10, bearing: 0 }],
     })
     expect(msg).toContain('not yet written to the R object')
+  })
+})
+
+/**
+ * The assistant and the entry strip have to produce the same KIND of thing.
+ *
+ * GeoJSON has no curve, so the staged `geometry` is the densified line the map
+ * draws — but the WKT is what reaches R, and a curve typed as a curve has to
+ * arrive as one. Two paths to the same figure that disagreed about what it IS
+ * would be invisible until somebody reopened the feature to edit it.
+ */
+describe('draw:traverse — curved courses', () => {
+  const stagedWkt = (): string | undefined => {
+    const edits = Object.values(useSpatialStore.getState().pendingGeometryEdits)[0] ?? []
+    return edits.find((e) => e.kind === 'geometry')?.wkt
+  }
+
+  it('keeps a curve a curve, all the way to the WKT', async () => {
+    const msg = await run('draw:traverse', {
+      layer: 'bounds',
+      start: [-122.4194, 37.7749],
+      unit: 'ft',
+      legs: [
+        { distance: 150, bearing: 45.5 },
+        { type: 'curve', turn: 'right', radius: 250, delta: 45.5 },
+        { distance: 82, bearing: 168 },
+      ],
+    })
+    expect(msg).not.toMatch(/^FAILED/)
+    expect(msg).toContain('3 courses')
+    expect(msg).toMatch(/kept as a real CIRCULARSTRING/)
+
+    const wkt = stagedWkt()!
+    expect(wkt).toMatch(/^COMPOUNDCURVE\(/)
+    expect(wkt).toContain('CIRCULARSTRING(')
+    // The map still gets a plain line, because GeoJSON has nowhere to put one.
+    expect(staged()!.type).toBe('LineString')
+  })
+
+  it('takes a spiral–curve–spiral the way a highway plan quotes one', async () => {
+    const msg = await run('draw:traverse', {
+      layer: 'bounds',
+      start: [-122.4194, 37.7749],
+      unit: 'ft',
+      legs: [
+        { distance: 300, bearing: 0 },
+        { type: 'scs', turn: 'right', radius: 1000, length: 150, delta: 45.5 },
+      ],
+    })
+    expect(msg).not.toMatch(/^FAILED/)
+    expect(stagedWkt()).toContain('CIRCULARSTRING(')
+  })
+
+  it('takes a free curve between two headings', async () => {
+    const msg = await run('draw:traverse', {
+      layer: 'bounds',
+      start: [-122.4194, 37.7749],
+      legs: [
+        { distance: 200, bearing: 0 },
+        { type: 'bezier', distance: 400, bearing: 45, arrive: 90 },
+      ],
+    })
+    expect(msg).not.toMatch(/^FAILED/)
+    expect(stagedWkt()).toContain('CIRCULARSTRING(')
+  })
+
+  it('says which course is wrong, and why', async () => {
+    const ambiguous = await run('draw:traverse', {
+      layer: 'bounds', start: [-122.4194, 37.7749], unit: 'ft',
+      legs: [
+        { distance: 150, bearing: 45 },
+        { type: 'curve', turn: 'right', radius: 250, chord: 900 },
+      ],
+    })
+    expect(ambiguous).toMatch(/Course 2/)
+    expect(ambiguous).toMatch(/never be longer than twice the radius/)
+
+    const untethered = await run('draw:traverse', {
+      layer: 'bounds', start: [-122.4194, 37.7749], unit: 'ft',
+      legs: [{ type: 'curve', turn: 'right', radius: 250, delta: 45 }],
+    })
+    expect(untethered).toMatch(/Course 1/)
+    expect(untethered).toMatch(/chordBearing/)
+
+    const unknown = await run('draw:traverse', {
+      layer: 'bounds', start: [-122.4194, 37.7749],
+      legs: [{ type: 'helix', radius: 10 }],
+    })
+    expect(unknown).toMatch(/unknown course type "helix"/)
   })
 })

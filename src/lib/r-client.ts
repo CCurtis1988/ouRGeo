@@ -686,7 +686,7 @@ class RClient {
      * straight-only shape this started as still means what it meant.
      */
     courses: {
-      type?: 'line' | 'curve' | 'spiral'
+      type?: 'line' | 'curve' | 'spiral' | 'bezier'
       distance?: number
       azimuth?: number
       radius?: number
@@ -696,6 +696,14 @@ class RClient {
       form?: 'in' | 'out' | 'scs'
       length?: number
       lengthOut?: number
+      /**
+       * Free curves. `azimuth` is the bearing to the END point here, so the
+       * direction the curve LEAVES on needs its own field — omit it to inherit
+       * the previous course's arrival.
+       */
+      arrive?: number
+      tension?: number
+      leave?: number
       /**
        * Vertices to cut the curve into. A power of two, because the renderer
        * fits circular arcs through these points and needs every piece boundary

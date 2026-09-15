@@ -148,3 +148,63 @@ export function incomingTangent(path: DraftPath): Position | null {
   if (len < 1e-12) return null
   return [dx / len, dy / len]
 }
+
+// ── A Bézier somebody typed ────────────────────────────────────────────────
+
+export interface BezierRun {
+  at: (t: number) => Position
+  end: Position
+  /** The two handles, for drawing them while the numbers are being typed. */
+  controls: [Position, Position]
+  /** The azimuth the curve arrives on — the one it was told to arrive on. */
+  outAzimuthDeg: number
+  /** Straight-line distance from start to end. */
+  chordM: number
+}
+
+/**
+ * The typed form of the draw tool's Bézier gesture.
+ *
+ * Clicking a Bézier is three points nobody could describe in words. Typing one
+ * is a different question with the same answer: *leave here on this heading,
+ * arrive there on that one, and bend smoothly in between* — which is what a
+ * designed alignment, a stream centreline or a sketched boundary actually is.
+ * So the entry is a destination and an arrival bearing, and the handles are
+ * derived rather than asked for.
+ *
+ * `tension` scales them. A third of the chord is the standard choice for a
+ * handle and gives the roundest curve between two headings; longer overshoots,
+ * shorter tightens the bend toward the ends. It is one number with an obvious
+ * default rather than two lengths nobody has on their page.
+ *
+ * Built in the local metric frame of the start, like everything else here — a
+ * Bézier in the lng/lat plane would lean with the latitude.
+ */
+export function bezierCourse(
+  start: Position, leaveAzDeg: number, end: Position, arriveAzDeg: number, tension = 1
+): BezierRun {
+  const f = localFrame(start)
+  const p0 = f.toLocal(start)
+  const p3 = f.toLocal(end)
+  const chordM = Math.hypot(p3[0] - p0[0], p3[1] - p0[1])
+  const h = (Math.max(0, tension) * chordM) / 3
+
+  const dir = (azDeg: number): Position => {
+    const a = (azDeg * Math.PI) / 180
+    return [Math.sin(a), Math.cos(a)]
+  }
+  const dLeave = dir(leaveAzDeg)
+  const dArrive = dir(arriveAzDeg)
+  const c1: Position = [p0[0] + h * dLeave[0], p0[1] + h * dLeave[1]]
+  // The second handle points BACK along the arrival heading: a handle is where
+  // the curve is coming from, not where it is going.
+  const c2: Position = [p3[0] - h * dArrive[0], p3[1] - h * dArrive[1]]
+
+  return {
+    at: (t: number) => (t <= 0 ? start : t >= 1 ? end : f.fromLocal(cubicBezier(p0, c1, c2, p3, t))),
+    end,
+    controls: [f.fromLocal(c1), f.fromLocal(c2)],
+    outAzimuthDeg: ((arriveAzDeg % 360) + 360) % 360,
+    chordM,
+  }
+}

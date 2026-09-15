@@ -609,6 +609,154 @@ implements the identical Vincenty direct solution as `cogo.ts`; each file names
 the other as the thing it must stay in step with. Verified by driving the app:
 the echoed call reproduced the saved geometry to 7e-13 degrees.
 
+## Curves (v1.16)
+
+Distance & Bearing could only place **straight** courses, and every real deed,
+plat and alignment mixes lines with curves:
+
+> *"…thence N45°30'E 150.00 feet; **thence along a curve to the right having a
+> radius of 250.00 feet, a central angle of 45°30'00"**; thence S12°00'E 82.00
+> feet…"*
+
+That middle call had to be eyeballed with the draw tool's Arc mode, which throws
+away the numbers the plat was written in. Now it is typed, and so are tangent
+curves, non-tangent curves, clothoid spirals, the spiral–curve–spiral a highway
+plan quotes as one unit, and a free curve between two headings.
+
+- **One tool, two doors.** Distance & Bearing (B) and Curve (U) activate the
+  same tool and the same strip; the Course selector switches between five kinds.
+  Splitting them would have split the FIGURE: the course list, the closure ratio
+  and the echoed `ourgeo_traverse()` would each have seen half of it, and a
+  closure computed on a path missing its curves announces nothing.
+- **`closure()` takes courses, and a curve contributes its ARC.** A curve reaches
+  the draft as arc segments, so the old vertex walk measured chords — and the
+  1:N a traverse is judged by would have read better than the figure deserved,
+  by exactly the amount the curves were shortened.
+- **`traverseIncoming` reads the draft's last SEGMENT**, not its last two
+  vertices: after a curve those two are a chord and the tangent is half an
+  arc-piece away. Recovered from the arc's own three points
+  (`curve-cogo.ts:arcEndAzimuth`), so it survives an undo and a feature reopened
+  from the layer, which no remembered value would.
+
+### `arc.ts` was wrong, and had been all along
+
+`circumcircle` took its circumcircle in raw lng/lat **degrees**, where a circle
+on the ground is an ellipse — a degree of longitude is 111 320·cos φ metres
+against 111 132 for a degree of latitude. Measured against true ground geometry,
+one three-point arc of radius 250 m through 90° landed **24.6 m** out at latitude
+45 and **46.8 m** at latitude 60.
+
+Subdivision could not rescue it: the error bottomed out near 15 mm and then
+climbed again, because the degeneracy test was an absolute `1e-12` on a quantity
+in degree² units, so a short arc went singular before it went accurate.
+`local-frame.ts` is the fix — metres east and north of one origin — and the
+degeneracy test is now relative to the input's own scale. `curves.ts` had to
+follow or the fix would have introduced two bugs of its own: a tangent curve
+made tangent in the lng/lat plane leaves a visible kink once drawn as a ground
+circle, and a Bézier's preview and the arcs it commits would have described
+different curves. **The three defining points of an arc are untouched**, so
+geometry already stored round-trips unchanged and only draws correctly now.
+
+### One solver, not twenty-eight
+
+Every circular element except the central angle is the radius times a function
+of that angle alone — `L = RΔ`, `C = 2R sin(Δ/2)`, `T = R tan(Δ/2)`,
+`E = R(sec(Δ/2)−1)`, `M = R(1−cos(Δ/2))`, and R itself with `f ≡ 1`. So for ANY
+two the ratio depends on Δ alone: one root-find gets the angle and the radius
+falls out. Degree of curve is not a seventh freedom — it is a restatement of the
+radius, which is why quoting both is refused rather than averaged.
+
+**Counting roots rather than assuming one** turned out to matter twice, and the
+two cases want different answers. A radius and a chord fit the minor arc AND its
+reflex partner (400 ft radius with a 400 ft chord is 60° or 300°); a tangent
+length and a mid-ordinate fit a shallow curve and a sharp one, both ordinary.
+The rule is **exactly one ordinary curve wins**: where the alternatives are
+reflex, the arc you would draw is taken — safe only because the readout prints
+every element back, Δ included, so a user who wanted the other can see they did
+not get it. Where two ORDINARY curves fit, only the surveyor knows, and it is
+refused by name with both angles listed.
+
+The strip prints **all** the elements, not the two that were typed, because
+checking a curve against a plat means checking L, C, T, E and M — a plat quotes
+them redundantly precisely so they can be checked.
+
+### No format ouRGeo writes has a clothoid
+
+ISO 19107 defines one abstractly; OGC WKT, GeoPackage, Shapefile and PostGIS do
+not, so `sf` has nowhere to put it. Approximation is not a shortcut, it is the
+only thing available — and what it is approximated WITH is the real choice.
+Measured on a highway spiral (Ls = 100 m, R = 250 m):
+
+| pieces | as circular arcs | as straight segments |
+|---|---|---|
+| 4 | 5.0 mm | 273 mm |
+| 8 | **0.63 mm** | 73 mm |
+| 16 | 0.08 mm | 19 mm |
+
+Eight arcs put a spiral inside a millimetre AND keep it a real `CIRCULARSTRING`.
+Sixty-four chords would still be worse and would have thrown the curve semantics
+away to get there. `arc-spline.ts` fits to a measured tolerance rather than a
+constant piece count, and **measures against the circle, not a densified
+polyline of it** — densifying at a 0.5° step leaves a 1.2 mm sagitta at
+R = 122 m, so that ruler was coarser than the millimetre being asked for and the
+fitter subdivided for ever chasing its own discretisation.
+
+### Two implementations of the spiral, deliberately
+
+The renderer uses the closed-form series (`spiral.ts`), because it runs per
+keystroke and at every probe the fitter takes. R integrates the CURVATURE
+instead (`handlers-cogo.R`): a clothoid is *defined* by curvature growing
+linearly, so integrating that definition needs no case analysis for entry, exit
+or spiral–curve–spiral, and an exit spiral stops being a curve built backwards.
+
+**Their disagreement is the check neither could perform alone.** They land
+0.11–0.15 mm apart on a lone spiral. The SCS was 1.57 mm apart until R stopped
+laying the whole unit out in one plane frame — the difference was the meridian
+convergence across the circular middle, which a geodesic circle's tangent turns
+by and a plane circle's does not, and the exit spiral carried that heading error
+along its whole length. R composes the unit from its three parts now, using the
+same geodesic circle a plain curve course uses, and they agree to 0.26 mm. The
+free curve had the same shape of problem (4.1 mm, from building against a
+geodesic chord instead of the local metric frame) and the same fix.
+
+### `ourgeo_traverse()` grew columns, not a signature
+
+It is a user-facing name people have saved in scripts, so curves arrive as
+**additive columns** — `type`, `radius`, `delta`, `turn`, `form`, `length`,
+`length_out`, `arrive`, `tension`, `leave`. No `type` column reads as
+all-straight, so a two-column call still means exactly what it meant.
+
+`azimuth` is NA on a tangential course, which is what tells R to inherit the
+previous course's arrival — the whole meaning of *tangent*, and the one thing a
+list of numbers cannot otherwise say. A free curve is the exception that proves
+it: its `azimuth` is the bearing to its END point, so where it LEAVES needs a
+column of its own (`leave`).
+
+**On the grid basis a curve is a true circle in the layer's projected CRS**, and
+that arithmetic is R's, exactly as a straight leg's is. It comes back as samples
+at exact parameters (`samples`, a power of two) so arcs can be fitted through
+them without interpolating — a grid circle and the geodesic circle through three
+of its points agree to 0.03 mm at R = 250 m over 30° and diverge to 31 mm at
+R = 1000 m over 180°, so the piece count answers to a measurement.
+
+### Verified against the real session
+
+`sf` reads the emitted `COMPOUNDCURVE` as a curve, keeps it through
+`st_transform` to EPSG:2227 and through a GeoPackage round trip, and
+`sfarc::st_arc_parameters` reads back a sweep of 45.4999° clockwise, a chord of
+193.341 ft and an arc of 198.517 ft from a curve typed as *"R 250 ft, Δ 45°30',
+right"*. The radius reads **249.982** grid feet rather than 250 — a GROUND radius
+is what the geodesic basis promises, and the projection's point scale factor is
+the difference. Chord and radius are off by the same 0.999928, which is what says
+it is the projection and not an error. It is also exactly why the grid basis sits
+beside the geodesic one.
+
+`draw:traverse` takes the curved course types too, and `stageGeometry` gained a
+`wktOverride` so they survive: GeoJSON has no curve, so the staged `geometry` is
+the densified line the map draws while the WKT keeps it a curve. Two paths to
+the same figure that disagreed about what it IS would be invisible until someone
+reopened the feature.
+
 ## Raster Layers (v1.7)
 
 Rasters are first-class end-to-end. `SpatialLayer` is discriminated by

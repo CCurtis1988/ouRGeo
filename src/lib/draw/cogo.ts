@@ -546,8 +546,34 @@ export interface TraverseSpiral {
   outAzimuth: number
 }
 
+/**
+ * One free-form course: leave smoothly on the heading you arrived on, end up
+ * there, arriving on that heading.
+ *
+ * Always tangential, like a spiral, and for the same reason — a Bézier typed
+ * rather than dragged is a SMOOTH continuation, and its leaving direction is
+ * the one thing about it that is not a choice.
+ */
+export interface TraverseBezier {
+  type: 'bezier'
+  unit: DistanceUnit
+  mode: BearingMode
+  distanceText: string
+  bearingText: string
+  arriveText: string
+  /** Distance and bearing to the END point, not along the curve. */
+  distanceM: number
+  azimuth: number
+  arriveAzimuth: number
+  tension: number
+  /** Measured along the curve, which is longer than the chord. */
+  lengthM: number
+  inAzimuth: number
+  outAzimuth: number
+}
+
 /** A course of any kind. Discriminate on `type`. */
-export type TraverseCourse = TraverseLeg | TraverseCurve | TraverseSpiral
+export type TraverseCourse = TraverseLeg | TraverseCurve | TraverseSpiral | TraverseBezier
 
 /**
  * Ground length of a course — measured ALONG it. A curve contributes its arc
@@ -558,6 +584,7 @@ export type TraverseCourse = TraverseLeg | TraverseCurve | TraverseSpiral
 export function courseLengthM(c: TraverseCourse): number {
   if (c.type === 'line') return c.distanceM
   if (c.type === 'spiral') return c.elements.totalLengthM
+  if (c.type === 'bezier') return c.lengthM
   return c.elements.arcLengthM
 }
 

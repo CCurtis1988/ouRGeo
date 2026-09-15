@@ -50,7 +50,7 @@ export interface TraverseEntry {
  * Which kind of course the strip is taking. Two doors in the ribbon lead here
  * — Distance & Bearing and Curve — and they differ only in what this starts on.
  */
-export type CourseType = 'line' | 'tangent-curve' | 'curve' | 'spiral' | 'scs'
+export type CourseType = 'line' | 'tangent-curve' | 'curve' | 'spiral' | 'scs' | 'bezier'
 
 /**
  * A curve being typed.
@@ -84,6 +84,17 @@ export interface SpiralEntry {
   deltaText: string
 }
 
+/**
+ * A free-form curve being typed. The destination reuses the distance and
+ * bearing fields — it is a destination like any other — so what is left is
+ * where to ARRIVE heading, and how hard to bend on the way.
+ */
+export interface BezierEntry {
+  arriveText: string
+  /** Handle length as a fraction of the chord ÷ 3; 1 is the roundest. */
+  tensionText: string
+}
+
 export interface CurveEntry {
   turn: TurnDirection
   aId: CurveElementId
@@ -114,6 +125,8 @@ interface TraverseState {
   curve: CurveEntry
   /** The same, for a transition course. */
   spiral: SpiralEntry
+  /** And for a free-form one. */
+  bezier: BezierEntry
   /** What is in the two fields right now — drives the ghost, not the draft. */
   entry: TraverseEntry
   unit: DistanceUnit
@@ -146,6 +159,7 @@ interface TraverseState {
   setCourseType: (t: CourseType) => void
   setCurve: (c: Partial<CurveEntry>) => void
   setSpiral: (c: Partial<SpiralEntry>) => void
+  setBezier: (c: Partial<BezierEntry>) => void
   addCourse: (course: TraverseCourse) => void
   dropLastCourse: () => void
   setUnit: (u: DistanceUnit) => void
@@ -168,6 +182,8 @@ const EMPTY_ENTRY: TraverseEntry = { distance: '', bearing: '' }
  * that books its curves by radius and arc length books all of them that way —
  * while the values clear, like the distance and bearing fields do.
  */
+const EMPTY_BEZIER: BezierEntry = { arriveText: '', tensionText: '1' }
+
 const EMPTY_SPIRAL: SpiralEntry = {
   direction: 'in', lengthText: '', lengthOutText: '', radiusText: '', deltaText: '',
 }
@@ -186,6 +202,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   courseType: 'line',
   curve: EMPTY_CURVE,
   spiral: EMPTY_SPIRAL,
+  bezier: EMPTY_BEZIER,
   entry: EMPTY_ENTRY,
   // Seeded from `spatial-settings.json` on load (see spatialSettings) — these
   // are the shipped defaults, not the user's.
@@ -205,12 +222,15 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   setCourseType: (courseType) => set({ courseType, error: null }),
   setCurve: (c) => set((s) => ({ curve: { ...s.curve, ...c }, error: null })),
   setSpiral: (c) => set((s) => ({ spiral: { ...s.spiral, ...c }, error: null })),
+  setBezier: (c) => set((s) => ({ bezier: { ...s.bezier, ...c }, error: null })),
   addCourse: (course) => set((s) => ({
     courses: [...s.courses, course],
     entry: EMPTY_ENTRY,
     // The element ids stay; only what was typed into them clears.
     curve: { ...s.curve, aText: '', bText: '', orientText: '' },
     spiral: { ...s.spiral, lengthText: '', lengthOutText: '', radiusText: '', deltaText: '' },
+    // The tension is a preference, not a measurement — it stays.
+    bezier: { ...s.bezier, arriveText: '' },
     error: null,
   })),
   dropLastCourse: () => set((s) => ({ courses: s.courses.slice(0, -1), error: null })),
@@ -227,6 +247,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
     path: [], courses: [], entry: EMPTY_ENTRY,
     curve: { ...s.curve, aText: '', bText: '', orientText: '' },
     spiral: { ...s.spiral, lengthText: '', lengthOutText: '', radiusText: '', deltaText: '' },
+    bezier: { ...s.bezier, arriveText: '' },
     frame: null, frameAt: null, busy: false, error: null, legLabel: null,
   })),
 }))

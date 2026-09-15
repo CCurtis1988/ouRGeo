@@ -255,3 +255,51 @@ describe('TraverseBar — transition courses', () => {
     expect(screen.getByTestId('draw.traverse.turn.right')).toBeInTheDocument()
   })
 })
+
+describe('TraverseBar — free curves', () => {
+  beforeEach(() => {
+    useTraverseStore.getState().reset()
+    useTraverseStore.getState().setCourseType('line')
+    useTraverseStore.getState().setUnit('ft')
+    useTraverseStore.getState().setMode('azimuth')
+    useTraverseStore.getState().setBezier({ tensionText: '1' })
+  })
+
+  /**
+   * A free curve ends at a distance and a bearing like a straight course does
+   * — what makes it a curve is how it gets there. So it keeps those two fields
+   * and has no turn direction: its shape is the two headings.
+   */
+  it('keeps the distance and bearing, and adds the two that make it a curve', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'bezier' } })
+    expect(screen.getByText('Distance')).toBeInTheDocument()
+    expect(screen.getByText('Bearing')).toBeInTheDocument()
+    expect(screen.getByTestId('draw.traverse.bezier.arrive')).toBeInTheDocument()
+    expect(screen.getByTestId('draw.traverse.bezier.tension')).toBeInTheDocument()
+    expect(screen.queryByTestId('draw.traverse.turn.right')).not.toBeInTheDocument()
+  })
+
+  it('reports the way round, which is not the distance that was typed', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'bezier' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.distance'), { target: { value: '400' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.bearing'), { target: { value: '90' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.bezier.arrive'), { target: { value: '150' } })
+
+    const chord = screen.getByText('chord').parentElement!
+    const along = screen.getByText('along').parentElement!
+    const value = (el: HTMLElement): number => Number(el.textContent!.replace(/[^\d.]/g, ''))
+    expect(value(chord)).toBeCloseTo(400, 0)
+    expect(value(along)).toBeGreaterThan(400)
+  })
+
+  it('refuses a bend that is not a number', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'bezier' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.distance'), { target: { value: '400' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.bearing'), { target: { value: '90' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.bezier.tension'), { target: { value: 'wide' } })
+    expect(screen.getByText(/Bend is a number/i)).toBeInTheDocument()
+  })
+})

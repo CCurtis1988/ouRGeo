@@ -34,6 +34,10 @@ function describeCourse(c: TraverseCourse): string {
   if (c.type === 'line') {
     return `${c.distanceText} ${abbr} · ${formatBearing(c.azimuth, c.mode)}`
   }
+  if (c.type === 'bezier') {
+    return `bezier · ${c.distanceText} ${abbr} · ${formatBearing(c.azimuth, c.mode)}`
+      + ` arriving ${formatBearing(c.arriveAzimuth, c.mode)}`
+  }
   if (c.type === 'spiral') {
     const name = c.form === 'scs' ? 'spiral-curve-spiral' : c.form === 'out' ? 'exit spiral' : 'spiral'
     const typed = c.entered.length > 0
@@ -53,17 +57,20 @@ function describeCourse(c: TraverseCourse): string {
 
 /** Curve and spiral courses carry different columns; these read one safely. */
 const radiusOf = (c: TraverseCourse): number | null =>
-  c.type === 'line' ? null : c.elements.radiusM
+  c.type === 'curve' || c.type === 'spiral' ? c.elements.radiusM : null
 const deltaOf = (c: TraverseCourse): number | null => {
-  if (c.type === 'line') return null
+  if (c.type === 'curve') return c.elements.deltaDeg
   // A lone spiral has no deflection to quote — it turns by its own spiral
   // angle, which `ourgeo_traverse` derives from the length and the radius.
-  return c.type === 'spiral'
-    ? (c.form === 'scs' ? c.elements.totalDeltaDeg : null)
-    : c.elements.deltaDeg
+  if (c.type === 'spiral') return c.form === 'scs' ? c.elements.totalDeltaDeg : null
+  return null
 }
+const distanceOf = (c: TraverseCourse): number | null =>
+  c.type === 'line' || c.type === 'bezier' ? c.distanceM : null
 const inAzimuthOf = (c: TraverseCourse): number | null => {
-  if (c.type === 'line') return c.azimuth
+  // For a straight course this is its bearing; for a Bézier it is the bearing
+  // to its END point, since where the curve LEAVES is inherited.
+  if (c.type === 'line' || c.type === 'bezier') return c.azimuth
   // NA means "inherit the previous course's arrival", which is the whole
   // meaning of tangent and the one thing a list of numbers cannot otherwise
   // say. A transition course is always tangential.
@@ -112,16 +119,27 @@ export function buildTraverseRCode(
   const hasSpiral = courses.some((c) => c.type === 'spiral')
   const columns: string[] = courses.every((c) => c.type === 'line')
     ? [
-      `    distance = ${col(courses.map((c) => (c.type === 'line' ? c.distanceM : null)))},  # metres`,
-      `    azimuth  = ${col(courses.map((c) => (c.type === 'line' ? c.azimuth : null)))}`,
+      `    distance = ${col(courses.map(distanceOf))},  # metres`,
+      `    azimuth  = ${col(courses.map(inAzimuthOf))}`,
     ]
     : [
       `    type     = ${chr(courses.map((c) => c.type))}`,
-      `    distance = ${col(courses.map((c) => (c.type === 'line' ? c.distanceM : null)))}  # metres`,
+      `    distance = ${col(courses.map(distanceOf))}  # metres`,
       `    azimuth  = ${col(courses.map(inAzimuthOf))}`,
       `    radius   = ${col(courses.map(radiusOf))}  # metres`,
       `    delta    = ${col(courses.map(deltaOf))}`,
-      `    turn     = ${chr(courses.map((c) => (c.type === 'line' ? null : c.turn === 'left' ? 'L' : 'R')))}`,
+      `    turn     = ${chr(courses.map((c) =>
+        c.type === 'curve' || c.type === 'spiral' ? (c.turn === 'left' ? 'L' : 'R') : null))}`,
+      ...(courses.some((c) => c.type === 'bezier')
+        ? [
+          `    arrive   = ${col(courses.map((c) => (c.type === 'bezier' ? c.arriveAzimuth : null)))}`,
+          `    tension  = ${col(courses.map((c) => (c.type === 'bezier' ? c.tension : null)))}`,
+          // Written out rather than left to inherit: the echo has to reproduce
+          // the figure on its own, and the first course of one has nothing to
+          // inherit from.
+          `    leave    = ${col(courses.map((c) => (c.type === 'bezier' ? c.inAzimuth : null)))}`,
+        ]
+        : []),
       ...(hasSpiral
         ? [
           `    form     = ${chr(courses.map((c) => (c.type === 'spiral' ? c.form : null)))}`,

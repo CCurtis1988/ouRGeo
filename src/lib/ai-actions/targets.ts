@@ -86,6 +86,8 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'draw.traverse.spiral.radius', label: 'Radius the spiral reaches', where: 'Distance & Bearing strip, on a transition course' },
   { id: 'draw.traverse.spiral.delta', label: 'Total deflection', where: 'Distance & Bearing strip, on a spiral–curve–spiral' },
   { id: 'draw.traverse.spiral.lengthOut', label: 'Exit spiral length', where: 'Distance & Bearing strip, on a spiral–curve–spiral' },
+  { id: 'draw.traverse.bezier.arrive', label: 'Heading to arrive on', where: 'Distance & Bearing strip, on a free curve' },
+  { id: 'draw.traverse.bezier.tension', label: 'How hard the free curve bends', where: 'Distance & Bearing strip, on a free curve' },
 
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },

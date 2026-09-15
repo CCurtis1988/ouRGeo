@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { cubicBezier, densifyBezier, bezierArcSpline, tangentArcVia, incomingTangent } from './curves'
+import {
+  cubicBezier, densifyBezier, bezierArcSpline, tangentArcVia, incomingTangent, bezierCourse,
+} from './curves'
+import { arcSplineFit } from './arc-spline'
 import { densifyArc } from './arc'
 import { localFrame } from './local-frame'
 import { inverse, destination, norm360 } from './cogo'
@@ -208,5 +211,64 @@ describe('incomingTangent', () => {
 
   it('is null when the path has fewer than two points', () => {
     expect(incomingTangent({ vertices: [[0, 0]], segments: [] })).toBeNull()
+  })
+})
+
+describe('bezierCourse', () => {
+  const start: Position = [-122.4, 45]
+
+  /**
+   * The two headings ARE the shape. A free curve that did not leave and arrive
+   * on the headings it was given would be a different curve wearing their
+   * numbers — and it would look perfectly plausible.
+   */
+  it.each([
+    [0, 90], [0, 270], [45, 45], [175, 5], [300, 120],
+  ])('leaves on %i° and arrives on %i°', (leave, arrive) => {
+    const end = destination(start, 400, (leave + arrive) / 2)
+    const run = bezierCourse(start, leave, end, arrive, 1)
+
+    const leaving = inverse(start, run.at(0.0005)).initialAzimuth
+    expect(Math.abs(norm360(leaving - leave + 180) - 180)).toBeLessThan(0.2)
+    const arriving = inverse(run.at(0.9995), run.end).initialAzimuth
+    expect(Math.abs(norm360(arriving - arrive + 180) - 180)).toBeLessThan(0.2)
+    expect(run.outAzimuthDeg).toBeCloseTo(norm360(arrive), 9)
+  })
+
+  it('starts and ends exactly where it was told', () => {
+    const end = destination(start, 400, 45)
+    const run = bezierCourse(start, 0, end, 90, 1)
+    expect(run.at(0)).toEqual(start)
+    expect(run.at(1)).toEqual(end)
+    expect(run.end).toEqual(end)
+    expect(run.chordM).toBeCloseTo(400, 1)
+  })
+
+  it('is longer than its chord, and more so the harder it bends', () => {
+    const end = destination(start, 400, 45)
+    const along = (tension: number): number => {
+      const run = bezierCourse(start, 0, end, 90, tension)
+      let total = 0
+      let prev = run.at(0)
+      for (let i = 1; i <= 512; i++) {
+        const p = run.at(i / 512)
+        total += inverse(prev, p).distanceM
+        prev = p
+      }
+      return total
+    }
+    expect(along(1)).toBeGreaterThan(400)
+    expect(along(1.5)).toBeGreaterThan(along(1))
+    // Zero handles collapse it to the straight line between the two ends.
+    expect(along(0)).toBeCloseTo(400, 1)
+  })
+
+  it('commits as arcs within a millimetre', () => {
+    const end = destination(start, 400, 45)
+    const run = bezierCourse(start, 0, end, 90, 1)
+    const fit = arcSplineFit(run.at, { toleranceM: 0.001 })
+    expect(fit.truncated).toBe(false)
+    expect(fit.errorM).toBeLessThan(0.001)
+    expect(fit.pieces[fit.pieces.length - 1].end).toEqual(end)
   })
 })
