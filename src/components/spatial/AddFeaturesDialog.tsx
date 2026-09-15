@@ -122,18 +122,24 @@ export function AddFeaturesDialog({ onLayersAdded }: AddFeaturesDialogProps): Re
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-foreground">{obj.name}</div>
                       <div className="text-xs text-geo-muted">
+                        {/* The separator is the CHARACTER, not `&middot;`. JSX
+                            decodes an entity written as text, but not one inside
+                            a string or template literal — and this line mixed
+                            both, so the CRS arrived on screen reading
+                            "1 feature &middot; EPSG:4326". Using the character
+                            throughout removes the two ways to write it. */}
                         {obj.class === 'SpatRaster' ? (
                           <>
-                            {obj.envName} &middot; Raster &middot; {obj.nBands ?? 1} band
+                            {obj.envName} · Raster · {obj.nBands ?? 1} band
                             {(obj.nBands ?? 1) !== 1 ? 's' : ''}
                             {obj.dims ? ` · ${obj.dims[0]}×${obj.dims[1]}` : ''}
                             {obj.crs ? ` · ${obj.crs}` : ''}
                           </>
                         ) : (
                           <>
-                            {obj.envName} &middot; {obj.geometryType} &middot; {obj.nFeatures} feature
+                            {obj.envName} · {obj.geometryType} · {obj.nFeatures} feature
                             {obj.nFeatures !== 1 ? 's' : ''}
-                            {obj.crs ? ` &middot; ${obj.crs}` : ''}
+                            {obj.crs ? ` · ${obj.crs}` : ''}
                           </>
                         )}
                       </div>
