@@ -183,3 +183,75 @@ describe('TraverseBar', () => {
     expect(Array.from(inMetres.options).map((o) => o.value)).not.toContain('degreeOfCurve')
   })
 })
+
+describe('TraverseBar — transition courses', () => {
+  beforeEach(() => {
+    useTraverseStore.getState().reset()
+    useTraverseStore.getState().setCourseType('line')
+    useTraverseStore.getState().setUnit('ft')
+    useTraverseStore.getState().setMode('quadrant')
+    useTraverseStore.getState().setSpiral({ direction: 'in' })
+  })
+
+  it('asks a spiral for its length and the radius it reaches', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'spiral' } })
+    expect(screen.getByTestId('draw.traverse.spiral.length')).toBeInTheDocument()
+    expect(screen.getByTestId('draw.traverse.spiral.radius')).toBeInTheDocument()
+    // Entry or exit — a different geometry, not a label.
+    expect(screen.getByTestId('draw.traverse.spiral.in')).toBeInTheDocument()
+    expect(screen.getByTestId('draw.traverse.spiral.out')).toBeInTheDocument()
+    // A lone spiral has no total deflection of its own to quote.
+    expect(screen.queryByTestId('draw.traverse.spiral.delta')).not.toBeInTheDocument()
+  })
+
+  /**
+   * A plan-and-profile sheet quotes Ls, R and Δ for the unit and prints θs, p,
+   * k and Ts beside the alignment. Those are the figures a field crew stakes
+   * from, so they come back to be checked.
+   */
+  it('prints the figures a plan sheet prints, for an SCS unit', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'scs' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.length'), { target: { value: '150' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.radius'), { target: { value: '1000' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.delta'), { target: { value: '45-30' } })
+
+    // θs = Ls/2R = 150/2000 rad = 0.075 rad = 4.2971834° = 4°17'50"
+    expect(screen.getByText(`4°17'50"`)).toBeInTheDocument()
+    // Δc = 45.5 − 2θs = 36.9056331° = 36°54'20"
+    expect(screen.getByText(`36°54'20"`)).toBeInTheDocument()
+    // The exit length defaults to the entry one, which is the norm.
+    expect((screen.getByTestId('draw.traverse.spiral.lengthOut') as HTMLInputElement).placeholder)
+      .toBe('same')
+  })
+
+  it('refuses spirals that leave no curve between them', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'scs' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.length'), { target: { value: '300' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.radius'), { target: { value: '200' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.delta'), { target: { value: '20' } })
+    expect(screen.getByText(/no circular curve left/i)).toBeInTheDocument()
+  })
+
+  it('says a transition has to transition from something', () => {
+    const only: DraftGeometry = { parts: [{ exterior: { vertices: [start], segments: [] }, holes: [] }] }
+    session.draft = only
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'spiral' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.length'), { target: { value: '150' } })
+    fireEvent.change(screen.getByTestId('draw.traverse.spiral.radius'), { target: { value: '1000' } })
+    expect(screen.getByText(/continues the course before it/i)).toBeInTheDocument()
+    session.draft = draft
+  })
+
+  it('keeps the straight-course fields out of the way', () => {
+    render(<TraverseBar />)
+    fireEvent.change(screen.getByTitle(/What kind of course/), { target: { value: 'spiral' } })
+    expect(screen.queryByText('Distance')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('draw.traverse.curve.aId')).not.toBeInTheDocument()
+    // The turn control is shared with the circular courses.
+    expect(screen.getByTestId('draw.traverse.turn.right')).toBeInTheDocument()
+  })
+})

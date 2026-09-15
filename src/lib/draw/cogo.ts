@@ -2,6 +2,7 @@ import type { Position } from './types'
 // Type-only: `curve-cogo` imports values from here, and an `import type` is
 // erased at compile time, so the cycle never exists at runtime.
 import type { CurveElements, CurveElementId, TurnDirection } from './curve-cogo'
+import type { SpiralElements, SpiralForm } from './spiral'
 
 /**
  * COGO — coordinate geometry: typing a vertex instead of eyeballing it.
@@ -526,12 +527,38 @@ export interface TraverseCurve {
   outAzimuth: number
 }
 
-/** A course of any kind. Discriminate on `type`. */
-export type TraverseCourse = TraverseLeg | TraverseCurve
+/**
+ * One transition course: a spiral, or a spiral–curve–spiral read off a plan
+ * sheet as the single unit it is drawn as.
+ *
+ * Always tangential. A transition curve transitions FROM something — that is
+ * what it is for — so it has no orientation of its own to be given.
+ */
+export interface TraverseSpiral {
+  type: 'spiral'
+  form: SpiralForm
+  turn: TurnDirection
+  unit: DistanceUnit
+  /** What was typed, for reading back against the sheet. */
+  entered: { label: string; text: string }[]
+  elements: SpiralElements
+  inAzimuth: number
+  outAzimuth: number
+}
 
-/** Ground length of a course — the arc for a curve, never its chord. */
+/** A course of any kind. Discriminate on `type`. */
+export type TraverseCourse = TraverseLeg | TraverseCurve | TraverseSpiral
+
+/**
+ * Ground length of a course — measured ALONG it. A curve contributes its arc
+ * and never its chord; a spiral–curve–spiral contributes all three of its
+ * parts. This is what a closure ratio is computed from, so a course that
+ * reported its chord would flatter the figure by the difference.
+ */
 export function courseLengthM(c: TraverseCourse): number {
-  return c.type === 'line' ? c.distanceM : c.elements.arcLengthM
+  if (c.type === 'line') return c.distanceM
+  if (c.type === 'spiral') return c.elements.totalLengthM
+  return c.elements.arcLengthM
 }
 
 /** The azimuth a course arrives on, which a relative bearing turns from. */

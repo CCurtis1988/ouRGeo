@@ -50,7 +50,7 @@ export interface TraverseEntry {
  * Which kind of course the strip is taking. Two doors in the ribbon lead here
  * — Distance & Bearing and Curve — and they differ only in what this starts on.
  */
-export type CourseType = 'line' | 'tangent-curve' | 'curve'
+export type CourseType = 'line' | 'tangent-curve' | 'curve' | 'spiral' | 'scs'
 
 /**
  * A curve being typed.
@@ -63,6 +63,27 @@ export type CourseType = 'line' | 'tangent-curve' | 'curve'
  * `orientation` only applies to a non-tangent curve. A tangent curve continues
  * the previous course, so its direction is not a question.
  */
+/**
+ * A transition curve being typed.
+ *
+ * A plan sheet quotes a spiral by its length and the radius it ends on, and an
+ * SCS unit by those plus the total deflection — so those are the fields, and
+ * everything else the sheet prints is derived and shown back for checking.
+ *
+ * `direction` applies only to a lone spiral: an SCS has one of each by
+ * construction. An exit spiral is the one that runs from a curve back out to a
+ * tangent, which is a different geometry and not merely a different label.
+ */
+export interface SpiralEntry {
+  direction: 'in' | 'out'
+  lengthText: string
+  /** Blank means the exit spiral matches the entry one, which is the norm. */
+  lengthOutText: string
+  radiusText: string
+  /** SCS only: the total deflection, spirals and curve together. */
+  deltaText: string
+}
+
 export interface CurveEntry {
   turn: TurnDirection
   aId: CurveElementId
@@ -91,6 +112,8 @@ interface TraverseState {
   courseType: CourseType
   /** What is in the curve fields right now — drives the ghost, not the draft. */
   curve: CurveEntry
+  /** The same, for a transition course. */
+  spiral: SpiralEntry
   /** What is in the two fields right now — drives the ghost, not the draft. */
   entry: TraverseEntry
   unit: DistanceUnit
@@ -122,6 +145,7 @@ interface TraverseState {
   setEntry: (e: Partial<TraverseEntry>) => void
   setCourseType: (t: CourseType) => void
   setCurve: (c: Partial<CurveEntry>) => void
+  setSpiral: (c: Partial<SpiralEntry>) => void
   addCourse: (course: TraverseCourse) => void
   dropLastCourse: () => void
   setUnit: (u: DistanceUnit) => void
@@ -144,6 +168,10 @@ const EMPTY_ENTRY: TraverseEntry = { distance: '', bearing: '' }
  * that books its curves by radius and arc length books all of them that way —
  * while the values clear, like the distance and bearing fields do.
  */
+const EMPTY_SPIRAL: SpiralEntry = {
+  direction: 'in', lengthText: '', lengthOutText: '', radiusText: '', deltaText: '',
+}
+
 const EMPTY_CURVE: CurveEntry = {
   turn: 'right',
   aId: 'radius', aText: '',
@@ -157,6 +185,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   courses: [],
   courseType: 'line',
   curve: EMPTY_CURVE,
+  spiral: EMPTY_SPIRAL,
   entry: EMPTY_ENTRY,
   // Seeded from `spatial-settings.json` on load (see spatialSettings) — these
   // are the shipped defaults, not the user's.
@@ -175,11 +204,13 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   setEntry: (e) => set((s) => ({ entry: { ...s.entry, ...e }, error: null })),
   setCourseType: (courseType) => set({ courseType, error: null }),
   setCurve: (c) => set((s) => ({ curve: { ...s.curve, ...c }, error: null })),
+  setSpiral: (c) => set((s) => ({ spiral: { ...s.spiral, ...c }, error: null })),
   addCourse: (course) => set((s) => ({
     courses: [...s.courses, course],
     entry: EMPTY_ENTRY,
     // The element ids stay; only what was typed into them clears.
     curve: { ...s.curve, aText: '', bText: '', orientText: '' },
+    spiral: { ...s.spiral, lengthText: '', lengthOutText: '', radiusText: '', deltaText: '' },
     error: null,
   })),
   dropLastCourse: () => set((s) => ({ courses: s.courses.slice(0, -1), error: null })),
@@ -195,6 +226,7 @@ export const useTraverseStore = create<TraverseState>((set) => ({
   reset: () => set((s) => ({
     path: [], courses: [], entry: EMPTY_ENTRY,
     curve: { ...s.curve, aText: '', bText: '', orientText: '' },
+    spiral: { ...s.spiral, lengthText: '', lengthOutText: '', radiusText: '', deltaText: '' },
     frame: null, frameAt: null, busy: false, error: null, legLabel: null,
   })),
 }))

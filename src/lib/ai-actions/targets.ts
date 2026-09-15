@@ -80,6 +80,12 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'draw.traverse.curve.degreeDef', label: 'Degree of curve definition', where: 'Distance & Bearing strip, when a degree of curve is being entered' },
   { id: 'draw.traverse.curve.orientKind', label: 'How a non-tangent curve is oriented', where: 'Distance & Bearing strip, on a Curve course' },
   { id: 'draw.traverse.curve.orient', label: 'Chord or radial bearing', where: 'Distance & Bearing strip, on a Curve course' },
+  { id: 'draw.traverse.spiral.in', label: 'Entry spiral', where: 'Distance & Bearing strip, on a Spiral course' },
+  { id: 'draw.traverse.spiral.out', label: 'Exit spiral', where: 'Distance & Bearing strip, on a Spiral course' },
+  { id: 'draw.traverse.spiral.length', label: 'Spiral length', where: 'Distance & Bearing strip, on a transition course' },
+  { id: 'draw.traverse.spiral.radius', label: 'Radius the spiral reaches', where: 'Distance & Bearing strip, on a transition course' },
+  { id: 'draw.traverse.spiral.delta', label: 'Total deflection', where: 'Distance & Bearing strip, on a spiral–curve–spiral' },
+  { id: 'draw.traverse.spiral.lengthOut', label: 'Exit spiral length', where: 'Distance & Bearing strip, on a spiral–curve–spiral' },
 
   // Data viewer.
   { id: 'dataViewer.addToMap', label: 'Add to Map', where: 'data viewer header, right — spatial datasets only' },

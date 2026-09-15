@@ -115,6 +115,12 @@ handle_spatial_traverse <- function(body) {
       delta    = vapply(legs, function(l) num(l, "delta"), numeric(1)),
       turn     = vapply(legs, function(l) as.character(l$turn %||% NA_character_), character(1)),
       samples  = vapply(legs, function(l) num(l, "samples"), numeric(1)),
+      form     = vapply(legs, function(l) as.character(l$form %||% NA_character_), character(1)),
+      length   = vapply(legs, function(l) num(l, "length"), numeric(1)),
+      length_out = vapply(legs, function(l) {
+        v <- l$length_out %||% l$lengthOut
+        if (is.null(v)) NA_real_ else as.numeric(v)
+      }, numeric(1)),
       stringsAsFactors = FALSE
     )
 
@@ -256,6 +262,8 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
     grid <- courses
     grid$distance <- grid$distance / per_unit
     grid$radius <- grid$radius / per_unit
+    grid$length <- grid$length / per_unit
+    grid$length_out <- grid$length_out / per_unit
     xy <- matrix(c(start[1, 1], start[1, 2]), nrow = 1L)
     az_in <- NA_real_
     for (i in seq_len(nrow(grid))) {
@@ -368,6 +376,65 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   max(2L, as.integer(ceiling(abs(course$delta))))
 }
 
+# A transition course in its own plan frame: x along the entry tangent, y
+# toward the inside of the turn.
+#
+# Done by integrating the CURVATURE rather than by the series the renderer uses
+# (`src/lib/draw/spiral.ts`). A clothoid is defined by its curvature growing
+# linearly with length, so integrating that definition needs no case analysis
+# for entry, exit or spiral-curve-spiral — one curvature profile covers all
+# three, and an exit spiral stops being a curve that has to be built backwards.
+#
+# The two methods being different is the point. They are independent
+# implementations of the same curve, and `spiral.test.ts` plus the driven
+# session are where they are held against each other; a shared mistake is the
+# one thing a second implementation cannot make.
+.ourgeo_spiral_local <- function(form, radius, len_in, len_out, delta_total, n_out) {
+  theta_in <- len_in / (2 * radius) * 180 / pi
+  lc <- 0
+  if (identical(form, "scs")) {
+    theta_out <- len_out / (2 * radius) * 180 / pi
+    delta_c <- delta_total - theta_in - theta_out
+    if (!is.finite(delta_c) || delta_c <= 0) {
+      stop("The two spirals turn more than the total deflection, so there is no circular curve between them.")
+    }
+    lc <- radius * delta_c * pi / 180
+    total <- len_in + lc + len_out
+  } else {
+    total <- len_in
+    len_out <- 0
+  }
+
+  # A multiple of the sample count, so every sample lands exactly on a step
+  # boundary and nothing has to be interpolated.
+  per <- max(1L, as.integer(ceiling(20000 / n_out)))
+  n <- n_out * per
+  h <- total / n
+  s_mid <- (seq_len(n) - 0.5) * h
+
+  k <- if (identical(form, "out")) {
+    # Curvature falls from 1/R at the sharp end to zero at the tangent.
+    (total - s_mid) / (radius * total)
+  } else if (identical(form, "in")) {
+    s_mid / (radius * len_in)
+  } else {
+    ifelse(s_mid <= len_in, s_mid / (radius * len_in),
+      ifelse(s_mid <= len_in + lc, 1 / radius,
+        (total - s_mid) / (radius * len_out)))
+  }
+
+  dang <- k * h
+  ang_mid <- cumsum(dang) - dang / 2
+  x <- cumsum(h * cos(ang_mid))
+  y <- cumsum(h * sin(ang_mid))
+  idx <- seq_len(n_out) * per
+  list(
+    x = x[idx], y = y[idx],
+    ang_end = sum(dang) * 180 / pi,
+    total = total
+  )
+}
+
 # One course's worth of vertices, walking the WGS84 ellipsoid.
 #
 # A curve is a locus of constant geodesic radius about its centre, which meets
@@ -387,6 +454,66 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
     stop("A tangent curve needs a course before it to be tangent to, or an azimuth of its own.")
   }
   sgn <- if (identical(course$turn, "L")) -1 else 1
+
+  if (identical(course$type, "spiral")) {
+    n <- .ourgeo_curve_samples(course)
+    place <- function(p0, az, loc) {
+      t(vapply(seq_along(loc$x), function(i) {
+        along <- .ourgeo_geod_direct(p0, loc$x[i], az)
+        if (loc$y[i] == 0) along else .ourgeo_geod_direct(along, loc$y[i], az + sgn * 90)
+      }, numeric(2)))
+    }
+
+    if (!identical(course$form, "scs")) {
+      loc <- .ourgeo_spiral_local(course$form, course$radius, course$length, 0, NA, n)
+      return(list(pts = place(p, az0, loc), az_out = (az0 + sgn * loc$ang_end) %% 360))
+    }
+
+    # A spiral-curve-spiral is built from its three parts rather than
+    # integrated as one plane curve, and the middle is the SAME geodesic circle
+    # a plain curve course uses.
+    #
+    # Laying the whole thing out in one plane frame was the first attempt and
+    # left it 1.57 mm from the renderer's answer over a 258 m course. The
+    # difference was the meridian convergence across the circular middle: a
+    # geodesic circle's tangent turns by delta PLUS the convergence, a plane
+    # circle's by delta exactly, and the exit spiral then carried that heading
+    # error along its whole length. Built this way the two agree to a tenth of
+    # a millimetre, which is what lets the echo claim to reproduce what was on
+    # screen rather than something very close to it.
+    theta_in <- course$length / (2 * course$radius) * 180 / pi
+    theta_out <- course$length_out / (2 * course$radius) * 180 / pi
+    delta_c <- course$delta - theta_in - theta_out
+    if (!is.finite(delta_c) || delta_c <= 0) {
+      stop("The two spirals turn more than the total deflection, so there is no circular curve between them.")
+    }
+    lc <- course$radius * delta_c * pi / 180
+    total <- course$length + lc + course$length_out
+    share <- function(part) max(2L, as.integer(round(n * part / total)))
+
+    loc_in <- .ourgeo_spiral_local("in", course$radius, course$length, 0, NA, share(course$length))
+    pts_in <- place(p, az0, loc_in)
+    cursor <- pts_in[nrow(pts_in), ]
+    az <- (az0 + sgn * loc_in$ang_end) %% 360
+
+    mid <- .ourgeo_course_geodesic(
+      cursor,
+      list(type = "curve", azimuth = az, radius = course$radius, delta = delta_c,
+           turn = course$turn, samples = share(lc)),
+      NA_real_
+    )
+    cursor <- mid$pts[nrow(mid$pts), ]
+
+    loc_out <- .ourgeo_spiral_local("out", course$radius, course$length_out, 0, NA,
+                                    share(course$length_out))
+    pts_out <- place(cursor, mid$az_out, loc_out)
+
+    return(list(
+      pts = rbind(pts_in, mid$pts, pts_out),
+      az_out = (mid$az_out + sgn * loc_out$ang_end) %% 360
+    ))
+  }
+
   centre <- .ourgeo_geod_direct(p, course$radius, az0 + sgn * 90)
   radial0 <- .ourgeo_geod_inverse_full(centre, p)$azi1
   n <- .ourgeo_curve_samples(course)
@@ -411,6 +538,20 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
     stop("A tangent curve needs a course before it to be tangent to, or an azimuth of its own.")
   }
   sgn <- if (identical(course$turn, "L")) -1 else 1
+
+  if (identical(course$type, "spiral")) {
+    loc <- .ourgeo_spiral_local(course$form, course$radius, course$length,
+                                course$length_out, course$delta,
+                                .ourgeo_curve_samples(course))
+    a <- az0 * pi / 180
+    b <- (az0 + sgn * 90) * pi / 180
+    pts <- cbind(
+      xy[1] + loc$x * sin(a) + loc$y * sin(b),
+      xy[2] + loc$x * cos(a) + loc$y * cos(b)
+    )
+    return(list(pts = pts, az_out = (az0 + sgn * loc$ang_end) %% 360))
+  }
+
   ct <- (az0 + sgn * 90) * pi / 180
   centre <- c(xy[1] + course$radius * sin(ct), xy[2] + course$radius * cos(ct))
   radial0 <- atan2(xy[1] - centre[1], xy[2] - centre[2]) * 180 / pi
@@ -431,19 +572,40 @@ ourgeo_traverse <- function(origin, legs, crs = NULL, as_sfc = TRUE) {
   type <- if (is.null(legs$type)) rep("line", n) else as.character(legs$type)
   get <- function(name) if (is.null(legs[[name]])) rep(NA_real_, n) else as.numeric(legs[[name]])
   turn <- if (is.null(legs$turn)) rep(NA_character_, n) else toupper(substr(as.character(legs$turn), 1L, 1L))
+  form <- if (is.null(legs$form)) rep(NA_character_, n) else as.character(legs$form)
   out <- data.frame(
     type = type, distance = get("distance"), azimuth = get("azimuth"),
     radius = get("radius"), delta = get("delta"), turn = turn,
-    samples = get("samples"),
+    samples = get("samples"), form = form,
+    length = get("length"), length_out = get("length_out"),
     stringsAsFactors = FALSE
   )
-  bad <- !(out$type %in% c("line", "curve"))
-  if (any(bad)) stop("Course type must be \"line\" or \"curve\"; got ", out$type[which(bad)[1]])
+  bad <- !(out$type %in% c("line", "curve", "spiral"))
+  if (any(bad)) {
+    stop("Course type must be \"line\", \"curve\" or \"spiral\"; got ", out$type[which(bad)[1]])
+  }
   if (any(out$type == "line" & (!is.finite(out$distance) | !is.finite(out$azimuth)))) {
     stop("Every straight course needs a distance and an azimuth.")
   }
   if (any(out$type == "curve" & (!is.finite(out$radius) | !is.finite(out$delta)))) {
     stop("Every curved course needs a radius and a delta.")
+  }
+  sp <- out$type == "spiral"
+  if (any(sp)) {
+    out$form[sp & is.na(out$form)] <- "in"
+    if (any(sp & !(out$form %in% c("in", "out", "scs")))) {
+      stop("A spiral's form must be \"in\", \"out\" or \"scs\".")
+    }
+    if (any(sp & (!is.finite(out$radius) | !is.finite(out$length)))) {
+      stop("Every transition course needs a radius and a spiral length.")
+    }
+    scs <- sp & out$form == "scs"
+    # A symmetric spiral-curve-spiral is the norm, so an absent exit length
+    # means "the same as the entry one" rather than an error.
+    out$length_out[scs & !is.finite(out$length_out)] <- out$length[scs & !is.finite(out$length_out)]
+    if (any(scs & !is.finite(out$delta))) {
+      stop("A spiral-curve-spiral needs the total deflection in `delta`.")
+    }
   }
   out
 }

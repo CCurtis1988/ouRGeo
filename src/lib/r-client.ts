@@ -686,12 +686,16 @@ class RClient {
      * straight-only shape this started as still means what it meant.
      */
     courses: {
-      type?: 'line' | 'curve'
+      type?: 'line' | 'curve' | 'spiral'
       distance?: number
       azimuth?: number
       radius?: number
       delta?: number
       turn?: 'L' | 'R'
+      /** Transition courses: which end the spiral is, and how long. */
+      form?: 'in' | 'out' | 'scs'
+      length?: number
+      lengthOut?: number
       /**
        * Vertices to cut the curve into. A power of two, because the renderer
        * fits circular arcs through these points and needs every piece boundary

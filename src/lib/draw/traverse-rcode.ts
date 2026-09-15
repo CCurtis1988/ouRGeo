@@ -30,10 +30,18 @@ import type { CrsInfo } from '@/store/traverse'
 
 /** A course in the words it was entered in, for the header comment. */
 function describeCourse(c: TraverseCourse): string {
-  if (c.type === 'line') {
-    return `${c.distanceText} ${UNITS[c.unit].abbr} · ${formatBearing(c.azimuth, c.mode)}`
-  }
   const abbr = UNITS[c.unit].abbr
+  if (c.type === 'line') {
+    return `${c.distanceText} ${abbr} · ${formatBearing(c.azimuth, c.mode)}`
+  }
+  if (c.type === 'spiral') {
+    const name = c.form === 'scs' ? 'spiral-curve-spiral' : c.form === 'out' ? 'exit spiral' : 'spiral'
+    const typed = c.entered.length > 0
+      ? c.entered.map((e) => `${e.label} ${e.text}`).join(' ')
+      : `Ls ${fromMetres(c.elements.lengthInM, c.unit).toFixed(2)} ${abbr}`
+        + ` R ${fromMetres(c.elements.radiusM, c.unit).toFixed(2)} ${abbr}`
+    return `${name} ${c.turn} · ${typed}`
+  }
   const typed = c.entered.length > 0
     ? c.entered.map((e) => {
       const def = CURVE_ELEMENTS[e.id]
@@ -41,6 +49,26 @@ function describeCourse(c: TraverseCourse): string {
     }).join(' ')
     : `R ${fromMetres(c.elements.radiusM, c.unit).toFixed(2)} ${abbr} Δ ${formatDms(c.elements.deltaDeg)}`
   return `curve ${c.turn} · ${typed}${c.tangential ? ' · tangent' : ''}`
+}
+
+/** Curve and spiral courses carry different columns; these read one safely. */
+const radiusOf = (c: TraverseCourse): number | null =>
+  c.type === 'line' ? null : c.elements.radiusM
+const deltaOf = (c: TraverseCourse): number | null => {
+  if (c.type === 'line') return null
+  // A lone spiral has no deflection to quote — it turns by its own spiral
+  // angle, which `ourgeo_traverse` derives from the length and the radius.
+  return c.type === 'spiral'
+    ? (c.form === 'scs' ? c.elements.totalDeltaDeg : null)
+    : c.elements.deltaDeg
+}
+const inAzimuthOf = (c: TraverseCourse): number | null => {
+  if (c.type === 'line') return c.azimuth
+  // NA means "inherit the previous course's arrival", which is the whole
+  // meaning of tangent and the one thing a list of numbers cannot otherwise
+  // say. A transition course is always tangential.
+  if (c.type === 'spiral') return null
+  return c.tangential ? null : c.inAzimuth
 }
 
 export function buildTraverseRCode(
@@ -81,23 +109,37 @@ export function buildTraverseRCode(
   // Straight-only keeps the two-column form it has always had: it is what is
   // sitting in anybody's saved script, and the extra NA columns would be four
   // lines of noise saying nothing.
-  const body = courses.every((c) => c.type === 'line')
+  const hasSpiral = courses.some((c) => c.type === 'spiral')
+  const columns: string[] = courses.every((c) => c.type === 'line')
     ? [
       `    distance = ${col(courses.map((c) => (c.type === 'line' ? c.distanceM : null)))},  # metres`,
       `    azimuth  = ${col(courses.map((c) => (c.type === 'line' ? c.azimuth : null)))}`,
     ]
     : [
-      `    type     = ${chr(courses.map((c) => (c.type === 'line' ? 'line' : 'curve')))},`,
-      `    distance = ${col(courses.map((c) => (c.type === 'line' ? c.distanceM : null)))},  # metres`,
-      // A tangent curve carries no azimuth: NA is what tells `ourgeo_traverse`
-      // to inherit the previous course's arrival, which is the whole meaning of
-      // "tangent" and the one thing a list of numbers cannot otherwise say.
-      `    azimuth  = ${col(courses.map((c) =>
-        c.type === 'line' ? c.azimuth : c.tangential ? null : c.inAzimuth))},`,
-      `    radius   = ${col(courses.map((c) => (c.type === 'line' ? null : c.elements.radiusM)))},  # metres`,
-      `    delta    = ${col(courses.map((c) => (c.type === 'line' ? null : c.elements.deltaDeg)))},`,
+      `    type     = ${chr(courses.map((c) => c.type))}`,
+      `    distance = ${col(courses.map((c) => (c.type === 'line' ? c.distanceM : null)))}  # metres`,
+      `    azimuth  = ${col(courses.map(inAzimuthOf))}`,
+      `    radius   = ${col(courses.map(radiusOf))}  # metres`,
+      `    delta    = ${col(courses.map(deltaOf))}`,
       `    turn     = ${chr(courses.map((c) => (c.type === 'line' ? null : c.turn === 'left' ? 'L' : 'R')))}`,
+      ...(hasSpiral
+        ? [
+          `    form     = ${chr(courses.map((c) => (c.type === 'spiral' ? c.form : null)))}`,
+          `    length   = ${col(courses.map((c) => (c.type === 'spiral' ? c.elements.lengthInM : null)))}  # metres`,
+          `    length_out = ${col(courses.map((c) =>
+            c.type === 'spiral' && c.form === 'scs' ? c.elements.lengthOutM : null))}`,
+        ]
+        : []),
     ]
+  // Joined here rather than written with trailing commas, so adding a column
+  // cannot leave a dangling one — which R would refuse to parse at all.
+  const body = columns.length === 2
+    ? columns
+    : columns.map((line, i) => {
+      const comma = i === columns.length - 1 ? '' : ','
+      const hash = line.indexOf('  #')
+      return hash === -1 ? line + comma : line.slice(0, hash) + comma + line.slice(hash)
+    })
 
   return [
     ...header,

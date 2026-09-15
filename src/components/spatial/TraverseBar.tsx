@@ -12,10 +12,13 @@ import {
 } from '@/lib/draw/tools/distance-bearing'
 import {
   parseDistance, parseBearing, parseAngle, parseCoordinate, formatDistance, formatRatio,
-  closure, formatDms, formatBearing, norm360, toMetres,
+  closure, formatDms, formatBearing, norm360, toMetres, courseLengthM,
   UNITS, UNIT_IDS, BEARING_MODES, BEARING_MODE_IDS,
   type TraverseLeg, type TraverseCourse, type ParseResult,
 } from '@/lib/draw/cogo'
+import {
+  solveSpiral, spiralGeometry, type SpiralElements, type SpiralForm, type SpiralRun,
+} from '@/lib/draw/spiral'
 import {
   solveCurve, curveGeometry, tangentAzimuthFromChord, tangentAzimuthFromRadial,
   CURVE_ELEMENTS, CURVE_ELEMENT_IDS,
@@ -130,10 +133,18 @@ function elementIdsFor(unit: DistanceUnit): CurveElementId[] {
 function describeCourse(c: TraverseCourse): string {
   const abbr = UNITS[c.unit].abbr
   if (c.type === 'line') return `${c.distanceText} ${abbr} · ${c.bearingText}`
-  const typed = c.entered
-    .map((e) => `${CURVE_ELEMENTS[e.id].symbol} ${e.text}`)
-    .join('  ')
-  return `${c.turn === 'left' ? '↰' : '↱'} ${typed}`
+  const arrow = c.turn === 'left' ? '↰' : '↱'
+  if (c.type === 'spiral') {
+    return `${arrow} ${c.entered.map((e) => `${e.label} ${e.text}`).join('  ')}`
+  }
+  return `${arrow} ${c.entered.map((e) => `${CURVE_ELEMENTS[e.id].symbol} ${e.text}`).join('  ')}`
+}
+
+/** The angle a course turned through, for the right-hand column of the list. */
+function courseAngle(c: TraverseCourse): number {
+  if (c.type === 'line') return c.azimuth
+  if (c.type === 'spiral') return c.elements.totalDeltaDeg
+  return c.elements.deltaDeg
 }
 
 /**
@@ -167,9 +178,7 @@ function CourseList(
   }, [open])
 
   if (courses.length === 0) return null
-  const total = courses.reduce(
-    (t, c) => t + (c.type === 'line' ? c.distanceM : c.elements.arcLengthM), 0
-  )
+  const total = courses.reduce((t, c) => t + courseLengthM(c), 0)
   return (
     <div className="relative flex-shrink-0" data-ourgeo-id="draw.traverse.legs">
       <button
@@ -187,14 +196,12 @@ function CourseList(
             <div key={i} className="flex items-baseline gap-2 px-2 py-0.5 text-[11px]">
               <span className="w-5 flex-shrink-0 text-right text-geo-muted">{i + 1}</span>
               <span className="flex-1 font-mono text-foreground">{describeCourse(c)}</span>
-              <span className="flex-shrink-0 font-mono text-geo-muted">
-                {c.type === 'line' ? formatDms(c.azimuth) : formatDms(c.elements.deltaDeg)}
-              </span>
+              <span className="flex-shrink-0 font-mono text-geo-muted">{formatDms(courseAngle(c))}</span>
             </div>
           ))}
           <div className="mt-1 border-t border-geo-border px-2 pt-1 text-[10px] text-geo-muted">
             {formatDistance(total, unit)} entered
-            {courses.some((c) => c.type === 'curve') && ' (curves measured along the arc)'}
+            {courses.some((c) => c.type !== 'line') && ' (curves measured along the arc)'}
           </div>
         </div>
       )}
@@ -206,6 +213,8 @@ const COURSE_LABELS: Record<CourseType, string> = {
   line: 'Distance & bearing',
   'tangent-curve': 'Tangent curve',
   curve: 'Curve',
+  spiral: 'Spiral',
+  scs: 'Spiral–curve–spiral',
 }
 
 export function TraverseBar(): React.ReactElement | null {
@@ -218,6 +227,7 @@ export function TraverseBar(): React.ReactElement | null {
   const courses = useTraverseStore((s) => s.courses)
   const courseType = useTraverseStore((s) => s.courseType)
   const curve = useTraverseStore((s) => s.curve)
+  const spiral = useTraverseStore((s) => s.spiral)
   const entry = useTraverseStore((s) => s.entry)
   const unit = useTraverseStore((s) => s.unit)
   const mode = useTraverseStore((s) => s.mode)
@@ -237,7 +247,11 @@ export function TraverseBar(): React.ReactElement | null {
   const startRef = useRef<HTMLInputElement>(null)
 
   const active = activeToolId === 'distance-bearing' && !!session
-  const isCurve = courseType !== 'line'
+  const isCurve = courseType === 'curve' || courseType === 'tangent-curve'
+  const isSpiral = courseType === 'spiral' || courseType === 'scs'
+  // Everything that is not a straight distance and bearing: the turn control
+  // and the element readout belong to all of them.
+  const isCurved = isCurve || isSpiral
   // A point traverse measures from a reference point rather than from a
   // vertex, because a point layer's rows are separate features and the mark
   // they were shot from is usually not one of them.
@@ -372,7 +386,7 @@ export function TraverseBar(): React.ReactElement | null {
   // What the straight-course fields describe, recomputed on every keystroke:
   // the destination for the readout, or the refusal to show under the fields.
   const pending = useMemo(() => {
-    if (!origin || isCurve) return null
+    if (!origin || isCurved) return null
     const d = parseDistance(entry.distance, unit)
     const b = parseBearing(entry.bearing, mode, incoming)
     if (!d.ok || !b.ok) {
@@ -388,7 +402,7 @@ export function TraverseBar(): React.ReactElement | null {
       azimuth: b.value,
       complaint: null,
     }
-  }, [origin, isCurve, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
+  }, [origin, isCurved, entry.distance, entry.bearing, unit, mode, incoming, basis, usableFrame])
 
   /**
    * What the curve fields describe.
@@ -463,7 +477,75 @@ export function TraverseBar(): React.ReactElement | null {
     }
   }, [origin, isCurve, courseType, curve, unit, mode, incoming, basis, usableFrame])
 
-  const complaint = pending?.complaint ?? pendingCurve?.complaint ?? null
+  /**
+   * What the transition fields describe.
+   *
+   * A spiral is always tangential — it transitions FROM something, which is
+   * what it is for — so there is no orientation to give it and no course it can
+   * be the first of. Saying that is more use than drawing one pointing north.
+   */
+  const pendingSpiral = useMemo((): {
+    elements: SpiralElements | null
+    run: SpiralRun | null
+    tangentAz: number | null
+    form: SpiralForm
+    complaint: string | null
+  } | null => {
+    if (!origin || !isSpiral) return null
+    const form: SpiralForm = courseType === 'scs' ? 'scs' : spiral.direction
+    const none = { elements: null, run: null, tangentAz: null, form }
+
+    const len = parseDistance(spiral.lengthText, unit)
+    const rad = parseDistance(spiral.radiusText, unit)
+    const wantsOut = courseType === 'scs' && spiral.lengthOutText.trim() !== ''
+    const lenOut = wantsOut ? parseDistance(spiral.lengthOutText, unit) : null
+    const delta = courseType === 'scs' ? parseAngle(spiral.deltaText) : null
+
+    if (!len.ok || !rad.ok || (lenOut && !lenOut.ok) || (delta && !delta.ok)) {
+      const complaint = (!len.ok && spiral.lengthText.trim() && len.error)
+        || (!rad.ok && spiral.radiusText.trim() && rad.error)
+        || (lenOut && !lenOut.ok && lenOut.error)
+        || (delta && !delta.ok && spiral.deltaText.trim() && delta.error)
+        || null
+      return { ...none, complaint }
+    }
+
+    if (incoming === null) {
+      return {
+        ...none,
+        complaint: 'A transition curve continues the course before it, and there is not one yet. '
+          + 'Place a distance and bearing first.',
+      }
+    }
+
+    const reduce = basis === 'grid' && usableFrame
+    const scale = reduce ? usableFrame.scale : 1
+    const solved = solveSpiral({
+      form,
+      turn: curve.turn,
+      radiusM: rad.value / scale,
+      lengthInM: len.value / scale,
+      lengthOutM: lenOut && lenOut.ok ? lenOut.value / scale : undefined,
+      totalDeltaDeg: delta && delta.ok ? delta.value : undefined,
+    })
+    if (!solved.ok) return { ...none, complaint: solved.error }
+
+    // `incoming` is geodesic; on the grid basis the typed numbers are grid
+    // numbers, so the tangent is turned onto the grid and then back again for
+    // the preview — the same reduction a straight leg makes.
+    const gridTangent = reduce ? norm360(incoming - usableFrame.convergence) : incoming
+    const drawTangent = reduce ? norm360(gridTangent + usableFrame.convergence) : gridTangent
+
+    return {
+      elements: solved.value,
+      run: spiralGeometry(origin, drawTangent, solved.value, form, curve.turn),
+      tangentAz: gridTangent,
+      form,
+      complaint: null,
+    }
+  }, [origin, isSpiral, courseType, spiral, curve.turn, unit, incoming, basis, usableFrame])
+
+  const complaint = pending?.complaint ?? pendingCurve?.complaint ?? pendingSpiral?.complaint ?? null
 
   // The ghost is the course being typed. Cleared when the tool goes away, or
   // the dashed line would outlive the strip that explains it.
@@ -471,6 +553,22 @@ export function TraverseBar(): React.ReactElement | null {
     if (!active || !origin) {
       setGhost(null)
       tv.getState().setLegLabel(null)
+      return
+    }
+    if (isSpiral) {
+      const run = pendingSpiral?.run
+      const el = pendingSpiral?.elements
+      if (!run || !el) { setGhost(null); tv.getState().setLegLabel(null); return }
+      const coords: Position[] = [run.parts[0].at(0)]
+      for (const part of run.parts) {
+        const steps = Math.max(8, Math.round(64 * (part.lengthM / el.totalLengthM)))
+        for (let i = 1; i <= steps; i++) coords.push(part.at(i / steps))
+      }
+      setGhost({ type: 'LineString', coordinates: coords.map(([x, y]) => [x, y]) })
+      tv.getState().setLegLabel(
+        `Ls ${formatDistance(el.lengthInM, unit)} · R ${formatDistance(el.radiusM, unit)}`
+        + ` · θs ${formatDms(el.thetaInDeg)}`
+      )
       return
     }
     if (isCurve) {
@@ -496,7 +594,8 @@ export function TraverseBar(): React.ReactElement | null {
     tv.getState().setLegLabel(
       `${formatDistance(pending.distanceM ?? 0, unit)} · ${formatBearing(pending.azimuth ?? 0, mode, incoming)}`
     )
-  }, [active, origin, isCurve, pending, pendingCurve, setGhost, unit, mode, incoming, tv])
+  }, [active, origin, isCurve, isSpiral, pending, pendingCurve, pendingSpiral,
+    setGhost, unit, mode, incoming, tv])
 
   useEffect(() => () => setGhost(null), [setGhost])
 
@@ -672,10 +771,101 @@ export function TraverseBar(): React.ReactElement | null {
   }, [session, origin, pendingCurve, courseType, curve, unit, mode, basis,
     placeCurve, answerRowPrompt, setGhost, tv])
 
+  const submitSpiral = useCallback(() => {
+    if (!session || !origin) return
+    const ps = pendingSpiral
+    if (!ps?.elements || !ps.run || ps.tangentAz === null) {
+      tv.getState().setError(ps?.complaint ?? 'Fill in the spiral length and the radius.')
+      return
+    }
+    const elements = ps.elements
+    const tangentAz = ps.tangentAz
+
+    const entered: { label: string; text: string }[] = [
+      { label: 'Ls', text: spiral.lengthText.trim() },
+      { label: 'R', text: spiral.radiusText.trim() },
+    ]
+    if (courseType === 'scs') {
+      entered.push({ label: 'Δ', text: spiral.deltaText.trim() })
+      if (spiral.lengthOutText.trim()) {
+        entered.push({ label: 'Ls out', text: spiral.lengthOutText.trim() })
+      }
+    }
+    const record: TraverseCourse = {
+      type: 'spiral',
+      form: ps.form,
+      turn: curve.turn,
+      unit,
+      entered,
+      elements,
+      inAzimuth: tangentAz,
+      outAzimuth: ps.run.outAzimuthDeg,
+    }
+
+    tv.getState().setBusy(true)
+    void (async () => {
+      try {
+        if (!(await answerRowPrompt())) return
+
+        if (basis === 'geodesic') {
+          // Each part is fitted separately: the circular middle of an SCS is
+          // exactly an arc and wants one piece, where a spiral wants about
+          // eight. Fitting them together would spend the spiral's piece count
+          // on the part that did not need it.
+          const pieces: ArcPiece[] = []
+          for (const part of ps.run!.parts) {
+            pieces.push(...arcSplineFit(part.at, { toleranceM: CURVE_TOLERANCE_M }).pieces)
+          }
+          await placeCurve(pieces, ps.run!.end)
+          tv.getState().addCourse(record)
+          setGhost(null)
+          firstFieldRef.current?.focus()
+          return
+        }
+
+        const res = await rClient.spatialTraverse({
+          origin, basis: 'grid',
+          courses: [{
+            type: 'spiral',
+            form: ps.form,
+            azimuth: tangentAz,
+            radius: elements.radiusM,
+            length: elements.lengthInM,
+            lengthOut: ps.form === 'scs' ? elements.lengthOutM : undefined,
+            delta: ps.form === 'scs' ? elements.totalDeltaDeg : undefined,
+            turn: curve.turn === 'left' ? 'L' : 'R',
+            samples: GRID_CURVE_SAMPLES,
+          }],
+          name: session.accessPath, envName: session.envName,
+        })
+        if (!res.success || !res.vertices || res.vertices.length < 3) {
+          tv.getState().setError(res.error ?? 'R could not place that spiral on the layer’s grid.')
+          return
+        }
+        const samples = res.vertices as Position[]
+        const landed = samples[samples.length - 1]
+        const fit = arcSplineFromSamples(samples, { toleranceM: CURVE_TOLERANCE_M })
+        await placeCurve(fit.pieces, landed)
+        tv.getState().setFrame(res.frame ?? null, landed)
+        tv.getState().addCourse(record)
+        setGhost(null)
+        firstFieldRef.current?.focus()
+      } catch (e) {
+        tv.getState().setError(
+          `${String(e)} — the geodesic basis needs nothing from R if this keeps happening.`
+        )
+      } finally {
+        tv.getState().setBusy(false)
+      }
+    })()
+  }, [session, origin, pendingSpiral, courseType, spiral, curve.turn, unit, basis,
+    placeCurve, answerRowPrompt, setGhost, tv])
+
   const submit = useCallback(() => {
-    if (isCurve) submitCurve()
+    if (isSpiral) submitSpiral()
+    else if (isCurve) submitCurve()
     else submitLine()
-  }, [isCurve, submitCurve, submitLine])
+  }, [isCurve, isSpiral, submitCurve, submitLine, submitSpiral])
 
   const undoCourse = useCallback(() => {
     void undoTraverseLeg({ undoLast })
@@ -806,7 +996,7 @@ export function TraverseBar(): React.ReactElement | null {
           ))}
         </select>
 
-        {!isCurve && (
+        {!isCurved && (
           <>
             <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
               Distance
@@ -864,7 +1054,7 @@ export function TraverseBar(): React.ReactElement | null {
           </>
         )}
 
-        {isCurve && (
+        {isCurved && (
           <>
             {/* Which way it bends is the first thing a deed says, so it is a
                 pair of buttons rather than a dropdown to open. */}
@@ -898,7 +1088,104 @@ export function TraverseBar(): React.ReactElement | null {
                 </button>
               </div>
             </div>
+          </>
+        )}
 
+        {isSpiral && (
+          <>
+            {/* Entry or exit. An exit spiral runs from a curve back out to a
+                tangent, which is a different geometry and not a label. */}
+            {courseType === 'spiral' && (
+              <div className="flex flex-shrink-0 overflow-hidden rounded border border-geo-border">
+                <button
+                  type="button"
+                  disabled={!origin || busy}
+                  data-ourgeo-id="draw.traverse.spiral.in"
+                  className={`px-2 py-1 ${turnCls(spiral.direction === 'in')}`}
+                  title="Entry spiral — tangent into the curve, curvature growing from zero"
+                  onClick={() => tv.getState().setSpiral({ direction: 'in' })}
+                >
+                  Entry
+                </button>
+                <button
+                  type="button"
+                  disabled={!origin || busy}
+                  data-ourgeo-id="draw.traverse.spiral.out"
+                  className={`px-2 py-1 ${turnCls(spiral.direction === 'out')}`}
+                  title="Exit spiral — curve back out to a tangent, curvature falling to zero"
+                  onClick={() => tv.getState().setSpiral({ direction: 'out' })}
+                >
+                  Exit
+                </button>
+              </div>
+            )}
+
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              Ls
+              <input
+                ref={firstFieldRef}
+                className={`${inputCls} w-20`}
+                value={spiral.lengthText}
+                disabled={!origin || busy}
+                placeholder="150.00"
+                title="Spiral length — how far it takes to get from the tangent to the radius."
+                data-ourgeo-id="draw.traverse.spiral.length"
+                onChange={(e) => tv.getState().setSpiral({ lengthText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              <span className="text-geo-muted">{UNITS[unit].abbr}</span>
+            </label>
+
+            <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+              R
+              <input
+                className={`${inputCls} w-20`}
+                value={spiral.radiusText}
+                disabled={!origin || busy}
+                placeholder="1000.00"
+                title="The radius the spiral reaches — the circular curve it transitions onto."
+                data-ourgeo-id="draw.traverse.spiral.radius"
+                onChange={(e) => tv.getState().setSpiral({ radiusText: e.target.value })}
+                onKeyDown={onEnter}
+              />
+              <span className="text-geo-muted">{UNITS[unit].abbr}</span>
+            </label>
+
+            {courseType === 'scs' && (
+              <>
+                <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+                  Δ
+                  <input
+                    className={`${inputCls} w-24`}
+                    value={spiral.deltaText}
+                    disabled={!origin || busy}
+                    placeholder="45°30'"
+                    title="Total deflection of the whole unit — both spirals and the curve between them."
+                    data-ourgeo-id="draw.traverse.spiral.delta"
+                    onChange={(e) => tv.getState().setSpiral({ deltaText: e.target.value })}
+                    onKeyDown={onEnter}
+                  />
+                </label>
+                <label className="flex items-center gap-1 flex-shrink-0 text-geo-muted">
+                  Ls out
+                  <input
+                    className={`${inputCls} w-20`}
+                    value={spiral.lengthOutText}
+                    disabled={!origin || busy}
+                    placeholder="same"
+                    title="Leave blank for a symmetric unit, which is the norm."
+                    data-ourgeo-id="draw.traverse.spiral.lengthOut"
+                    onChange={(e) => tv.getState().setSpiral({ lengthOutText: e.target.value })}
+                    onKeyDown={onEnter}
+                  />
+                </label>
+              </>
+            )}
+          </>
+        )}
+
+        {isCurve && (
+          <>
             {/* Two element slots, each saying WHAT it is. A plan quotes
                 whichever two it likes, and converting by hand before typing is
                 exactly what this tool exists to stop. */}
@@ -1079,6 +1366,43 @@ export function TraverseBar(): React.ReactElement | null {
           </span>
         )}
       </div>
+
+      {/* Row 3, for a transition course — the figures a plan-and-profile sheet
+          prints beside the alignment, so the entry can be checked against it.
+          θs is the angle the spiral absorbs; p is how far it throws the curve
+          off the tangent; Ts is the tangent distance from the TS to the
+          intersection, which is what a field crew stakes from. */}
+      {isSpiral && pendingSpiral?.elements && !complaint && (
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 font-mono text-[11px] text-geo-muted">
+          {([
+            ['θs', formatDms(pendingSpiral.elements.thetaInDeg)],
+            ['A', formatDistance(pendingSpiral.elements.parameterInM, unit)],
+            ['p', formatDistance(pendingSpiral.elements.shiftM, unit)],
+            ['k', formatDistance(pendingSpiral.elements.kM, unit)],
+            ...(pendingSpiral.elements.curveDeltaDeg !== null
+              ? [
+                ['Δc', formatDms(pendingSpiral.elements.curveDeltaDeg)] as const,
+                ['Lc', formatDistance(
+                  pendingSpiral.elements.radiusM * pendingSpiral.elements.curveDeltaDeg * (Math.PI / 180),
+                  unit
+                )] as const,
+              ]
+              : []),
+            ...(pendingSpiral.elements.tangentM !== null
+              ? [['Ts', formatDistance(pendingSpiral.elements.tangentM, unit)] as const]
+              : []),
+            ['total', formatDistance(pendingSpiral.elements.totalLengthM, unit)],
+          ] as const).map(([sym, value]) => (
+            <span key={sym}>
+              <span className="text-geo-muted/70">{sym}</span> <span className="text-foreground">{value}</span>
+            </span>
+          ))}
+          <span className="text-geo-muted/70">
+            · leaves {formatDms(pendingSpiral.tangentAz ?? 0)}, arrives{' '}
+            {formatDms(pendingSpiral.run?.outAzimuthDeg ?? 0)}
+          </span>
+        </div>
+      )}
 
       {/* Row 3 — every element of the curve, not just the two that were typed.
           Checking a curve against a plat means checking L, C, T, E and M, and
