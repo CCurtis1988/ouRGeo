@@ -40,8 +40,21 @@ handle_object_formals <- function(body) {
       fn <- tryCatch(get(name, envir = globalenv()), error = function(e) NULL)
     if (is.null(fn))
       fn <- tryCatch(match.fun(name), error = function(e) NULL)
-    if (is.null(fn) || !is.function(fn))
-      return(error_response("Object is not a function"))
+    # A CONSIDERED ANSWER, not a failure: HTTP 200 with success = FALSE, the
+    # shape `handle_selection_query` already uses.
+    #
+    # The caller is autocomplete, asking about a token somebody is part way
+    # through typing, so most of what it asks about does not resolve — and
+    # `error_response` is HTTP 500, which axios rejects. That put a 500 in the
+    # renderer console for every unfinished identifier, and made "no such
+    # function" indistinguishable from "the R server is down", which is the
+    # distinction the caller needs to decide whether asking again is worth it.
+    if (is.null(fn) || !is.function(fn)) {
+      return(json_response(list(
+        success = FALSE,
+        error = paste0("There is no function called ", name, " in this session.")
+      )))
+    }
 
     fmls <- formals(fn)
     if (is.null(fmls)) fmls <- tryCatch(formals(args(fn)), error = function(e) NULL)

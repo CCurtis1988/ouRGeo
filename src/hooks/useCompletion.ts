@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnInfo, RFormalArg } from '@/lib/r-client'
 import { rClient } from '@/lib/r-client'
 import { useEnvironmentStore } from '@/store/environment'
@@ -48,6 +48,32 @@ export function useCompletion() {
   const columnCache = useRef<Map<string, ColumnInfo[]>>(new Map())
   const formalsCache = useRef<Map<string, RFormalArg[]>>(new Map())
   const inFlight = useRef<Set<string>>(new Set())
+  /**
+   * Lookups R has already said it cannot answer.
+   *
+   * **Not caching these was an unbounded request loop, not a wasted call.** The
+   * `finally` below re-runs the query so a fetch that has just landed reaches
+   * the open menu — which is right, and is what makes lazy loading work at all.
+   * But nothing was written to the caches on failure, so the re-run asked for
+   * the same thing again, immediately, for ever. Measured against a real
+   * session: an unresolvable `foo(` left sitting in the editor fired **340
+   * requests in 17 seconds** with nothing typed, and `nosuchobject$` did the
+   * same to `/object/dataframe` — about twenty a second each, at a SERIAL R
+   * server, blocking every real command behind them.
+   *
+   * EVERY failure lands here, a dropped socket included. Keeping transport
+   * failures retryable was the first shape of this, and it just moved the loop
+   * behind a rarer condition — R restarting is an ordinary event here
+   * (`r-bridge.ts` restarts it on a crash), and hammering a server that is not
+   * answering is the one moment it helps least.
+   *
+   * Nothing is lost by that, because the recovery is the same for both: R
+   * coming back broadcasts an environment listing, and the effect below
+   * forgets every refusal when it lands. A name that could not be resolved
+   * because the server was down is retried the moment the server says anything
+   * at all.
+   */
+  const unresolved = useRef<Set<string>>(new Set())
   // Latest query inputs, so async fetches can re-run against current text.
   const last = useRef<{ text: string; offset: number; manual: boolean; mode: CompletionMode } | null>(null)
   const envRequested = useRef(false)
@@ -73,6 +99,14 @@ export function useCompletion() {
   const packagesRef = useRef<IndexedPackage[]>(packages)
   packagesRef.current = packages
 
+  // `library(terra)` makes `rast` resolvable, and the environment and package
+  // sweeps that follow are the signal — as is the first sweep after R restarts.
+  // Forgetting the refusals then is what lets a name that has just come into
+  // scope complete, without giving up the loop guard above.
+  useEffect(() => {
+    unresolved.current.clear()
+  }, [index, packages])
+
   const deps = useMemo<EngineDeps>(
     () => ({
       index,
@@ -91,13 +125,15 @@ export function useCompletion() {
       for (const col of result.wants.columns) {
         const key = `${col.envName}::${col.name}`
         if (columnCache.current.has(key) || inFlight.current.has(key)) continue
+        if (unresolved.current.has(key)) continue
         inFlight.current.add(key)
         rClient
           .getObjectDataFrame(col.name, col.envName, undefined, 0, 1)
           .then((r) => {
             if (r.success && r.columns) columnCache.current.set(key, r.columns)
+            else unresolved.current.add(key)
           })
-          .catch(() => {})
+          .catch(() => { unresolved.current.add(key) })
           .finally(() => {
             inFlight.current.delete(key)
             const l = last.current
@@ -107,13 +143,15 @@ export function useCompletion() {
       for (const fn of result.wants.formals) {
         const key = `fn::${fn}`
         if (formalsCache.current.has(fn) || inFlight.current.has(key)) continue
+        if (unresolved.current.has(key)) continue
         inFlight.current.add(key)
         rClient
           .getObjectFormals(fn)
           .then((r) => {
             if (r.success && r.args) formalsCache.current.set(fn, r.args)
+            else unresolved.current.add(key)
           })
-          .catch(() => {})
+          .catch(() => { unresolved.current.add(key) })
           .finally(() => {
             inFlight.current.delete(key)
             const l = last.current
