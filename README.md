@@ -201,7 +201,14 @@ and says so in the console.
 it, or writes a file you can upload at
 [ourgeo.dev/plugins-submit.html](https://ourgeo.dev/plugins-submit.html). It
 needs an account that has posted a few times on the forum, the same bar as
-uploading a forum image. A moderator installs it, runs it, and either publishes
+uploading a forum image.
+
+**Screenshots** are picked several at a time, and each one says where it has got
+to — resized, uploading, on your store page, or not uploaded and why. They are
+resized to fit the store's limit first, so the thumbnail you see is the picture
+people will see; the first is your plugin's card. A plugin the store has never
+heard of has nothing to attach a picture to, so screenshots chosen before a
+first submission are uploaded the moment that submission goes through. A moderator installs it, runs it, and either publishes
 it or sends it back with a note you will see on your account page.
 
 > **What the store does and does not do for your code.** What people download

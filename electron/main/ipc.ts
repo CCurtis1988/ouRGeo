@@ -158,6 +158,23 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     return result.canceled ? null : result.filePaths[0]
   })
 
+  // File dialog: choose screenshots. Multi-select, and image extensions only —
+  // the plugin submit panel used to reach for `dialog:openFile`, whose filter
+  // set is R scripts and markdown, so a PNG was hidden unless the user thought
+  // to switch to "All Files". A picker that hides what it is asking for is
+  // indistinguishable from one that refused the file.
+  ipcMain.handle('dialog:openImages', async (_evt, title?: string) => {
+    const result = await dialog.showOpenDialog({
+      title: title ?? 'Add Screenshots',
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'bmp'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile', 'multiSelections']
+    })
+    return result.canceled ? [] : result.filePaths
+  })
+
   // File dialog: save a document. `kind` picks the filter set and the default
   // extension so a .Rmd doesn't get offered as "Save as .R"; it is optional so
   // existing callers keep the historic R-script behaviour.

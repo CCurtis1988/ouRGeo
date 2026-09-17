@@ -71,6 +71,7 @@ Screenshots land in `/tmp/ourgeo-shots/` (override with `SCREENSHOT_DIR`).
 | `ready` | block until the console prints "R session ready" |
 | `open <path>` | stub the native Open dialog and click Open — the normal way to load a file |
 | `stub-open <path>` / `stub-save <path>` | stub a native dialog without clicking |
+| `stub-images <path> [path...]` | stub the multi-select image picker (plugin screenshots) |
 | `ss [name]` | screenshot → `/tmp/ourgeo-shots/<name>.png` |
 | `tabs` | list open tabs, `*` marks active |
 | `lang` | read the editor toolbar's document-type selector |

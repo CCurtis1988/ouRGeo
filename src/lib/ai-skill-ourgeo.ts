@@ -451,7 +451,8 @@ What you can do is get them ready and then point:
 1. The plugin has to work. \`plugin:validate\` and a real run first.
 2. **Settings → Plugins**, then **Publish…** on their plugin. ouRGeo builds both archives — the minified bundle and the source — and uploads them.
 3. Publishing needs trust level 1: three forum posts over two days, the same bar as uploading a forum image.
-4. A moderator installs it, runs it, and approves or sends it back with a note. The note appears on their account page and in the Publish dialog.
+4. **Screenshots** are added in that dialog, several at a time. Worth saying out loud, because the ordering surprises people: a screenshot attaches to the plugin's row in the store, and that row is written by the FIRST submission — so pictures picked beforehand sit queued, marked "will upload when you submit", and go up as soon as it does. The first screenshot is the picture on the plugin's card.
+5. A moderator installs it, runs it, and approves or sends it back with a note. The note appears on their account page and in the Publish dialog.
 
 The plugin **id is the store's name for it** and cannot be changed afterwards — it is also the folder name on every machine that installs it, which is why two plugins cannot share one. Get it right before the first submission.
 

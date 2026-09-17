@@ -2410,6 +2410,65 @@ would silently revert it, turning every approval into a constraint violation.
   half is the entire reason that file exists, and forking it to change a bucket
   name would duplicate the tricky part to vary the trivial one.
 
+### Screenshots, and the ordering nobody could see
+
+Attaching a picture is not one act but four — pick, resize, upload, record —
+and the panel showed none of them. It opened `dialog:openFile`, whose filters
+are `.R` and `.Rmd`, so a PNG was hidden behind "All Files"; it took one file;
+it did the whole round trip with nothing on screen; and it then either grew a
+64px thumbnail or wrote a sentence into an error box three scrolls down. An
+author could not tell acceptance from refusal. That is the report this was
+written from, and it is the only symptom the three faults below shared.
+
+**The refusal was real, and it is about ordering rather than permission.**
+`plugin_media.plugin_slug` references `plugins(slug)`, and that row is written
+by `submit_plugin_version()` — so before a first submission there is genuinely
+nowhere to put a picture, and `plugin_media_insert`'s `plugin_is_mine` gate
+turns every upload into an RLS refusal. `friendly()` renders that as "your
+account may not do it yet", which sends an author to check their trust level
+for a problem that has nothing to do with it. So: `store:media` reports
+`claimed`, the panel says what is true in those words, and screenshots picked
+early are prepared, previewed, and uploaded by `flush()` the moment the
+submission creates the row. The main-process handler still names the real cause
+if an upload is somehow attempted early, because a message nobody can act on is
+the thing being removed here.
+
+- **Every file gets a row the moment it is chosen**, before any work — so
+  choosing five files visibly produces five things. `planScreenshotAdd` is pure
+  and splits a multi-selection into what will be added and what will not; a
+  file dropped for being a PDF or for being the ninth is NAMED, with the
+  reason. Nothing is dropped silently.
+- **A row states which of the four steps it is on**, and "on your store page"
+  is claimed for nothing else — `summarizeScreenshots` counts `waiting`
+  separately for exactly that reason, and a test pins it. The thumbnail is the
+  RESIZED image, with `952×488 · 53 KB (from 265 KB)` beside it, so "resized
+  before upload" is visible rather than promised.
+- **Uploads are sequential.** Five in parallel finish in an order nobody chose,
+  and the order is not cosmetic: `sort_order` decides which screenshot becomes
+  the catalogue card's `icon_path`. One at a time keeps it the order they were
+  picked in, and "Make card picture" is a sort-order write and nothing else.
+- **Remove means remove.** The old panel forgot a screenshot locally and left
+  it on a public page. `store:deleteMedia` deletes the ROW first and the object
+  second — the opposite order to uploading, and right for the same reason both
+  times: a row pointing at bytes that are gone is a broken image on a public
+  page, while an object with no row is invisible.
+- **`store:media` restores the session before it asks.** With a stored-but-not-
+  restored token the query goes out anonymously, and `plugins_read` hides an
+  unpublished plugin from everyone but its owner — so an author's own pending
+  submission would come back as "not in the store yet" and their screenshots
+  would queue for a submission that had already happened. An expired sign-in is
+  raised rather than answered around.
+- **`apply` writes the ref inside the state updater** (`PluginScreenshots`).
+  The upload loop patches a row and reads it back in the same tick, and a ref
+  refreshed on render would hand it the row as it was before the patch — a
+  screenshot just prepared would read as having no bytes and be skipped in
+  silence. Same class as `useGeometryCommit`, in its upload-queue form; there
+  is deliberately no render-time assignment, or an unrelated re-render would
+  roll the ref back.
+
+`MAX_SCREENSHOTS` is ouRGeo's own limit, not the server's — `plugin_media` caps
+nothing per plugin — so it is worded as ouRGeo's wherever it bites.
+
 ### The assistant
 
 `store:search / inspect / updates / open` are `always`; `store:install` and

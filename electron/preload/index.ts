@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   dialog: {
     openFile: (): Promise<string | null> => ipcRenderer.invoke('dialog:openFile'),
+    openImages: (title?: string): Promise<string[]> =>
+      ipcRenderer.invoke('dialog:openImages', title),
     saveFile: (kind?: string): Promise<string | null> => ipcRenderer.invoke('dialog:saveFile', kind),
     openRData: (): Promise<string | null> => ipcRenderer.invoke('dialog:openRData'),
     saveRData: (): Promise<string | null> => ipcRenderer.invoke('dialog:saveRData'),
@@ -206,8 +208,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteReview: (slug: string): Promise<void> => ipcRenderer.invoke('store:deleteReview', slug),
     mine: (): Promise<unknown[]> => ipcRenderer.invoke('store:mine'),
     submit: (req: unknown): Promise<{ versionId: string }> => ipcRenderer.invoke('store:submit', req),
-    uploadMedia: (req: unknown): Promise<{ id: string; url: string }> =>
+    uploadMedia: (req: unknown): Promise<{ id: string; path: string; url: string }> =>
       ipcRenderer.invoke('store:uploadMedia', req),
+    media: (slug: string): Promise<unknown> => ipcRenderer.invoke('store:media', slug),
+    deleteMedia: (req: { id: string; path: string }): Promise<void> =>
+      ipcRenderer.invoke('store:deleteMedia', req),
+    updateMedia: (req: { id: string; alt?: string; sortOrder?: number }): Promise<void> =>
+      ipcRenderer.invoke('store:updateMedia', req),
     isModerator: (): Promise<boolean> => ipcRenderer.invoke('store:isModerator'),
   },
 

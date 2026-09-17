@@ -187,6 +187,25 @@ const COMMANDS = {
     console.log('open dialog stubbed →', filePath)
   },
 
+  /**
+   * `stub-images <path> [path...]` — stub the multi-select image picker.
+   *
+   * Separate from `stub-open` because the point of that dialog is that it
+   * returns SEVERAL files, and a stub that can only return one cannot exercise
+   * the thing being tested.
+   */
+  async 'stub-images'(arg) {
+    if (!app) return console.log('ERROR: launch first')
+    // The REPL hands a command its whole argument string, so the list is split
+    // here. Paths with spaces in them cannot be expressed — same limitation as
+    // every other command.
+    const list = String(arg).split(/\s+/).filter(Boolean)
+    await app.evaluate(async ({ dialog }, ps) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: ps })
+    }, list)
+    console.log('image dialog stubbed →', list.join(', '))
+  },
+
   async 'stub-save'(filePath) {
     if (!app) return console.log('ERROR: launch first')
     await app.evaluate(async ({ dialog }, p) => {

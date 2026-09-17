@@ -8,7 +8,8 @@
 // and the real message is the one the schema wrote for a person to read.
 
 import type {
-  StoreCategory, StoreDetail, StoreListing, StoreReview, StoreSort, StoreSubmission, StoreUpdate,
+  StoreCategory, StoreDetail, StoreListing, StoreMediaList, StoreReview, StoreSort,
+  StoreSubmission, StoreUpdate,
 } from './types'
 import type { StoreOrigin } from '@/lib/plugins/store-origin'
 
@@ -74,4 +75,31 @@ export function mySubmissions(): Promise<StoreSubmission[]> {
 
 export function isModerator(): Promise<boolean> {
   return window.electronAPI.store.isModerator()
+}
+
+/**
+ * The screenshots a plugin already carries, and whether it can carry any.
+ *
+ * `claimed` is false until the first version has been submitted: the store hangs
+ * pictures on a plugin row, and that row is written by the submission. The
+ * submit panel reads it so it can SAY that, rather than let an author discover
+ * it as a refusal.
+ */
+export function media(slug: string): Promise<StoreMediaList> {
+  return window.electronAPI.store.media(slug)
+}
+
+export function uploadMedia(req: {
+  slug: string; bytes: Uint8Array; mime: string
+  width: number; height: number; alt?: string; sortOrder?: number
+}): Promise<{ id: string; path: string; url: string }> {
+  return window.electronAPI.store.uploadMedia(req)
+}
+
+export function deleteMedia(id: string, path: string): Promise<void> {
+  return window.electronAPI.store.deleteMedia({ id, path })
+}
+
+export function updateMedia(req: { id: string; alt?: string; sortOrder?: number }): Promise<void> {
+  return window.electronAPI.store.updateMedia(req)
 }

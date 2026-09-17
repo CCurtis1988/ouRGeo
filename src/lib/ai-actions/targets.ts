@@ -35,6 +35,8 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'pluginStore.install', label: 'Install', where: 'the Plugin Store, bottom of the right pane' },
   { id: 'pluginSubmit.dialog', label: 'Publish a plugin', where: 'the publish dialog' },
   { id: 'pluginSubmit.summary', label: 'Summary', where: 'the publish dialog' },
+  { id: 'pluginSubmit.screenshots', label: 'Screenshots', where: 'the publish dialog' },
+  { id: 'pluginSubmit.addScreenshots', label: 'Add screenshots', where: 'the publish dialog, beside "Screenshots"' },
   { id: 'pluginSubmit.submit', label: 'Submit for review', where: 'the publish dialog, bottom right' },
   { id: 'settings.terminalPlacement', label: 'Give the terminal its own pane', where: 'Settings → Terminal' },
   { id: 'settings.terminalShell', label: 'Terminal shell', where: 'Settings → Terminal' },

@@ -1,18 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import {
-  X, Loader2, AlertCircle, Upload, Save, Image as ImageIcon, Trash2, CheckCircle2,
-} from 'lucide-react'
+import { X, Loader2, AlertCircle, Upload, Save, CheckCircle2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { buildDistFiles } from '@/lib/plugins/store-package'
 import { loadedPlugins } from '@/lib/plugins/loader'
-import { transcodeForUpload } from '@/lib/forum/transcode'
 import { storeErrorMessage } from '@/lib/plugin-store/client'
 import * as storeClient from '@/lib/plugin-store/client'
 import type { StoreCategory } from '@/lib/plugin-store/types'
 import { useSessionStore } from '@/store/session'
+import { PluginScreenshots, type PluginScreenshotsHandle } from './PluginScreenshots'
 
 // Publishing a plugin you wrote.
 //
@@ -43,14 +41,10 @@ type Phase =
   | { kind: 'idle' }
   | { kind: 'building' }
   | { kind: 'uploading' }
-  | { kind: 'done'; versionId: string }
+  /** The version is in; its screenshots are going up behind it. */
+  | { kind: 'attaching' }
+  | { kind: 'done'; versionId: string; screenshots: { uploaded: number; failed: number } }
   | { kind: 'error'; message: string }
-
-interface Shot {
-  id: string
-  url: string
-  alt: string
-}
 
 export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): React.ReactElement {
   const plugin = loadedPlugins().find((p) => p.manifest.id === pluginId)
@@ -64,10 +58,11 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
   const [homepage, setHomepage] = useState('')
   const [license, setLicense] = useState('')
   const [changelog, setChangelog] = useState('')
-  const [shots, setShots] = useState<Shot[]>([])
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
   const [warnings, setWarnings] = useState<string[]>([])
   const [signedIn, setSignedIn] = useState(false)
+  const [shotsBusy, setShotsBusy] = useState(false)
+  const screenshots = useRef<PluginScreenshotsHandle>(null)
 
   useEffect(() => {
     if (!open) return
@@ -123,10 +118,28 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
           changelog: changelog || undefined,
         },
       })
-      setPhase({ kind: 'done', versionId })
+
+      // Only now does a plugin row exist, which is what `plugin_media` needs to
+      // reference — so screenshots picked before a first submission are uploaded
+      // here rather than refused at the moment they were chosen.
+      setPhase({ kind: 'attaching' })
+      const shots = await screenshots.current?.flush() ?? { uploaded: 0, failed: 0 }
+      await screenshots.current?.refresh()
+
+      setPhase({ kind: 'done', versionId, screenshots: shots })
       addConsoleEntry('info',
         `Submitted "${plugin.manifest.name}" ${plugin.manifest.version} to the plugin store. ` +
         'A moderator will install and test it before it appears.')
+      if (shots.uploaded) {
+        addConsoleEntry('info',
+          `Attached ${shots.uploaded} screenshot${shots.uploaded === 1 ? '' : 's'} ` +
+          `to "${plugin.manifest.id}".`)
+      }
+      if (shots.failed) {
+        addConsoleEntry('error',
+          `${shots.failed} screenshot${shots.failed === 1 ? '' : 's'} did not upload. ` +
+          'Reopen Publish to retry them — the submission itself went through.')
+      }
     } catch (e) {
       setPhase({ kind: 'error', message: storeErrorMessage(e) })
     }
@@ -156,30 +169,10 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
     }
   }, [plugin, build, summary, description, category, tags, homepage, license, changelog, addConsoleEntry])
 
-  const addShot = useCallback(async () => {
-    if (!plugin) return
-    const file = await window.electronAPI.dialog.openFile()
-    if (!file) return
-    try {
-      const b64 = await window.electronAPI.file.readBinary(file)
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
-      const shrunk = await transcodeForUpload(bytes)
-      const { id, url } = await window.electronAPI.store.uploadMedia({
-        slug: plugin.manifest.id,
-        bytes: shrunk.bytes,
-        mime: shrunk.mime,
-        width: shrunk.width,
-        height: shrunk.height,
-        sortOrder: shots.length,
-      })
-      setShots((s) => [...s, { id, url, alt: '' }])
-    } catch (e) {
-      setPhase({ kind: 'error', message: storeErrorMessage(e) })
-    }
-  }, [plugin, shots.length])
-
-  const busy = phase.kind === 'building' || phase.kind === 'uploading'
-  const canSubmit = Boolean(plugin) && summary.trim().length > 0 && signedIn && !busy
+  const busy = phase.kind === 'building' || phase.kind === 'uploading' || phase.kind === 'attaching'
+  // Screenshots in flight block Submit, because an upload interrupted by the
+  // dialog closing is exactly the half-done state this panel exists to prevent.
+  const canSubmit = Boolean(plugin) && summary.trim().length > 0 && signedIn && !busy && !shotsBusy
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -296,29 +289,13 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
                     />
                   </Field>
 
-                  <Field label="Screenshots" hint="Optional. Resized and re-encoded before upload.">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {shots.map((s) => (
-                        <div key={s.id} className="relative">
-                          <img src={s.url} alt="" className="h-16 rounded border border-geo-border" />
-                          <button
-                            type="button"
-                            onClick={() => setShots((all) => all.filter((x) => x.id !== s.id))}
-                            className="absolute -top-1 -right-1 rounded-full bg-geo-panel border border-geo-border p-0.5"
-                            aria-label="Remove screenshot"
-                          >
-                            <Trash2 className="w-2.5 h-2.5 text-geo-error" />
-                          </button>
-                        </div>
-                      ))}
-                      <Button
-                        variant="ghost" size="sm" className="h-7 text-xs gap-1.5"
-                        disabled={busy} onClick={() => void addShot()}
-                      >
-                        <ImageIcon className="w-3 h-3" /> Add…
-                      </Button>
-                    </div>
-                  </Field>
+                  <PluginScreenshots
+                    ref={screenshots}
+                    slug={plugin.manifest.id}
+                    signedIn={signedIn}
+                    submitting={busy}
+                    onBusyChange={setShotsBusy}
+                  />
 
                   {warnings.length > 0 && (
                     <div className="rounded border border-geo-warning/40 bg-geo-warning/5 p-2 space-y-1">
@@ -341,6 +318,15 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
                       <p className="text-[11px] text-geo-success leading-snug">
                         Submitted. It is waiting for a moderator — you can follow it on
                         ourgeo.dev, under your account.
+                        {phase.screenshots.uploaded > 0 && (
+                          <> {phase.screenshots.uploaded} screenshot
+                            {phase.screenshots.uploaded === 1 ? ' is' : 's are'} on its page.</>
+                        )}
+                        {phase.screenshots.failed > 0 && (
+                          <> {phase.screenshots.failed} screenshot
+                            {phase.screenshots.failed === 1 ? '' : 's'} did not upload — retry
+                            {phase.screenshots.failed === 1 ? ' it' : ' them'} above.</>
+                        )}
                       </p>
                     </div>
                   )}
@@ -372,7 +358,8 @@ export function PluginSubmitDialog({ open, pluginId, onOpenChange }: Props): Rea
             >
               {busy
                 ? <><Loader2 className="w-3 h-3 animate-spin" />
-                    {phase.kind === 'building' ? 'Building…' : 'Uploading…'}</>
+                    {phase.kind === 'building' ? 'Building…'
+                      : phase.kind === 'attaching' ? 'Attaching screenshots…' : 'Uploading…'}</>
                 : <><Upload className="w-3 h-3" /> Submit for review</>}
             </Button>
           </div>

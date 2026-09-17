@@ -116,6 +116,34 @@ export interface StoreSubmission {
   }[]
 }
 
+/** One screenshot on a plugin's store page. */
+export interface StoreMedia {
+  id: string
+  /** Public CDN url. */
+  url: string
+  /** Storage path — the key the object is deleted by. */
+  path: string
+  alt: string | null
+  bytes: number
+  width: number
+  height: number
+  sortOrder: number
+}
+
+export interface StoreMediaList {
+  /**
+   * Whether the store has a plugin row for this id yet.
+   *
+   * Screenshots reference it, so until a first version has been submitted there
+   * is nothing to attach one to — which is a rule about ordering, not about the
+   * author's account, and the panel says so in those terms.
+   */
+  claimed: boolean
+  /** Whether it is this account's plugin. False means someone else claimed the id. */
+  mine: boolean
+  items: StoreMedia[]
+}
+
 /** How the store is sorted. A closed set, matching `plugin_catalogue()`. */
 export type StoreSort = 'popular' | 'rated' | 'new' | 'updated'
 

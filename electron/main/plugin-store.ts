@@ -406,6 +406,106 @@ export function registerPluginStoreHandlers(ipcMain: IpcMain): void {
     },
   )
 
+  /**
+   * The screenshots already on a plugin's store page.
+   *
+   * Read from the table rather than from `plugin_detail`, because that RPC
+   * reports a screenshot's path but not its id, and an id is what deleting and
+   * reordering need. `claimed` is the other half of the answer and the reason
+   * this is one call: `plugin_media_insert` is gated on `plugin_is_mine`, so
+   * until a first version has been submitted there is no plugin row to hang a
+   * picture on and an upload cannot succeed. The submit panel has to know that
+   * BEFORE it offers the button, not after a refusal.
+   */
+  ipcMain.handle('store:media', async (_e, slug: string): Promise<{
+    claimed: boolean
+    mine: boolean
+    items: {
+      id: string; url: string; path: string; alt: string | null
+      bytes: number; width: number; height: number; sortOrder: number
+    }[]
+  }> => {
+    // With a stored-but-not-yet-restored session this would go out anonymously,
+    // and `plugins_read` hides an unpublished plugin from anyone but its owner —
+    // so an author's own pending submission would come back as "not in the store
+    // yet", and their screenshots would queue for a submission that has already
+    // happened. Restore first, then ask.
+    if (!isSignedIn()) await restoreSession().catch(() => false)
+    if (!isSignedIn() && hasStoredSession()) {
+      // A token on disk that will not restore is an expired sign-in, and going
+      // on anonymously would answer "not in the store yet" for a plugin that is
+      // — the one wrong answer this call must never give.
+      throw new Error('Your ourgeo.dev sign-in has expired. Sign in again to manage screenshots.')
+    }
+    const me = await accountProfile().catch(() => null)
+    const owners = await rest<Record<string, unknown>[]>(
+      `plugins?select=slug,owner_id&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+      { auth: 'optional', subject: SUBJECT },
+    )
+    const owner = owners?.[0]
+    if (!owner) return { claimed: false, mine: false, items: [] }
+
+    const rows = await rest<Record<string, unknown>[]>(
+      'plugin_media?select=id,storage_path,alt_text,bytes,width,height,sort_order' +
+      `&plugin_slug=eq.${encodeURIComponent(slug)}&order=sort_order,created_at`,
+      { auth: 'optional', subject: SUBJECT },
+    )
+    return {
+      claimed: true,
+      mine: !!me && String(owner.owner_id) === me.id,
+      items: (rows ?? []).map((m) => ({
+        id: String(m.id),
+        path: String(m.storage_path),
+        url: publicStorageUrl(MEDIA, String(m.storage_path)),
+        alt: m.alt_text ? String(m.alt_text) : null,
+        bytes: Number(m.bytes ?? 0),
+        width: Number(m.width ?? 0),
+        height: Number(m.height ?? 0),
+        sortOrder: Number(m.sort_order ?? 0),
+      })),
+    }
+  })
+
+  /**
+   * Remove one screenshot, for good.
+   *
+   * The ROW goes first and the object second, which is the opposite order to
+   * uploading and for the same reason it is right both times: the failure that
+   * must not happen is a row pointing at bytes that are gone, because that is a
+   * broken image on a public page. An object with no row is invisible — it
+   * costs the author a slot against the 200-object storage policy and nothing
+   * else — so it is the safe half to leave behind if the second call fails.
+   */
+  ipcMain.handle(
+    'store:deleteMedia',
+    async (_e, req: { id: string; path: string }): Promise<void> => {
+      await rest(`plugin_media?id=eq.${encodeURIComponent(req.id)}`, {
+        method: 'DELETE', subject: SUBJECT,
+      })
+      await storageDelete(MEDIA, req.path).catch(() => undefined)
+    },
+  )
+
+  /**
+   * Re-describe or re-order one screenshot.
+   *
+   * Order matters more than it looks: the catalogue card takes its picture from
+   * the first screenshot (`icon_path`), so "make this the cover" is a sort
+   * order write and nothing else.
+   */
+  ipcMain.handle(
+    'store:updateMedia',
+    async (_e, req: { id: string; alt?: string; sortOrder?: number }): Promise<void> => {
+      const body: Record<string, unknown> = {}
+      if (req.alt !== undefined) body.alt_text = req.alt.slice(0, 300) || null
+      if (req.sortOrder !== undefined) body.sort_order = req.sortOrder
+      if (Object.keys(body).length === 0) return
+      await rest(`plugin_media?id=eq.${encodeURIComponent(req.id)}`, {
+        method: 'PATCH', subject: SUBJECT, body,
+      })
+    },
+  )
+
   /** Upload one screenshot. Public bucket, so the URL is the answer. */
   ipcMain.handle(
     'store:uploadMedia',
@@ -438,9 +538,25 @@ export function registerPluginStoreHandlers(ipcMain: IpcMain): void {
         })
       } catch (e) {
         await storageDelete(MEDIA, path).catch(() => undefined)
+        // `plugin_media_insert` is gated on `plugin_is_mine`, and the row that
+        // makes that true is written by the first submission. Left alone, the
+        // refusal arrives as friendly()'s generic "your account may not do it
+        // yet", which sends the author to check their trust level for a problem
+        // that is about ordering.
+        const claimed = await rest<Record<string, unknown>[]>(
+          `plugins?select=slug&slug=eq.${encodeURIComponent(req.slug)}&limit=1`,
+          { auth: 'optional', subject: SUBJECT },
+        ).catch(() => null)
+        if (claimed && claimed.length === 0) {
+          throw new Error(
+            'Screenshots attach to a plugin the store already knows about, and this one has ' +
+            'not been submitted yet. Submit this version first — ouRGeo will then upload the ' +
+            'screenshots you have picked.'
+          )
+        }
         throw e
       }
-      return { id, url: publicStorageUrl(MEDIA, path) }
+      return { id, path, url: publicStorageUrl(MEDIA, path) }
     },
   )
 

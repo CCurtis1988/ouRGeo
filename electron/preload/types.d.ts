@@ -211,6 +211,8 @@ declare global {
       }
       dialog: {
         openFile(): Promise<string | null>
+        /** Screenshots and other pictures. Multi-select; [] if cancelled. */
+        openImages(title?: string): Promise<string[]>
         /** `kind` is a DocLanguage ('r' | 'markdown' | 'rmarkdown'); omit for R. */
         saveFile(kind?: string): Promise<string | null>
         openRData(): Promise<string | null>
@@ -292,7 +294,17 @@ declare global {
         uploadMedia(req: {
           slug: string; bytes: Uint8Array; mime: string
           width: number; height: number; alt?: string; sortOrder?: number
-        }): Promise<{ id: string; url: string }>
+        }): Promise<{ id: string; path: string; url: string }>
+        media(slug: string): Promise<{
+          claimed: boolean
+          mine: boolean
+          items: {
+            id: string; url: string; path: string; alt: string | null
+            bytes: number; width: number; height: number; sortOrder: number
+          }[]
+        }>
+        deleteMedia(req: { id: string; path: string }): Promise<void>
+        updateMedia(req: { id: string; alt?: string; sortOrder?: number }): Promise<void>
         isModerator(): Promise<boolean>
       }
       knit: {
