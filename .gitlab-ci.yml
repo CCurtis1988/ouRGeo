@@ -12,7 +12,16 @@
 #   - a runner tagged `windows-builder` (SHELL executor on the Windows VM — Node + git installed)
 #
 # If your Linux runner is a *shell* executor (not Docker), delete the `image:`
-# line from build:linux and make sure the host has Node 20+, dpkg and fakeroot.
+# line from build:linux and make sure the host has Node 22+, dpkg and fakeroot.
+#
+# PUBLISHING is GitLab's, through release-cli in the last stage — never
+# electron-builder's. That has to be said out loud because electron-builder
+# turns publishing on BY ITSELF when it is building from a git tag, works out
+# the provider from `repository` in package.json (github.com/...), and then
+# fails the whole build with "GitHub Personal Access Token is not set". Since
+# every pipeline here is a tag pipeline, that fired on every one. The package
+# scripts pass `--publish never`, which is also what the deprecation notice
+# asks for — implicit publishing goes away in electron-builder v27.
 
 workflow:
   rules:
@@ -37,11 +46,17 @@ build:linux:
   stage: build
   tags:
     - linux-builder
+  # electron-builder fetches its own toolchain from GitHub releases at build
+  # time — electron itself, appimagetool, fpm, nsis — and a 500 from that CDN
+  # fails the job through no fault of the code. A tag build happens a handful
+  # of times a year, so one automatic retry is cheap; the cost is that a
+  # genuine breakage takes two cycles to report. Drop this if that annoys.
+  retry: 1
   # Used only by a Docker executor; ignored by a shell executor.
-  image: node:20-bookworm
+  image: node:22-bookworm
   before_script:
     # Build dep for the .deb target (electron-builder shells out to fakeroot).
-    # dpkg/dpkg-deb already ship in node:20-bookworm; only fakeroot is missing.
+    # dpkg/dpkg-deb already ship in the node base image; only fakeroot is missing.
     # Guard on fakeroot itself so shell runners with it preinstalled skip apt
     # entirely, while Docker runners always `apt-get update` first (Debian base
     # images ship with empty apt lists, so install without update finds no
@@ -67,12 +82,14 @@ build:linux:
       - .cache/
 
 # ── Windows build: NSIS .exe ─────────────────────────────────────────────
-# Expects a SHELL executor on a Windows VM with Node 20+ and git on PATH.
+# Expects a SHELL executor on a Windows VM with Node 22+ and git on PATH.
 # (Windows Docker containers are impractical for electron-builder.)
 build:windows:
   stage: build
   tags:
     - windows-builder
+  # See build:linux — this is the job that actually hit it, on nsis-3.0.4.1.7z.
+  retry: 1
   before_script:
     - node --version
     - npm --version
