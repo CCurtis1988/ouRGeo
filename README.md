@@ -38,6 +38,16 @@ the whole analysis.
   It shows where the next vertex lands as you type, reports a ring's closure
   and its 1:N, and echoes a runnable `ourgeo_traverse()` call when you are
   done.
+- **Curved courses.** Every deed, plat and alignment mixes lines with curves, so
+  a curve is typed the way it is written: *"along a curve to the right, radius
+  250.00 feet, central angle 45°30′"*. Tangent and non-tangent curves, clothoid
+  spirals, the spiral–curve–spiral a highway plan quotes as one unit, and a free
+  curve between two headings. Give **any two** of radius, arc length, chord,
+  tangent, external, mid-ordinate, central angle or degree of curve and ouRGeo
+  solves the rest and prints all of them back — a plat quotes them redundantly
+  so they can be checked. What reaches the layer is a true `CIRCULARSTRING` /
+  `COMPOUNDCURVE`, so the radius survives a reprojection and a GeoPackage round
+  trip, and closure measures the arc rather than the chord.
 - **87-tool geoprocessing toolbox** across seven categories (table, joins,
   aggregate, type/string, sf, geos, raster), each one generating clean R.
 - **First-class rasters.** R-served XYZ tiles with a full symbology editor —

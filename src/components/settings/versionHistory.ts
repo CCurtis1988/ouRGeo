@@ -15,42 +15,36 @@ export interface ReleaseNote {
 }
 
 export const VERSION_HISTORY: ReleaseNote[] = [
-  // 1.16 is written and waiting on a decision that is not an agent's to make:
-  // `a` and `b` belong to the maintainer (docs/AGENTS.md rule 39), so
-  // package.json is still on a 1.15 patch. Bump it to 1.16.0 to cut the
-  // release, and `currentRelease()` will match this entry.
   {
-    version: '1.16',
+    version: '1.15',
     date: 'September 2026',
-    title: 'The Plugin Store',
+    title: 'Curves, Chats and a Plugin Store',
     summary:
-      'Plugins other people wrote, reviewed before they appear, installed from inside ouRGeo \u2014 and a way to publish your own.',
+      'Type the curve a deed is written in, keep your conversations with the project, and install plugins other people wrote \u2014 each one run by a moderator before it appeared.',
     highlights: [
+      'Curved courses in Distance & Bearing. Press U and type the call the way the deed or plat writes it \u2014 "along a curve to the right, radius 250.00 feet, central angle 45\u00b030\u2032" \u2014 and the arc lands where the numbers say it does. Tangent and non-tangent curves, clothoid spirals, the spiral\u2013curve\u2013spiral a highway plan quotes as one unit, and a free curve between two headings.',
+      'Any two elements define a curve, so type the two your plat happens to quote \u2014 radius, arc length, chord, tangent, external, mid-ordinate, central angle or degree of curve. ouRGeo works out the rest and prints all of them back, which is how you check a curve against the document it came from. Where two perfectly ordinary curves would fit the numbers you gave, it says so and names both rather than quietly picking one.',
+      'What is written to your layer is a real curve \u2014 CIRCULARSTRING and COMPOUNDCURVE, not a densified polyline \u2014 so the radius survives a reprojection and a GeoPackage round trip. Closure now measures the arc a curve actually follows rather than its chord, so a figure with curves in it is judged by the right length.',
+      'Arcs are circles on the ground now. Three-point arcs used to be fitted in raw longitude and latitude, where a circle on the map is an ellipse on the Earth: a 250 m radius arc through 90\u00b0 landed 25 m out at latitude 45 and nearly 47 m at latitude 60. Geometry you have already saved is untouched \u2014 it simply draws correctly from now on.',
       'A plugin store. Browse it in Settings \u2192 Plugins \u2192 Plugin Store\u2026, or at ourgeo.dev/plugins.html \u2014 data connectors, geoprocessing tools, panels and workflows written by other ouRGeo users. Every one has been installed and run by a moderator before it appeared.',
       'Installing happens inside ouRGeo and needs your free ourgeo.dev account, the same one the forum uses, because plugin downloads are not public. What you install still arrives switched off: turning it on stays your decision, exactly as it is for a plugin you were sent as a file.',
       'Publish your own. Publish\u2026 on any plugin you wrote builds it, uploads it and puts it in the queue; a moderator installs it, runs it, and either publishes it or sends it back with a note you can read. What people download is a built, minified bundle \u2014 your source is never published, and ouRGeo will not export or read back a plugin installed from the store.',
+      'Show off what you built: attach several screenshots at once, watch each one resize and upload, and see which of them are on your store page and which are still waiting for you to submit. Pick the one that becomes the catalogue picture, reorder them, or remove one \u2014 and removing it takes it off the page rather than just out of the list.',
       'Updates are offered in Settings \u2192 Plugins and never applied for you, with the author\u2019s note about what changed. If a version is withdrawn after you installed it, ouRGeo switches that plugin off and tells you why in the console.',
       'Ratings and reviews, from people who have actually installed the plugin.',
       'The assistant can search the store and install from it, and will look there before offering to write you a plugin from scratch \u2014 an installed plugin is code somebody has already read and other people are already running.',
       'A plugin archive can no longer smuggle in code nobody read. ouRGeo used to pack its own compiled cache into an exported .ourgeoplugin and load it back without recompiling, which meant a hand-made archive could ship one thing to read and another to run. Both ends now leave it out, and imported archives are checked and bounded.',
-    ],
-  },
-  {
-    version: '1.15',
-    date: 'September 2026',
-    title: 'The Assistant Remembers',
-    summary:
-      'Chats belong to the project \u2014 keep as many as you like, switch between them, and find them again tomorrow. Plus your Claude subscription as a provider, and an honest context meter.',
-    highlights: [
       'The AI panel keeps as many conversations as you like instead of one. Start a new chat whenever you want and the last is still there \u2014 switch back from the header and carry on where you left off. Save the session as a project and its chats are kept with it, ready next time you open it, and they travel inside the .ourgeoproj so a project you send someone carries the conversations that shaped it.',
       'Chats in the scratch workspace last until you quit, like everything else in scratch \u2014 if a conversation turns out to be worth keeping, save the session as a project and it comes along.',
       'Each chat remembers the model it was held with, and switching back restores it \u2014 so a conversation written by a large cloud model is never quietly continued by a small local one. Chats name themselves from your first question, and you can rename or delete any of them.',
       'Use your Claude Pro or Max subscription as an AI provider. ouRGeo runs the Claude Code command-line tool you already installed and signed in to \u2014 no API key to paste, and ouRGeo never sees a credential of yours. Usage counts against your Claude plan.',
       'The context meter tells the truth. It used to report the total of every request a single answer made \u2014 several times the real figure on a long Autopilot turn \u2014 and only once the answer had finished. It now follows the live conversation as it grows.',
-      'Much less of your Claude subscription spent per question: the session context ouRGeo sends now extends the cached conversation instead of invalidating it, which on a measured two-turn chat was the difference between $0.0014 and $0.0235 for the same question.',
+      'Much less of your Claude subscription spent per question: the session context ouRGeo sends now extends the cached conversation instead of invalidating it, and says only what has changed since the last turn. On a measured six-turn chat that was 21% fewer tokens overall and a third of the per-turn growth; on a two-turn chat, the difference between $0.0014 and $0.0235 for the same question.',
       'Local models get the time they need. ouRGeo no longer imposes a hidden five-minute deadline on a reply \u2014 a large prompt on a busy GPU used to fail with the words "fetch failed" and nothing else. Failures now name the server and what to do about it.',
       'Nothing you were reading disappears any more. A dropped connection used to replace a half-written answer with an empty one; pressing Stop used to delete it outright. Both keep what was said.',
       'Send does something the moment you press it, so a slow session can no longer turn one click into two messages.',
+      'The open-data connectors answer again. NYC, Chicago and every other Socrata portal had been silently returning nothing \u2014 they were asking for a catalogue Socrata retired \u2014 and Canada\u2019s portal blamed your internet connection for problems that were never yours. Every connector now also carries a Help button that opens the API\u2019s own documentation, which is where the questions a connector cannot answer are answered.',
+      'The USGS water connectors generate R that runs, and let you narrow the data: choose the gauge rather than taking a whole state, and the measurement \u2014 discharge, gage height, temperature, conductance, pH \u2014 rather than always discharge. Water quality and groundwater had been asking for NWIS services USGS has retired, and now use the endpoints that carry the data.',
       'Copy buttons throughout the app work again \u2014 they had been silently doing nothing since 1.12 while still showing a tick, along with the terminal\u2019s copy and paste.',
       'Hover any tab to read its full name, the file it came from, and whether it has unsaved changes.',
     ],

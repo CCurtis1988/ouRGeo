@@ -609,7 +609,7 @@ implements the identical Vincenty direct solution as `cogo.ts`; each file names
 the other as the thing it must stay in step with. Verified by driving the app:
 the echoed call reproduced the saved geometry to 7e-13 degrees.
 
-## Curves (v1.16)
+## Curves (v1.15)
 
 Distance & Bearing could only place **straight** courses, and every real deed,
 plat and alignment mixes lines with curves:
@@ -2309,7 +2309,7 @@ addServer, removeServer, probe, test).
   It found `ui:listThemes` in the `interface` topic on its first run — an action
   that has never existed.
 
-## The plugin store (v1.16)
+## The plugin store (v1.15)
 
 A plugin had two ways to reach anybody: the assistant wrote it into the user's
 own folder, or somebody sent them a `.ourgeoplugin` file. Both are private
