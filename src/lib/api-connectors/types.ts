@@ -13,6 +13,16 @@ export interface ApiServer {
   baseUrl: string
   /** Built-ins ship with the app and can't be removed. */
   builtin?: boolean
+  /**
+   * This server's own documentation, where it differs usefully from the
+   * provider's.
+   *
+   * The distinction is real for an open-data portal: the protocol docs explain
+   * SoQL, and the portal explains what is IN it and whether it is having a bad
+   * day. Optional, because for most servers there is nothing to say that the
+   * provider page does not.
+   */
+  docsUrl?: string
 }
 
 /** Runtime context handed to every provider call. */
@@ -154,6 +164,15 @@ export interface ApiProvider {
   category: ApiCategory
   /** One-line description shown under the provider title. */
   description: string
+  /**
+   * The protocol or service documentation, opened by the Help button.
+   *
+   * Required, for the reason `DataSource.docsUrl` is: a connector is a shell
+   * over somebody else's API, and the questions it cannot answer — what an
+   * operator means, why a filter was refused, what a collection contains — are
+   * answered there.
+   */
+  docsUrl: string
   builtinServers: ApiServer[]
   /** Variable-depth cascade; the LAST level selects the queryable resource. */
   cascade: CascadeLevel[]

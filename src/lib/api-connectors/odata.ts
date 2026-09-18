@@ -63,6 +63,7 @@ export const odataProvider: ApiProvider = {
   label: 'OData',
   category: 'Statistics',
   description: 'OData v4 services. Pick an entity set; query with $filter / $select / $top.',
+  docsUrl: 'https://www.odata.org/documentation/',
   builtinServers: [
     { id: 'northwind', label: 'Northwind (demo)', baseUrl: 'https://services.odata.org/V4/Northwind/Northwind.svc' },
     { id: 'trippin', label: 'TripPin (demo)', baseUrl: 'https://services.odata.org/TripPinRESTierService' },

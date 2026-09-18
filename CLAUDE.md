@@ -831,6 +831,79 @@ legend column readers — no-op naturally) plus `raster: RasterLayerInfo`
 
 `MapAnnotations` carries all export-specific overrides (title/subtitle/caption, legend, north arrow, scale bar, graticules, panel border). Both `ggplot-codegen.ts` and `tmap-codegen.ts` accept it as an optional parameter; when present it overrides the spatial store values.
 
+## Data Connector — Browse Sources (`src/components/connector/sources.ts`)
+
+The curated half of the dialog: a source is a fixed list of datasets, each a few
+typed parameters and a `buildCode` that emits R. Three rules came out of finding
+it broken.
+
+- **Every request the renderer makes goes through `proxyFetch`.** The four live
+  catalogues — Kaggle, Socrata, CKAN, FRED — used the renderer's own `fetch`,
+  and they are the only network calls in the app that did. ouRGeo renders from
+  `file://`, so each was made with a null origin and lived or died by whether
+  the server happened to allow one: open.canada.ca does, non-standardly, and
+  nothing obliges it to keep doing so. The Web APIs tab has always used the main
+  process; this half had simply never been moved. They also had no timeout,
+  which is a spinner nobody can clear.
+- **Check `res.ok`, always.** `https://<domain>/api/catalog.json` answers HTTP
+  406 — Socrata retired the per-domain catalogue in favour of the discovery API
+  at `api.us.socrata.com`, which `socrata.ts` already used and this did not. The
+  406 body is valid JSON with no `results` key, so the failure was SILENT: every
+  Socrata portal showed "No results" and said nothing about why. A response that
+  parses is not a response that succeeded.
+- **Do not blame the user's connection.** The single catch answered every
+  failure with "Failed to fetch catalogue. Check your internet connection.",
+  including a server that 500s, a portal that is merely slow, and a request
+  aborted when the laptop suspended. `catalogueErrorMessage` names the service
+  and says what happened.
+
+### What a connector lets the user control (the NWIS case)
+
+The question a new dataset has to answer is which arguments are the USER's and
+which are the dataset's identity. USGS NWIS is the worked example:
+
+- **`service` is the dataset, not a field.** Daily values, water quality and
+  groundwater ARE the three services; offering a service picker as well would
+  let someone choose "Daily Values" and then set the service to something else,
+  a contradiction the panel would have to resolve.
+- **`parameterCd` is a field**, and pinning it to 00060 made a service that
+  carries discharge, gage height, temperature, conductance and pH able to fetch
+  only the first. `ParamOption` gained an object form for this: the menu shows
+  `00060 — Discharge (ft³/s)` and sends `00060`, because a bare code tells a
+  user nothing and the value has to stay the code.
+- **The site number is a field, and it is the one that matters** — a state of
+  daily values is tens of thousands of rows a year; a gage is a few hundred.
+  But NWIS takes exactly ONE major filter and `stateCd` + `sites` is an HTTP
+  400, so the two share a rule rather than a form: `nwisMajorFilter` sends sites
+  when they are filled and the state otherwise, and both hints say so.
+
+Two of the three datasets emitted R that could not run, which is worth recording
+because nothing in the app could have noticed: `readNWISdata(service = "qw")`
+fails outright in dataRetrieval 2.7.25 (USGS retired the NWIS water-quality
+service — the data moved to the Water Quality Portal, so the dataset now calls
+`readWQPdata`), and `service = "gwlevels"` is answered with the list of services
+dataRetrieval does accept (depth to water is published as daily parameter 72019,
+which keeps groundwater and streamflow on one working mechanism). **A connector
+is a claim about somebody else's API, and the only way to check the claim is to
+run the R it generates.**
+
+`rStr` moved into `dataConnectorCode.ts` for the rewritten datasets. The rest of
+`sources.ts` still interpolates user text into R raw — the same hazard AGENTS.md
+rule 24 names — and is worth a sweep.
+
+### Help buttons
+
+`DataSource.docsUrl` and `ApiProvider.docsUrl` are REQUIRED, and a test asserts
+every shipped one is an `https:` URL: a Help button is only as good as the link
+behind it, and the type cannot catch an empty string, which a plugin-contributed
+connector is deliberately allowed (one written before this existed cannot have
+declared a link, and dropping its connector over that would be a worse answer
+than not drawing the button). `ApiServer.docsUrl` is the optional second link
+and exists for open-data portals specifically: the protocol docs explain SoQL,
+and the portal explains what is in it and whether it is having a bad day. Both
+open through `shell.openExternal` — an `<a>` on a `file://` page navigates the
+app away from itself.
+
 ## Data Connector — Web APIs (`src/lib/api-connectors/`)
 
 The Data Connector dialog (`src/components/connector/DataConnectorDialog.tsx`) has three

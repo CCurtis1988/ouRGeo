@@ -40,6 +40,7 @@ export const ogcapiProvider: ApiProvider = {
   label: 'OGC API – Features',
   category: 'Geospatial',
   description: 'OGC API – Features servers. Pick a collection; filter by property/time; imports as sf.',
+  docsUrl: 'https://ogcapi.ogc.org/features/',
   builtinServers: [
     { id: 'pygeoapi', label: 'pygeoapi demo', baseUrl: 'https://demo.pygeoapi.io/master' },
     { id: 'ldproxy', label: 'ldproxy demo (vineyards)', baseUrl: 'https://demo.ldproxy.net/vineyards' },

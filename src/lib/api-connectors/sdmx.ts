@@ -95,6 +95,7 @@ export const sdmxProvider: ApiProvider = {
   label: 'SDMX',
   category: 'Statistics',
   description: 'SDMX statistical data (ECB, OECD, Eurostat). Pick a dataflow; filter by dimension.',
+  docsUrl: 'https://sdmx.org/',
   builtinServers: [
     { id: 'ecb', label: 'European Central Bank', baseUrl: 'https://data-api.ecb.europa.eu/service' },
     { id: 'oecd', label: 'OECD', baseUrl: 'https://sdmx.oecd.org/public/rest' },

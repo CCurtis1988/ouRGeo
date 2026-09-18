@@ -1,20 +1,66 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, ChevronRight, ChevronDown, Search, Loader2, Plus, Trash2, AlertCircle } from 'lucide-react'
+import {
+  X, ChevronRight, ChevronDown, Search, Loader2, Plus, Trash2, AlertCircle, HelpCircle,
+} from 'lucide-react'
 import { Button } from '../ui/button'
 import { SOURCES, CATEGORIES } from './sources'
 import { WebApisTab } from './WebApisTab'
+import { HelpLink } from './HelpLink'
 import type { DataSource, StaticDataSet, DynamicResult, KaggleFile } from './types'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useSessionStore } from '@/store/session'
 import { useEditorStore } from '@/store/editor'
 import { rClient } from '@/lib/r-client'
+import { proxyFetch } from '@/lib/ai-proxy-fetch'
 import { cn } from '@/lib/utils'
 import {
   KAGGLE_CATEGORIES, isLoadableExtension, formatBytes, toRVarName, fileVarName,
   buildKaggleFallbackCode, buildKaggleCode, sourceIsSpatial, buildDynamicCode, buildManualCode,
   type QueryParam,
 } from './dataConnectorCode'
+
+/** A catalogue request that hangs is a spinner nobody can clear. */
+const CATALOGUE_TIMEOUT_MS = 20000
+
+/**
+ * Fetch a live catalogue through the main process.
+ *
+ * NOT the renderer's own `fetch`, which is what these four calls used to be.
+ * ouRGeo renders from `file://`, so every cross-origin request from here is
+ * made with a null origin and lives or dies by whether the server happens to
+ * allow one — open.canada.ca does, non-standardly, and nothing obliges it to
+ * keep doing so. `proxyFetch` runs the request in the main process, which is
+ * the rule the Web APIs tab has always followed and the reason `ai-proxy.ts`
+ * exists. It also gives these calls a timeout, which a bare fetch never had.
+ */
+async function catalogueFetch(
+  url: string, headers?: Record<string, string>,
+): Promise<{ ok: boolean; status: number; json(): Promise<unknown> }> {
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), CATALOGUE_TIMEOUT_MS)
+  try {
+    return await proxyFetch(url, { headers, signal: ctl.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Say what actually went wrong.
+ *
+ * The old message was "Failed to fetch catalogue. Check your internet
+ * connection." for every failure — a server that 500s, a portal that is slow,
+ * a request aborted when the laptop suspended. Blaming the user's connection
+ * for a server's bad day sends them to reset a router.
+ */
+function catalogueErrorMessage(e: unknown, label: string): string {
+  const msg = e instanceof Error ? e.message : String(e)
+  if (/abort/i.test(msg)) {
+    return `${label} did not answer within ${CATALOGUE_TIMEOUT_MS / 1000} seconds. It may be busy — try again.`
+  }
+  return `Could not reach ${label}: ${msg}`
+}
 
 // ── Main component ─────────────────────────────────────────────────────────
 interface Props {
@@ -158,12 +204,12 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
         const parts = [cat?.searchTerm, query].filter(Boolean)
         const q = encodeURIComponent(parts.join(' ') || 'data')
         const auth = btoa(`${username}:${apiKey}`)
-        const res = await fetch(
+        const res = await catalogueFetch(
           `https://www.kaggle.com/api/v1/datasets/list?search=${q}&page_size=20&sort_by=votes`,
-          { headers: { Authorization: `Basic ${auth}` } }
+          { Authorization: `Basic ${auth}` },
         )
         if (!res.ok) {
-          setDynamicError(`Kaggle API error: ${res.status} ${res.statusText}`)
+          setDynamicError(`Kaggle refused the request (HTTP ${res.status}). Check your Kaggle key in Settings → API Keys.`)
           return
         }
         const data = await res.json() as { ref?: string; title?: string; subtitle?: string; totalBytes?: number }[]
@@ -174,10 +220,23 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
           description: [d.subtitle, formatBytes(d.totalBytes ?? 0)].filter(Boolean).join(' · '),
         })))
       } else if (source.dynamicType === 'socrata') {
-        const q = encodeURIComponent(query || 'a')
-        const res = await fetch(
-          `https://${source.dynamicDomain}/api/catalog.json?q=${q}&limit=20&only=dataset`
-        )
+        // `https://<domain>/api/catalog.json` answers HTTP 406
+        // "unacceptable_response_type" — Socrata retired the per-domain
+        // catalogue, and the discovery API took over. The old call failed
+        // SILENTLY, because a 406 body is valid JSON with no `results` key, so
+        // the panel showed "No results" for every portal and said nothing about
+        // why. `socrata.ts` had already moved; this had not.
+        const params = new URLSearchParams({
+          domains: source.dynamicDomain ?? '',
+          only: 'datasets',
+          limit: '20',
+        })
+        if (query.trim()) params.set('q', query.trim())
+        const res = await catalogueFetch(`https://api.us.socrata.com/api/catalog/v1?${params}`)
+        if (!res.ok) {
+          setDynamicError(`${source.label} answered HTTP ${res.status}. The portal may be down — the Help button opens its status page.`)
+          return
+        }
         const data = await res.json() as { results?: { resource: { id: string; name: string; description: string } }[] }
         setDynamicResults(
           (data.results ?? []).map(r => ({
@@ -189,9 +248,13 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
         )
       } else if (source.dynamicType === 'ckan') {
         const q = encodeURIComponent(query || 'environment')
-        const res = await fetch(
+        const res = await catalogueFetch(
           `https://open.canada.ca/data/en/api/3/action/package_search?q=${q}&rows=20`
         )
+        if (!res.ok) {
+          setDynamicError(`${source.label} answered HTTP ${res.status}. It is often slow — try again in a moment.`)
+          return
+        }
         const data = await res.json() as {
           result?: {
             results?: {
@@ -213,7 +276,7 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
           return
         }
         const q = encodeURIComponent(query || 'GDP')
-        const res = await fetch(
+        const res = await catalogueFetch(
           `https://api.stlouisfed.org/fred/series/search?search_text=${q}&api_key=${apiKey}&file_type=json&limit=20`
         )
         const data = await res.json() as {
@@ -232,8 +295,8 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
           )
         }
       }
-    } catch {
-      setDynamicError('Failed to fetch catalogue. Check your internet connection.')
+    } catch (e) {
+      setDynamicError(catalogueErrorMessage(e, source.label))
     } finally {
       setDynamicLoading(false)
     }
@@ -437,19 +500,32 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
                             const isExpanded = expandedSourceId === source.id
                             return (
                               <div key={source.id}>
-                                <button
-                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-white/5 transition-colors"
-                                  onClick={() => handleToggleSource(source)}
-                                >
-                                  {isExpanded
-                                    ? <ChevronDown className="w-3 h-3 text-geo-muted flex-shrink-0" />
-                                    : <ChevronRight className="w-3 h-3 text-geo-muted flex-shrink-0" />
-                                  }
-                                  <span className="flex-1 text-xs text-foreground">{source.label}</span>
+                                {/* A row, not a button: the help control lives in it, and a
+                                    button inside a button is two click targets that both fire. */}
+                                <div className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 transition-colors">
+                                  <button
+                                    className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                                    onClick={() => handleToggleSource(source)}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronDown className="w-3 h-3 text-geo-muted flex-shrink-0" />
+                                      : <ChevronRight className="w-3 h-3 text-geo-muted flex-shrink-0" />
+                                    }
+                                    <span className="flex-1 text-xs text-foreground truncate">{source.label}</span>
+                                  </button>
                                   {source.dynamicCatalogue && (
                                     <span className="text-[9px] text-geo-accent border border-geo-accent/40 rounded px-1 py-0.5 flex-shrink-0">LIVE</span>
                                   )}
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void window.electronAPI.shell.openExternal(source.docsUrl)}
+                                    title={`Open the ${source.label} documentation in your browser`}
+                                    aria-label={`${source.label} documentation`}
+                                    className="text-geo-muted hover:text-geo-accent flex-shrink-0"
+                                  >
+                                    <HelpCircle className="w-3 h-3" />
+                                  </button>
+                                </div>
 
                                 {/* Expanded: static datasets */}
                                 {isExpanded && !source.dynamicCatalogue && (
@@ -567,13 +643,16 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
                     <>
                       <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 gap-3">
                         {/* Title */}
-                        <div>
-                          <h3 className="text-xs font-semibold text-foreground">
-                            {activeDataset ? activeDataset.label : selectedDynamic?.label ?? ''}
-                          </h3>
-                          <p className="text-[11px] text-geo-muted mt-0.5">
-                            {activeDataset ? activeDataset.description : selectedDynamic?.description ?? ''}
-                          </p>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="text-xs font-semibold text-foreground">
+                              {activeDataset ? activeDataset.label : selectedDynamic?.label ?? ''}
+                            </h3>
+                            <p className="text-[11px] text-geo-muted mt-0.5">
+                              {activeDataset ? activeDataset.description : selectedDynamic?.description ?? ''}
+                            </p>
+                          </div>
+                          {activeSource && <HelpLink url={activeSource.docsUrl} label={activeSource.label} />}
                         </div>
                         <div className="h-px bg-geo-border" />
 
@@ -590,7 +669,11 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
                                 onChange={e => setParams(prev => ({ ...prev, [param.id]: e.target.value }))}
                                 className="w-full bg-geo-bg border border-geo-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-geo-accent"
                               >
-                                {(param.options ?? []).map(opt => <option key={opt} value={opt}>{opt || '(all)'}</option>)}
+                                {(param.options ?? []).map(opt => {
+                                  const value = typeof opt === 'string' ? opt : opt.value
+                                  const label = typeof opt === 'string' ? opt : opt.label
+                                  return <option key={value} value={value}>{label || '(all)'}</option>
+                                })}
                               </select>
                             ) : param.type === 'number' ? (
                               <input type="number"
@@ -614,6 +697,9 @@ export function DataConnectorDialog({ open, onOpenChange }: Props): React.ReactE
                                 placeholder={param.placeholder}
                                 className="w-full bg-geo-bg border border-geo-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-geo-accent"
                               />
+                            )}
+                            {param.hint && (
+                              <p className="text-[10px] text-geo-muted leading-snug">{param.hint}</p>
                             )}
                           </div>
                         ))}

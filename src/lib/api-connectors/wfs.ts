@@ -97,6 +97,7 @@ export const wfsProvider: ApiProvider = {
   label: 'WFS',
   category: 'Geospatial',
   description: 'OGC Web Feature Service (WFS). Pick a feature type; filter via CQL; imports as sf.',
+  docsUrl: 'https://www.ogc.org/standards/wfs/',
   builtinServers: [
     { id: 'mapserver', label: 'MapServer demo', baseUrl: 'https://demo.mapserver.org/cgi-bin/wfs' },
   ],

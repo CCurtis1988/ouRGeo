@@ -29,9 +29,10 @@ export const ckanProvider: ApiProvider = {
   label: 'CKAN Portals',
   category: 'Open Data',
   description: 'CKAN open-data portals (DataStore API). Browse organization → dataset → resource.',
+  docsUrl: 'https://docs.ckan.org/en/latest/api/index.html',
   builtinServers: [
-    { id: 'cnra', label: 'California Natural Resources (CNRA)', baseUrl: 'https://data.cnra.ca.gov' },
-    { id: 'canada', label: 'Open Canada', baseUrl: 'https://open.canada.ca/data/en' },
+    { id: 'cnra', label: 'California Natural Resources (CNRA)', baseUrl: 'https://data.cnra.ca.gov', docsUrl: 'https://data.cnra.ca.gov/' },
+    { id: 'canada', label: 'Open Canada', baseUrl: 'https://open.canada.ca/data/en', docsUrl: 'https://open.canada.ca/en/using-open-data' },
   ],
   cascade: [
     { key: 'organization', label: 'Organization', placeholder: 'Select an organization' },

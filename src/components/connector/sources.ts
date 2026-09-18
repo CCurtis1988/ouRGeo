@@ -1,4 +1,47 @@
-import type { DataSource } from './types'
+import { rStr } from './dataConnectorCode'
+import type { DataSource, ParamOption } from './types'
+
+/**
+ * Daily values worth offering by name.
+ *
+ * The full list runs to thousands of parameter codes; these are the ones a
+ * daily-values service actually carries at most gages. The Help button reaches
+ * the rest.
+ */
+const NWIS_DAILY_PARAMETERS: ParamOption[] = [
+  { value: '00060', label: '00060 — Discharge (ft³/s)' },
+  { value: '00065', label: '00065 — Gage height (ft)' },
+  { value: '00010', label: '00010 — Water temperature (°C)' },
+  { value: '00095', label: '00095 — Specific conductance (µS/cm)' },
+  { value: '00300', label: '00300 — Dissolved oxygen (mg/L)' },
+  { value: '00400', label: '00400 — pH' },
+  { value: '63680', label: '63680 — Turbidity (FNU)' },
+  { value: '00045', label: '00045 — Precipitation (in)' },
+  { value: '72019', label: '72019 — Depth to water level (ft below surface)' },
+]
+
+/** Water Quality Portal characteristic names, verified to return rows. */
+const WQP_CHARACTERISTICS: ParamOption[] = [
+  'Temperature, water', 'pH', 'Dissolved oxygen (DO)', 'Specific conductance',
+  'Turbidity', 'Nitrate', 'Phosphorus', 'Total dissolved solids', 'Escherichia coli',
+]
+
+/** The code in front of a `NWIS_DAILY_PARAMETERS`-style option value. */
+const codeOf = (v: string | undefined): string => (v ?? '').trim().split(/\s/)[0]
+
+/**
+ * The one major filter an NWIS request is allowed to carry.
+ *
+ * `readNWISdata(stateCd = …, sites = …)` is an HTTP 400, not a narrowing — the
+ * service takes exactly one of sites, stateCd, huc, bBox or countyCd. Sites win
+ * where both are filled, because a site number is the specific thing the user
+ * went to the trouble of typing.
+ */
+function nwisMajorFilter(p: Record<string, string>, stateDefault: string): string {
+  const sites = (p.siteNumbers || '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+  if (sites.length) return `  sites = c(${sites.map(rStr).join(', ')}),`
+  return `  stateCd = ${rStr(p.stateCd || stateDefault)},`
+}
 
 const US_STATES = [
   '', 'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
@@ -24,6 +67,7 @@ export const SOURCES: DataSource[] = [
     category: 'External Platforms',
     description: '600,000+ public datasets across ML, science, finance, health, climate, and more',
     rPackage: 'httr2',
+    docsUrl: 'https://www.kaggle.com/docs/api',
     requiresKey: 'kaggle',
     datasets: [],
     dynamicCatalogue: true,
@@ -37,6 +81,7 @@ export const SOURCES: DataSource[] = [
     category: 'Census & Demographics',
     description: 'American Community Survey estimates from the US Census Bureau',
     rPackage: 'tidycensus',
+    docsUrl: 'https://www.census.gov/data/developers/data-sets/acs-5year.html',
     requiresKey: 'census',
     datasets: [
       {
@@ -97,6 +142,7 @@ export const SOURCES: DataSource[] = [
     category: 'Census & Demographics',
     description: 'Decennial Census counts (2020, 2010) from the US Census Bureau',
     rPackage: 'tidycensus',
+    docsUrl: 'https://www.census.gov/data/developers/data-sets/decennial-census.html',
     requiresKey: 'census',
     datasets: [
       {
@@ -154,6 +200,7 @@ export const SOURCES: DataSource[] = [
     category: 'Census & Demographics',
     description: 'US Census Bureau geographic boundary files — states, counties, tracts, roads, and more',
     rPackage: 'tigris',
+    docsUrl: 'https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html',
     datasets: [
       {
         id: 'tigris_states',
@@ -234,6 +281,7 @@ export const SOURCES: DataSource[] = [
     category: 'Census & Demographics',
     description: 'Canadian Census profiles via the cancensus R package',
     rPackage: 'cancensus',
+    docsUrl: 'https://censusmapper.ca/api',
     requiresKey: 'cancensus',
     datasets: [
       {
@@ -288,71 +336,145 @@ export const SOURCES: DataSource[] = [
   },
 
   // ─── Environmental & Climate ──────────────────────────────────────────────
+  //
+  // USGS water data. Three decisions about what the user controls, and the
+  // reasoning matters more than the fields:
+  //
+  // `service` is NOT a field, and should not be. It is what the three datasets
+  // below ARE — daily values, water quality, groundwater — so offering it as a
+  // control would let someone pick "Daily Values" and then set the service to
+  // something else, a contradiction the panel would have to resolve and the
+  // user would have to understand. The dataset list is the service picker.
+  //
+  // `parameterCd` IS a field, because it is the difference between one dataset
+  // and a hundred. Pinned to 00060 the panel could fetch discharge and nothing
+  // else — not gage height, not water temperature, not conductance — from a
+  // service whose whole point is that it carries all of them.
+  //
+  // The site number IS a field, and is the one that matters most. A state of
+  // daily values is tens of thousands of rows per year; a gage is a few
+  // hundred. But NWIS takes exactly ONE major filter, and asking for a state
+  // AND a site is an HTTP 400 — so the two share a rule rather than a form:
+  // fill in sites and the state is ignored, which `nwisMajorFilter` implements
+  // once and both hints state in words.
   {
     id: 'usgs_nwis',
     label: 'USGS NWIS',
     category: 'Environmental & Climate',
     description: 'US Geological Survey National Water Information System — streamflow, water quality, groundwater',
     rPackage: 'dataRetrieval',
+    docsUrl: 'https://waterservices.usgs.gov/docs/',
     datasets: [
       {
         id: 'nwis_dv',
-        label: 'Daily Streamflow',
-        description: 'Daily mean discharge (parameter 00060) by state or site number',
+        label: 'Daily Values',
+        description: 'Daily statistics from USGS gages — discharge, gage height, temperature and more — for a state or specific sites',
         params: [
-          { id: 'stateCd', label: 'State (abbrev.)', type: 'select', options: US_STATES.filter(Boolean), default: 'CO' },
+          {
+            id: 'parameterCd', label: 'Measurement', type: 'select',
+            options: NWIS_DAILY_PARAMETERS, default: '00060',
+            hint: 'Not every site measures every parameter — a site that does not will simply return no rows.',
+          },
+          {
+            id: 'stateCd', label: 'State (abbrev.)', type: 'select',
+            options: US_STATES, default: 'CO',
+            hint: 'A whole state is a large download: expect tens of thousands of rows per year.',
+          },
+          {
+            id: 'siteNumbers', label: 'Site number(s) — optional', type: 'text',
+            placeholder: '09058000, 09034900',
+            hint: 'One or more USGS site numbers, comma separated. Given these, the state above is ignored — NWIS accepts exactly one of the two.',
+          },
           { id: 'startDate', label: 'Start Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-01-01', default: '2020-01-01' },
           { id: 'endDate', label: 'End Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-12-31', default: '2020-12-31' },
         ],
         buildCode: (p, v) => [
           'library(dataRetrieval)',
           `${v} <- readNWISdata(`,
-          `  stateCd = "${p.stateCd || 'CO'}",`,
-          `  parameterCd = "00060",`,
-          `  service = "dv",`,
-          `  startDate = "${p.startDate || '2020-01-01'}",`,
-          `  endDate = "${p.endDate || '2020-12-31'}"`,
+          nwisMajorFilter(p, 'CO'),
+          `  parameterCd = ${rStr(codeOf(p.parameterCd) || '00060')},`,
+          '  service = "dv",',
+          `  startDate = ${rStr(p.startDate || '2020-01-01')},`,
+          `  endDate = ${rStr(p.endDate || '2020-12-31')}`,
           ')',
         ].join('\n'),
       },
       {
         id: 'nwis_wq',
         label: 'Water Quality',
-        description: 'Water quality measurements — specify parameter code (e.g. 00300 = dissolved oxygen)',
+        description: 'Water quality samples from the Water Quality Portal (USGS, EPA and state agencies)',
         params: [
-          { id: 'stateCd', label: 'State (abbrev.)', type: 'select', options: US_STATES.filter(Boolean), default: 'CO' },
-          { id: 'parameterCd', label: 'Parameter Code', type: 'text', placeholder: '00300', default: '00300', required: true },
+          {
+            id: 'characteristicName', label: 'Characteristic', type: 'select',
+            options: WQP_CHARACTERISTICS, default: 'Temperature, water',
+            hint: 'The Water Quality Portal names characteristics rather than coding them, and the name has to match its vocabulary exactly.',
+          },
+          {
+            id: 'stateCd', label: 'State (abbrev.)', type: 'select',
+            options: US_STATES, default: 'CO',
+          },
+          {
+            id: 'siteid', label: 'Site id — optional', type: 'text',
+            placeholder: 'USGS-09058000',
+            hint: 'A Water Quality Portal site id, which carries its agency prefix. Given one, the state above is ignored.',
+          },
           { id: 'startDate', label: 'Start Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-01-01', default: '2020-01-01' },
           { id: 'endDate', label: 'End Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-12-31', default: '2020-12-31' },
         ],
-        buildCode: (p, v) => [
-          'library(dataRetrieval)',
-          `${v} <- readNWISdata(`,
-          `  stateCd = "${p.stateCd || 'CO'}",`,
-          `  parameterCd = "${p.parameterCd || '00300'}",`,
-          `  service = "qw",`,
-          `  startDate = "${p.startDate || '2020-01-01'}",`,
-          `  endDate = "${p.endDate || '2020-12-31'}"`,
-          ')',
-        ].join('\n'),
+        // NOT readNWISdata(service = "qw"). USGS retired the NWIS water-quality
+        // web service, and dataRetrieval 2.7.25 fails that call outright with
+        // `url` must be a single string, not `NULL` — so this dataset emitted
+        // code that could not run. The Water Quality Portal is where the same
+        // data went, and it carries EPA and state samples besides.
+        buildCode: (p, v) => {
+          const site = (p.siteid || '').trim()
+          return [
+            'library(dataRetrieval)',
+            `${v} <- readWQPdata(`,
+            site
+              ? `  siteid = ${rStr(site)},`
+              // WQP wants a FIPS code ("US:08"), and the panel asks for the
+              // abbreviation everything else here uses. dataRetrieval owns that
+              // lookup, so the generated code calls it rather than carrying a
+              // table of fifty numbers that can only rot.
+              : `  statecode = sprintf("US:%02d", stateCdLookup(${rStr(p.stateCd || 'CO')}, "id")),`,
+            `  characteristicName = ${rStr(p.characteristicName || 'Temperature, water')},`,
+            `  startDateLo = ${rStr(p.startDate || '2020-01-01')},`,
+            `  startDateHi = ${rStr(p.endDate || '2020-12-31')}`,
+            ')',
+          ].join('\n')
+        },
       },
       {
         id: 'nwis_gwl',
         label: 'Groundwater Levels',
-        description: 'Groundwater level measurements from monitoring wells by state',
+        description: 'Daily depth to water level below land surface (parameter 72019) from monitoring wells',
         params: [
-          { id: 'stateCd', label: 'State (abbrev.)', type: 'select', options: US_STATES.filter(Boolean), default: 'CA' },
+          {
+            id: 'stateCd', label: 'State (abbrev.)', type: 'select',
+            options: US_STATES, default: 'CA',
+          },
+          {
+            id: 'siteNumbers', label: 'Site number(s) — optional', type: 'text',
+            placeholder: '393851075582501',
+            hint: 'One or more USGS site numbers, comma separated. Given these, the state above is ignored.',
+          },
           { id: 'startDate', label: 'Start Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-01-01', default: '2020-01-01' },
           { id: 'endDate', label: 'End Date (YYYY-MM-DD)', type: 'text', placeholder: '2020-12-31', default: '2020-12-31' },
         ],
+        // `service = "gwlevels"` is not one dataRetrieval accepts any more — it
+        // answers with the list of services it does take — so this dataset,
+        // too, emitted code that errored. Depth to water (72019) is published
+        // as a daily value, which is a service that works and keeps the
+        // groundwater and streamflow datasets on one mechanism.
         buildCode: (p, v) => [
           'library(dataRetrieval)',
           `${v} <- readNWISdata(`,
-          `  stateCd = "${p.stateCd || 'CA'}",`,
-          `  parameterCd = "72019",`,
-          `  service = "gwlevels",`,
-          `  startDate = "${p.startDate || '2020-01-01'}",`,
-          `  endDate = "${p.endDate || '2020-12-31'}"`,
+          nwisMajorFilter(p, 'CA'),
+          '  parameterCd = "72019",',
+          '  service = "dv",',
+          `  startDate = ${rStr(p.startDate || '2020-01-01')},`,
+          `  endDate = ${rStr(p.endDate || '2020-12-31')}`,
           ')',
         ].join('\n'),
       },
@@ -364,6 +486,7 @@ export const SOURCES: DataSource[] = [
     category: 'Environmental & Climate',
     description: 'National Oceanic and Atmospheric Administration climate and weather records',
     rPackage: 'rnoaa',
+    docsUrl: 'https://www.ncdc.noaa.gov/cdo-web/webservices/v2',
     requiresKey: 'noaa',
     datasets: [
       {
@@ -421,6 +544,7 @@ export const SOURCES: DataSource[] = [
     category: 'Economic & Financial',
     description: 'Federal Reserve Bank of St. Louis economic data — 800,000+ time series',
     rPackage: 'fredr',
+    docsUrl: 'https://fred.stlouisfed.org/docs/api/fred/',
     requiresKey: 'fred',
     datasets: [],
     dynamicCatalogue: true,
@@ -432,6 +556,7 @@ export const SOURCES: DataSource[] = [
     category: 'Economic & Financial',
     description: 'World Bank development indicators — GDP, population, health, education and more',
     rPackage: 'wbstats',
+    docsUrl: 'https://datahelpdesk.worldbank.org/knowledgebase/topics/125589',
     datasets: [
       {
         id: 'wb_indicators',
@@ -469,6 +594,7 @@ export const SOURCES: DataSource[] = [
     category: 'Geospatial',
     description: 'Download any OpenStreetMap feature — roads, buildings, amenities, land use, and more',
     rPackage: 'osmdata',
+    docsUrl: 'https://wiki.openstreetmap.org/wiki/Overpass_API',
     datasets: [
       {
         id: 'osm_roads',
@@ -545,6 +671,7 @@ export const SOURCES: DataSource[] = [
     category: 'Geospatial',
     description: 'Load a feature layer from any ArcGIS REST endpoint (ArcGIS Online, ArcGIS Server, etc.)',
     rPackage: 'esri2sf',
+    docsUrl: 'https://developers.arcgis.com/rest/services-reference/enterprise/',
     datasets: [
       {
         id: 'arcgis_layer',
@@ -572,6 +699,7 @@ export const SOURCES: DataSource[] = [
     category: 'Open Data Portals',
     description: 'City of New York open data portal — thousands of datasets on city services, infrastructure, demographics, and more',
     rPackage: 'RSocrata',
+    docsUrl: 'https://opendata.cityofnewyork.us/',
     requiresKey: 'socrata',
     datasets: [],
     dynamicCatalogue: true,
@@ -584,6 +712,7 @@ export const SOURCES: DataSource[] = [
     category: 'Open Data Portals',
     description: 'City of Chicago open data — crime, permits, inspections, transit, and more',
     rPackage: 'RSocrata',
+    docsUrl: 'https://data.cityofchicago.org/',
     requiresKey: 'socrata',
     datasets: [],
     dynamicCatalogue: true,
@@ -596,6 +725,7 @@ export const SOURCES: DataSource[] = [
     category: 'Open Data Portals',
     description: 'Government of Canada open data portal — federal datasets across all departments',
     rPackage: 'httr2',
+    docsUrl: 'https://open.canada.ca/en/using-open-data',
     datasets: [],
     dynamicCatalogue: true,
     dynamicType: 'ckan',

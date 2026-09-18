@@ -543,6 +543,8 @@ You cannot guess where a list lives in someone's JSON, and a wrong path compiles
 
 It reports the shape: which key holds the array, what one item looks like, what type each value is. Probe every URL the spec will use — one per cascade level, one for metadata, one for preview.
 
+Set \`docsUrl\` while you are there. It is the API's own documentation page, and it becomes the connector's Help button — the one place a user can go when the connector cannot answer their question, which for somebody else's API is most questions.
+
 ## The spec
 
     {
@@ -550,6 +552,7 @@ It reports the shape: which key holds the array, what one item looks like, what 
       "label": "NOAA Stations",
       "category": "Scientific",
       "description": "Tide and current stations from NOAA CO-OPS.",
+      "docsUrl": "https://api.tidesandcurrents.noaa.gov/api/prod/",
       "servers": [{ "id": "coops", "label": "CO-OPS", "baseUrl": "https://api.tidesandcurrents.noaa.gov" }],
       "cascade": [
         { "key": "station", "label": "Station",

@@ -18,7 +18,7 @@ const fakeProvider = (id: string): ApiProvider => ({
   id,
   label: `Provider ${id}`,
   category: 'Open Data',
-  description: 'A plugin-contributed provider.',
+  description: 'A plugin-contributed provider.', docsUrl: '',
   builtinServers: [],
   cascade: [{ key: 'resource', label: 'Resource' }],
   listLevel: async () => [],
@@ -113,5 +113,15 @@ describe('the toolbox registry', () => {
     registerPluginTools([])
     expect(toolList().length).toBe(before)
     expect(categoryList()).toBe(BUILTIN_TOOL_CATEGORIES)
+  })
+})
+
+describe('every shipped provider names its documentation', () => {
+  // The Help button in the Web APIs tab is only as good as the link behind it.
+  // A provider added without one would draw a control that goes nowhere — and
+  // the type cannot catch it, because a plugin-contributed provider is
+  // deliberately allowed an empty string.
+  it.each(BUILTIN_PROVIDERS.map((p) => [p.id, p.docsUrl] as const))('%s', (_id, url) => {
+    expect(url).toMatch(/^https:\/\//)
   })
 })

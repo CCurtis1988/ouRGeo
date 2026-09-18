@@ -92,6 +92,8 @@ export interface DeclarativeProviderSpec {
   label: string
   category: ApiCategory
   description: string
+  /** The API's own documentation, opened by the connector's Help button. */
+  docsUrl?: string
   servers: ApiServer[]
   cascade: DeclarativeCascadeLevel[]
   metadata: DeclarativeMetadata
@@ -228,6 +230,10 @@ export function compileProvider(
     label: spec.label,
     category: spec.category,
     description: spec.description ?? '',
+    // Empty is allowed here and only here: a plugin written before Help
+    // buttons existed cannot have declared one, and dropping its connector
+    // over a missing link would be a worse answer than not showing the button.
+    docsUrl: typeof spec.docsUrl === 'string' ? spec.docsUrl : '',
     builtinServers: spec.servers,
     cascade: spec.cascade.map(({ key, label, placeholder }) => ({ key, label, placeholder })),
 

@@ -51,6 +51,7 @@ export const stacProvider: ApiProvider = {
   label: 'STAC',
   category: 'Raster / Image Layers',
   description: 'STAC catalogs (satellite/EO imagery). Pick a collection; search items by time/property; import COG assets as rasters, or item footprints as sf.',
+  docsUrl: 'https://stacspec.org/',
   builtinServers: [
     { id: 'earthsearch', label: 'Earth Search (Element 84)', baseUrl: 'https://earth-search.aws.element84.com/v1' },
     { id: 'planetary', label: 'Microsoft Planetary Computer', baseUrl: 'https://planetarycomputer.microsoft.com/api/stac/v1' },

@@ -60,6 +60,7 @@ export const esriImageProvider: ApiProvider = {
   label: 'Esri Image Services',
   category: 'Raster / Image Layers',
   description: 'ArcGIS ImageServer raster imagery (elevation, aerial photography). Exports your chosen extent + resolution as a terra SpatRaster.',
+  docsUrl: 'https://developers.arcgis.com/rest/services-reference/enterprise/image-service/',
   builtinServers: [
     { id: 'usgs3dep', label: 'USGS National Map — Elevation (3DEP)', baseUrl: 'https://elevation.nationalmap.gov/arcgis/rest/services' },
     { id: 'usdanaip', label: 'USDA NAIP Aerial Imagery', baseUrl: 'https://gis.apfo.usda.gov/arcgis/rest/services' },

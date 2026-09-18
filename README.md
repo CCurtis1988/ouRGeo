@@ -44,7 +44,9 @@ the whole analysis.
   singleband/RGB/categorical, stretches, colour ramps, histograms.
 - **Data Connector.** 14 web-API providers (Esri, OGC API–Features, WFS, WMS,
   WCS, STAC, CKAN, Socrata, ERDDAP, SDMX, OData, Macrostrat and more) with a
-  visual query builder that emits reproducible import code.
+  visual query builder that emits reproducible import code. Every connector
+  carries a Help button to the API's own documentation, because that is where
+  the questions a connector cannot answer are answered.
 - **Themes you own.** Ten app themes, 26 code palettes and 16 markdown
   palettes ship — and the **Theme Studio** lets you build your own on all three
   axes: every interface and editor colour, your own backdrop image behind the

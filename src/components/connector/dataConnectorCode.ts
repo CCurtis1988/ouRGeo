@@ -34,6 +34,18 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Convert any string to a valid R identifier, preserving the source name. */
+/**
+ * A value the user typed, as an R string literal.
+ *
+ * `tools.ts` has the same function and keeps it private; this is the connector's
+ * copy, because a site number or a characteristic name typed into a form and
+ * pasted straight into generated R is the injection surface AGENTS.md rule 24
+ * names. Escaping backslash before quote is the order that matters.
+ */
+export function rStr(val: string): string {
+  return `"${val.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
 export function toRVarName(str: string): string {
   let name = str.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '')
   if (!name) name = 'data'

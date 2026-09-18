@@ -133,6 +133,7 @@ export const wmsProvider: ApiProvider = {
   label: 'OGC WMS',
   category: 'Raster / Image Layers',
   description: 'OGC Web Map Service — rendered map imagery (satellite composites, hillshades, basemaps). Imports styled RGB pictures as a georeferenced SpatRaster.',
+  docsUrl: 'https://www.ogc.org/standards/wms/',
   builtinServers: [
     { id: 'nasa-gibs', label: 'NASA GIBS (EPSG:4326, best)', baseUrl: 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi' },
     { id: 'terrestris-osm', label: 'terrestris OSM / SRTM', baseUrl: 'https://ows.terrestris.de/osm/service' },

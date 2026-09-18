@@ -130,6 +130,8 @@ export interface ConnectorSpec {
   label: string
   category: ApiCategory
   description: string
+  /** The API's own documentation, for the connector's Help button. */
+  docsUrl?: string
   servers: ApiServer[]
   cascade: unknown[]
   metadata: unknown

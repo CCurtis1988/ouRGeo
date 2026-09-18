@@ -76,6 +76,7 @@ export const wcsProvider: ApiProvider = {
   label: 'OGC WCS',
   category: 'Raster / Image Layers',
   description: 'OGC Web Coverage Service — downloads real raster data values (elevation, bathymetry, model grids) as a terra SpatRaster.',
+  docsUrl: 'https://www.ogc.org/standards/wcs/',
   builtinServers: [
     { id: 'emodnet', label: 'EMODnet Bathymetry', baseUrl: 'https://ows.emodnet-bathymetry.eu/wcs' },
     { id: 'dlr-elevation', label: 'DLR EOC Elevation (SRTM X-SAR)', baseUrl: 'https://geoservice.dlr.de/eoc/elevation/wcs' },

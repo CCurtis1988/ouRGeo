@@ -53,6 +53,7 @@ export const erddapProvider: ApiProvider = {
   label: 'ERDDAP',
   category: 'Scientific',
   description: 'ERDDAP environmental data servers (tabledap). Pick a dataset; constrain by variable.',
+  docsUrl: 'https://www.ncei.noaa.gov/erddap/tabledap/documentation.html',
   builtinServers: [
     { id: 'ncei', label: 'NOAA NCEI', baseUrl: 'https://www.ncei.noaa.gov/erddap' },
     { id: 'ioos', label: 'IOOS Sensors', baseUrl: 'https://erddap.sensors.ioos.us/erddap' },

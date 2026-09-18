@@ -196,6 +196,7 @@ export const macrostratProvider: ApiProvider = {
   label: 'Macrostrat',
   category: 'Geospatial',
   description: 'Macrostrat geology platform — stratigraphic columns, geologic map units, fossil collections, and paleogeography import as sf (CC-BY 4.0).',
+  docsUrl: 'https://macrostrat.org/api',
   builtinServers: [
     { id: 'macrostrat', label: 'Macrostrat.org', baseUrl: 'https://macrostrat.org/api/v2' },
   ],

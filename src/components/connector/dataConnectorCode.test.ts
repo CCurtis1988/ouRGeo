@@ -14,7 +14,7 @@ import {
 } from './dataConnectorCode'
 
 const makeSource = (over: Partial<DataSource>): DataSource => ({
-  id: '', label: '', category: 'Geospatial', description: '', rPackage: '', datasets: [], ...over,
+  id: '', label: '', category: 'Geospatial', description: '', rPackage: '', docsUrl: '', datasets: [], ...over,
 })
 
 describe('formatBytes', () => {

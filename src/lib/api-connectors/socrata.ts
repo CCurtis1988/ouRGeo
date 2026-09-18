@@ -46,11 +46,12 @@ export const socrataProvider: ApiProvider = {
   label: 'Socrata',
   category: 'Open Data',
   description: 'Socrata (SODA) open-data portals. Pick a domain, then a dataset; query with SoQL.',
+  docsUrl: 'https://dev.socrata.com/docs/endpoints.html',
   builtinServers: [
-    { id: 'nyc', label: 'NYC Open Data', baseUrl: 'https://data.cityofnewyork.us' },
-    { id: 'chicago', label: 'Chicago Data Portal', baseUrl: 'https://data.cityofchicago.org' },
-    { id: 'wa', label: 'Washington State', baseUrl: 'https://data.wa.gov' },
-    { id: 'cdc', label: 'CDC Data', baseUrl: 'https://data.cdc.gov' },
+    { id: 'nyc', label: 'NYC Open Data', baseUrl: 'https://data.cityofnewyork.us', docsUrl: 'https://opendata.cityofnewyork.us/' },
+    { id: 'chicago', label: 'Chicago Data Portal', baseUrl: 'https://data.cityofchicago.org', docsUrl: 'https://data.cityofchicago.org/' },
+    { id: 'wa', label: 'Washington State', baseUrl: 'https://data.wa.gov', docsUrl: 'https://data.wa.gov/' },
+    { id: 'cdc', label: 'CDC Data', baseUrl: 'https://data.cdc.gov', docsUrl: 'https://data.cdc.gov/' },
   ],
   cascade: [{ key: 'dataset', label: 'Dataset', placeholder: 'Select a dataset' }],
 

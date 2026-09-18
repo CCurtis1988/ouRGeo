@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Loader2, AlertCircle, Plus, Trash2, Database, RefreshCw } from 'lucide-react'
+import { Loader2, AlertCircle, Plus, Trash2, Database, RefreshCw, ExternalLink } from 'lucide-react'
 import { Button } from '../ui/button'
 import { SearchableSelect, type SearchableOption } from '../ui/SearchableSelect'
 import { QueryBuilder } from './QueryBuilder'
+import { HelpLink } from './HelpLink'
 import { toRVarName } from './dataConnectorCode'
 import { getServerStore } from '@/lib/api-connectors/apiServers'
 import { DEFAULT_QUERY, type Query } from '@/lib/api-connectors/query-model'
@@ -363,7 +364,10 @@ export function ApiConnectorBrowser({ provider, onClose }: Props): React.ReactEl
     <div className="relative flex flex-col flex-1 min-h-0 min-w-0">
       <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 gap-3">
 
-        <p className="text-[11px] text-geo-muted -mb-1">{provider.description}</p>
+        <div className="flex items-start justify-between gap-2 -mb-1">
+          <p className="text-[11px] text-geo-muted">{provider.description}</p>
+          {provider.docsUrl && <HelpLink url={provider.docsUrl} label={provider.label} />}
+        </div>
 
         {/* Server picker */}
         <div className="flex flex-col gap-1">
@@ -387,7 +391,21 @@ export function ApiConnectorBrowser({ provider, onClose }: Props): React.ReactEl
               </button>
             )}
           </div>
-          {server && <p className="text-[10px] text-geo-muted font-mono break-all">{server.baseUrl}</p>}
+          {server && (
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[10px] text-geo-muted font-mono break-all">{server.baseUrl}</p>
+              {server.docsUrl && (
+                <button
+                  type="button"
+                  onClick={() => void window.electronAPI.shell.openExternal(server.docsUrl!)}
+                  title={`Open ${server.label} in your browser`}
+                  className="text-[10px] text-geo-muted hover:text-geo-accent whitespace-nowrap flex items-center gap-0.5"
+                >
+                  About this portal <ExternalLink className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {addingServer && (
             <div className="flex flex-col gap-1.5 mt-1 p-2 bg-geo-bg border border-geo-border rounded">

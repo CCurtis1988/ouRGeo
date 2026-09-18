@@ -109,6 +109,7 @@ export const erddapGridProvider: ApiProvider = {
   label: 'ERDDAP Grids',
   category: 'Raster / Image Layers',
   description: 'ERDDAP griddap — gridded scientific data (SST, chlorophyll, climate grids). Imports one variable at one time slice as a terra SpatRaster.',
+  docsUrl: 'https://www.ncei.noaa.gov/erddap/griddap/documentation.html',
   builtinServers: [
     { id: 'coastwatch', label: 'NOAA CoastWatch West Coast', baseUrl: 'https://coastwatch.pfeg.noaa.gov/erddap' },
     { id: 'ncei', label: 'NOAA NCEI', baseUrl: 'https://www.ncei.noaa.gov/erddap' },

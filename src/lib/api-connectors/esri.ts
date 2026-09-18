@@ -79,6 +79,7 @@ export const esriProvider: ApiProvider = {
   label: 'Esri ArcGIS REST',
   category: 'Geospatial',
   description: 'ArcGIS REST Feature/Map services — vector layers import as sf via where-clause queries. Raster ImageServers live under Raster / Image Layers.',
+  docsUrl: 'https://developers.arcgis.com/rest/services-reference/enterprise/query-feature-service-layer/',
   builtinServers: [
     { id: 'sample6', label: 'ArcGIS Sample Server 6', baseUrl: 'https://sampleserver6.arcgisonline.com/arcgis/rest/services' },
     { id: 'livingatlas', label: 'Esri Living Atlas (sampleserver5)', baseUrl: 'https://sampleserver5.arcgisonline.com/arcgis/rest/services' },
