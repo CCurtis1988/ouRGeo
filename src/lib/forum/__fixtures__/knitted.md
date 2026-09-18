@@ -28,6 +28,6 @@ head(nc[, c("NAME", "AREA", "BIR74")], 3)
 plot(nc["AREA"], main = "Area by county")
 ```
 
-![](/home/roosteyr/.config/ourgeo/publish-preview/publish-me_files/figure-markdown_strict/plot-1.png)
+![](/home/datauser/.config/ourgeo/publish-preview/publish-me_files/figure-markdown_strict/plot-1.png)
 
 Done.

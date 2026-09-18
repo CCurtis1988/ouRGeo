@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npx tsc --noEmit 2>&1)",
-      "Bash(npx tsc --noEmit 2>&1 | head -60)",
-      "Bash(npx tsc --noEmit 2>&1 | head -80)"
-    ]
-  }
-}

@@ -12,6 +12,17 @@ dist/
 # R session artifacts
 .RData
 .Rhistory
+Rplots.pdf
 
 # Runtime plot artifacts
 plot.png
+
+# Claude Code per-machine settings: a permission allowlist full of local
+# absolute paths, and a record of whatever ad-hoc commands a session happened
+# to run. It belongs to the machine, not to the project.
+.claude/settings.local.json
+**/.claude/settings.local.json
+
+# A stray nested Claude config under electron/ — the project's settings live in
+# the top-level .claude/, and a second one only ever held local noise.
+electron/.claude/

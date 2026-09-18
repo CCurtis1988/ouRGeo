@@ -197,7 +197,7 @@ one (`working-dirs.json`, persisted, max 8).
   path: it resolves its module directory from `--file=`, which R reports
   verbatim, so a bare `server.R` would normalize against the new cwd.
 - `elidePath` drops whole segments from the middle (`/home/…/Projects/ourgeo`),
-  never mid-word — a path cut at `/home/roos…` reads as a different directory.
+  never mid-word — a path cut at `/home/data…` reads as a different directory.
   Measured on a canvas in the element's own font, because `text-overflow`
   removes the END, which is the part that names the directory. The measured box
   needs `flex-1`: content-sized, it measures the elided string rather than the

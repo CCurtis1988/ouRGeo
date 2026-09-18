@@ -5,7 +5,7 @@ import { elidePath } from './working-dir'
 const budget = (n: number) => (s: string): boolean => s.length <= n
 
 describe('elidePath', () => {
-  const P = '/home/roosteyr/Documents/Projects/ourgeo'
+  const P = '/home/datauser/Documents/Projects/ourgeo'
 
   it('spells the path out in full when it fits', () => {
     expect(elidePath(P, budget(100))).toBe(P)
@@ -40,7 +40,7 @@ describe('elidePath', () => {
   })
 
   it('keeps a Windows drive letter as the root', () => {
-    const w = 'C:\\Users\\roosteyr\\Documents\\Projects\\ourgeo'
+    const w = 'C:\\Users\\datauser\\Documents\\Projects\\ourgeo'
     const out = elidePath(w, budget(30))
     expect(out.startsWith('C:\\Users')).toBe(true)
     expect(out).toContain('…')
