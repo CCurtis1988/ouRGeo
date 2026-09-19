@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/kit/core'
 import type { Ctx } from '@milkdown/kit/ctx'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
+import { imageSchema } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
@@ -26,6 +27,7 @@ import {
   anchorFromView, caretAnchorFromView, setCaretAtAnchor, scrollAnchorToTop,
 } from './anchor'
 import { slashPlugin, type SlashSession, type SlashControl } from './slash'
+import { imagePreviewView } from './image-preview'
 
 // Visual (WYSIWYG) mode.
 //
@@ -57,6 +59,8 @@ interface Props {
   onChange: (markdown: string) => void
   /** Owning tab — the key chunk output is stored under. */
   tabId: string
+  documentPath: string | null
+  chunkIds: string[]
   /** Run a chunk. Same execution path as the Source-mode run button. */
   onRunChunk: (chunkId: string, code: string, options: Record<string, string>) => void
   /** `.Rmd`/`.qmd` — offers the chunk actions in the `/` menu. */
@@ -72,7 +76,7 @@ interface Props {
 export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
   function VisualEditor(
     {
-      initialValue, onChange, tabId, onRunChunk, supportsChunks,
+      initialValue, onChange, tabId, documentPath, chunkIds, onRunChunk, supportsChunks,
       initialAnchor, initialCaret, onPromptAction,
     },
     ref,
@@ -85,6 +89,8 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
     onChangeRef.current = onChange
     const onRunChunkRef = useRef(onRunChunk)
     onRunChunkRef.current = onRunChunk
+    const chunkIdsRef = useRef(chunkIds)
+    chunkIdsRef.current = chunkIds
 
     // Output hosts handed over by the chunk node views. React portals into them
     // from THIS tree rather than mounting a root per chunk, so the output keeps
@@ -152,6 +158,7 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
           setOutputHosts((prev) =>
             prev.some((p) => p.id === id) ? prev : [...prev, { id, host: node }]),
         unmountOutput: (id) => setOutputHosts((prev) => prev.filter((p) => p.id !== id)),
+        sourceId: (ordinal) => chunkIdsRef.current[ordinal],
       }
 
       const seed = initialValue
@@ -171,6 +178,7 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
         // survive the round trip, then gives it the chunk node view.
         .use(chunkAwareCodeBlock)
         .use($view(chunkAwareCodeBlock.node, chunkCodeBlockView(hooks)))
+        .use($view(imageSchema.node, imagePreviewView(documentPath)))
         .use(activeChunkPlugin)
         .use(slashPlugin({
           onSession: (session) => {
@@ -236,6 +244,7 @@ export const VisualEditor = forwardRef<VisualEditorHandle, Props>(
       // `key` the caller sets.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
 
     /**
      * Serialize the CURRENT document.

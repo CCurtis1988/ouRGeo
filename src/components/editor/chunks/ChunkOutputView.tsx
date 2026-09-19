@@ -23,7 +23,7 @@ export function ChunkOutputView({ tabId, chunkId }: Props): React.ReactElement |
   if (!out || out.status === 'idle') return null
 
   const running = out.status === 'running' || out.status === 'queued'
-  const hasBody = !!out.stdout || !!out.error || out.plots.length > 0 || out.skipped
+  const hasBody = !!out.stdout || !!out.error || out.plots.length > 0 || out.widgets.length > 0 || out.skipped
 
   return (
     <div
@@ -54,9 +54,10 @@ export function ChunkOutputView({ tabId, chunkId }: Props): React.ReactElement |
           {out.status === 'done' && !out.skipped && (
             <>
               {out.plots.length > 0 && `${out.plots.length} plot${out.plots.length > 1 ? 's' : ''}`}
-              {out.plots.length > 0 && (out.stdout ? ' · ' : '')}
+              {out.widgets.length > 0 && `${out.plots.length > 0 ? ' · ' : ''}${out.widgets.length} interactive figure${out.widgets.length > 1 ? 's' : ''}`}
+              {(out.plots.length > 0 || out.widgets.length > 0) && (out.stdout ? ' · ' : '')}
               {out.stdout ? 'output' : ''}
-              {!out.plots.length && !out.stdout && 'No output'}
+              {!out.plots.length && !out.widgets.length && !out.stdout && 'No output'}
             </>
           )}
           {out.stale && ' · stale'}
@@ -102,6 +103,9 @@ export function ChunkOutputView({ tabId, chunkId }: Props): React.ReactElement |
                 new Event('ourgeo-img-loaded', { bubbles: true })
               )}
             />
+          ))}
+          {out.widgets.map((url) => (
+            <iframe key={url} src={url} title="Interactive figure" className="w-full h-[420px] border border-geo-border rounded bg-white" />
           ))}
         </div>
       )}

@@ -106,6 +106,8 @@ export interface RChunkResponse {
   error?: string | null
   /** data:image/png;base64,… one per plot the chunk drew, in draw order. */
   plots: string[]
+  /** HTML widgets served by the live R process. */
+  widgets?: string[]
   /** Matching ids in R's plot history, for re-export at another size. */
   plotIds: string[]
   skipped: boolean

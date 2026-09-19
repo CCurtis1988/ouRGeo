@@ -591,6 +591,9 @@ export function CodeEditor(): React.ReactElement {
         plots: (res.plots ?? []).map((dataUrl, i) => ({
           dataUrl, plotId: res.plotIds?.[i] ?? null,
         })),
+        widgets: (res.widgets ?? []).map((id) =>
+          rClient.port ? `http://127.0.0.1:${rClient.port}/widget/${encodeURIComponent(id)}` : ''
+        ).filter(Boolean),
         skipped: !!res.skipped,
         durationMs: res.durationMs ?? null,
         stale: false,
@@ -1164,6 +1167,8 @@ export function CodeEditor(): React.ReactElement {
             ).body}
             onChange={() => { /* written back on exit; see exitVisual */ }}
             tabId={activeTab.id}
+            documentPath={activeTab.filePath}
+            chunkIds={chunksRef.current.map((chunk) => chunk.id)}
             supportsChunks={supportsChunks(docLang)}
             initialAnchor={visualAnchor}
             initialCaret={visualCaret}

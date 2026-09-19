@@ -61,6 +61,15 @@ handle_chunk_execute <- function(body) {
   # Save the interactive capture state — the shared device settings in
   # .ourgeo_env belong to /r/execute and must survive this call untouched.
   prev_capture <- .ourgeo_env$last_capture_file
+  prev_viewer <- getOption("viewer")
+  widgets <- list()
+  options(viewer = function(url, height = NULL) {
+    id <- .ourgeo_next_widget_id()
+    path <- sub("^file://", "", url)
+    .ourgeo_env$widgets[[id]] <- list(file = path, dir = dirname(path))
+    widgets[[length(widgets) + 1L]] <<- id
+  })
+  on.exit(options(viewer = prev_viewer), add = TRUE)
   started <- Sys.time()
 
   warnings_collected <- character(0)
@@ -84,7 +93,7 @@ handle_chunk_execute <- function(body) {
             .res <- withVisible(eval(e, envir = .GlobalEnv))
             if (.res$visible) {
               .widget <- .as_htmlwidget(.res$value)
-              if (!is.null(.widget)) print(.widget, view = FALSE) else print(.res$value)
+              if (!is.null(.widget)) print(.widget, view = TRUE) else print(.res$value)
             }
           }
         }, type = "output")
@@ -148,6 +157,7 @@ handle_chunk_execute <- function(body) {
     output    = out_text,
     error     = result$error %||% NULL,
     plots     = plots,
+    widgets   = widgets,
     plotIds   = plot_ids,
     skipped   = FALSE,
     durationMs = as.numeric(difftime(Sys.time(), started, units = "secs")) * 1000

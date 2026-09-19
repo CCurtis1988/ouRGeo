@@ -110,6 +110,7 @@ export interface ChunkViewHooks {
   /** Hand the caller a DOM node to portal this chunk's output into. */
   mountOutput(id: string, host: HTMLElement): void
   unmountOutput(id: string): void
+  sourceId(ordinal: number): string | undefined
 }
 
 function el(tag: string, className?: string, text?: string): HTMLElement {
@@ -131,6 +132,7 @@ class ChunkCodeBlockView implements NodeView {
   private mountedId: string | null = null
   private lastCode = ''
   private lastLang = ''
+  private lastInfo = ''
 
   constructor(
     private node: ProseNode,
@@ -159,9 +161,11 @@ class ChunkCodeBlockView implements NodeView {
     const header = chunkHeaderOf(this.node)
     const code = this.node.textContent
     const lang = header?.engine ?? String(this.node.attrs.language ?? '')
-    if (!force && code === this.lastCode && lang === this.lastLang) return
+    const info = infoString(this.node)
+    if (!force && code === this.lastCode && lang === this.lastLang && info === this.lastInfo) return
     this.lastCode = code
     this.lastLang = lang
+    this.lastInfo = info
 
     this.dom.classList.toggle('is-chunk', !!header)
     if (header) this.ensureChrome(header, code)
@@ -183,14 +187,14 @@ class ChunkCodeBlockView implements NodeView {
     let n = 0
     this.view.state.doc.descendants((child, childPos) => {
       if (childPos >= pos) return false
-      if (child.type.name === 'code_block') n++
+      if (child.type.name === 'code_block' && chunkHeaderOf(child)) n++
       return true
     })
     return n
   }
 
   private chunkId(header: ChunkHeader): string {
-    return visualChunkId(header, this.node.textContent, this.ordinal())
+    return this.hooks.sourceId(this.ordinal()) ?? visualChunkId(header, this.node.textContent, this.ordinal())
   }
 
   private ensureChrome(header: ChunkHeader, code: string): void {
@@ -224,7 +228,7 @@ class ChunkCodeBlockView implements NodeView {
 
     // The output host is keyed by chunk id; re-key when a label changes so the
     // portal follows the chunk rather than stranding output on a dead id.
-    const id = visualChunkId(header, code, this.ordinal())
+    const id = this.chunkId(header)
     if (id !== this.mountedId && this.outputHost) {
       if (this.mountedId) this.hooks.unmountOutput(this.mountedId)
       this.mountedId = id

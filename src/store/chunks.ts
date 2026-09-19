@@ -20,6 +20,7 @@ export interface ChunkOutput {
   stdout: string
   error: string | null
   plots: ChunkPlot[]
+  widgets: string[]
   /** Code changed since this output was produced. */
   stale: boolean
   /** eval=FALSE — reported rather than silently doing nothing. */
@@ -29,7 +30,7 @@ export interface ChunkOutput {
 }
 
 const EMPTY: ChunkOutput = {
-  status: 'idle', stdout: '', error: null, plots: [],
+  status: 'idle', stdout: '', error: null, plots: [], widgets: [],
   stale: false, skipped: false, durationMs: null, collapsed: false,
 }
 
