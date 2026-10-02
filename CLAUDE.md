@@ -1272,10 +1272,89 @@ panel draws against the resolved per-model size until one has. It is reset by a
 provider or model switch: the reading describes ONE model's window, so carrying
 it across would show the new model's bar filled by the old one's conversation.
 
+### Release numbering
+
+The maintainer moved managed plugin services to **1.16.0**, ChatGPT plan usage
+to **1.16.1**, subscription stream corrections to **1.16.2**, and the guided
+installation health check to **1.16.3** (current).
+These announced patches have explicit entries in `versionHistory.ts`;
+`currentRelease()` prefers an exact entry before falling back to the older
+`a.b` histories. The running version still comes from `package.json`.
+The website generates its notes from this array and stamps its docs with the
+package version. Published installer versions are tracked separately until
+new binaries are uploaded.
+
+### Installation health check (`health-check.ts`, `r/health-check.R`)
+
+The first-launch invitation and last report persist in `health-check.json` in
+app data. Dismissing the invitation does not run diagnostics; Settings can open
+the full check again. The renderer walks through R, packages, system resources
+and AI, with explicit approval before each installation or inference request.
+
+Package diagnostics run through an independent Rscript process using base R,
+so missing `httpuv` or `jsonlite` cannot prevent the check that repairs them.
+The check compares package versions with compatible CRAN releases, tests loading
+and compares the Built R major/minor version with the selected R. Core package
+dependencies are included recursively; `sfarc` uses its GitHub DESCRIPTION.
+Repairs use the selected R's user library and stop the backend to release DLL
+locks on Windows. Offer to save the project first, then recheck and reconnect;
+register backend subscriptions before initial startup so recovery also works
+when the first launch failed. An offline recheck retains known update targets.
+
+Local recommendations use measured free RAM, usable GPU memory and free model
+storage with reserves for R and the operating system. Multiple GPUs and unified
+memory are not added together. The Qwen catalogue and download sizes are fixed
+in `health-policy.ts`; each download is approved separately. AI discovery reads
+metadata without inference. An approved connection test sends only a minimal
+diagnostic message, with bounded output and a 4K Ollama context; it sends no
+project, chat history or tools. Credentials use the existing provider settings.
+
+### ChatGPT plan usage (`chatgpt-subscription.ts`, `ai-chatgpt-transport.ts`)
+
+`openai-subscription` uses OpenAI's official **Sign in with ChatGPT** public-client
+flow for open-source desktop apps. First registration uses `dynamic_agent_client`
+and a persistent host ID; the callback's issued client ID, never the entrypoint
+ID, is used for exchange, refresh and returning sign-in. PKCE, state and nonce
+bind the callback to the attempt. The ID token's signature, issuer, audience,
+expiry and nonce are verified before credentials can replace a registration.
+Account registrations stay separate even when they have the same email.
+
+Tokens remain in main, protected with Electron `safeStorage`; Linux's
+`basic_text` backend is treated as unavailable. Without a keyring, credentials
+last for this process only. `chatgpt-accounts.json` keeps the host/account/client
+mapping; `chatgpt-session.bin` holds encrypted credentials. Both survive quit.
+Their writes are serialised from one snapshot and replaced atomically in main:
+the renderer's JSON store cannot own a credential it must never receive.
+Rotating refreshes are serialised per registration. Temporary failures preserve
+the grant; terminal refresh errors clear it. Sign-out stops requests and attempts
+remote revocation, with a visible recovery message when it cannot be confirmed.
+
+Main attaches the bearer token only to `POST https://api.openai.com/v1/responses`.
+Each request is bound to the account selected at the start of the turn, so an
+account change between tool calls cannot charge the next account. The account's
+`/v1/models` catalog supplies the picker; no subscription model list is hardcoded.
+Inference sets `store: false`, `stream: true`, supplies explicit history and groups
+the existing tools under the `ourgeo` namespace. Tool execution still goes through
+the panel's normal switches and permission tiers. Only `response.completed` is
+success: usage-limit failures after streaming and interrupted answers are errors.
+Completed output items and text/refusal done events are retained alongside
+streamed deltas, with missing suffixes emitted once. The terminal output array
+is merged with streamed items rather than replacing them: losing a streamed
+function call silently ended the tool loop, and losing message items produced
+empty replies. Reasoning-only and commentary-only completions now raise an error.
+Visible assistant messages retain their `commentary`/`final_answer` phase in chat
+history and replay; flattening that distinction can make later models stop at a
+preamble. Raw reasoning items stay in the current tool loop only, never persisted.
+There is no automatic switch to API billing, and voice transcription remains its
+own service because this subscription route does not support the transcription API.
+
+Official references: [registration](https://developers.openai.com/siwc/token-sharing-open-source/sign-in),
+[accounts and refresh](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions),
+[inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).
+
 ### A Claude subscription as a provider (`ai-claude-args.ts`, `electron/main/claude-*.ts`)
 
-Every other provider is an HTTP API reached with a key the user pastes into
-Settings. A Claude Pro/Max subscription is not a key and cannot be turned into
+The API providers use a key the user pastes into Settings. A Claude Pro/Max subscription is not a key and cannot be turned into
 one — but it authenticates the **Claude Code CLI the user already installed**,
 and `claude -p --output-format stream-json` wraps the *verbatim Anthropic
 Messages streaming events* `sendAnthropic` already parses. So ouRGeo does not
@@ -2196,9 +2275,9 @@ registry is built to give.
   or a cross-origin frame would change that, neither of which can touch the DOM.
   The real control is **consent**, and the docs say so in those words rather
   than implying a safety this does not provide.
-- `lib/plugins/host-api.tsx` — one frozen `ctx`. **No filesystem at all** (a
-  plugin that needs disk writes R, where the user watches it run) and no
-  `electronAPI`. Permissions gate by ABSENCE: without `network` there is no
+- `lib/plugins/host-api.tsx` — one frozen `ctx`. The renderer has no filesystem
+  or `electronAPI`. R operations remain visible in the console. A declared
+  `service` permission grants native system access to a separate installed entry. Permissions gate by ABSENCE: without `network` there is no
   `ctx.http`, because a method that exists and always refuses is one a model
   keeps calling. Frozen shallowly per namespace — the first version deep-froze
   and walked into React's module namespace, freezing the mutable `current` refs
@@ -2220,6 +2299,25 @@ registry is built to give.
 - `lib/plugins/archive-policy.ts` — what a `.ourgeoplugin` may contain. Pure and
   tested, listed in `tsconfig.node.json` so `plugins.ts` compiles against it,
   the arrangement `terminal/shells.ts` already has with `terminal.ts`.
+
+### Managed plugin services (v1.16.0)
+
+Media playback needs native codecs without a terminal or a pairing screen.
+`service: {entry, files}` declares the native JavaScript entry and all its text
+assets; the `service` permission explicitly grants native system access.
+`electron/main/plugin-services.ts` rechecks enabled state and real paths before
+forking an Electron utility process. The child sends `{type: 'ready', connection:
+{url, token}}` through `process.parentPort`; the host accepts only a private
+loopback URL and a strong session token. The child must handle `{type: 'stop'}`.
+`OURGEO_PLUGIN_DATA` identifies persistent data outside the replaceable plugin
+folder. Starts are deduplicated; disabling, renderer loss and quitting stop the
+service, with a bounded graceful shutdown. This is process isolation, not an OS
+sandbox. Store packages preserve every declared service asset verbatim.
+
+Panel renderers are mounted as React components in `PanelContent`, with an error
+boundary per panel. Calling a plugin renderer directly in Zone's map attached
+its hooks to Zone and crashed when the plugin was enabled. Plugin callbacks
+should return an element; the host also enforces the component boundary.
 
 ### What an archive is allowed to contain
 

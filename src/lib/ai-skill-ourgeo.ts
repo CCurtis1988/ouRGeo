@@ -122,6 +122,8 @@ R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.Global
 
 **Which model is answering** — Settings → AI Assistant. Cloud providers (Anthropic, OpenAI, Gemini) take an API key; local servers (Ollama, LM Studio, llama.cpp and friends) take a URL. There is also **Claude subscription (Claude Code)**, which takes neither: ouRGeo runs the \`claude\` command-line tool the user installed and signed in to, so the answer comes from their Claude plan rather than an API balance and ouRGeo never sees a credential. It needs Claude Code installed and \`claude auth login\` run once; the settings row shows which binary was found and who it is signed in as. On that provider your tools arrive over MCP and are listed as \`mcp__ourgeo__\u2026\` — same tools, same switches. It is a few seconds slower to first token because a process starts per answer, and its usage counts against the user's Claude plan limits.
 
+**OpenAI subscription (ChatGPT)** is another provider in Settings → AI Assistant. Continue with ChatGPT opens browser authorisation for ouRGeo to use the user's eligible plan and subscription credits. Select an account/workspace and an eligible model; Manage usage and credits opens ChatGPT Settings → Usage. API billing stays a separately selected provider. This OpenAI flow is in preview and account/workspace eligibility applies. The existing tool switches and permission tiers still apply. Tokens remain in the main process, are saved only with a secure OS keyring, and never enter a project. Voice transcription uses its own configured service. If ChatGPT completes without a final answer or the stream ends early, the panel shows an error and keeps any partial text. Retry or select another eligible model in Settings → AI Assistant; request IDs, when supplied, help diagnose provider failures.
+
 **Chats belong to the project** — the AI panel keeps many conversations, not one. The header shows how many (\`ai.chatSwitcher\`); the switcher lists them with their titles, sizes and the model each was held with, and \`+\` starts another without touching the ones already there. In a saved project they are kept with it and travel inside the \`.ourgeoproj\`; in the scratch workspace they last until the user quits \u2014 so if a conversation is worth keeping, the answer is to save the session as a project. Each remembers the provider and model it was held with, and switching back restores it. **You can read them but not move between them**: \`chat:list\` and \`chat:read\` are yours; switching, renaming and deleting are the user's, from that switcher. Use \`chat:read\` when the user refers to something decided in an earlier conversation — it is in this project and nowhere else.
 
 **Voice input** — the microphone beside Send in the AI panel dictates into the message box; the transcript is inserted at the cursor for the user to edit, and auto-send is off by default. Transcription runs on the user's machine by default (Whisper, downloaded once, offline afterwards); they can also point it at a server they run, or at Deepgram, ElevenLabs or AssemblyAI. Device, service, language and the silence timeout live in Settings \u2192 Voice input, or on the microphone's right-click menu. Anything sent off the machine is logged to the R console. **You cannot start or stop it** — the microphone is the user's; point at it (\`ui:highlight\` target \`ai.voice\`) and let them press it.
@@ -280,7 +282,9 @@ Databases connected in a project are reopened and rebound when the project loads
 
   troubleshooting: `# Troubleshooting
 
-**"R session not ready" / no connection.** ouRGeo spawns Rscript and reads the port it prints. If it never appears, R or one of httpuv, jsonlite, later, httr2 is missing. Running \`Rscript r/server.R\` by hand shows the real error.
+**Health check.** Open Settings → Health check to diagnose R, packages, system resources and AI configuration. The first-launch invitation is dismissible. Installs, repairs and model downloads require approval; testing a cloud or subscription model asks before using credits or plan allowance. The check saves a summary and offers local Qwen models suited to the available memory and storage.
+
+**"R session not ready" / no connection.** ouRGeo spawns Rscript and reads the port it prints. R or a core package (httpuv, jsonlite, later, httr2) may be missing, outdated or incompatible after an R upgrade. The health check works independently of the backend and can repair these packages and their dependencies. Save the project before approving a repair that stops R, then reconnect. Running \`Rscript r/server.R\` by hand shows the underlying error if further diagnosis is needed.
 
 **\`object '…' not found\` when knitting.** Knit is a clean session; console objects do not exist in it. The document needs a chunk that loads or builds the object.
 
@@ -515,7 +519,7 @@ One folder per plugin, under ouRGeo's app data directory, holding \`ourgeo-plugi
 
 \`id\` is lowercase and hyphenated, and it namespaces everything: an action \`quickSummary\` becomes \`noaa-tides:quickSummary\`, a tool becomes \`noaa-tides-<name>\`. A plugin can never shadow something ouRGeo ships — a contribution that tries is dropped, not preferred.
 
-**Ask for no permission you do not use.** \`network\` to fetch, \`r\` to run R, \`ui\` to open dialogs and panels. There is no filesystem permission because there is no filesystem: a plugin that needs disk writes R and runs it, where the user watches the code go past in their own console.
+**Ask for no permission you do not use.** \`network\` to fetch, \`r\` to run R, \`ui\` to open dialogs and panels. The renderer has no filesystem. R operations run visibly in the console. OurGeo 1.16.0 also supports \`service\`: native system access for an installed JavaScript background process. Declare \`service: {entry: "server/service.mjs", files: ["server/service.mjs"]}\` and permission \`service\`, then call \`ourgeo.service.start()\` for its private loopback connection. The host owns startup and shutdown; do not ask users to run a companion terminal or enter a pairing key. Service code must handle the private Electron parentPort ready/stop protocol.
 
 ## Always contribute a docs topic
 
@@ -687,7 +691,7 @@ A permission you did not ask for is **absent**, not refused: without \`network\`
 
 ## What is not there, and why
 
-**No filesystem.** Not a restricted one — none. A plugin that needs disk writes R and runs it, where the user watches the code in their own console. That is the rule the whole application follows, not a limitation to route around.
+**No renderer filesystem.** R operations remain visible in the console. A plugin declaring \`service\` permission may run its installed native background entry through \`ourgeo.service.start()\`; this is native system access and must be disclosed. It does not expose shell commands or arbitrary executable paths to the renderer.
 
 **No \`window.electronAPI\`**, and no \`fetch\`, \`require\`, \`process\`, \`localStorage\` or \`XMLHttpRequest\` — those names are blanked out while the plugin runs. Reaching for them is a bug in the plugin, not an obstacle to work around. Use \`ctx\`.
 

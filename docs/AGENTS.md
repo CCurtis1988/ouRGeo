@@ -256,7 +256,9 @@ next model — can find it.
 
 39. **`src/components/settings/versionHistory.ts`** — the release note, for a
     release. Versions are `a.b.c`: **`a` and `b` belong to the maintainer** and
-    are the releases announced here, one entry each. **`c` is yours** — bump it
+    are the releases announced here, one entry each. Maintainer-announced patch
+    releases may also have explicit history entries (the 1.16.0–1.16.3 series).
+    **`c` is yours** — bump it
     in `package.json` with the work, once per coherent change rather than once
     per file, and do not add an entry for it. The running version is
     `package.json`'s, injected at build time (`__APP_VERSION__`); a patch bump

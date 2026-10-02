@@ -36,6 +36,26 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  health: {
+    history: () => ipcRenderer.invoke('health:history'),
+    acknowledge: () => ipcRenderer.invoke('health:acknowledge'),
+    saveReport: (report: import('../../src/lib/health-types').HealthReport) => ipcRenderer.invoke('health:saveReport', report),
+    checkR: () => ipcRenderer.invoke('health:checkR'),
+    checkPackages: () => ipcRenderer.invoke('health:checkPackages'),
+    hardware: () => ipcRenderer.invoke('health:hardware'),
+    installPlan: (target: 'r' | 'ollama') => ipcRenderer.invoke('health:installPlan', target),
+    install: (target: 'r' | 'ollama', approved: boolean) => ipcRenderer.invoke('health:install', target, approved),
+    repairPackages: (names: string[], approved: boolean) => ipcRenderer.invoke('health:repairPackages', names, approved),
+    connectR: (approved: boolean) => ipcRenderer.invoke('health:connectR', approved),
+    ollamaModels: () => ipcRenderer.invoke('health:ollamaModels'),
+    startOllama: (approved: boolean) => ipcRenderer.invoke('health:startOllama', approved),
+    pullModel: (model: string, approved: boolean) => ipcRenderer.invoke('health:pullModel', model, approved),
+    onProgress: (callback: (message: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, message: string): void => callback(message)
+      ipcRenderer.on('health:progress', listener)
+      return () => ipcRenderer.removeListener('health:progress', listener)
+    },
+  },
   r: {
     getPort: (): Promise<number | null> => ipcRenderer.invoke('r:getPort'),
     isReady: (): Promise<boolean> => ipcRenderer.invoke('r:isReady'),
@@ -165,6 +185,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // reason these exist instead of the generic `file.*` calls: the assistant
   // authors plugins, and `file.write` takes an unchecked absolute path.
   plugins: {
+    services: {
+      start: (id: string): Promise<{ url: string; token: string }> => ipcRenderer.invoke('plugins:service:start', id),
+      reconcile: (active: string[]): Promise<void> => ipcRenderer.invoke('plugins:service:reconcile', active),
+    },
     dir: (): Promise<string> => ipcRenderer.invoke('plugins:dir'),
     list: (): Promise<{ id: string; dir: string; hasManifest: boolean }[]> =>
       ipcRenderer.invoke('plugins:list'),
@@ -259,9 +283,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Streams an AI-provider HTTP request through the main process. Returns an
     // abort() function. Body chunks arrive via onChunk as Uint8Array.
     stream: (
-      req: { url: string; method?: string; headers?: Record<string, string>; body?: string },
+      req: { url: string; method?: string; headers?: Record<string, string>; body?: string; billing?: 'chatgpt'; billingAccountId?: string },
       handlers: {
-        onMeta: (meta: { ok: boolean; status: number }) => void
+        onMeta: (meta: { ok: boolean; status: number; requestId?: string | null }) => void
         onChunk: (chunk: Uint8Array) => void
         onDone: () => void
         onError: (message: string) => void
@@ -272,7 +296,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       const chunkCh = `ai:chunk:${id}`
       const doneCh = `ai:done:${id}`
       const errCh = `ai:error:${id}`
-      const metaL = (_e: Electron.IpcRendererEvent, m: { ok: boolean; status: number }): void =>
+      const metaL = (_e: Electron.IpcRendererEvent, m: { ok: boolean; status: number; requestId?: string | null }): void =>
         handlers.onMeta(m)
       const chunkL = (_e: Electron.IpcRendererEvent, c: Uint8Array): void => handlers.onChunk(c)
       const cleanup = (): void => {
@@ -290,6 +314,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.send('ai:fetch', id, req)
       return () => { ipcRenderer.send('ai:abort', id); cleanup() }
     }
+  },
+  chatgpt: {
+    status: () => ipcRenderer.invoke('chatgpt:status'),
+    signIn: (id?: string): Promise<void> => ipcRenderer.invoke('chatgpt:signIn', id),
+    cancel: (): Promise<void> => ipcRenderer.invoke('chatgpt:cancel'),
+    models: (): Promise<{ id: string; label: string }[]> => ipcRenderer.invoke('chatgpt:models'),
+    select: (id: string): Promise<void> => ipcRenderer.invoke('chatgpt:select', id),
+    signOut: () => ipcRenderer.invoke('chatgpt:signOut'),
+    usage: (): Promise<void> => ipcRenderer.invoke('chatgpt:usage'),
   },
   claudeCli: {
     detect: (): Promise<{ path: string; version: string } | null> =>

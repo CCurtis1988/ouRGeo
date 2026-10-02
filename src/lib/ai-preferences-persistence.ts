@@ -30,6 +30,7 @@ const DEFAULTS: AiPreferences = {
   provider: 'anthropic',
   modelByProvider: {
     openai: 'gpt-4o',
+    'openai-subscription': '',
     anthropic: 'claude-opus-4-6',
     'claude-cli': 'sonnet',
     google: 'gemini-2.0-flash',

@@ -1,7 +1,7 @@
 // ── ouRGeo version history ────────────────────────────────────────────────
-// Big-picture release notes, newest first. The first entry's `version` is the
-// current app version shown in Settings, so this file is the single source of
-// truth for both the version badge and the history popup.
+// Release notes, newest first. Maintainer-announced patch releases can have
+// their own entry; older releases use a.b. The running version comes from
+// package.json, injected at build time, rather than the history array.
 
 export interface ReleaseNote {
   version: string
@@ -15,6 +15,56 @@ export interface ReleaseNote {
 }
 
 export const VERSION_HISTORY: ReleaseNote[] = [
+  {
+    version: '1.16.3',
+    date: 'October 2026',
+    title: 'Guided Installation Health Check',
+    summary:
+      'Get started with a guided check of R, its packages, system resources and the AI assistant, with approval before repairs or credit use.',
+    highlights: [
+      'A dismissible invitation appears on first launch. Start the check when ready, or run it again from Settings → Health check; a saved summary records results and remaining steps.',
+      'Check for R and approve its installation when needed. Repair missing, outdated or incompatible R packages, including the core dependencies that can prevent Rscript from connecting after an R upgrade.',
+      'Save the project before a repair stops the R session, then reconnect after installation. Check backend readiness, writable folders, free storage, system memory, GPU memory and document-export tools.',
+      'Configure a local AI server and choose Qwen models suited to the available memory and storage. Downloads need approval, and testing a cloud or subscription model asks before using credits or plan allowance.',
+    ],
+  },
+  {
+    version: '1.16.2',
+    date: 'September 2026',
+    title: 'Complete ChatGPT Replies',
+    summary:
+      'Keep the full ChatGPT subscription answer and its tool calls, and report a reply that ends without a final answer.',
+    highlights: [
+      'Completed stream items now supply answer text and tool calls even when the final response summary does not repeat them. Missing text suffixes are recovered once, without duplicating the streamed answer.',
+      'Commentary and final-answer phases survive conversation history and replay, so a preamble is not mistaken for the completed answer on a later turn.',
+      'Reasoning-only, commentary-only and interrupted replies show a recovery message instead of silently stopping. Partial text stays visible and in chat history; request IDs help diagnose failures when the provider supplies one.',
+    ],
+  },
+  {
+    version: '1.16.1',
+    date: 'September 2026',
+    title: 'Use Your ChatGPT Plan',
+    summary:
+      'Connect an eligible ChatGPT account and use its plan allowance and subscription credits to power the assistant.',
+    highlights: [
+      'OpenAI subscription (ChatGPT) is a provider in Settings → AI Assistant. Continue with ChatGPT opens browser authorisation; choose an account or workspace and a model from its eligible catalogue.',
+      'Manage usage and credits opens ChatGPT Settings → Usage. Subscription inference uses the Responses API and the existing tool permissions; API billing remains a separately selected provider.',
+      'Credentials stay in the main process and are saved only when a secure operating-system keyring is available. Accounts, sign-out and rotating token refreshes are managed by the app; projects never contain tokens.',
+      'OpenAI account and workspace eligibility and preview limitations apply. Voice transcription still uses its own configured service.',
+    ],
+  },
+  {
+    version: '1.16.0',
+    date: 'September 2026',
+    title: 'Managed Plugin Services',
+    summary:
+      'Let an installed plugin run a managed native background service, with startup and shutdown owned by ouRGeo.',
+    highlights: [
+      'Plugins can declare a JavaScript background service and its files, with an explicit service permission for native system access. The host provides a private loopback connection, so users do not need a companion terminal or pairing key.',
+      'Starts are deduplicated, and disabling a plugin, losing its renderer or quitting stops the service. Persistent plugin data lives outside the replaceable plugin folder; store packages preserve declared service assets.',
+      'Plugin panels mount as React components with an error boundary per panel, preventing a failed panel from taking down the workspace.',
+    ],
+  },
   {
     version: '1.15',
     date: 'September 2026',
@@ -293,7 +343,7 @@ export const VERSION_HISTORY: ReleaseNote[] = [
  *
  * It used to be `VERSION_HISTORY[0].version`, which was right while every
  * version was a release. It is not any more: `a` and `b` are the releases the
- * maintainer announces (and the entries below are their notes), while `c`
+ * maintainer announces (and the entries above are their notes), while `c`
  * moves with ordinary changes between them. Deriving the running version from
  * the release notes would have meant either a notes entry per patch — a
  * "What's new" dialog full of typo fixes — or a top entry whose version no
@@ -303,7 +353,9 @@ export const APP_VERSION: string =
   typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : VERSION_HISTORY[0].version
 
 /** The `a.b` release the running build belongs to, for matching it against the
- *  notes below. */
+ *  notes above, unless this build has its own announced patch entry. */
 export function currentRelease(): string {
-  return APP_VERSION.split('.').slice(0, 2).join('.')
+  return VERSION_HISTORY.some((release) => release.version === APP_VERSION)
+    ? APP_VERSION
+    : APP_VERSION.split('.').slice(0, 2).join('.')
 }

@@ -44,17 +44,19 @@ export const MANIFEST_FILE = 'ourgeo-plugin.json'
  * question anyone can answer.
  *
  * There is no `filesystem` permission because there is no filesystem in the
- * host API. A plugin that needs disk goes through R, where the user watches
- * the code run in their own console.
+ * renderer API. R operations remain visible in the console. The separate
+ * `service` permission grants native system access to a declared background
+ * process and is shown explicitly when enabling the plugin.
  */
-export type PluginPermission = 'network' | 'r' | 'ui'
+export type PluginPermission = 'network' | 'r' | 'ui' | 'service'
 
-export const PERMISSIONS: PluginPermission[] = ['network', 'r', 'ui']
+export const PERMISSIONS: PluginPermission[] = ['network', 'r', 'ui', 'service']
 
 export const PERMISSION_LABELS: Record<PluginPermission, string> = {
   network: 'Fetch from the internet',
   r: 'Run R in your session',
   ui: 'Open dialogs and change the workspace',
+  service: 'Run an isolated background service with native system access',
 }
 
 // ── Declarative contributions ──────────────────────────────────────────────
@@ -172,6 +174,8 @@ export interface PluginManifest {
   /** Entry point, relative to the plugin directory. `.ts`/`.tsx` are compiled
    *  on load; omit it entirely for a declarative-only plugin. */
   main?: string
+  /** Node service run by Electron, with a private IPC handshake and lifecycle. */
+  service?: { entry: string; files: string[] }
   contributes?: PluginContributions
   /** Manifest format version, not the plugin's own. */
   manifestVersion?: number

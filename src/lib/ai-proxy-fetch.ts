@@ -12,6 +12,7 @@ interface ProxyReadResult {
 export interface ProxyResponse {
   ok: boolean
   status: number
+  requestId?: string | null
   body: { getReader(): { read(): Promise<ProxyReadResult> } } | null
   json(): Promise<unknown>
   text(): Promise<string>
@@ -22,6 +23,8 @@ export interface ProxyFetchInit {
   headers?: Record<string, string>
   body?: string
   signal?: AbortSignal
+  billing?: 'chatgpt'
+  billingAccountId?: string
 }
 
 function concat(parts: Uint8Array[]): Uint8Array {
@@ -38,7 +41,7 @@ export function proxyFetch(url: string, init: ProxyFetchInit = {}): Promise<Prox
     let waiting: ((r: ProxyReadResult) => void) | null = null
     let ended = false
     let errored: Error | null = null
-    let meta: { ok: boolean; status: number } | null = null
+    let meta: { ok: boolean; status: number; requestId?: string | null } | null = null
     let settled = false
     let failWaiting: ((e: Error) => void) | null = null
 
@@ -81,6 +84,7 @@ export function proxyFetch(url: string, init: ProxyFetchInit = {}): Promise<Prox
     const response: ProxyResponse = {
       get ok() { return meta?.ok ?? false },
       get status() { return meta?.status ?? 0 },
+      get requestId() { return meta?.requestId },
       body: { getReader: () => reader },
       async text() {
         const parts: Uint8Array[] = []
@@ -97,7 +101,8 @@ export function proxyFetch(url: string, init: ProxyFetchInit = {}): Promise<Prox
     }
 
     const abort = window.electronAPI.ai.stream(
-      { url, method: init.method, headers: init.headers, body: init.body },
+      { url, method: init.method, headers: init.headers, body: init.body,
+        ...(init.billing ? { billing: init.billing, billingAccountId: init.billingAccountId } : {}) },
       {
         onMeta: (m) => {
           meta = m

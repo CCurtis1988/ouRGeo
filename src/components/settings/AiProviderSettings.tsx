@@ -3,6 +3,8 @@ import { useAiStore, type AiProvider } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { SecretField, UrlField } from './fields'
 import { ClaudeCliSettings } from './ClaudeCliSettings'
+import { ChatGptSettings } from './ChatGptSettings'
+import { useChatGptStore } from '@/store/chatgpt'
 import {
   PROVIDER_MODELS,
   LOCAL_PROVIDERS,
@@ -87,6 +89,8 @@ export function AiProviderSettings(): React.ReactElement {
 
   const local = isLocalProvider(provider)
   const localMeta = LOCAL_PROVIDER_MAP[provider]
+  const chatGpt = useChatGptStore()
+  const subscription = provider === 'openai-subscription'
 
   const [localModels, setLocalModels] = useState<string[]>([])
   const [localError, setLocalError] = useState<string | null>(null)
@@ -124,6 +128,13 @@ export function AiProviderSettings(): React.ReactElement {
 
   const cloudDef = CLOUD_PROVIDERS.find((p) => p.id === provider)
   const models = local ? localModels : PROVIDER_MODELS[provider]
+  const modelIds = subscription ? chatGpt.models.map((m) => m.id) : models
+
+  useEffect(() => {
+    if (subscription && chatGpt.models.length && !chatGpt.models.some((m) => m.id === currentModel)) {
+      setModel(chatGpt.models[0].id)
+    }
+  }, [subscription, chatGpt.models, currentModel, setModel])
 
   return (
     <div className="flex flex-col gap-4">
@@ -140,8 +151,9 @@ export function AiProviderSettings(): React.ReactElement {
               <option key={p.id} value={p.id}>{p.label}</option>
             ))}
           </optgroup>
-          <optgroup label="On this machine">
+          <optgroup label="Subscriptions">
             <option value="claude-cli">Claude subscription (Claude Code)</option>
+            <option value="openai-subscription">OpenAI subscription (ChatGPT)</option>
           </optgroup>
           <optgroup label="Local (self-hosted)">
             {LOCAL_PROVIDERS.map((p) => (
@@ -163,6 +175,7 @@ export function AiProviderSettings(): React.ReactElement {
 
       {/* The subscription provider: no key, a binary and a sign-in instead. */}
       {provider === 'claude-cli' && <ClaudeCliSettings />}
+      {subscription && <ChatGptSettings />}
 
       {/* Local provider configuration */}
       {local && localMeta && (
@@ -187,18 +200,20 @@ export function AiProviderSettings(): React.ReactElement {
       {/* Model selector */}
       <div className="flex flex-col gap-1">
         <span className="text-xs text-foreground">Default Model</span>
-        {models.length > 0 ? (
+        {modelIds.length > 0 ? (
           <select
             value={currentModel}
             onChange={(e) => setModel(e.target.value)}
             className="w-full bg-geo-bg border border-geo-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:border-geo-accent"
           >
             {/* Ensure the saved model is selectable even if not in the fetched list */}
-            {currentModel && !models.includes(currentModel) && (
+            {currentModel && !modelIds.includes(currentModel) && !subscription && (
               <option value={currentModel}>{currentModel}</option>
             )}
-            {models.map((m) => <option key={m} value={m}>{m}</option>)}
+            {modelIds.map((m) => <option key={m} value={m}>{subscription ? chatGpt.models.find((entry) => entry.id === m)?.label : m}</option>)}
           </select>
+        ) : subscription ? (
+          <p className="text-[11px] text-geo-muted">{chatGpt.loading ? 'Fetching ChatGPT models…' : 'Sign in and enable ChatGPT plan usage to load eligible models.'}</p>
         ) : local && localLoading ? (
           <p className="text-[11px] text-geo-muted">Connecting to {localMeta?.label}…</p>
         ) : local && localError ? (

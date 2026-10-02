@@ -104,6 +104,13 @@ export async function buildDistFiles(manifest: PluginManifest): Promise<DistResu
   }
 
   // ── Anything a reader expects to find ────────────────────────────────────
+  // Background services are native JavaScript and web assets, not renderer
+  // inputs. Preserve every declared file so installed packages are complete.
+  for (const rel of manifest.service?.files ?? []) {
+    try { out[rel] = await window.electronAPI.plugins.readFile(`${id}/${rel}`) }
+    catch (error) { return { ok: false, error: `Could not package service asset "${rel}": ${msg(error)}`, warnings } }
+  }
+
   for (const rel of COPIED) {
     if (!names.includes(rel) || out[rel] !== undefined) continue
     try {

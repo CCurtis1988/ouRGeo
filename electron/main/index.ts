@@ -8,13 +8,16 @@ import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
+import { registerHealthHandlers } from './health-check'
 import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
 import { registerClaudeCliHandlers } from './claude-cli'
+import { registerChatGptHandlers } from './chatgpt-subscription'
 import { registerKnitHandlers } from './knit'
 import { registerForumHandlers } from './forum'
 import { registerPluginStoreHandlers } from './plugin-store'
 import { registerPluginHandlers, registerEsbuildWasmHandler } from './plugins'
+import { registerPluginServiceHandlers, stopPluginServices, pluginServicesRunning } from './plugin-services'
 import { registerVoiceHandlers } from './voice'
 import { registerTerminalHandlers, killAllTerminals } from './terminal'
 import {
@@ -188,8 +191,10 @@ app.whenReady().then(async () => {
   ))
 
   setupIpcHandlers(ipcMain)
+  registerHealthHandlers(ipcMain)
   registerAiProxy(ipcMain)
   registerClaudeCliHandlers(ipcMain)
+  registerChatGptHandlers(ipcMain)
   registerVoiceHandlers(ipcMain)
   registerVoiceModelHandlers(ipcMain)
   registerVoiceModelProtocol()
@@ -211,6 +216,7 @@ app.whenReady().then(async () => {
   registerForumHandlers(ipcMain)
   registerPluginStoreHandlers(ipcMain)
   registerPluginHandlers(ipcMain)
+  registerPluginServiceHandlers(ipcMain)
   registerEsbuildWasmHandler(ipcMain)
   registerTerminalHandlers(ipcMain)
 
@@ -296,7 +302,12 @@ app.on('window-all-closed', () => {
 // On clean exit, wipe session-scoped state so the next launch starts fresh —
 // EXCEPT session.json (open code/.R tabs), which we deliberately keep between
 // sessions. A crash (no will-quit) leaves these intact for recovery on relaunch.
-app.on('will-quit', () => {
+app.on('will-quit', (event) => {
+  if (pluginServicesRunning()) {
+    event.preventDefault()
+    void stopPluginServices().finally(() => app.quit())
+    return
+  }
   killAllTerminals()
   const dir = app.getPath('userData')
   for (const file of SESSION_SCOPED_FILES) {

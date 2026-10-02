@@ -44,6 +44,16 @@ const declarative = (over: Partial<PluginManifest> = {}): PluginManifest => ({
 beforeEach(stubElectron)
 
 describe('buildDistFiles', () => {
+  it('includes all service assets in a distributable', async () => {
+    fake.files['tide/server/main.mjs'] = 'export {}'
+    fake.files['tide/web/index.html'] = '<main>Player</main>'
+    const manifest = declarative({ permissions: ['service'], service: { entry: 'server/main.mjs', files: ['server/main.mjs', 'web/index.html'] } })
+    const result = await buildDistFiles(manifest)
+    expect(result.ok).toBe(true)
+    expect(result.files?.['web/index.html']).toContain('Player')
+    delete fake.files['tide/server/main.mjs']
+    expect((await buildDistFiles(manifest)).ok).toBe(false)
+  })
   it('packages a declarative plugin with no compiler involved at all', async () => {
     fake.files['tide/ourgeo-plugin.json'] = '{}'
     const r = await buildDistFiles(declarative())

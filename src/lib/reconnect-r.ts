@@ -5,6 +5,7 @@ import { wsClient } from './ws-client'
 import { useSessionStore } from '../store/session'
 import { useEnvironmentStore } from '../store/environment'
 import { useEditorStore } from '../store/editor'
+import { enableDirtyTracking } from './project-persistence'
 
 /**
  * Drop restored data-viewer/function-editor tabs whose backing R object no
@@ -67,6 +68,7 @@ export async function reconnectToR(): Promise<void> {
       useEnvironmentStore.getState().setSystemNames(sessionResult.systemNames)
     }
     addConsoleEntry('info', 'R session ready.')
+    enableDirtyTracking()
     // A restart is a fresh R process, so its directory is R's default again.
     void refreshWorkingDir()
 

@@ -17,6 +17,7 @@ import {
   MANIFEST_VERSION, PERMISSIONS,
   type PluginManifest, type PluginPermission, type PluginContributions,
 } from './types'
+import { serviceSpec } from './service-policy'
 
 export interface ManifestResult {
   ok: boolean
@@ -117,6 +118,12 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
   }
 
   const contributes = readContributions(m.contributes, warnings)
+  let service: PluginManifest['service']
+  if (m.service !== undefined) {
+    if (!permissions.includes('service')) return { ok: false, warnings, error: 'A background service needs the "service" permission.' }
+    try { service = serviceSpec(m.service) }
+    catch (error) { return { ok: false, warnings, error: (error as Error).message } }
+  }
 
   if (!main && isEmpty(contributes)) {
     return {
@@ -137,6 +144,7 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
       homepage: str(m.homepage) ?? undefined,
       permissions,
       main: main ?? undefined,
+      service,
       contributes,
       manifestVersion: version,
     },

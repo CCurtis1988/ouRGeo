@@ -1,6 +1,7 @@
 import { net } from 'electron'
 import type { IpcMain, WebContents } from 'electron'
 import { describeFetchFailure, isLoopbackHost } from '../../src/lib/ai-fetch-error'
+import { chatGptRequestToken, onChatGptAccountChange } from './chatgpt-subscription'
 
 // Proxies AI-provider HTTP calls through the main process so the renderer no
 // longer needs `webSecurity: false` to reach external APIs. The renderer sends
@@ -13,6 +14,8 @@ interface ProxyRequest {
   method?: string
   headers?: Record<string, string>
   body?: string
+  billing?: 'chatgpt'
+  billingAccountId?: string
 }
 
 const controllers = new Map<string, AbortController>()
@@ -22,11 +25,29 @@ function send(wc: WebContents, channel: string, ...args: unknown[]): void {
 }
 
 export function registerAiProxy(ipcMain: IpcMain): void {
+  const subscriptionRequests = new Set<AbortController>()
+  onChatGptAccountChange(() => {
+    for (const controller of subscriptionRequests) controller.abort()
+  })
   ipcMain.on('ai:fetch', async (event, id: string, req: ProxyRequest) => {
     const wc = event.sender
     const controller = new AbortController()
     controllers.set(id, controller)
     try {
+      let headers = req.headers
+      if (req.billing === 'chatgpt') {
+        // Never attach subscription credentials to an arbitrary renderer URL.
+        if (req.url !== 'https://api.openai.com/v1/responses' || req.method !== 'POST') {
+          throw new Error('ChatGPT plan requests must use the Responses API.')
+        }
+        const body = JSON.parse(req.body ?? '{}')
+        if (body.store !== false || body.stream !== true || !Array.isArray(body.input)) {
+          throw new Error('ChatGPT plan requests require streaming with storage disabled.')
+        }
+        subscriptionRequests.add(controller)
+        headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${await chatGptRequestToken(req.billingAccountId)}` }
+        controller.signal.throwIfAborted()
+      }
       // `net.fetch` (Chromium's stack), NOT Node's global fetch.
       //
       // Node's fetch is undici, whose `headersTimeout` and `bodyTimeout` are
@@ -43,11 +64,14 @@ export function registerAiProxy(ipcMain: IpcMain): void {
       // behave the same here — that was verified before the swap, not assumed.
       const res = await net.fetch(req.url, {
         method: req.method ?? 'GET',
-        headers: req.headers,
+        headers,
         body: req.body,
         signal: controller.signal,
+        ...(req.billing === 'chatgpt' ? { redirect: 'error' as const } : {}),
       })
-      send(wc, `ai:meta:${id}`, { ok: res.ok, status: res.status })
+      send(wc, `ai:meta:${id}`, { ok: res.ok, status: res.status,
+        ...(req.billing === 'chatgpt' ? { requestId: res.headers?.get('x-request-id') ?? null } : {}),
+      })
 
       if (res.body) {
         const reader = res.body.getReader()
@@ -65,6 +89,9 @@ export function registerAiProxy(ipcMain: IpcMain): void {
       }
       send(wc, `ai:done:${id}`)
     } catch (err) {
+      if (controller.signal.aborted && subscriptionRequests.has(controller)) {
+        send(wc, `ai:error:${id}`, 'The ChatGPT request was stopped. Check the selected account before sending again.')
+      }
       // An abort is the renderer having said so, and it has already torn its
       // own listeners down and settled its promise — anything sent here would
       // land on nothing. Only a real failure is worth reporting.
@@ -73,6 +100,7 @@ export function registerAiProxy(ipcMain: IpcMain): void {
       }
     } finally {
       controllers.delete(id)
+      subscriptionRequests.delete(controller)
     }
   })
 

@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, ChevronDown, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal, Store,
+  SquareTerminal, Store, HeartPulse,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
@@ -283,6 +283,10 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
 
           {/* Body */}
           <div className="px-4 py-2 overflow-y-auto divide-y divide-geo-border">
+            <SettingsSection icon={HeartPulse} title="Health check" description="Check your installation, repair R packages, and set up AI">
+              <p className="text-xs text-geo-muted mb-3">Run guided diagnostics whenever something needs attention, including after updating R. Installations and AI credit use require your approval.</p>
+              <button className="rounded border border-geo-border px-3 py-2 text-xs text-foreground hover:bg-geo-bg" onClick={() => useUiStore.getState().showDialog('health-check')}>Run health check…</button>
+            </SettingsSection>
             <SettingsSection
               icon={Palette}
               title="Appearance"

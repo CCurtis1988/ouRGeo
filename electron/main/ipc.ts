@@ -71,7 +71,7 @@ function resolveRealPath(candidate: string): string | null {
   }
 }
 
-function detectRInstallations(configuredPath: string | null): { path: string; version: string }[] {
+export function detectRInstallations(configuredPath: string | null): { path: string; version: string }[] {
   const candidates: string[] = []
 
   if (process.platform === 'win32') {

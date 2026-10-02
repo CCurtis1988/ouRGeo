@@ -192,6 +192,7 @@ export interface VoiceModelStatus {
 declare global {
   interface Window {
     electronAPI: {
+      health: import('../../src/lib/health-types').HealthAPI
       r: {
         getPort(): Promise<number | null>
         isReady(): Promise<boolean>
@@ -322,6 +323,10 @@ declare global {
         onProgress(id: string, cb: (text: string) => void): () => void
       }
       plugins: {
+        services: {
+          start(id: string): Promise<{ url: string; token: string }>
+          reconcile(active: string[]): Promise<void>
+        }
         dir(): Promise<string>
         list(): Promise<{ id: string; dir: string; hasManifest: boolean }[]>
         readFile(relative: string): Promise<string>
@@ -359,14 +364,27 @@ declare global {
       }
       ai: {
         stream(
-          req: { url: string; method?: string; headers?: Record<string, string>; body?: string },
+          req: { url: string; method?: string; headers?: Record<string, string>; body?: string; billing?: 'chatgpt'; billingAccountId?: string },
           handlers: {
-            onMeta: (meta: { ok: boolean; status: number }) => void
+            onMeta: (meta: { ok: boolean; status: number; requestId?: string | null }) => void
             onChunk: (chunk: Uint8Array) => void
             onDone: () => void
             onError: (message: string) => void
           }
         ): () => void
+      }
+      chatgpt: {
+        status(): Promise<{
+          activeId: string | null; signingIn: boolean; error: string | null; persistent: boolean
+          signedIn: boolean; planEnabled: boolean
+          accounts: { id: string; email: string | null; signedIn: boolean; planEnabled: boolean }[]
+        }>
+        signIn(id?: string): Promise<void>
+        cancel(): Promise<void>
+        models(): Promise<{ id: string; label: string }[]>
+        select(id: string): Promise<void>
+        signOut(): ReturnType<Window['electronAPI']['chatgpt']['status']>
+        usage(): Promise<void>
       }
       claudeCli: {
         detect(): Promise<{ path: string; version: string } | null>

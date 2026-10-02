@@ -1,5 +1,9 @@
 # ouRGeo
 
+Current version: **1.16.3**. Release history: **1.16.0** managed plugin services,
+**1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
+**1.16.3** guided installation health checks.
+
 **An open-source desktop spatial IDE — ArcGIS Pro meets RStudio.**
 
 ouRGeo wraps R's spatial ecosystem (`sf`, `terra`, `ggplot2`, `tmap`) in a
@@ -19,6 +23,16 @@ the whole analysis.
 ---
 
 ## What it does
+
+- **A guided health check.** A dismissible welcome appears on first launch;
+  **Settings → Health check** runs it again whenever needed. It checks R,
+  missing or outdated packages, package builds after an R upgrade, the backend
+  connection, writable storage, available RAM/VRAM, and document-export tools.
+  Repairs require approval and offer a project-save step before stopping R to
+  replace loaded packages. AI setup offers local Qwen models sized for the
+  computer, existing model servers, and cloud/subscription providers. A response
+  test asks for approval before using credits and sends no project data.
+  The final report records ready, fixed, skipped, and unresolved checks.
 
 - **Exact curved geometry.** Built on [`sfarc`](https://github.com/CCurtis1988/sfarc),
   a companion R package that computes length, area,
@@ -63,10 +77,19 @@ the whole analysis.
   code, a card image for the picker, a default basemap, and import/export as
   portable `.ourgeotheme.json` files.
 - **In-app AI assistant** with optional Autopilot, usable with cloud providers,
-  a fully local model, or **your Claude subscription** — pick "Claude
+  a fully local model, or **your ChatGPT or Claude subscription**. For ChatGPT,
+  choose **OpenAI subscription (ChatGPT)** in Settings → AI Assistant, press
+  **Continue with ChatGPT**, authorise plan usage in your browser, then choose
+  an eligible model. Manage the app's allowance and use of subscription credits
+  through **Manage usage and credits**. Account/workspace eligibility and OpenAI's
+  [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+  apply; API billing is a separate provider you select explicitly. Credentials
+  stay in the main process and are saved only when a secure system keyring is
+  available. ChatGPT replies retain streamed tool calls and final answer text;
+  an unfinished or empty reply shows an error with a recovery step. For Claude, pick "Claude
   subscription (Claude Code)" and ouRGeo runs the `claude` CLI you already
   installed and signed in to, with no API key to paste and no credentials it
-  can see. It can drive the interface, run the toolbox, write R Markdown,
+  can see. The assistant can drive the interface, run the toolbox, write R Markdown,
   rearrange your workspace, build a theme to your description, and **write
   plugins that add capabilities ouRGeo does not ship with**. Every message in
   the chat — yours and the reply — has its own copy button, and code blocks
@@ -195,6 +218,16 @@ What it produces is an ordinary plugin — editable, exportable as a
 > Enable one the way you would run `install.packages()`: because you know where
 > it came from. Plugins arrive switched **off**, and a declarative plugin —
 > the common case — runs no code at all.
+
+### Automatic plugin services
+
+From 1.16.0, plugins can declare a background service with native system access.
+OurGeo starts and connects it automatically, reuses it when a panel moves, and
+stops it when the plugin is disabled or the application closes. Media Player
+uses this for playback without a companion terminal, port configuration or
+pairing key. Its playback tools are prepared automatically on first use.
+Plugin panels also contain rendering failures locally with a **Reload panel**
+button, preserving the rest of the workspace.
 
 ### The plugin store
 

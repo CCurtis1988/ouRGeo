@@ -4,14 +4,10 @@
 // through it, and it is deliberately small: `register`, R, HTTP, a little UI,
 // read-only views of the session, storage scoped to the plugin, and logging.
 //
-// Two things are conspicuously absent.
-//
-//  * **No filesystem.** Not a restricted one — none. A plugin that needs disk
-//    writes R and runs it, where the user watches the code go past in their own
-//    console. That is not a limitation to work around; it is the same rule the
-//    whole application follows.
-//  * **No `window.electronAPI`.** The sandbox shadows the name, and nothing
-//    here re-exposes it.
+// The renderer has no filesystem or electronAPI. A declared `service`
+// permission can start the plugin's installed native entry in a separate
+// process; it grants native system access, not a restricted filesystem.
+// The renderer supplies neither an executable path nor shell commands.
 //
 // Permissions gate by ABSENCE, not by refusal: a plugin without `network` has
 // no `ctx.http` at all. A method that exists and always says no is a method a
@@ -30,12 +26,15 @@ import { useUiStore, type DialogId } from '@/store/ui'
 import { useLayoutStore } from '@/store/layout'
 import { createJsonFileStore } from '@/lib/persistence'
 import type { PluginManifest, PluginPermission } from './types'
+import type { ServiceConnection } from './service-policy'
 
 /** A registration's undo. Every `register` call returns one, and the loader
  *  keeps them so disabling a plugin can be exact rather than a full reload. */
 export type Disposer = () => void
 
 export interface PluginHost {
+  /** Available only for a declared, permitted service. No commands or paths are accepted. */
+  service?: { start(): Promise<ServiceConnection> }
   /** Who this plugin is. */
   plugin: {
     id: string
@@ -198,6 +197,10 @@ export function createHost({ manifest, dir, register }: HostOptions): PluginHost
     }
   }
 
+  if (has(manifest, 'service') && manifest.service) {
+    host.service = { start: () => window.electronAPI.plugins.services.start(id) }
+  }
+
   if (has(manifest, 'ui')) {
     host.ui = {
       React,
@@ -209,7 +212,7 @@ export function createHost({ manifest, dir, register }: HostOptions): PluginHost
     }
   }
 
-  for (const ns of [host.plugin, host.register, host.read, host.r, host.http, host.ui]) {
+  for (const ns of [host.plugin, host.register, host.read, host.r, host.http, host.ui, host.service]) {
     if (ns) Object.freeze(ns)
   }
   Object.freeze(host)

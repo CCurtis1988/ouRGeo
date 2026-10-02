@@ -335,6 +335,7 @@ export function AiChatPanel(): React.ReactElement {
     const prior = selectMessages(useAiStore.getState()).filter((m) => m.id !== userMsg.id)
     const conversationMessages = [...prior, userMsg]
 
+    let openAiMessages: import('@/store/ai').OpenAiAssistantMessage[] | undefined
     try {
       // The Claude Code transport keeps its own transcript, so it takes a
       // session to resume rather than the whole conversation, and reports a
@@ -347,6 +348,7 @@ export function AiChatPanel(): React.ReactElement {
         apiKey,
         localUrl: local ? localBaseUrl(provider, keys) : undefined,
         localApiKey: local ? localApiKey(provider, keys) : undefined,
+        ollamaContextSize: provider === 'ollama' ? localCtxOverride(provider, keys) ?? undefined : undefined,
         contextSize,
         messages: conversationMessages,
         systemPrompt,
@@ -355,6 +357,7 @@ export function AiChatPanel(): React.ReactElement {
         onChunk: (chunk) => appendStreamChunk(chunk),
         onToolCall: tools.length > 0 ? runTool : undefined,
         onUsage: (used, total) => setTokenUsage(used, total),
+        onOpenAiMessages: (messages) => { openAiMessages = messages },
         signal: ac.signal,
         claudeSessionId: chat?.claudeSessionId ?? undefined,
         claudeResume: !!chat?.claudeSessionId,
@@ -375,7 +378,7 @@ export function AiChatPanel(): React.ReactElement {
       if (update) useAiStore.getState().setLastSessionContext(update.sent)
       // Stop was pressed: `cancelStream` has already kept whatever had been
       // streamed, and finalizing again would post the answer twice.
-      if (!ac.signal.aborted) finalizeStream(fullContent)
+      if (!ac.signal.aborted) finalizeStream(fullContent, openAiMessages)
     } catch (e) {
       // Stop was pressed — by name, or because the controller says so, since a
       // transport is free to reject with something of its own once aborted.
@@ -390,7 +393,7 @@ export function AiChatPanel(): React.ReactElement {
       // message, and everything the user had been reading disappeared at the
       // moment the error appeared. Same class of bug as `useGeometryCommit`,
       // and the same fix.
-      finalizeStream(useAiStore.getState().streamingContent)
+      finalizeStream(useAiStore.getState().streamingContent, openAiMessages)
     }
   }, [provider, currentModel, keys, environments, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
       appendStreamChunk, finalizeStream, setTokenUsage, addConsoleEntry, setEnvironments])

@@ -25,6 +25,7 @@ import { addPanelInstance, instancesOf, removalSummary, removePanelInstance } fr
 import { focusPanel } from '@/lib/panel-focus'
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/context-menu'
 import { PanelIdContext } from './panel-context'
+import { PanelContent } from './PanelContent'
 import { startDragResize } from './resize'
 import { cn } from '@/lib/utils'
 
@@ -83,8 +84,8 @@ export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | nul
 
       {shown.map((id, i) => {
         const def = panelInfo(id)
-        const render = def && panelRender(id)
-        if (!def || !render) return null
+        const Render = def && panelRender(id)
+        if (!def || !Render) return null
         const prev = i > 0 ? shown[i - 1] : null
         return (
           <React.Fragment key={id}>
@@ -99,7 +100,7 @@ export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | nul
               showGrip={state.mode === 'split' && dragEnabled}
               setDrag={setDrag}
             >
-              {render()}
+              <PanelContent render={Render} label={def.label} />
             </PanelSlot>
           </React.Fragment>
         )

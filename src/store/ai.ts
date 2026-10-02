@@ -10,6 +10,7 @@ import type { SentContext } from '@/lib/ai-session-context'
 // (except Ollama, which uses its native API). See LOCAL_PROVIDERS in ai-client.ts.
 export type AiProvider =
   | 'openai'
+  | 'openai-subscription'
   | 'anthropic'
   /** Not an API at all: the Claude Code CLI on this machine, authenticated by
    *  whatever the user signed it in with — a Claude subscription, usually.
@@ -27,10 +28,16 @@ export type AiProvider =
   | 'xinference'
   | 'openllm'
 
+export interface OpenAiAssistantMessage {
+  content: string
+  phase?: 'commentary' | 'final_answer'
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  openAiMessages?: OpenAiAssistantMessage[]
   toolCalls?: { id: string; code: string }[]
   toolResults?: { id: string; output: string }[]
   timestamp: number
@@ -191,7 +198,7 @@ interface AiState {
   setModel: (model: string) => void
   addMessage: (msg: ChatMessage) => void
   appendStreamChunk: (chunk: string) => void
-  finalizeStream: (fullContent: string) => void
+  finalizeStream: (fullContent: string, openAiMessages?: OpenAiAssistantMessage[]) => void
   cancelStream: () => void
   /** Start a fresh conversation and show it, keeping every existing one. */
   newChat: () => string
@@ -231,6 +238,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   provider: 'anthropic',
   modelByProvider: {
     openai: 'gpt-4o',
+    'openai-subscription': '',
     anthropic: 'claude-opus-4-6',
     google: 'gemini-2.0-flash',
     'claude-cli': 'sonnet',
@@ -348,14 +356,21 @@ export const useAiStore = create<AiState>((set, get) => ({
    * reads as the assistant having replied with nothing — the error line under
    * the box is the honest report of that.
    */
-  finalizeStream: (fullContent) => {
+  finalizeStream: (fullContent, openAiMessages) => {
     const content = fullContent.trim() ? fullContent : ''
+    // A later tool-loop request can fail after adding partial text. Keep that
+    // suffix in replay too, without inventing a final-answer phase for it.
+    const recorded = openAiMessages?.map((message) => message.content).join('')
+    const responseMessages = recorded && content.startsWith(recorded)
+      ? [...openAiMessages!, ...(content.length > recorded.length ? [{ content: content.slice(recorded.length) }] : [])]
+      : undefined
     set((s) => ({
       chats: content
         ? patchActiveChat(s.chats, s.activeChatId, (c) => ({
             ...c,
             messages: [...c.messages, {
               id: crypto.randomUUID(), role: 'assistant' as const, content, timestamp: Date.now(),
+              ...(responseMessages?.length ? { openAiMessages: responseMessages } : {}),
             }],
           }))
         : s.chats,

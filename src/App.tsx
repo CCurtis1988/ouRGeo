@@ -42,6 +42,7 @@ import { loadEnvironmentPreferences } from './lib/environment-preferences'
 import { useBasemapStore } from './store/basemap'
 import { useEnvironmentStore } from './store/environment'
 import { useVoiceStore } from './store/voice'
+import { HealthCheckDialog } from './components/settings/HealthCheckDialog'
 
 // Detect if this window is the plot popout
 const isPopout = typeof window !== 'undefined' && window.location.hash === '#plot-popout'
@@ -61,6 +62,61 @@ function MainApp(): React.ReactElement {
   const initialized = useRef(false)
 
   useEffect(() => {
+    // Register handlers even when first-run R startup fails. The health check
+    // can repair packages and connect R later without reloading the renderer.
+    const cleanupWsStatus = wsClient.onStatus((connected) => {
+      setWsConnected(connected)
+    })
+
+    const cleanupWsMessages = wsClient.onMessage((type, text, data) => {
+      if (type === 'install_complete') {
+        usePackagesStore.getState().refreshPackages()
+        return
+      }
+      if (type === 'plot' && data && typeof data === 'object' && 'dataUrl' in (data as object)) {
+        // The popout window is fed by setupPlotPopoutSync, which mirrors
+        // the store — no direct push needed here.
+        const { dataUrl, plotId } = data as { dataUrl: string; plotId?: string }
+        usePlottingStore.getState().addPlot(dataUrl, plotId ?? null)
+        return
+      }
+      if (type === 'env' && data && typeof data === 'object' && 'name' in (data as object)) {
+        useEnvironmentStore.getState().mergeEnvironment(data as REnvironmentInfo)
+        return
+      }
+      if (type === 'packages' && data && typeof data === 'object' && 'libraries' in (data as object)) {
+        usePackagesStore.getState().setLibraries((data as { libraries: RLibrary[] }).libraries)
+        return
+      }
+      if (type === 'wd' && data && typeof data === 'object' && 'path' in (data as object)) {
+        useSessionStore.getState().setWorkingDir((data as { path: string }).path)
+        return
+      }
+      if (type === 'widget' && data && typeof data === 'object' && 'id' in (data as object)) {
+        useWidgetsStore.getState().addWidget((data as { id: string }).id)
+        usePlottingStore.getState().ensureOpen()
+        return
+      }
+      if (type === 'raster_layer_invalidated' && data && typeof data === 'object' && 'layerId' in (data as object)) {
+        // The backing R object changed or vanished — re-register the map
+        // layer (fresh warp) or drop it when the object is gone.
+        const staleId = (data as { layerId: string }).layerId
+        const spatial = useSpatialStore.getState()
+        const target = spatial.layers.find(
+          (l) => l.kind === 'raster' && l.raster?.layerId === staleId
+        )
+        if (target?.raster) {
+          void createRasterLayerInfo(target.name, target.envName, target.raster.symbology)
+            .then((info) => useSpatialStore.getState().updateRasterInfo(target.id, info))
+            .catch(() => useSpatialStore.getState().removeLayer(target.id))
+        }
+        return
+      }
+      if (text.trim()) {
+        addEntry(type === 'stderr' ? 'error' : 'output', text)
+      }
+    })
+
     async function init() {
       if (initialized.current) return
       initialized.current = true
@@ -202,59 +258,6 @@ function MainApp(): React.ReactElement {
 
         // Connect WebSocket console
         wsClient.connect(port)
-
-        wsClient.onStatus((connected) => {
-          setWsConnected(connected)
-        })
-
-        wsClient.onMessage((type, text, data) => {
-          if (type === 'install_complete') {
-            usePackagesStore.getState().refreshPackages()
-            return
-          }
-          if (type === 'plot' && data && typeof data === 'object' && 'dataUrl' in (data as object)) {
-            // The popout window is fed by setupPlotPopoutSync, which mirrors
-            // the store — no direct push needed here.
-            const { dataUrl, plotId } = data as { dataUrl: string; plotId?: string }
-            usePlottingStore.getState().addPlot(dataUrl, plotId ?? null)
-            return
-          }
-          if (type === 'env' && data && typeof data === 'object' && 'name' in (data as object)) {
-            useEnvironmentStore.getState().mergeEnvironment(data as REnvironmentInfo)
-            return
-          }
-          if (type === 'packages' && data && typeof data === 'object' && 'libraries' in (data as object)) {
-            usePackagesStore.getState().setLibraries((data as { libraries: RLibrary[] }).libraries)
-            return
-          }
-          if (type === 'wd' && data && typeof data === 'object' && 'path' in (data as object)) {
-            useSessionStore.getState().setWorkingDir((data as { path: string }).path)
-            return
-          }
-          if (type === 'widget' && data && typeof data === 'object' && 'id' in (data as object)) {
-            useWidgetsStore.getState().addWidget((data as { id: string }).id)
-            usePlottingStore.getState().ensureOpen()
-            return
-          }
-          if (type === 'raster_layer_invalidated' && data && typeof data === 'object' && 'layerId' in (data as object)) {
-            // The backing R object changed or vanished — re-register the map
-            // layer (fresh warp) or drop it when the object is gone.
-            const staleId = (data as { layerId: string }).layerId
-            const spatial = useSpatialStore.getState()
-            const target = spatial.layers.find(
-              (l) => l.kind === 'raster' && l.raster?.layerId === staleId
-            )
-            if (target?.raster) {
-              void createRasterLayerInfo(target.name, target.envName, target.raster.symbology)
-                .then((info) => useSpatialStore.getState().updateRasterInfo(target.id, info))
-                .catch(() => useSpatialStore.getState().removeLayer(target.id))
-            }
-            return
-          }
-          if (text.trim()) {
-            addEntry(type === 'stderr' ? 'error' : 'output', text)
-          }
-        })
       } catch (err) {
         setRStatus('error')
         addEntry('error', `Initialization failed: ${String(err)}`)
@@ -319,6 +322,8 @@ function MainApp(): React.ReactElement {
     }, 10_000)
 
     return () => {
+      cleanupWsStatus()
+      cleanupWsMessages()
       cleanupAutosave()
       cleanupChatsAutosave()
       cleanupPlotsAutosave()
@@ -337,6 +342,7 @@ function MainApp(): React.ReactElement {
     <ErrorBoundary>
       <EditorLayout />
       <UnsavedChangesDialog />
+      <HealthCheckDialog />
     </ErrorBoundary>
   )
 }

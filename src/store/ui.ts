@@ -28,6 +28,7 @@ export type DialogId =
   | 'data-connector'
   | 'toolbox'
   | 'settings'
+  | 'health-check'
   | 'theme-studio'
   | 'plugins'
   | 'plugin-store'
@@ -53,7 +54,7 @@ export type DialogId =
 
 export const DIALOG_IDS: DialogId[] = [
   'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'plugins', 'plugin-store', 'plugin-submit',
-  'recording', 'voice-model',
+  'recording', 'voice-model', 'health-check',
   'map-contents', 'map-settings', 'select-menu', 'symbology', 'raster-symbology',
   'labeling', 'basemap', 'legend-settings', 'north-arrow-settings', 'save-edits',
   'export-menu', 'export-image', 'export-code-tmap', 'export-code-ggplot',
@@ -65,6 +66,7 @@ export const DIALOG_LABELS: Record<DialogId, string> = {
   'data-connector': 'Data Connector',
   'toolbox': 'Toolbox',
   'settings': 'Settings',
+  'health-check': 'Health check',
   'theme-studio': 'Theme Studio',
   'plugins': 'Plugins',
   'plugin-store': 'Plugin Store',

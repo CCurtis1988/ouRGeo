@@ -1,8 +1,9 @@
-import type { AiProvider, ChatMessage } from '@/store/ai'
+import type { AiProvider, ChatMessage, OpenAiAssistantMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
 import { parseClaudeLine, claudeFailureMessage, isMissingSession } from '@/lib/ai-claude-stream'
+import { sendChatGptSubscription } from '@/lib/ai-chatgpt-transport'
 
 // ── Context window sizes ───────────────────────────────────────────────────
 export const CONTEXT_SIZES: Record<string, number> = {
@@ -175,7 +176,7 @@ export const LOCAL_PROVIDER_MAP: Record<string, LocalProviderMeta> = Object.from
  * broken while every part of it works.
  */
 export function requiresApiKey(provider: AiProvider): boolean {
-  return !isLocalProvider(provider) && provider !== 'claude-cli'
+  return !isLocalProvider(provider) && provider !== 'claude-cli' && provider !== 'openai-subscription'
 }
 
 export function isLocalProvider(provider: AiProvider): boolean {
@@ -220,6 +221,7 @@ export const PROVIDER_MODELS: Record<AiProvider, string[]> = {
     'claude-3-5-haiku-latest',
   ],
   openai: ['gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o3-mini', 'o1'],
+  'openai-subscription': [], // The signed-in account supplies its eligible models.
   // Aliases, not dated ids: which model an alias resolves to is the user's
   // plan's business, and the CLI's `result` event reports what answered.
   'claude-cli': ['opus', 'sonnet', 'haiku'],
@@ -245,6 +247,7 @@ export const PROVIDER_MODELS: Record<AiProvider, string[]> = {
 
 export const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: 'OpenAI',
+  'openai-subscription': 'OpenAI subscription (ChatGPT)',
   anthropic: 'Anthropic',
   'claude-cli': 'Claude subscription (Claude Code)',
   google: 'Google Gemini',
@@ -560,6 +563,11 @@ export function resolveContextSize(
 
 // ── Send message to provider ───────────────────────────────────────────────
 export interface SendOptions {
+  /** Optional bound for short diagnostics and other small responses. */
+  maxOutputTokens?: number
+  testConnection?: boolean
+  /** Explicit runtime context cap for memory-constrained Ollama setups. */
+  ollamaContextSize?: number
   provider: AiProvider
   model: string
   apiKey: string
@@ -580,6 +588,8 @@ export interface SendOptions {
   onChunk: (text: string) => void
   onToolCall?: (call: ToolCall) => Promise<string>
   onUsage?: (used: number, total: number) => void
+  /** Visible Responses messages only; encrypted reasoning stays in turn memory. */
+  onOpenAiMessages?: (messages: OpenAiAssistantMessage[]) => void
   signal?: AbortSignal
   // ── Claude Code CLI only ────────────────────────────────────────────────
   /** The CLI keeps the transcript, so continuity is a session uuid rather than
@@ -619,6 +629,7 @@ export interface SendOptions {
 }
 
 export async function sendMessage(opts: SendOptions): Promise<string> {
+  if (opts.provider === 'openai-subscription') return sendChatGptSubscription(opts)
   if (opts.provider === 'anthropic') return sendAnthropic(opts)
   if (opts.provider === 'claude-cli') return sendClaudeCli(opts)
   if (opts.provider === 'google') return sendGoogle(opts)
@@ -695,7 +706,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
 
   const body: Record<string, unknown> = {
     model,
-    max_tokens: 8096,
+    max_tokens: opts.maxOutputTokens ?? 8096,
     system: systemPrompt,
     messages: apiMessages,
     stream: true,
@@ -824,6 +835,7 @@ async function sendOpenAICompatible(
     messages: apiMessages,
     stream: true,
     stream_options: { include_usage: true },
+    ...(opts.maxOutputTokens ? { [opts.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: opts.maxOutputTokens } : {}),
   }
   if (useTools) body.tools = openAiTools(tools)
 
@@ -931,6 +943,7 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
   const body: Record<string, unknown> = {
     contents,
     systemInstruction: { parts: [{ text: systemPrompt }] },
+    ...(opts.maxOutputTokens ? { generationConfig: { maxOutputTokens: opts.maxOutputTokens } } : {}),
   }
   if (useTools) body.tools = geminiTools(tools)
 
@@ -996,6 +1009,8 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
 async function sendOllama(opts: SendOptions): Promise<string> {
   const { model, localUrl = 'http://localhost:11434', messages, systemPrompt, onChunk, onToolCall, onUsage, signal } = opts
   const base = localUrl.replace(/\/$/, '')
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (opts.localApiKey) headers.Authorization = `Bearer ${opts.localApiKey}`
   const tools = opts.tools ?? []
 
   const apiMessages: any[] = [
@@ -1008,6 +1023,8 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     model,
     messages: apiMessages,
     stream: !hasTools,
+    ...(opts.testConnection ? { think: false, options: { num_ctx: 4096, num_predict: opts.maxOutputTokens ?? 512 } }
+      : opts.ollamaContextSize ? { options: { num_ctx: opts.ollamaContextSize } } : {}),
   }
   if (hasTools) body.tools = openAiTools(tools)
 
@@ -1018,7 +1035,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     while (true) {
       const res = await proxyFetch(`${base}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ ...body, messages: apiMessages }),
         signal,
       })
@@ -1054,7 +1071,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
   // Streaming (no tools) — NDJSON, one JSON object per line
   const res = await proxyFetch(`${base}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     signal,
   })

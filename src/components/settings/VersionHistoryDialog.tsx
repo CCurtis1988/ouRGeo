@@ -43,8 +43,8 @@ export function VersionHistoryDialog({ children }: VersionHistoryDialogProps): R
           <div className="overflow-y-auto px-5 py-4">
             <ol className="relative border-l border-geo-border ml-2">
               {VERSION_HISTORY.map((rel, i) => {
-                // Matched on the release, not the exact build: entries are
-                // the a.b releases, and the running version carries a patch.
+                // Announced patch entries match the exact build; older
+                // histories fall back to their a.b release.
                 const isCurrent = rel.version === currentRelease()
                 return (
                   <li key={rel.version} className={`ml-5 ${i === VERSION_HISTORY.length - 1 ? '' : 'pb-6'}`}>

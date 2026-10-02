@@ -4,6 +4,7 @@ import { useAiStore } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { PROVIDER_MODELS, fetchLocalModels, isLocalProvider, localBaseUrl, localApiKey } from '@/lib/ai-client'
 import { cn } from '@/lib/utils'
+import { useChatGptStore } from '@/store/chatgpt'
 
 interface Props {
   open: boolean
@@ -17,6 +18,12 @@ export function ModelSelectorPopup({ open, onClose, anchorRef }: Props): React.R
   const setModel = useAiStore((s) => s.setModel)
   const keys = useApiKeysStore((s) => s.keys)
   const local = isLocalProvider(provider)
+  const subscription = provider === 'openai-subscription'
+  const chatGpt = useChatGptStore()
+  const refreshChatGpt = chatGpt.refresh
+  useEffect(() => {
+    if (open && subscription) void refreshChatGpt()
+  }, [open, subscription, refreshChatGpt])
 
   const [query, setQuery] = useState('')
   const [localModels, setLocalModels] = useState<string[]>([])
@@ -54,7 +61,7 @@ export function ModelSelectorPopup({ open, onClose, anchorRef }: Props): React.R
 
   if (!open) return null
 
-  const baseModels = local ? localModels : PROVIDER_MODELS[provider]
+  const baseModels = subscription ? chatGpt.models.map((m) => m.id) : local ? localModels : PROVIDER_MODELS[provider]
   const filtered = baseModels.filter((m) => m.toLowerCase().includes(query.toLowerCase()))
 
   return (
@@ -73,9 +80,9 @@ export function ModelSelectorPopup({ open, onClose, anchorRef }: Props): React.R
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && onClose()}
         />
-        {local && (
+        {(local || subscription) && (
           <button
-            onClick={loadLocalModels}
+            onClick={subscription ? () => void chatGpt.refresh() : loadLocalModels}
             className="text-geo-muted hover:text-foreground"
             title="Refresh"
           >
@@ -86,13 +93,17 @@ export function ModelSelectorPopup({ open, onClose, anchorRef }: Props): React.R
 
       {/* Model list */}
       <div className="max-h-64 overflow-y-auto py-1">
+        {subscription && chatGpt.loading && <p className="text-xs text-geo-muted px-3 py-2">Fetching ChatGPT models…</p>}
+        {subscription && !chatGpt.loading && (chatGpt.error || !chatGpt.status?.planEnabled) && (
+          <p className="text-xs text-geo-error px-3 py-2">{chatGpt.error ?? 'Sign in with ChatGPT in Settings → AI Assistant.'}</p>
+        )}
         {local && localLoading && (
           <p className="text-xs text-geo-muted px-3 py-2">Fetching models…</p>
         )}
         {local && !localLoading && localError && (
           <p className="text-xs text-geo-error px-3 py-2">{localError}</p>
         )}
-        {filtered.length === 0 && !localLoading && !localError && (
+        {filtered.length === 0 && !localLoading && !localError && !subscription && (
           <p className="text-xs text-geo-muted px-3 py-2">No models match.</p>
         )}
         {filtered.map((m) => (
@@ -106,7 +117,7 @@ export function ModelSelectorPopup({ open, onClose, anchorRef }: Props): React.R
                 : 'text-foreground hover:bg-white/5'
             )}
           >
-            <span className="flex-1 truncate">{m}</span>
+            <span className="flex-1 truncate">{subscription ? chatGpt.models.find((entry) => entry.id === m)?.label : m}</span>
             {m === currentModel && <Check className="w-3 h-3 flex-shrink-0" />}
           </button>
         ))}

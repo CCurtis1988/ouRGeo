@@ -29,6 +29,24 @@ describe('ending a turn', () => {
     expect(streamingContent).toBe('')
   })
 
+  it('keeps visible OpenAI message phases across saving and restoring a chat', () => {
+    const parts = [{ content: 'Checking. ', phase: 'commentary' as const }, { content: 'Four rows.', phase: 'final_answer' as const }]
+    useAiStore.getState().beginStream()
+    useAiStore.getState().finalizeStream('Checking. Four rows.', parts)
+    const saved = JSON.parse(JSON.stringify(useAiStore.getState().chats))
+    useAiStore.setState({ chats: saved })
+    expect(messages()[0].openAiMessages).toEqual(parts)
+    expect(JSON.stringify(saved)).not.toContain('encrypted_content')
+  })
+
+  it('keeps a partial suffix after earlier completed subscription messages', () => {
+    useAiStore.getState().beginStream()
+    useAiStore.getState().finalizeStream('Checking. Partial answer', [{ content: 'Checking. ', phase: 'commentary' }])
+    expect(messages()[0].openAiMessages).toEqual([
+      { content: 'Checking. ', phase: 'commentary' }, { content: 'Partial answer' },
+    ])
+  })
+
   it('adds no message when there is nothing to add', () => {
     // A blank assistant bubble reads as the assistant having answered with
     // nothing; the error line under the box is the honest report.

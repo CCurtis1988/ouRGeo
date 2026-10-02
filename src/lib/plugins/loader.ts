@@ -173,6 +173,11 @@ export async function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
     out.push(result)
   }
 
+  // Retain services while panels move or hide; stop them when their plugin is
+  // disabled, removed, or fails to load. Older test/host bridges may omit this.
+  await window.electronAPI.plugins.services?.reconcile(
+    out.filter(p => p.state === 'active').map(p => p.manifest.id),
+  )
   registerAll(collected)
   loaded = out
   // One place, so no branch above can forget it.

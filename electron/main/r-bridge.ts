@@ -1,7 +1,6 @@
 import { spawn, ChildProcess } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
-import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 
 const PORT_ANNOUNCE_PREFIX = 'OURGEO_PORT:'
@@ -89,6 +88,9 @@ class RBridge {
           OURGEO_MODE: 'server'
         }
       })
+      const child = this.process
+      this._stopping = false
+      let stdoutBuffer = ''
 
       const timeout = setTimeout(() => {
         reject(new Error('R server startup timed out'))
@@ -96,8 +98,10 @@ class RBridge {
       }, STARTUP_TIMEOUT_MS)
 
       this.process.stdout?.on('data', (data: Buffer) => {
-        const text = data.toString()
-        const lines = text.split('\n')
+        if (this.process !== child) return
+        stdoutBuffer += data.toString()
+        const lines = stdoutBuffer.split('\n')
+        stdoutBuffer = lines.pop() ?? ''
 
         for (const line of lines) {
           const trimmed = line.trim()
@@ -137,12 +141,19 @@ class RBridge {
       this.process.on('error', (err) => {
         console.error('[RBridge] Process error:', err)
         clearTimeout(timeout)
+        if (this.process === child) { this.process = null; this._startPromise = null }
         reject(err)
       })
 
       this.process.on('exit', (code, signal) => {
         console.log('[RBridge] R process exited, code:', code, 'signal:', signal)
-        const wasUnexpected = !this._stopping
+        clearTimeout(timeout)
+        // An old process exiting after restart must not erase the new process's
+        // port/state. Startup failures are reported once, not crash-restarted.
+        if (this.process !== child) return
+        const wasUnexpected = !this._stopping && this._isReady
+        if (!this._isReady) reject(new Error(`R server exited before connecting (code ${code}). Run the health check to repair its packages.`))
+        this.process = null
         this._isReady = false
         this._port = null
         this._startPromise = null
