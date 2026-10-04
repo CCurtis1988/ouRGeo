@@ -1,6 +1,6 @@
 # ouRGeo
 
-Current version: **1.16.3**. Release history: **1.16.0** managed plugin services,
+Current version: **1.16.4**. Release history: **1.16.0** managed plugin services,
 **1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
 **1.16.3** guided installation health checks.
 
@@ -8,7 +8,7 @@ Current version: **1.16.3**. Release history: **1.16.0** managed plugin services
 
 ouRGeo wraps R's spatial ecosystem (`sf`, `terra`, `ggplot2`, `tmap`) in a
 full-featured GUI while keeping R at the core. It has a map canvas, a layers
-panel, an 87-tool geoprocessing toolbox and a CAD-grade digitizing environment —
+panel, an 88-tool geoprocessing toolbox and a CAD-grade digitizing environment —
 and **every GUI action emits the R code that performs it**, straight into the
 console.
 
@@ -62,8 +62,15 @@ the whole analysis.
   so they can be checked. What reaches the layer is a true `CIRCULARSTRING` /
   `COMPOUNDCURVE`, so the radius survives a reprojection and a GeoPackage round
   trip, and closure measures the arc rather than the chord.
-- **87-tool geoprocessing toolbox** across seven categories (table, joins,
+- **88-tool geoprocessing toolbox** across seven categories (table, joins,
   aggregate, type/string, sf, geos, raster), each one generating clean R.
+- **Data checks and operation preflight.** Read-only vector/table inspection,
+  CRS and metric-unit guards, join-cardinality previews, explicit missing-value
+  policies and revision-bound approvals protect controlled operations. Sources
+  stay intact; consequential choices and actual execution are recorded in R.
+  Open **Data checks** in a Data Viewer or review it in the relevant toolbox
+  dialog. No account or network connection is required. See
+  [supported scope, limits and manual checks](docs/data-checks.md).
 - **First-class rasters.** R-served XYZ tiles with a full symbology editor —
   singleband/RGB/categorical, stretches, colour ramps, histograms.
 - **Data Connector.** 14 web-API providers (Esri, OGC API–Features, WFS, WMS,
@@ -296,6 +303,8 @@ a change to this repository should follow — by a person or an agent — see
   ```r
   # Core — required for the app to start at all
   install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+  # Data checks use openssl (already installed as a dependency of httr2),
+  # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 
   # Spatial features — maps, geoprocessing, basemaps
   install.packages(c("sf", "terra", "ggplot2", "tmap",
@@ -428,6 +437,8 @@ depends on directly:
 ```r
 # Core — without these, ouRGeo cannot start
 install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+  # Data checks use openssl (already installed as a dependency of httr2),
+  # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 
 # Spatial — without these, map rendering and spatial operations break
 install.packages(c("sf", "terra", "ggplot2", "tmap", "ggspatial", "maptiles", "tidyterra"))

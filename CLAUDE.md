@@ -26,6 +26,8 @@ TypeScript is the primary correctness check — run `npm run typecheck` from the
 Must be installed in R before running:
 ```r
 install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+# Data preflight uses openssl (existing httr2 dependency), units (sf dependency),
+# s2 for geographic checks/metrics, dplyr for summaries, geos for geos tools.
 # Spatial features also need: sf, terra, ggplot2, tmap, ggspatial, maptiles, tidyterra
 # Raster map rendering also needs: png (tile encoding); ggplot raster export with
 #   mixed fill scales additionally uses ggnewscale (emitted only when needed)
@@ -1276,7 +1278,8 @@ it across would show the new model's bar filled by the old one's conversation.
 
 The maintainer moved managed plugin services to **1.16.0**, ChatGPT plan usage
 to **1.16.1**, subscription stream corrections to **1.16.2**, and the guided
-installation health check to **1.16.3** (current).
+installation health check to **1.16.3**. The current coherent data-preflight
+patch is **1.16.4**, without a new maintainer release-history entry.
 These announced patches have explicit entries in `versionHistory.ts`;
 `currentRelease()` prefers an exact entry before falling back to the older
 `a.b` histories. The running version still comes from `package.json`.
@@ -1574,7 +1577,7 @@ The assistant can operate the application, so it can walk a user through a
 workflow in their own session instead of only describing one. ~90 actions in 12
 groups cover the panels, dialogs, editor, projects, data import, .Rgeo
 databases, environment, packages, help, the whole Spatial Editor, drawing, plots
-and settings — plus the 87 toolbox tools.
+and settings — plus the 88 toolbox tools.
 
 - **Action ids use a colon: `map:addLayer`, not `map.addLayer`.** Dots are legal
   in R names, so the dotted form is a syntactically perfect R call — and a local
@@ -3263,3 +3266,51 @@ Muted:       #8b949e  (geo-muted)
 These are the Dark app theme's values; every theme overrides them at runtime via `applyTheme`. New UI must use these tokens via Tailwind classes (`bg-geo-bg`, `text-geo-muted`, etc.) and follow the existing shadcn/ui + Radix component patterns in `src/components/ui/`.
 
 **A setting is a `Switch`, not a checkbox** (`ui/switch.tsx`). A checkbox states a value something else will act on later — the ticks in Add Features, "don't show this again" on a dialog you are about to dismiss — and those stay checkboxes. A switch takes effect the moment it moves, which is every row in the Settings dialog: there is no OK button. The whole row is the `<button role="switch">`, because a button nested in a label is two click targets that both fire, and the knob is `bg-foreground` in both states — the one token guaranteed readable on both the `geo-bg` track and the `geo-accent` one, in light themes as well as dark.
+
+
+## Data inspection and controlled preflight
+
+`r/lib/data-preflight.R` owns version-1 reports and the asynchronous
+`/preflight/{start,status,cancel,rows,selection,execute}` routes. Inspecting
+copies is separate from operation permission: incomplete/failed geometry tests
+remain uncheckable, missing CRS permits attributes, and raw unknown-CRS geometry
+cannot be mapped or used as metres. SHA-256 covers the materialised content,
+selection, parameters, working CRS/method, exclusions, policy and previous output
+revision. Existing database PK order is retained only by the new opt-in
+`keep_identity` materialisation; no second catalogue exists.
+
+The GUI `ToolForm` and AI `runToolboxTool` use the same checked-operation list
+in `src/lib/data-preflight.ts`. Their preview inspects rather than executing an
+unapproved plan. `dq_commit` revalidates and assigns a derived result only after
+success. Full local identity/exclusion records accompany the result in
+`ourgeo_validation`; joins additionally carry `ourgeo_trace`. Recording echoes
+the backend's actual `dq_run` request, fingerprint and choices, not the form's
+legacy raw builder. Arbitrary user-authored R remains outside this boundary.
+
+Renderer-supplied acknowledgment strings are not authority. The main process
+fetches the immutable report from its R bridge and obtains consent through an
+OS dialog. A private session secret held in a closure (not the inspectable job-state
+environment) and sent only on that channel binds issue IDs
+to the exact fingerprint. It is never exposed in preload, code recording or
+reports. An unchanged approved plan reuses consent; changed data or destination
+objects require new validation. The interrupt IPC only targets the currently
+marked preflight job. Temporary S2/axis/network settings restore on exit.
+
+Assignment is metadata only and explicitly reviewed; transformation is a
+separate derived copy with installed-resource checks, no ballpark/partial/grid
+network fallback, count/dimension/new-empty/non-finite checks. Spatial imports
+keep the native layer and use this path for a requested target CRS. Geography
+uses explicit S2 metres; projected operations convert units. Native geos tools
+retain element-wise geos semantics and CRS-bearing geos results. SF buffer
+reports sfarc exact arcs versus an approved GEOS polygon approximation.
+Unsupported curved/Z/M analysis blocks instead of coercing it. Checked
+operations cannot consume an unevaluated pipe or implicit viewport subset.
+
+There is **no controlled vector-file export/publication integration** in this
+Desktop tree. `export-gpkg`/`export-geojson` expose blocked requirements and
+installed-driver availability, never a preservation badge. The map's temporary
+GeoJSON, raster exporter, image export, RData and Rgeo persistence are separate
+existing paths. Do not claim staged vector-file readback or build a Server
+bridge here. Full discovery, acceptance coverage and limits are in
+`docs/data-checks.md` and `tests/fixtures/preflight/README.md`. The shipped
+first-run health check retains its existing lifecycle.

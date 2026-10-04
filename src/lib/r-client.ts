@@ -1,3 +1,4 @@
+import type { PreflightReport, PreflightRequest } from './data-preflight-types'
 import axios, { AxiosInstance } from 'axios'
 import { useSessionStore } from '@/store/session'
 import { withPowerBlock } from '@/lib/power-block'
@@ -254,6 +255,30 @@ class RClient {
   private workingEnv = '.GlobalEnv'
 
   setWorkingEnv(name: string): void { this.workingEnv = name }
+
+  async preflightStart(request: PreflightRequest): Promise<PreflightReport> {
+    return (await this.http.post('/preflight/start', request)).data
+  }
+
+  async preflightStatus(operationId: string): Promise<PreflightReport> {
+    return (await this.http.post('/preflight/status', { operationId })).data
+  }
+
+  async preflightCancel(operationId: string): Promise<PreflightReport> {
+    return (await this.http.post('/preflight/cancel', { operationId })).data
+  }
+
+  async preflightExecute(operationId: string, fingerprint: string): Promise<RResponse & { validation?: PreflightReport }> {
+    return withPowerBlock(async () => (await this.http.post('/preflight/execute', { operationId, fingerprint }, { timeout: 3_600_000 })).data)
+  }
+
+  async preflightRows(operationId: string, reference: string): Promise<{ success: boolean; error?: string; rowIdentities: string[]; geometries: { row: number; identity: string; status: string; reason: string }[][] }> {
+    return (await this.http.post('/preflight/rows', { operationId, reference })).data
+  }
+
+  async preflightSelection(name: string, envName: string, rows: number[], version: number): Promise<void> {
+    await this.http.post('/preflight/selection', { name, envName, rows, version })
+  }
 
   async execute(code: string): Promise<RExecuteResponse> {
     // Arbitrary user/generated code — imports, geoprocessing, model fits — can

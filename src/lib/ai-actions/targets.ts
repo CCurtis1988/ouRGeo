@@ -100,6 +100,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'ai.voice', label: 'Dictate a message', where: 'AI panel, beside Send' },
 
   // Environment panel.
+  { id: 'dataViewer.dataChecks', label: 'Data checks', where: 'Data Viewer header; opens read-only inspection' },
   { id: 'environment.export', label: 'Export', where: 'Environment panel, action bar' },
   { id: 'environment.load', label: 'Load', where: 'Environment panel, action bar' },
 

@@ -1,3 +1,4 @@
+import { transformImportedLayer } from '@/lib/data-preflight'
 // Getting data in: files, the Data Connector, and .Rgeo databases.
 //
 // `data:load` emits the same R the Load Data dialog emits, through the same
@@ -103,15 +104,22 @@ export const dataActions: UiAction[] = [
       if (!res.success) return fail(res.error ?? `Import of "${path}" failed.`)
       if (res.output) session.addConsoleEntry('output', res.output)
 
+      let outputName = varName
+      if (isSpatialFormat(format) && argStr(args, 'crs')) {
+        const transformed = await transformImportedLayer(varName, argStr(args, 'crs'))
+        if (!transformed.success) return fail(`Native data imported as ${varName}; requested transformation was blocked or declined. ${transformed.error ?? ''}`)
+        outputName = transformed.outputName
+      }
+
       // Rasters have no tabular viewer — the console echo and the Environment
       // panel carry them, and map:addLayer puts them on the map.
       if (!isRasterFormat(format)) {
         useEditorStore.getState().addObjectTab(
-          varName, '.GlobalEnv', isSpatialFormat(format) ? 'sf' : 'data.frame', varName, 'data-viewer',
+          outputName, '.GlobalEnv', isSpatialFormat(format) ? 'sf' : 'data.frame', outputName, 'data-viewer',
         )
       }
       return ok(
-        `Imported ${path} as "${varName}" (${format}).` +
+        `Imported ${path} as "${outputName}" (${format}).` +
         (isRasterFormat(format) ? ' Use map:addLayer to put it on the map.' : ' Opened in the Data Viewer.')
       )
     },

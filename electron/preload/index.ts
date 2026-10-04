@@ -36,6 +36,7 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  preflight: { interrupt: (operationId: string): Promise<void> => ipcRenderer.invoke('preflight:interrupt', operationId), review: (operationId: string): Promise<boolean> => ipcRenderer.invoke('preflight:review', operationId) },
   health: {
     history: () => ipcRenderer.invoke('health:history'),
     acknowledge: () => ipcRenderer.invoke('health:acknowledge'),

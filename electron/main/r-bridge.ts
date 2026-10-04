@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { spawn, ChildProcess } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -8,6 +9,8 @@ const READY_SIGNAL = 'OURGEO_READY'
 const STARTUP_TIMEOUT_MS = 30_000
 
 class RBridge {
+  activePreflight: string | null = null
+  readonly preflightSecret = randomBytes(32).toString('hex')
   private process: ChildProcess | null = null
   private _port: number | null = null
   private _isReady = false
@@ -85,7 +88,8 @@ class RBridge {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: {
           ...process.env,
-          OURGEO_MODE: 'server'
+          OURGEO_MODE: 'server',
+          OURGEO_PREFLIGHT_SECRET: this.preflightSecret
         }
       })
       const child = this.process
@@ -105,6 +109,9 @@ class RBridge {
 
         for (const line of lines) {
           const trimmed = line.trim()
+
+          if (trimmed.startsWith('OURGEO_PREFLIGHT_BUSY:')) this.activePreflight = trimmed.slice('OURGEO_PREFLIGHT_BUSY:'.length)
+          if (trimmed.startsWith('OURGEO_PREFLIGHT_IDLE:')) this.activePreflight = null
 
           if (trimmed.startsWith(PORT_ANNOUNCE_PREFIX)) {
             const portStr = trimmed.slice(PORT_ANNOUNCE_PREFIX.length).trim()
@@ -175,6 +182,7 @@ class RBridge {
       this.process = null
       this._isReady = false
       this._port = null
+      this.activePreflight = null
       this._startPromise = null
     }
   }

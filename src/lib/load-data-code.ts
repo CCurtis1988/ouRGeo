@@ -128,16 +128,20 @@ export function buildLoadCode(
   const { delimiter, hasHeader, skipRows, encoding, naStrings, sheet, crsOverride, layerName } = opts
   const naArr = naStrings.split(',').map(s => `"${s.trim()}"`).join(', ')
   const hdr = hasHeader ? 'TRUE' : 'FALSE'
+  // Converting an inferred number back to character cannot restore a key's
+  // leading zeros. Honour the explicitly selected character type at read time.
+  const characterKeys = columns.filter(c => c.include && !c.isGeometry && c.type === 'character')
+  const colClasses = characterKeys.length ? `, colClasses = c(${characterKeys.map(c => `${JSON.stringify(c.name)} = "character"`).join(', ')})` : ''
 
   switch (format) {
     case 'csv':
-      lines.push(`${varName} <- read.csv("${path}", header = ${hdr}, skip = ${skipRows}, sep = "${delimiter}", encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE)`)
+      lines.push(`${varName} <- read.csv("${path}", header = ${hdr}, skip = ${skipRows}, sep = "${delimiter}", encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE${colClasses})`)
       break
     case 'tsv':
-      lines.push(`${varName} <- read.delim("${path}", header = ${hdr}, skip = ${skipRows}, encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE)`)
+      lines.push(`${varName} <- read.delim("${path}", header = ${hdr}, skip = ${skipRows}, encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE${colClasses})`)
       break
     case 'txt':
-      lines.push(`${varName} <- read.delim("${path}", header = ${hdr}, skip = ${skipRows}, sep = "${delimiter}", encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE)`)
+      lines.push(`${varName} <- read.delim("${path}", header = ${hdr}, skip = ${skipRows}, sep = "${delimiter}", encoding = "${encoding}", na.strings = c(${naArr}), stringsAsFactors = FALSE${colClasses})`)
       break
     case 'excel':
       lines.push(`${varName} <- readxl::read_excel("${path}"${sheet ? `, sheet = "${sheet}"` : ''}, skip = ${skipRows}, col_names = ${hdr})`)
@@ -169,7 +173,7 @@ export function buildLoadCode(
     case 'spatial': {
       const layerArg = layerName.trim() ? `, layer = "${layerName.trim()}"` : ''
       lines.push(`${varName} <- sf::st_read("${path}"${layerArg}, quiet = TRUE)`)
-      if (crsOverride.trim()) lines.push(`${varName} <- sf::st_transform(${varName}, ${crsOverride.trim()})`)
+      if (crsOverride.trim()) lines.push(`# Requested target CRS: ${crsOverride.trim().replace(/[\r\n]/g, ' ')}. A separate reviewed transformation creates ${varName}_reprojected after import.`)
       break
     }
     case 'raster': {

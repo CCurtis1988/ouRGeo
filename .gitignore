@@ -26,3 +26,6 @@ plot.png
 # A stray nested Claude config under electron/ — the project's settings live in
 # the top-level .claude/, and a second one only ever held local noise.
 electron/.claude/
+
+# Local native dependency builds and verification artifacts
+.cache/

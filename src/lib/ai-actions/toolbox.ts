@@ -1,4 +1,5 @@
-// The Toolbox: 87 geoprocessing tools.
+import { CHECKED_TOOLS, toolPreflightRequest, requestPreview, inspectRequest, executeChecked } from '@/lib/data-preflight'
+// The Toolbox: 88 geoprocessing tools.
 //
 // Deliberately NOT in the action registry. A registry action has fixed params;
 // a toolbox tool's fields depend on the dataset chosen for it — its columns,
@@ -121,6 +122,19 @@ export async function runToolboxTool(
       message: `"${tool.label}" needs ${missing.map((m) => `"${m}"`).join(', ')}. ` +
         'Call toolbox_tools with this toolId to see every field.',
     }
+  }
+
+  if (CHECKED_TOOLS.has(tool.id)) {
+    const request = toolPreflightRequest(tool, values)
+    if (dryRun) return { ok: true, code: requestPreview(request), message: requestPreview(request) }
+    try {
+      const report = await inspectRequest(request)
+      const result = await executeChecked(report)
+      if (!result.success) return { ok: false, code: '', message: result.error ?? report.issues.map(i => i.message).join('\n') }
+      const outputName = values.out
+      if (outputName) useEditorStore.getState().addObjectTab(outputName, request.outputEnv ?? '.GlobalEnv', 'data.frame', outputName, 'data-viewer')
+      return { ok: true, code: result.code ?? '', message: `Ran "${tool.label}". Preflight passed for this operation and input revision.` }
+    } catch (e) { return { ok: false, code: '', message: e instanceof Error ? e.message : String(e) } }
   }
 
   let code: string

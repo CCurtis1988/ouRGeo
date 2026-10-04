@@ -1191,11 +1191,23 @@ const spatialGeosOps: ToolDef[] = [
   },
 ]
 
+// Assignment is an explicit metadata assumption, never a guessed transform.
+spatialSfOps.push({
+  id: 'assign-crs', label: 'Assign CRS',
+  description: 'These existing coordinates are already expressed in this CRS. Values do not change. Assignment requires explicit review.',
+  fields: [
+    { id: 'ds', label: 'sf Dataset', type: 'dataset', filter: 'sf' },
+    { id: 'crs', label: 'Known coordinate CRS (EPSG or WKT)', type: 'text' },
+    { id: 'out', label: 'Derived copy name', type: 'output-name', derive: v => `${v.ds}_assigned` },
+  ],
+  buildCode: v => `${v.out || 'result'} <- sf::st_set_crs(${v.ds || 'data'}, ${rStr(v.crs || '')})`,
+})
+
 // ── Export ─────────────────────────────────────────────────────────────────
 
 // Tools whose inputs are tabular (no geometry) — the linearize checkbox
 // would be meaningless (and st_linearize has no data.frame method).
-const NO_LINEARIZE = new Set(['sf-points-from-cols'])
+const NO_LINEARIZE = new Set(['sf-points-from-cols', 'assign-crs'])
 
 // Tools whose planar math needs a projected CRS (exact curved results, and
 // meter-valued tolerances) — these get the Calculation CRS fields.
@@ -1235,6 +1247,52 @@ const BUILTIN_CATEGORIES: Category[] = [
   // concepts; terra handles CRS via terra::project explicitly.
   { id: 'spatial-raster', label: 'Spatial — Raster', tools: rasterOps },
 ]
+
+// Shared form policies belong to the actual tools, so the assistant describes
+// the same choices that the user sees. No normalisation is a hidden default.
+for (const category of BUILTIN_CATEGORIES) {
+  category.tools = category.tools.map(tool => {
+    let result = tool
+    if (/^(left|right|inner|full|anti|semi)-join$/.test(tool.id)) {
+      for (const field of [
+        { id: 'relationship', label: 'Expected relationship', type: 'select', options: [
+          { value: 'many-to-one', label: 'Many left to one right' }, { value: 'one-to-one', label: 'One to one' },
+          { value: 'one-to-many', label: 'One left to many right' }, { value: 'many-to-many', label: 'Many to many (review expansion)' },
+        ] },
+        { id: 'suffixLeft', label: 'Colliding left field suffix', type: 'text', default: '.x' },
+        { id: 'suffixRight', label: 'Colliding right field suffix', type: 'text', default: '.y' },
+      ] as FieldDef[]) result = insertBeforeOutput(result, field)
+    }
+    if (tool.id === 'group-summarize') result = insertBeforeOutput(result, {
+      id: 'missingPolicy', label: 'Missing / non-finite values', type: 'select', options: [
+        { value: 'block', label: 'Block until resolved' }, { value: 'propagate', label: 'Propagate missing result' }, { value: 'omit', label: 'Omit with explicit denominators' },
+      ],
+    })
+    if (['sf-add-area','sf-add-length','sf-spatial-filter','sf-spatial-join','geos-buffer','geos-area','geos-distance','geos-intersection','geos-difference','geos-union'].includes(tool.id)) result = insertBeforeOutput(result, {
+      id: 'workingCRS', label: 'Working CRS (native, EPSG or WKT; no inferred UTM)', type: 'text', default: 'native',
+    })
+    if (tool.id === 'geos-buffer') result = { ...result, fields: result.fields.map(f => f.id === 'dist' ? { ...f, label: 'Distance (metres, converted to working CRS units)' } : f) }
+    if (['sf-add-area','sf-add-length'].includes(tool.id)) result = { ...result, fields: result.fields.map(f => f.type === 'output-name' ? { ...f, derive: v => v.ds ? `${v.ds}_${tool.id === 'sf-add-area' ? 'area' : 'length'}` : '' } : f) }
+    if (tool.id === 'sf-buffer') {
+      result = { ...result, description: 'Positive metric buffer. Native geographic input uses S2 spherical metres; projected input uses planar units converted explicitly. A chosen working CRS is reviewed before analytical transformation.' }
+      result.fields = result.fields.map(f => f.id === 'units' && f.type === 'select' ? { ...f, options: [
+        { value: 'm', label: 'Metres' }, { value: 'km', label: 'Kilometres' }, { value: 'ft', label: 'International feet' }, { value: 'US_survey_foot', label: 'US survey feet' }, { value: 'mi', label: 'Miles' },
+      ] } : f)
+    }
+    if (['sf-buffer','sf-add-area','sf-add-length'].includes(tool.id)) result = insertBeforeOutput(result, {
+      id: 'method', label: 'Geographic method (projected inputs remain planar)', type: 'select', options: [{ value: 's2', label: 'S2 spherical metric; output metres / square metres' }],
+    })
+    const checked = /^(left|right|inner|full|anti|semi)-join$/.test(tool.id) || tool.id === 'group-summarize' || ['sf-buffer','sf-intersection','sf-difference','sf-erase','sf-clip','sf-union-dissolve','sf-union-merge','sf-spatial-filter','sf-spatial-join','sf-add-area','sf-add-length','sf-transform','assign-crs','geos-buffer','geos-area','geos-distance','geos-intersection','geos-difference','geos-union'].includes(tool.id)
+    if (checked) {
+      result.fields = result.fields.map(f => f.id === 'calccrs' && f.type === 'select' ? { ...f, options: f.options.map(o => o.value === 'auto' ? { value: 'native', label: 'Native CRS / supported S2 (no inferred projection)' } : o) } : f)
+      for (const field of tool.fields.filter(f => f.type === 'dataset')) result = insertBeforeOutput(result, {
+        id: `exclude_${field.id}`, label: `Explicitly exclude source rows from ${field.label} (1-based numbers, comma separated)`, type: 'text',
+      })
+      result = insertBeforeOutput(result, { id: 'exclusionReason', label: 'Reason for explicit exclusions (required when excluding)', type: 'text' })
+    }
+    return result
+  })
+}
 
 /** The categories ouRGeo ships. */
 export const BUILTIN_TOOL_CATEGORIES: readonly Category[] = BUILTIN_CATEGORIES

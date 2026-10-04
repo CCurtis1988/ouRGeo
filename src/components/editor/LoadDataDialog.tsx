@@ -1,3 +1,4 @@
+import { transformImportedLayer } from '@/lib/data-preflight'
 import React, { useState, useRef, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Plus, Loader2, Lock, Eye, EyeOff, FolderOpen } from 'lucide-react'
@@ -314,15 +315,26 @@ export function LoadDataDialog({ open, onOpenChange, initialFilePath }: LoadData
         return
       }
 
+      let outputName = varName.trim()
+      if (isSpatialFormat(format) && crsOverride.trim()) {
+        const transformed = await transformImportedLayer(outputName, crsOverride.trim())
+        if (!transformed.success) {
+          useEditorStore.getState().addObjectTab(outputName, '.GlobalEnv', 'sf', outputName, 'data-viewer')
+          setError(`Imported native data as ${outputName}; transformation did not run. ${transformed.error ?? ''}`)
+          return
+        }
+        outputName = transformed.outputName
+      }
+
       // Rasters have no tabular viewer — the console echo + Environment panel
       // carry them; everything else opens in the data viewer.
       if (!isRasterFormat(format)) {
         const isSpatial = isSpatialFormat(format) || columns.some(c => c.isGeometry)
         useEditorStore.getState().addObjectTab(
-          varName.trim(),
+          outputName,
           '.GlobalEnv',
           isSpatial ? 'sf' : 'data.frame',
-          varName.trim(),
+          outputName,
           'data-viewer'
         )
       }
@@ -543,13 +555,13 @@ export function LoadDataDialog({ open, onOpenChange, initialFilePath }: LoadData
                 <span className="text-xs text-geo-muted font-semibold">Spatial settings</span>
                 <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-geo-muted">CRS override</span>
+                    <span className="text-xs text-geo-muted">Transform to CRS (optional)</span>
                     <input
                       className="w-24 bg-geo-panel border border-geo-border rounded px-2 py-0.5 text-xs text-foreground outline-none focus:border-geo-accent font-mono"
                       value={crsOverride}
                       onChange={e => setCrsOverride(e.target.value)}
                       placeholder="e.g. 4326"
-                      title="EPSG code to reproject to (blank = use file's CRS)"
+                      title="Known source CRS required; a reviewed transformation creates a derived copy"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -563,7 +575,7 @@ export function LoadDataDialog({ open, onOpenChange, initialFilePath }: LoadData
                     />
                   </div>
                 </div>
-                <p className="text-xs text-geo-muted">Leave CRS override blank to use the file's native CRS.</p>
+                <p className="text-xs text-geo-muted">Native data remains unchanged and inspectable. An optional target creates a reviewed _reprojected copy. If the source CRS is missing, load first and use Toolbox → Assign CRS only when you know the coordinate system.</p>
               </div>
             )}
 

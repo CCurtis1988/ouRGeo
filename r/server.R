@@ -155,7 +155,7 @@ for (.mod in c(
   "util-wcs.R", "util-wms.R", "util-erddap.R",
   "util-raster.R",
   "handlers-data-widget.R", "handlers-exec.R", "handlers-help.R",
-  "handlers-spatial.R", "handlers-cogo.R", "handlers-env.R", "handlers-packages.R",
+  "handlers-spatial.R", "data-preflight.R", "handlers-cogo.R", "handlers-env.R", "handlers-packages.R",
   "handlers-object.R", "handlers-raster.R", "handlers-rmarkdown.R", "handlers-wd.R",
   "db-core.R", "db-raster.R", "db-translate.R", "db-handlers.R",
   "router.R"

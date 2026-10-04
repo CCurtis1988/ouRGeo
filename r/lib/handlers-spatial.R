@@ -152,6 +152,8 @@ handle_spatial_wkt <- function(body) {
     g <- geom[[idx]]
     # WGS84 for the drawing surface (arc control points transform natively)
     crs <- sf::st_crs(geom)
+    if (is.na(crs)) return(error_response('The coordinate CRS is unknown. Inspect attributes and explicitly assign the known CRS before drawing on the map.'))
+    if (any(!is.finite(unlist(g)))) return(error_response('Non-finite coordinates cannot be drawn. Inspect Data checks for the affected source row.'))
     if (!is.na(crs) && !isTRUE(crs == sf::st_crs(4326L))) {
       g <- sf::st_transform(sf::st_sfc(g, crs = crs), 4326L)[[1L]]
     }
@@ -185,6 +187,11 @@ handle_spatial_geojson <- function(body) {
       obj <- sf::st_sf(geometry = obj)
     }
 
+    if (is.na(sf::st_crs(obj))) return(error_response('The layer CRS is unknown. Inspect attributes with Data checks, then explicitly assign the known CRS before mapping.'))
+    # Map display needs finite coordinates, not a repeated full validity scan.
+    # Operation geometry inspection remains asynchronous in Data checks.
+    if (any(vapply(sf::st_geometry(obj), function(g) any(!is.finite(unlist(g))), logical(1)))) return(error_response('Non-finite coordinates cannot be mapped. Inspect Data checks for affected rows.'))
+
     # Curved geometry (CIRCULARSTRING/COMPOUNDCURVE/CURVEPOLYGON/...) cannot
     # be expressed in GeoJSON — linearize for display. The true curves stay
     # untouched in the user's object; this only affects the map payload.
@@ -204,7 +211,7 @@ handle_spatial_geojson <- function(body) {
     # and error the `if`; fall back to comparing against the WGS84 crs object.
     crs <- sf::st_crs(obj)
     if (!is.na(crs) && !isTRUE(crs == sf::st_crs(4326L))) {
-      obj <- sf::st_transform(obj, 4326)
+      obj <- dq_transform(obj, "OGC:CRS84")
     }
 
     # GeoJSON writers (geojsonsf and GDAL) can't serialize list-columns, which

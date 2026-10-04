@@ -12,6 +12,10 @@ route <- function(req) {
       return(handle_session_init())
     }
 
+    if (grepl("^/preflight/", path) && method == "POST") {
+      return(handle_preflight(sub("^/preflight/", "", path), parse_body(req)))
+    }
+
     if (path == "/r/execute" && method == "POST") {
       body <- parse_body(req)
       return(handle_execute(body))

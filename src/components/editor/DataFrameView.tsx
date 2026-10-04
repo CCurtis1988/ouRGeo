@@ -1,3 +1,4 @@
+import { DataChecksPanel } from '@/components/toolbox/DataChecksPanel'
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -57,6 +58,7 @@ export function DataFrameView({
   accessPath: string
   cls: string
 }): React.ReactElement {
+  const [showDataChecks, setShowDataChecks] = useState(false)
   const [columns, setColumns] = useState<ColumnInfo[]>([])
   const [rows, setRows] = useState<Map<number, string[]>>(new Map())
   const [totalRows, setTotalRows] = useState(0)
@@ -1065,6 +1067,7 @@ export function DataFrameView({
           {headerSummary}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <Button variant="ghost" size="sm" className="h-6 text-xs" data-ourgeo-id="dataViewer.dataChecks" aria-expanded={showDataChecks} onClick={() => setShowDataChecks(v => !v)}>Data checks</Button>
           {hasSelection && (
             <span className="text-xs text-geo-accent flex items-center gap-1 mr-1">
               {selectedIndices.length} selected
@@ -1164,6 +1167,8 @@ export function DataFrameView({
           </Button>
         </div>
       </div>
+
+      {showDataChecks && <div className="max-h-[55%] overflow-auto p-2 flex-shrink-0"><DataChecksPanel request={{ operationType: 'inspect', inputs: [{ name, envName, accessPath, ...(selectedIndices.length ? { rows: selectedIndices } : {}) }], parameters: {} }} /></div>}
 
       {/* Table */}
       <div className="flex-1 min-h-0 overflow-hidden">

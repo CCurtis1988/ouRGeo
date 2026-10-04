@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
   {
-    ignores: ['out/**', 'dist/**', 'node_modules/**', '*.tsbuildinfo']
+    ignores: ['.cache/**', 'out/**', 'dist/**', 'node_modules/**', '*.tsbuildinfo']
   },
 
   // Agent tooling: the run-skill driver is a plain Node ESM script, not app

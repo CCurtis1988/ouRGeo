@@ -42,7 +42,7 @@ ${actionIndex()}
 - If you cannot perform an action — Autopilot is off, or the user declined — do not hand them the id. Tell them which **button** does it, and point at it with \`ui:highlight\`.
 - R code is for R: \`sf\`, \`terra\`, \`dplyr\`, \`ggplot2\`. The interface is for actions. They never mix in one block.
 
-\`toolbox_tools\` searches the 87 geoprocessing tools and \`run_toolbox_tool\` runs one (\`dryRun\` shows the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
+\`toolbox_tools\` searches the 88 geoprocessing tools and \`run_toolbox_tool\` runs one (\`dryRun\` shows the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
 
 **The terminal runs the user's own shell.** \`terminal:*\` needs the Terminal switch in the AI panel footer as well as Autopilot, and is for what is genuinely outside R — read \`ourgeo_docs({topic: "terminal"})\` first.
 
@@ -148,13 +148,13 @@ A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:mark
 
   toolbox: `# The Toolbox
 
-87 tools in seven categories:
+88 tools in seven categories:
 
 - **Table Operations** (11) — filter, select, mutate, slice, distinct, rename and friends.
 - **Joins & Combine** (2) — stacking and joining datasets.
 - **Aggregate & Reshape** (5) — group summaries and pivoting.
 - **Type & String** (8) — type conversion and text handling.
-- **Spatial — sf** (16) — geometry operations through the sf package.
+- **Spatial — sf** (17) — geometry operations through the sf package.
 - **Spatial — geos** (11) — overlays through the geos engine.
 - **Spatial — Raster** (34) — terra, for gridded data.
 
@@ -162,9 +162,15 @@ A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:mark
 
 **Piping.** Pipe → feeds one tool's output into the next. The output name locks from the first step, later forms predict the columns earlier steps produce, and a banner shows the chain with an × to clear it.
 
-**Linearize curved geometry** appears on spatial tools and is unticked by default, so CIRCULARSTRING and friends keep their exact geometry. Tick it for GEOS-only operations that cannot handle curves — Spatial Filter and Spatial Join are GEOS-only and need it.
+**Linearize curved geometry** appears on spatial tools and is unticked by default, so CIRCULARSTRING and friends keep their exact geometry. For preflight-controlled analytical tools, unsupported curved input blocks; the checkbox does not silently flatten it. Projected SF buffers can explicitly approve a polygon approximation of their result.
 
-**Calculation CRS** appears on nine tools (Buffer, Intersection, Union, Difference, Erase, Clip, Centroid, Simplify and one more). Choose the default from Settings, the layer's native CRS, auto-detect, a named projection, or a custom EPSG. The generated code projects, computes, and projects back.
+**Calculation CRS** appears on nine tools (Buffer, Intersection, Union, Difference, Erase, Clip, Centroid, Simplify and one more). Choose the default from Settings, the layer's native CRS, auto-detect, a named projection, or a custom EPSG. Preflight-controlled tools use the native CRS/S2 or an explicitly reviewed working CRS; their automatic-UTM option is replaced. Other tools retain their existing projection behaviour.
+
+**Data checks.** The Data Viewer header opens read-only inspection of vector geometry, fields, identities and CRS. Controlled buffer, distance/area/length, overlay/intersection, spatial filter/join, attribute join and group-summary tools preflight in R before execution; the assistant uses the same enforced path. A blocked or incomplete check cannot be acknowledged away. Only the user's native Desktop review grants consequential consent. Do not manufacture acknowledgment values. Assignment records a known-coordinate metadata assumption on a copy; transformation changes coordinates from a known source CRS. Native geographic measurements use S2 metric units; no projection is inferred and degrees are never metres. International and US survey feet are separate units. Analytical curved/Z/M inputs may be blocked; no automatic repair or flattening occurs. Materialise a pipeline before checking its result.
+
+**Join and summary choices.** Specify the expected relationship and suffixes; exact typed join keys preserve case/whitespace/leading zeros, with blank/missing keys non-matching. Expansion needs a review. Missing/non-finite summary values default to blocking; deliberate propagate/omit policies record counts and denominators. Exclusions require explicit source rows and a reason. Source edits, changed selections or parameters invalidate permission. Actual checked R and local validation records accompany results. Requested import reprojection preserves a native copy and reviews the derived transformation.
+
+**Scope limits.** Raster validation and scientific certification are outside V1. No controlled vector-file GeoPackage/GeoJSON exporter or publication bridge exists here; their validation contracts report blocked missing integration. Driver availability does not establish preservation. User-authored R is outside the controlled-handler guarantee. The first-run installation health check remains separate. Data checks need no account, LLM or network.
 
 Raster tools skip the Data Viewer, because a SpatRaster is not tabular. Zonal Statistics summarises raster values inside polygons; Export Raster to File writes GeoTIFF or COG.`,
 
@@ -811,7 +817,7 @@ export function registerPluginTopics(
 export function topicListing(): string {
   const summaries: Record<string, string> = {
     interface: 'panels, toolbar, editor, console, viewers, settings',
-    toolbox: 'the 87 geoprocessing tools, piping, Linearize and Calculation CRS',
+    toolbox: 'the 88 geoprocessing tools, piping, Linearize and Calculation CRS',
     'data-import': 'Load Data, the Data Connector and its providers, .Rgeo',
     maps: 'layers, symbology, labels, selection, legend, export',
     drawing: 'edit mode, the ten tools, curves, distance & bearing, snapping, staged edits',

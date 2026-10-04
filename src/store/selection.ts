@@ -19,6 +19,7 @@ export interface PendingSelection {
 }
 
 interface SelectionState {
+  revision: number
   selections: Record<string, number[]> // datasetKey → sorted 0-based row indices
   selectMode: SelectMode
   isSelectActive: boolean
@@ -44,6 +45,7 @@ interface SelectionState {
 }
 
 export const useSelectionStore = create<SelectionState>((set, get) => ({
+  revision: 0,
   selections: {},
   selectMode: 'point',
   isSelectActive: false,
@@ -51,6 +53,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
 
   setSelection: (accessPath, envName, indices) =>
     set((s) => ({
+      revision: s.revision + 1,
       selections: {
         ...s.selections,
         [selKey(accessPath, envName)]: [...indices].sort((a, b) => a - b),
@@ -61,10 +64,10 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
     set((s) => {
       const next = { ...s.selections }
       delete next[selKey(accessPath, envName)]
-      return { selections: next }
+      return { selections: next, revision: s.revision + 1 }
     }),
 
-  clearAll: () => set({ selections: {} }),
+  clearAll: () => set(s => ({ selections: {}, revision: s.revision + 1 })),
 
   getSelection: (accessPath, envName) =>
     get().selections[selKey(accessPath, envName)] ?? [],
@@ -103,6 +106,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
 
   applyPicks: (picks, merge, visibleLayers) =>
     set((s) => ({
+      revision: s.revision + 1,
       selections: applyPicksToSelections(s.selections, picks, merge, visibleLayers),
       pending: null,
     })),

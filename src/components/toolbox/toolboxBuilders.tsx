@@ -1,5 +1,8 @@
+import { DataChecksPanel } from './DataChecksPanel'
+import { CHECKED_TOOLS, toolPreflightRequest, requestPreview, inspectRequest, executeChecked } from '@/lib/data-preflight'
+import type { PreflightReport } from '@/lib/data-preflight-types'
 // ── Toolbox: tool form & condition builders ──────────────────────────────────
-import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent } from 'react'
 import { X, Copy, Play, Plus, ArrowRight } from 'lucide-react'
 import { rClient } from '@/lib/r-client'
 import type { REnvironmentInfo, ColumnInfo } from '@/lib/r-client'
@@ -616,6 +619,13 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
     return v
   }
 
+  const [validation, setValidation] = useState<PreflightReport | null>(null)
+  const validationKey = useRef<string | null>(null)
+  const runCheck = useRef<AbortController | null>(null)
+  const cancelRunCheck = useCallback(() => runCheck.current?.abort(), [])
+  const [checkedCode, setCheckedCode] = useState<string | null>(null)
+  const selectionRevision = useSelectionStore(s => s.revision)
+  const controlled = CHECKED_TOOLS.has(tool.id)
   const [values, setValues] = useState<Values>(initValues)
   const [running, setRunning] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -745,7 +755,26 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
     return { preludes, rawCode, effectiveDsNames }
   })()
 
+  const request = toolPreflightRequest(tool, values, useSelectedRows)
+  // Subscribe so a selection change invalidates this computed request.
+  void selectionRevision
+  const requestKey = JSON.stringify(request)
+  const latestRequestKey = useRef(requestKey)
+  latestRequestKey.current = requestKey
+  const currentValidation = validationKey.current === requestKey ? validation : null
+  const receiveReport = (report: PreflightReport | null) => {
+    if (latestRequestKey.current !== requestKey) return
+    validationKey.current = report ? requestKey : null
+    setValidation(report)
+  }
+  useEffect(() => {
+    cancelRunCheck(); validationKey.current = null; setValidation(null); setCheckedCode(null)
+    return cancelRunCheck
+  }, [requestKey, cancelRunCheck])
+
   const code = (() => {
+    if (controlled) return checkedCode ?? requestPreview(request)
+
     if (!rawCode) return ''
     const prelude = preludes.length > 0 ? preludes.join('\n') + '\n' : ''
     if (!pipeline || !values.ds) return prelude + rawCode
@@ -763,6 +792,29 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
 
   async function handleRun() {
     if (!code) return
+    if (controlled) {
+      if (pipeline || useViewBbox) { setRunError('Run the preceding pipeline first, or use the full dataset/explicit row selection. This plan does not validate an unevaluated pipeline or a viewport approximation.'); return }
+      setRunning(true); setRunError(null); setRunSuccess(false)
+      const capturedKey = requestKey
+      try {
+        runCheck.current?.abort()
+        const abort = new AbortController(); runCheck.current = abort
+        const report = currentValidation ?? await inspectRequest(request, progress => {
+          if (latestRequestKey.current === capturedKey) {
+            validationKey.current = capturedKey; setValidation(progress)
+          }
+        }, abort.signal)
+        if (latestRequestKey.current !== capturedKey) { setRunError('Parameters or selection changed; check again.'); return }
+        validationKey.current = capturedKey; setValidation(report)
+        if (!['ready', 'needs_confirmation'].includes(report.status)) { setRunError(report.status === 'cancelled' ? 'Check cancelled; no result was created.' : report.issues.map(i => i.message).join('\n') || report.error || 'Checks are incomplete.'); return }
+        const result = await executeChecked(report, () => latestRequestKey.current === capturedKey)
+        if (!result.success) { setRunError(result.error ?? 'Execution was blocked'); return }
+        setCheckedCode(result.code ?? null); setRunSuccess(true); setValidation(null)
+        if (values.out) useEditorStore.getState().addObjectTab(values.out, request.outputEnv ?? '.GlobalEnv', 'data.frame', values.out, 'data-viewer')
+      } catch (e) { setRunError(e instanceof Error ? e.message : String(e)) }
+      finally { setRunning(false) }
+      return
+    }
     setRunning(true)
     setRunError(null)
     setRunSuccess(false)
@@ -968,7 +1020,9 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
       </div>
 
       {/* Fields */}
-      <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
+      <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
+      {controlled && <div className="mb-3"><DataChecksPanel request={request} onReport={receiveReport} activeReport={currentValidation} onCancel={cancelRunCheck} /></div>}
+
         {tool.fields.map(f => {
           const selInfo = f.type === 'dataset' ? datasetSelections[f.id] : undefined
           const selectionToggle = selInfo && (
@@ -1053,7 +1107,7 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
             <Copy className="w-3 h-3" />
             {copied ? 'Copied!' : 'Copy Code'}
           </button>
-          {onPipe && (
+          {onPipe && !controlled && (
             <button
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#21262d] hover:bg-[#30363d] text-[#e6edf3] rounded transition-colors disabled:opacity-40"
               title="Pipe this output into the next tool"
@@ -1076,10 +1130,10 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
           <button
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#4493f8] hover:bg-[#4493f8]/80 text-white rounded transition-colors disabled:opacity-50"
             onClick={handleRun}
-            disabled={!code || running}
+            disabled={!code || running || (controlled && (currentValidation?.status === 'blocked' || currentValidation?.status === 'checking' || !!pipeline || useViewBbox))}
           >
             <Play className="w-3 h-3" />
-            {running ? 'Running…' : 'Run'}
+            {running ? 'Running…' : controlled ? currentValidation?.status === 'needs_confirmation' ? 'Review choices and run' : 'Check and run' : 'Run'}
           </button>
         </div>
       </div>

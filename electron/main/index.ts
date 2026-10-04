@@ -9,6 +9,7 @@ import { unlinkSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
 import { registerHealthHandlers } from './health-check'
+import { registerDataPreflightHandlers } from './data-preflight'
 import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
 import { registerClaudeCliHandlers } from './claude-cli'
@@ -192,6 +193,7 @@ app.whenReady().then(async () => {
 
   setupIpcHandlers(ipcMain)
   registerHealthHandlers(ipcMain)
+  registerDataPreflightHandlers(ipcMain)
   registerAiProxy(ipcMain)
   registerClaudeCliHandlers(ipcMain)
   registerChatGptHandlers(ipcMain)

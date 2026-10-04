@@ -413,7 +413,7 @@
 # filtered to a bbox in WGS84 (xmin, ymin, xmax, ymax) and/or an extra
 # WHERE clause. Shared by the sf-translator collect op and by the public
 # rgeo_materialize() function below — keep these in lock-step.
-.rgeo_materialize_sf <- function(meta, bbox = NULL, where = NULL) {
+.rgeo_materialize_sf <- function(meta, bbox = NULL, where = NULL, keep_identity = FALSE) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("sf package required")
   gc <- meta$geometry_column
   if (is.na(gc) || !nzchar(gc)) {
@@ -442,6 +442,9 @@
     'SELECT * EXCLUDE (%s), ST_AsText(%s) AS _rgeo_geom_wkt
        FROM %s%s',
     .rgeo_qid(gc), .rgeo_qid(gc), .rgeo_qid(meta$table_name), where_sql)
+  # Preflight follows the same primary-key order as the existing table viewer.
+  # Other materialisation callers retain their established representation.
+  if (keep_identity) sql <- paste(sql, "ORDER BY", .rgeo_qid(meta$pk_column))
   df <- DBI::dbGetQuery(meta$con, sql, params = params)
   wkt <- df[["_rgeo_geom_wkt"]]
   df[["_rgeo_geom_wkt"]] <- NULL
@@ -460,9 +463,10 @@
     df[["_rgeo_wkt_true"]] <- NULL
   }
   pk <- meta$pk_column
-  if (!is.null(pk) && !is.na(pk) && pk %in% names(df)) df[[pk]] <- NULL
+  if (!keep_identity && !is.null(pk) && !is.na(pk) && pk %in% names(df)) df[[pk]] <- NULL
   obj <- if (ncol(df) == 0L) sf::st_sf(geometry = geom) else sf::st_sf(df, geometry = geom)
-  if (meta$kind == "geos" && requireNamespace("geos", quietly = TRUE)) {
+  if (keep_identity) attr(obj, "ourgeo_source_pk") <- pk
+  if (!keep_identity && meta$kind == "geos" && requireNamespace("geos", quietly = TRUE)) {
     obj <- geos::as_geos_geometry(sf::st_geometry(obj))
   }
   obj

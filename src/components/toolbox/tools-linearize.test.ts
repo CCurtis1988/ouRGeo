@@ -11,8 +11,8 @@ describe('linearize checkbox coverage', () => {
   it('every spatial tool offers the checkbox (tabular-input tools excluded)', () => {
     for (const tool of [...spatialSf.tools, ...spatialGeos.tools, ...spatialSel.tools]) {
       const has = tool.fields.some((f) => f.id === 'linearize' && f.type === 'checkbox')
-      if (tool.id === 'sf-points-from-cols') {
-        expect(has).toBe(false) // tabular input — nothing to linearize
+      if (['sf-points-from-cols', 'assign-crs'].includes(tool.id)) {
+        expect(has).toBe(false) // tabular input or metadata-only assignment — no coordinate edits
       } else {
         expect(has, `${tool.id} should have the linearize checkbox`).toBe(true)
       }

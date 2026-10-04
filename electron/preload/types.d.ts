@@ -192,7 +192,8 @@ export interface VoiceModelStatus {
 declare global {
   interface Window {
     electronAPI: {
-      health: import('../../src/lib/health-types').HealthAPI
+      preflight: { interrupt: (operationId: string) => Promise<void>; review: (operationId: string) => Promise<boolean> }
+    health: import('../../src/lib/health-types').HealthAPI
       r: {
         getPort(): Promise<number | null>
         isReady(): Promise<boolean>
