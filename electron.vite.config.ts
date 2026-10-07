@@ -11,10 +11,15 @@ const APP_VERSION: string =
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin(), {
+      name: 'context-runtime-bridge',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'mnemosyne-sidecar.py', source: readFileSync(resolve('electron/main/context/mnemosyne-sidecar.py')) })
+      }
+    }],
     build: {
       lib: {
-        entry: resolve('electron/main/index.ts')
+        entry: { index: resolve('electron/main/index.ts'), 'context-worker': resolve('electron/main/context/worker.ts') }
       }
     }
   },

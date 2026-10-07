@@ -25,7 +25,7 @@ TypeScript is the primary correctness check — run `npm run typecheck` from the
 
 Must be installed in R before running:
 ```r
-install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+install.packages(c("httpuv", "jsonlite", "later", "httr2", "rlang"))
 # Data preflight uses openssl (existing httr2 dependency), units (sf dependency),
 # s2 for geographic checks/metrics, dplyr for summaries, geos for geos tools.
 # Spatial features also need: sf, terra, ggplot2, tmap, ggspatial, maptiles, tidyterra
@@ -1034,7 +1034,8 @@ routinely straddles two reads. Anthropic streams *with* tools (reassembling
 `input_json_delta` fragments), so enabling a tool never costs the streaming UX;
 Ollama still falls back to non-streaming when tools are attached.
 
-Two independent switches in the AI panel footer decide which tools are attached:
+The AI panel footer switches decide which capabilities may be attached; the
+context compiler reduces optional schema exposure for small model windows:
 
 | Switch | Tool(s) | Default | Store |
 |--------|---------|---------|-------|
@@ -1045,9 +1046,10 @@ Two independent switches in the AI panel footer decide which tools are attached:
 
 A disabled switch is *absent* from the request rather than declined afterwards, and
 `runTool` in `AiChatPanel` re-reads the store at call time so flipping a switch off
-mid-answer stops the next call. **Web** is the trust control: with it off the
-assistant has no network tool at all, and its only remaining route to the internet
-is R code the user watches execute in the console. Every web call is also logged to
+mid-answer stops the next call. **Web** controls search/fetch tools; it does not
+disable the selected assistant API, local model connection or other configured
+application networking. R and Terminal also retain their own permissions.
+Every web call is logged to
 the console as an `info` entry (`describeWebCall`), so the console stays a complete
 record of what the assistant did.
 
@@ -1055,7 +1057,9 @@ record of what the assistant did.
   reduces HTML to text with `DOMParser`, passes JSON/CSV/text through, refuses
   binaries, and blocks loopback/RFC1918/link-local hosts (those belong in the
   console, where the user can see the request).
-- `ai-system-prompt.ts` holds the prompt in three pieces: `AI_BASE_PROMPT`,
+- The active small contract is `context/compiler.ts`, with a separate host
+  scope/switch card in the user turn. `ai-system-prompt.ts` retains the legacy
+  builders for accounting comparisons: `AI_BASE_PROMPT`,
   `buildProvenanceRules()` and `buildToolGuidance({ autoPilot, webAccess })`. The
   provenance rules are the reason the module exists — the assistant must derive
   every figure from a named R object through code the user can re-run: no recalled
@@ -1212,10 +1216,10 @@ panel: **"Error: fetch failed"**.
 
 ### Sending a message (`AiChatPanel.handleSend` / `runTurn`)
 
-**The send is claimed synchronously, before the first `await`.** Preparing a
-turn asks R for the environment listing and a preview of every object the
-message names — and R is serial, so with a long command running that wait is as
-long as the command. Nothing used to say a send was under way until all of it
+**The send is claimed synchronously, before the first `await`.** The broker binds
+the chat and workspace epoch before relevant retrieval. It uses local metadata
+first; unrelated requests do not refresh R or preview objects. R schema reads
+are explicit and bounded. Nothing used to say a send was under way until all of it
 had finished: the box still held the text, Send was still enabled,
 `isStreaming` was still false. A user who clicked again because nothing had
 happened sent the message **twice**, and two turns then ran at once against the
@@ -1396,12 +1400,12 @@ need access to anybody's credits; it needs to ask the program on the machine.
   `--resume`, not the message array every other transport posts. Clearing the
   chat mints a new session — leaving it would resume a conversation the user
   just said to forget. `withEarlierTurns` covers the other direction: a session
-  starting mid-conversation (the user switched provider) is handed a capped
+  starting mid-conversation (the user switched provider) is handed a bounded
   catch-up block, or a follow-up would be answered by a model that had silently
   forgotten the question it follows.
 - **The system prompt goes in a file and the user turn on stdin.** Both carry
-  the session's context — the environment listing, the console tail, the open
-  documents — and Windows caps a command line at 32,767 characters. The MCP
+  selected evidence and the current scope card, and Windows caps a command
+  line at 32,767 characters. The MCP
   config is a file for a second reason: a `.cmd` shim has to be spawned through
   the shell on Windows, and a shell would have to quote a blob full of braces
   and quotes correctly on the one platform this repository cannot test.
@@ -1419,13 +1423,14 @@ need access to anybody's credits; it needs to ask the program on the machine.
   cached prefix instead of breaking it — and where the freshest state sits
   closest to the question. **Anything added to the system prompt for this
   provider must be constant, or it costs the conversation.**
-- **And it is sent only when it has CHANGED** (`ai.lastSessionContext`, now a
+- **The legacy delta implementation sent only changed sections** (`ai.lastSessionContext`, a
   `SentContext` rather than the block itself — see *What one turn actually
   says* below). The block stays in the CLI's transcript, so an identical
   listing costs its tokens again on every following turn — ten turns, ten
-  copies of the same environment. Cleared by New conversation and by a provider
-  switch, because the next provider has been sent nothing.
-- **The switch positions ride the turn too** (`buildToolNaming` /
+  copies of the same environment. This is historical behaviour: the broker
+  caches repeated reads within a task, but its complete acknowledged cross-turn
+  delivery ledger is still outstanding. No initial environment snapshot is sent.
+- **The switch positions ride the turn too** (now `buildContextScopeCard`; previously `buildToolNaming` /
   `buildSwitchGuidance`, split out of `buildToolGuidance` in 1.15.3). They used
   to close the system prompt, which is its TAIL — so flipping Autopilot on
   part-way through a chat, which is simply how the panel is used, changed the
@@ -1468,12 +1473,158 @@ need access to anybody's credits; it needs to ask the program on the machine.
   whether it covers this use is between the user and Anthropic's terms. It must
   not claim endorsement, and the feature must not be sold as free Claude.
 
-### What one turn actually says (`ai-session-context.ts`, v1.15.3)
+### Context broker and memory (`src/lib/context/`, `electron/main/context/`)
+
+The broker owns source selection, opaque handles, budgets and permission/freshness
+checks. Bodies arrive as attributed user/tool evidence, not privileged system
+instructions. `router.ts` uses local multi-label cues and declarative skill aliases;
+the model can deepen discovery through four stable context tools. An unreferenced
+synthetic request selects no auxiliary sources and never waits for R. Actual R
+inspection uses a schema-only endpoint that refuses active/lazy bindings and never
+prints objects or materialises a database. Computations still echo visible R.
+`console-index.ts` reuses immutable session-event snapshots and updates affected
+execution descriptors on append. It formats bodies on read, ignores metadata
+audits and invalidates on clear/replacement or workspace/R-generation changes.
+Older descriptors retain their event range; the broker rejects superseded handles.
+
+`budget.ts` counts serialized messages/schemas/wrappers conservatively. Every
+full-message inference, including tool-loop follow-ups, reserves output and a
+safety margin. Ollama probes the requested running model's context allocation;
+an unknown allocation uses 4k. `tool-compaction.ts` shortens only completed older
+result bodies, leaving calls/IDs/arguments and the newest batch intact. Original
+results remain in an 8 MB, one-hour scoped renderer cache; chat deletion, policy
+revocation and workspace changes invalidate it. Large original user instructions
+are retained; an impossible fit returns a recovery move rather than clipping them.
+
+`usage.ts` keeps provider-reported per-invocation counters separate from prompt
+occupancy and estimates. Cache/reasoning subsets are counted once; streaming
+updates replace cumulative observations. Claude CLI totals cover its transport
+run and do not prove internal invocation occupancy. Failed/cancelled receipts
+stay on the initiating turn (or its partial answer), never a later turn; a
+workspace switch prevents attachment. Missing fields remain unknown, with no
+invoice or zero-cost claim. Local recovery validates counters; portable chats
+omit delivery traces.
+
+Personal records and project recovery journals use AES-GCM ciphertext in SQLite
+on a worker thread, with FTS5 in an in-memory database. The key uses OS safeStorage;
+Linux basic_text is refused. This protects the application's index/WAL/temp files,
+not ordinary readable project exports. Main-issued project leases reject stale
+draft IPC. Portable project JSONL is committed by atomic bundle save; Save As
+forks UUIDs and memory lineage. Imports honour local tombstones and clear bundled
+CLI session IDs rather than treating them as an authorised delivery receipt.
+Only successful bundle saves publish committed project records to the canonical
+store/outbox. Draft revision jumps are valid; an older conflicting snapshot is
+refused with a recovery warning. Newer edits arriving during save remain journalled.
+Explicit memory commands run locally before model dispatch, including without an
+API key. Narrow deterministic preference settings supersede within one scope in
+the canonical transaction. Category routing uses meaningful terms, so generic
+“this project” prose cannot displace a relevant unit convention. Suggestions and
+inferred text never silently supersede a user-declared active instruction.
+Project mutations are queued because an R reset/load cannot be cancelled once
+it reaches the server. Imported editor/database paths are authorised against a
+protected profile-local registry, never against the bundle's claims. Unrecognised
+scripts use bundled buffers; unrecognised database paths require a local choice.
+Global edits do not change project memory identity or dirty state. Forgetting
+removes journal copies and resets retained sessions even if journal recovery fails.
+The encrypted project-location registry detects surviving duplicate bundles;
+rename/move and symlink/hardlink aliases retain identity. A copy filters original
+deletion tombstones before forking memory IDs, then remains unsaved until its
+new identity is committed. Paths remain local warning metadata, never scope IDs.
+
+Source exclusions are encrypted local policy, not bundle content. Scratch policy
+is transient. Protected-policy failure disables retrieval rather than reopening
+an unrestricted legacy prompt. While a private source is excluded, generic R,
+document and interface execution pauses because it could bypass source adapters;
+theme-only actions and direct GUI/R use remain available. Future prompt views omit
+old assistant prose with unverifiable source lineage and preserve user originals.
+Session/cache resets alone do not mark project chats dirty. Structured IDs escape
+names before joining namespace components; legacy IDs can only exclude a source,
+never grant access. Read limits count escaped wrappers, not just text bodies.
+Inspector delivery flags reflect excerpts found in serialized invocation payloads;
+selection after the last invocation is not a claim of delivery.
+
+The encrypted outbox commits with canonical changes. It keeps operation IDs
+stable, cancels stale/revoked writes, quarantines uncertain paid ingestion and
+compensates when a deleted source's write completes late. The bounded runner
+leases only authorised scopes, rechecks bindings after asynchronous preparation,
+and settles cancelled/late usage without importing returned records into canonical
+storage. Uncertain ingestion is reconciled through complete matching-revision
+reads, with six attempts before review; it never replays paid retain on a guess.
+These fixtures remain gated on certified connections; no provider is active yet.
+Connection setup stores encrypted metadata and authentication in the canonical
+worker, behind host-issued scope leases. Public setup records omit credentials
+and namespaces. Health tests are bounded and send no personal content; a successful
+probe records reachability, never isolation/deletion certification. Disconnect
+aborts tests before awaiting storage, destroys the credential, revokes bindings
+and cancels their outbox. Late responses cannot reactivate it. Removing disconnected
+settings preserves revocation/deletion receipts rather than claiming remote erasure.
+Provider retrieval/ingestion is still gated; these settings do not activate a bank.
+Mnemosyne's pinned recall computes embeddings independently of vector scoring
+weights, so an unverified connection cannot become local-only by passing zero.
+The managed candidate now has bounded, supervised stdio and a private bridge:
+scope snapshots rebuild and atomically replace a derived database, with monotonic
+generations preventing stale activation. Cancellation kills the child, and the
+next launch removes incomplete staged rebuilds. Upstream YAML overrides env flags,
+so this profile writes its fixed local settings before loading the engine. The
+engine at the v0.7.4 Hermes tag is 4.0.0b4; catalogue version fields distinguish
+those releases and keep the beta out of the default profile. This remains a
+packaging/conformance candidate, not a registered managed provider.
+
+Learning starts with suggestions, with scratch off. Narrow local cues recognise
+user-declared preferences and project decisions after successful turns; no paid
+extractor runs. Candidates are excluded from retrieval until accepted, expire
+after 30 days, and forgotten/dismissed source events are suppressed transactionally.
+Always apply instructions have a separate visible cost and never lose a required
+pin through ranking. Changing pins, exclusions, plugin availability or forgetting
+resets provider-held sessions and cancels affected work.
+Context initialisation is shared at app startup, before settings or chat use.
+Sends wait for local policy/pinned instructions with cancellation and a timeout,
+never for R. A fresh profile with no protected files permits basic source
+discovery without a keyring; an unreadable existing policy fails closed. Retrying
+storage clears stale personal cards first. A late startup read cannot resurrect
+an intervening correction or deletion.
+
+Chat deletion removes solely derived memories before deleting the transcript.
+Its review offers retention of edited or pinned records; accepted suggestions
+alone do not count as independent edits. Failures keep the chat reviewable and
+tombstones/suppression keep completed deletions blocked. Missing protected memory
+storage blocks deletion of a non-empty chat unless main proved the store absent,
+so unknown derivatives are not silently orphaned. Project/global scope changes
+and memory revisions are rechecked throughout the operation.
+
+The complete product specification remains unfinished. Read
+`docs/context-implementation.md` for verified behaviour, the storage/platform
+decision, immutable upstream API pins and the pending runtime/connection/runner,
+dynamic plugin permission, monetary-budget and release-certification work.
+Do not describe the provider prototypes as production connections or installers.
+Experimental Linux staging is wired through owner-only, leased IPC: public
+artifacts have immutable checksums, bounded conditional-resume downloads and
+exclusive staging. The private Python health check uses synthetic data and no
+inherited credentials. Atomic activation and rollback keep separate runtime/data
+pairs; cancellation preserves the active pair. Staging is not personal-memory
+activation. The network spike optionally traces every private child with strace
+and requires a detected socket positive control before accepting an empty trace.
+Remote namespace ownership survives removal of connection settings, preventing
+another scope from accidentally taking over the original bank.
+Canonical-store migrations validate the existing key before making a verified
+`VACUUM INTO` recovery snapshot; copying only the database file would miss WAL
+content. Schema changes and namespace claims commit together. A failed backup
+leaves the original schema intact. Recovery copies contain encrypted payloads,
+require the original protected key and can retain earlier memories; restoring
+them must reconcile newer deletion state first.
+Conversation compaction inserts a bounded, source-linked derived working-state
+card alongside the retained original user messages. Decisions are explicit user
+declarations, questions need checking against originals and failures are prior
+reports. Conflicting declarations stay separate. The card is rebuilt from
+originals, never recursively summarised or promoted into personal memory.
+
+### Historical delivery baseline (`ai-session-context.ts`, v1.15.3)
 
 Every turn used to carry the session state as ONE block — the environment, the
 console tail and the open documents — re-sent whole whenever any byte of it
-moved. For the transports that post the conversation array each request that is
-free: they rebuild the prompt anyway. For the Claude Code transport it is not,
+moved. Full-message transports also pay for included tokens on each invocation;
+rebuilding a prompt does not make its contents free. Caching affects price, not
+context occupancy. For the Claude Code transport,
 because what is sent once STAYS in the transcript and is re-read on every turn
 after, so a block that is merely large becomes a bill that compounds.
 
@@ -1523,9 +1674,10 @@ there; and a section that goes genuinely EMPTY (every object removed, the last
 document closed) is reported in words, because silence there would mean the
 opposite.
 
-`fullSessionContext` is what every other provider still gets, unchanged and
-including the assistant's own console lines — there is no transcript holding
-them, so dropping them would lose them.
+`fullSessionContext` and its incremental counterparts now remain legacy accounting
+fixtures. Active transports use the broker; do not reconnect these builders to
+chat as a fallback because that would bypass source exclusions and selective
+disclosure. The historical measurements below are not new broker quality results.
 
 **The other half of the same problem was one tool result.** `list_ui_actions`
 has no required argument, so calling it with none is what the schema invites —
@@ -1546,8 +1698,9 @@ from inside the model: running a chunk inline evaluates in the LIVE session and
 succeeds, and only the Knit button — a clean child `Rscript` — tells the truth.
 Nothing in the prompt mentioned documents at all.
 
-- `buildDocumentSkill({ hasDocumentTools })` is injected on **every** request,
-  between the provenance rules and the tool guidance. Its centre is the
+- `buildDocumentSkill({ hasDocumentTools })` is retrieved on demand for document
+  work, with a dispatcher prerequisite gate. It is absent from unrelated turns.
+  Its centre is the
   self-containment rule (knit is a separate session, so every object must be built
   by a chunk in the same document), inline `` `r …` `` for figures in prose, the
   chunk options that silently produce wrong output (`results='asis'`, `print(p)`

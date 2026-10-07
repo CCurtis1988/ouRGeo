@@ -3,8 +3,10 @@
 //
 // The session state is three blocks: the R environment, the tail of the
 // console, and the documents open in the editor. Every transport that posts the
-// whole conversation on each turn gets all three every time, because it has no
-// prefix to protect and nothing is carried over.
+// whole conversation on each turn used to get all three every time. These bytes
+// consume the context window and can be billed on every invocation; prompt
+// caching does not remove them. The Context Broker now selects relevant sources
+// for all transports. These builders remain for baseline comparisons.
 //
 // The Claude Code transport is the exception, and the one this module exists
 // for. It keeps the transcript itself, so anything sent once STAYS in the

@@ -5,6 +5,8 @@ import { useAiStore, type AiChat } from '@/store/ai'
 import { useProjectStore } from '@/store/project'
 import { PROVIDER_LABELS } from '@/lib/ai-client'
 import { cn } from '@/lib/utils'
+import { useContextStore } from '@/store/context'
+import { conversationMemories } from '@/lib/context/conversation-deletion'
 
 /**
  * The list of conversations in this project, and the way between them.
@@ -134,7 +136,9 @@ export function AiChatSwitcher(): React.ReactElement {
   const isStreaming = useAiStore((s) => s.isStreaming)
   const switchChat = useAiStore((s) => s.switchChat)
   const renameChat = useAiStore((s) => s.renameChat)
-  const deleteChat = useAiStore((s) => s.deleteChat)
+  const globals = useContextStore(s => s.globals)
+  const projectMemory = useContextStore(s => s.projectContext.memories)
+  const contextReady = useContextStore(s => s.ready)
   const newChat = useAiStore((s) => s.newChat)
   // `path === null` IS scratch — the sentinel the whole project layer uses.
   const isScratch = useProjectStore((s) => s.path === null)
@@ -142,6 +146,9 @@ export function AiChatSwitcher(): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, right: 0 })
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [keepIndependent, setKeepIndependent] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const btnRef = useRef<HTMLButtonElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
 
@@ -176,6 +183,7 @@ export function AiChatSwitcher(): React.ReactElement {
   // and the list grows without limit at the other end.
   const ordered = [...chats].sort((a, b) => b.updatedAt - a.updatedAt)
   const pending = confirmId ? chats.find((c) => c.id === confirmId) ?? null : null
+  const related = pending ? conversationMemories(pending, [...globals, ...projectMemory]) : { dependent: [], independent: [] }
 
   return (
     <>
@@ -212,15 +220,28 @@ export function AiChatSwitcher(): React.ReactElement {
                   ? 'It is empty.'
                   : `${pending.messages.length} messages will be lost. This cannot be undone.`}
               </p>
+              <p className="text-[10px] text-geo-muted">{contextReady ? `${related.dependent.length - (keepIndependent ? related.independent.length : 0)} memories derived solely from this chat will also be forgotten.` : 'Loading local memory settings…'}</p>
+              {related.independent.length > 0 && <label className="flex gap-1 text-[10px] text-geo-muted">
+                <input type="checkbox" checked={keepIndependent} disabled={deleting} onChange={event => setKeepIndependent(event.target.checked)} />
+                Keep {related.independent.length} independently edited or pinned memories; their source chat will be removed.
+              </label>}
+              {deleteError && <p role="status" className="text-[10px] text-geo-error">{deleteError}</p>}
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   className="text-[11px] px-2 py-1 rounded text-geo-muted hover:text-foreground hover:bg-white/5"
+                  disabled={deleting}
                   onClick={() => setConfirmId(null)}
                 >Cancel</button>
                 <button
                   className="text-[11px] px-2 py-1 rounded bg-geo-error/15 text-geo-error hover:bg-geo-error/25"
-                  onClick={() => { deleteChat(pending.id); setConfirmId(null) }}
-                >Delete</button>
+                  disabled={deleting || !contextReady}
+                  onClick={() => {
+                    setDeleting(true); setDeleteError('')
+                    void useContextStore.getState().deleteConversation(pending.id, keepIndependent)
+                      .then(() => setConfirmId(null), error => setDeleteError(String(error)))
+                      .finally(() => setDeleting(false))
+                  }}
+                >{deleting ? 'Deleting…' : 'Delete'}</button>
               </div>
             </div>
           ) : (
@@ -234,7 +255,7 @@ export function AiChatSwitcher(): React.ReactElement {
                     isStreaming={isStreaming && c.id === activeChatId}
                     onSwitch={() => { switchChat(c.id); setOpen(false) }}
                     onRename={(t) => renameChat(c.id, t)}
-                    onDelete={() => setConfirmId(c.id)}
+                    onDelete={() => { setConfirmId(c.id); setKeepIndependent(false); setDeleteError('') }}
                   />
                 ))}
               </ul>

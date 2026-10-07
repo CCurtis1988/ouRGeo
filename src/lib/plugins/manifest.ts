@@ -17,6 +17,7 @@ import {
   MANIFEST_VERSION, PERMISSIONS,
   type PluginManifest, type PluginPermission, type PluginContributions,
 } from './types'
+import { validateSkills } from '@/lib/context/skills'
 import { serviceSpec } from './service-policy'
 
 export interface ManifestResult {
@@ -106,6 +107,12 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
     }
   }
 
+  let context: PluginManifest['context']
+  if (m.context !== undefined) {
+    try { context = validateSkills(m.context) }
+    catch (error) { return { ok: false, warnings, error: String(error) } }
+  }
+
   const main = m.main === undefined ? undefined : str(m.main)
   if (m.main !== undefined && !main) {
     return { ok: false, warnings, error: '"main" must be a path relative to the plugin folder, e.g. "main.ts".' }
@@ -143,6 +150,7 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
       author: str(m.author) ?? undefined,
       homepage: str(m.homepage) ?? undefined,
       permissions,
+      context,
       main: main ?? undefined,
       service,
       contributes,

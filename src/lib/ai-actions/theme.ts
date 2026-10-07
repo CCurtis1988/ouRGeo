@@ -275,6 +275,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:create',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       'Create a new theme for the user by copying an existing one. Every theme starts as a copy, so it is coherent before you change anything — then edit it with theme:setColors. Returns the new id.',
     params: [
@@ -321,6 +322,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:setColors',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       "Change colours on one of the user's own themes. Pass only the ones you want to move — everything else is left alone. Takes effect immediately if the theme is in use.",
     params: [
@@ -405,6 +407,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:configure',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       "Set an app theme's non-colour properties: its name, whether it counts as dark or light, which code and markdown palettes it defaults to, its basemap, and how strongly its backdrop image is painted.",
     params: [
@@ -474,6 +477,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:setImage',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       "Give an app theme a backdrop image (painted behind the code editor) or a card image (its tile in the theme picker), from a file on disk. The picture is embedded in the theme, so an exported theme carries its own artwork.",
     params: [
@@ -535,6 +539,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:duplicate',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       'Copy any theme — including one that ships with ouRGeo — into an editable theme of the user\'s own. This is how you start from a shipped theme.',
     params: [
@@ -586,6 +591,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:export',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       'Write one of the user\'s themes to a .ourgeotheme.json file they can keep or share. Artwork travels inside the file.',
     params: [
@@ -618,6 +624,7 @@ export const themeActions: UiAction[] = [
     id: 'theme:import',
     group: 'theme',
     tier: 'autopilot',
+    contextPrerequisites: ['skill:themes'],
     summary:
       'Read a .ourgeotheme.json file and install the themes in it. The file says which axis it is for, so an app theme can never land in the code-theme list.',
     params: [

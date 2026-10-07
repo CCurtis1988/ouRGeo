@@ -8,6 +8,8 @@ import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
+import { registerContextHandlers } from './context/ipc'
+import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
 import { registerHealthHandlers } from './health-check'
 import { registerDataPreflightHandlers } from './data-preflight'
 import { setupIpcHandlers } from './ipc'
@@ -192,6 +194,7 @@ app.whenReady().then(async () => {
   ))
 
   setupIpcHandlers(ipcMain)
+  registerContextHandlers(ipcMain, () => mainWindow?.webContents)
   registerHealthHandlers(ipcMain)
   registerDataPreflightHandlers(ipcMain)
   registerAiProxy(ipcMain)
@@ -305,6 +308,11 @@ app.on('window-all-closed', () => {
 // EXCEPT session.json (open code/.R tabs), which we deliberately keep between
 // sessions. A crash (no will-quit) leaves these intact for recovery on relaunch.
 app.on('will-quit', (event) => {
+  if (managedContextRuntimesRunning()) {
+    event.preventDefault()
+    void stopManagedContextRuntimes().finally(() => app.quit())
+    return
+  }
   if (pluginServicesRunning()) {
     event.preventDefault()
     void stopPluginServices().finally(() => app.quit())

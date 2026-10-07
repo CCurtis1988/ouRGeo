@@ -53,6 +53,8 @@ route <- function(req) {
       return(ok_response(message = "ok"))
     }
 
+    if (path == "/context/schema" && method == "POST") return(handle_context_schema(parse_body(req)))
+
     if (path == "/env/list" && method == "GET") {
       return(handle_env_list())
     }

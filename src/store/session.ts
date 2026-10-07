@@ -29,6 +29,7 @@ export type RecordingDestType = 'new' | 'saved' | 'current'
 
 interface SessionState {
   rStatus: RStatus
+  rGeneration: number
   rPort: number | null
   wsConnected: boolean
   /** R's `getwd()`, kept live: the server broadcasts it whenever it moves. */
@@ -65,6 +66,7 @@ let entryId = 0
 export const useSessionStore = create<SessionState>((set, get) => ({
   rStatus: 'connecting',
   rPort: null,
+  rGeneration: 0,
   wsConnected: false,
   workingDir: null,
   homeDir: null,
@@ -79,7 +81,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   recordingReturnOutput: false,
 
   setRStatus: (rStatus) => set({ rStatus }),
-  setRPort: (rPort) => set({ rPort }),
+  setRPort: (rPort) => set(s => ({ rPort, rGeneration: s.rGeneration + (s.rPort !== rPort ? 1 : 0) })),
   setWsConnected: (wsConnected) => set({ wsConnected }),
   setWorkingDir: (workingDir, home) =>
     set(home === undefined ? { workingDir } : { workingDir, homeDir: home }),

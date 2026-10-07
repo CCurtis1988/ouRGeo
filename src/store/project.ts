@@ -21,6 +21,9 @@ interface ProjectState {
   /** Absolute path to the `.ourgeoproj` bundle, or null for the scratch project. */
   path: string | null
   /** True when env / UI state has changed since the last save. */
+  projectId: string | null
+  workspaceEpoch: number
+  phase: 'ready' | 'loading'
   isDirty: boolean
   recents: RecentProject[]
 
@@ -35,6 +38,9 @@ interface ProjectState {
 export const useProjectStore = create<ProjectState>((set, get) => ({
   name: SCRATCH_PROJECT_NAME,
   path: null,
+  projectId: null,
+  workspaceEpoch: 0,
+  phase: 'ready',
   isDirty: false,
   recents: [],
 

@@ -28,11 +28,11 @@ describe('local assistant diagnostic resource limits', () => {
   })
   it('keeps the wizard’s chosen context limit during subsequent assistant conversations', async () => {
     await sendMessage({ ...opts, ollamaContextSize: 4096 })
-    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body!).options).toEqual({ num_ctx: 4096 })
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body!).options).toEqual({ num_ctx: 4096, num_predict: 1024 })
   })
-  it('leaves the server’s existing defaults intact without a context override', async () => {
+  it('bounds output without changing the server’s context allocation without an override', async () => {
     await sendMessage(opts)
-    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body!).options).toBeUndefined()
+    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body!).options).toEqual({ num_predict: 4000 })
   })
   it('uses the configured bearer token for an authenticated Ollama server', async () => {
     await sendMessage({ ...opts, localApiKey: 'server-token' })

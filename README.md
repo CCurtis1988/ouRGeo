@@ -1,6 +1,6 @@
 # ouRGeo
 
-Current version: **1.16.4**. Release history: **1.16.0** managed plugin services,
+Current version: **1.16.7**. Release history: **1.16.0** managed plugin services,
 **1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
 **1.16.3** guided installation health checks.
 
@@ -105,6 +105,39 @@ the whole analysis.
   Save the session as a project and its conversations are kept with it and
   travel inside the `.ourgeoproj`; in the scratch workspace they last until you
   quit, like everything else there.
+- **Selective AI context and local memory.** The assistant searches skills,
+  action definitions, current schemas, console executions and documents when
+  needed. Unrelated requests do not wait for R inspection. The inspector separates
+  estimated prompt size from reported input, output, cache and reasoning usage,
+  retaining available receipts for failed or cancelled turns. Expand the context
+  summary under a reply to inspect selected sources, revisions, destination and
+  estimated tokens. Source exclusions persist locally for saved projects and
+  references, with an Allow again control. While exclusions apply, earlier
+  assistant answers are omitted from future prompts and assistant execution
+  that could bypass private-source filters pauses. **AI Assistant → Context & memory** controls effort and
+  learning; the Memory library separates Conversation, Project and About you.
+  Suggestions require acceptance, while automatic learning is an opt-in for
+  narrow declared preferences/decisions. Scratch learning defaults to off.
+  Project memory commits on project save; About you uses protected local
+  storage. Always apply pins show their estimated recurring cost. Explicit
+  remember/forget commands need no model call. Simple project
+  instructions such as “Use miles for this project” await project save; a new
+  preference supersedes a conflicting unit-system or English default in its own scope.
+  Deleting a chat also forgets memories derived solely from it; the review can
+  retain independently edited or pinned records. Shared/manual records remain.
+  Restore unavailable protected storage before deleting a non-empty chat so
+  its derived memories can be removed too.
+  No account,
+  embedding download, Python or Docker is required for the built-in manager.
+  Selected context still goes to your chosen assistant; Web off controls web
+  tools, not that connection. Portable project memory exports are readable files.
+  The [delivery record](docs/context-implementation.md) lists current limits:
+  Mnemosyne/Hindsight connection settings can store protected credentials and
+  test reachability without sending chat or memory content. Their adapters remain
+  prototypes. Linux x86_64 offers explicitly acknowledged experimental runtime
+  staging with synthetic health checks; this does not enable personal memory.
+  Provider retrieval/ingestion and the full specification's release gates remain
+  unfinished.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by
@@ -162,7 +195,11 @@ the whole analysis.
 - **Publication export.** Generate complete `ggplot2` or `tmap` code from your
   on-screen map, including legend, north arrow, scale bar and graticules.
 - **Portable projects.** Save code, environment, layers and databases as a
-  single `.ourgeoproj` bundle.
+  single `.ourgeoproj` bundle. Previously linked local scripts/databases reconnect
+  on the same profile. Imported paths use bundled script text and require choosing
+  local database files; a bundle cannot grant access to unrelated absolute paths.
+  Moving a bundle keeps its identity. Opening a duplicate offers the existing
+  identity or an independent copy with new project and memory IDs.
 - **No telemetry, no account, no cloud dependency.**
 
 ## Theming
@@ -302,7 +339,7 @@ a change to this repository should follow — by a person or an agent — see
 
   ```r
   # Core — required for the app to start at all
-  install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+  install.packages(c("httpuv", "jsonlite", "later", "httr2", "rlang"))
   # Data checks use openssl (already installed as a dependency of httr2),
   # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 
@@ -436,7 +473,7 @@ depends on directly:
 
 ```r
 # Core — without these, ouRGeo cannot start
-install.packages(c("httpuv", "jsonlite", "later", "httr2"))
+install.packages(c("httpuv", "jsonlite", "later", "httr2", "rlang"))
   # Data checks use openssl (already installed as a dependency of httr2),
   # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 

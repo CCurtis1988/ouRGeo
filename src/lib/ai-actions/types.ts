@@ -192,6 +192,7 @@ export interface UiAction {
   params: ParamDef[]
   tier: Tier
   /** An extra switch this action needs, beside its tier. See above. */
+  contextPrerequisites?: string[]
   requires?: ActionRequirement
   run: (args: Args) => Promise<ActionResult> | ActionResult
 }

@@ -5,6 +5,7 @@ import {
 } from '@/lib/ai-actions/permissions'
 import { TIERS, type Tier } from '@/lib/ai-actions/types'
 import type { SentContext } from '@/lib/ai-session-context'
+import { buildWorkingState, type WorkingState } from '@/lib/context/working-state'
 
 // Cloud providers have bespoke transports; local providers are OpenAI-compatible
 // (except Ollama, which uses its native API). See LOCAL_PROVIDERS in ai-client.ts.
@@ -41,6 +42,7 @@ export interface ChatMessage {
   toolCalls?: { id: string; code: string }[]
   toolResults?: { id: string; output: string }[]
   timestamp: number
+  contextTrace?: import('@/lib/context/types').ContextTrace
 }
 
 /**
@@ -65,6 +67,7 @@ export interface AiChat {
   createdAt: number
   updatedAt: number
   messages: ChatMessage[]
+  workingState?: WorkingState
   /**
    * The provider and model this conversation was actually held with, restored
    * when you switch back to it.
@@ -137,6 +140,7 @@ export function makeChat(provider: AiProvider, model: string): AiChat {
     createdAt: now,
     updatedAt: now,
     messages: [],
+    workingState: buildWorkingState([]),
     provider,
     model,
     claudeSessionId: null,
@@ -157,7 +161,11 @@ function patchActiveChat(
   chats: AiChat[], activeChatId: string | null, updater: (c: AiChat) => AiChat,
 ): AiChat[] {
   if (!activeChatId) return chats
-  return chats.map((c) => (c.id === activeChatId ? { ...updater(c), updatedAt: Date.now() } : c))
+  return chats.map((c) => {
+    if (c.id !== activeChatId) return c
+    const updated = updater(c)
+    return { ...updated, ...(updated.messages !== c.messages ? { workingState: buildWorkingState(updated.messages) } : {}), updatedAt: Date.now() }
+  })
 }
 
 interface AiState {
@@ -174,8 +182,8 @@ interface AiState {
   autopilotWarningDismissed: boolean
   /** Master switch for the assistant's `web_search`/`web_fetch` tools. When off
    *  the tools are not offered to the model and any in-flight call is refused,
-   *  so the only route to the internet left is R code the user sees run in the
-   *  console. */
+   *  The configured assistant connection has its own disclosure policy; this
+   *  switch controls only web tools. */
   webAccessEnabled: boolean
   /** Master switch for the `terminal:*` actions, AND-ed with Autopilot: both
    *  must be on before the assistant can run a shell command. Off by default.
@@ -303,6 +311,7 @@ export const useAiStore = create<AiState>((set, get) => ({
   // window was, so carrying it across a switch would show the new model's bar
   // filled by the old one's conversation until the next turn corrected it.
   setProvider: (provider) => {
+    if (get().isStreaming) get().cancelStream()
     const model = get().modelByProvider[provider] ?? ''
     set((s) => ({
       provider,
@@ -313,8 +322,8 @@ export const useAiStore = create<AiState>((set, get) => ({
         ...c,
         provider,
         model,
-        // The new provider has been sent nothing, so the next turn must carry
-        // the session state in full even if it matches the last one sent.
+        // A different provider must reconstruct only authorised bounded context.
+        claudeSessionId: null,
         lastSessionContext: null,
         tokenUsage: { used: 0, total: 0 },
       })),
@@ -326,12 +335,13 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   setModel: (model) => {
+    if (get().isStreaming) get().cancelStream()
     const provider = get().provider
     const next = { ...get().modelByProvider, [provider]: model }
     set((s) => ({
       modelByProvider: next,
       chats: patchActiveChat(s.chats, s.activeChatId, (c) => ({
-        ...c, model, tokenUsage: { used: 0, total: 0 },
+        ...c, model, claudeSessionId: null, lastSessionContext: null, tokenUsage: { used: 0, total: 0 },
       })),
     }))
     saveAiPreferences({ modelByProvider: next })
@@ -461,7 +471,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     // A file can be empty, truncated, or name an active chat that is not in
     // it. Any of those must still leave a usable panel.
     const usable = chats.length > 0
-      ? chats
+      ? chats.map(chat => ({ ...chat, workingState: buildWorkingState(chat.messages) }))
       : [makeChat(s.provider, s.modelByProvider[s.provider] ?? '')]
     const active = usable.find((c) => c.id === activeChatId) ?? usable[usable.length - 1]
     return {

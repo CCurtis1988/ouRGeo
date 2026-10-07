@@ -2,6 +2,7 @@ import React from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { create } from 'zustand'
 import { useProjectStore } from '@/store/project'
+import { useContextStore } from '@/store/context'
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
@@ -31,7 +32,14 @@ export function confirmUnsaved(): Promise<UnsavedChoice> {
   })
 }
 
-function choose(choice: UnsavedChoice): void {
+async function choose(choice: UnsavedChoice): Promise<void> {
+  if (choice === 'discard') {
+    try { await useContextStore.getState().discardProjectDraft() }
+    catch (error) {
+      useContextStore.setState({ error: `Could not discard the memory recovery journal: ${String(error)}. Try again before closing.` })
+      return
+    }
+  }
   const { resolve } = useUnsavedDialog.getState()
   useUnsavedDialog.setState({ open: false, resolve: null })
   resolve?.(choice)
@@ -57,7 +65,7 @@ export function UnsavedChangesDialog(): React.ReactElement {
           <div className="px-5 py-4">
             <p className="text-xs text-geo-muted leading-relaxed">
               <span className="text-foreground font-medium">{projectName}</span> has unsaved
-              changes to the R environment and workspace. Save them before continuing?
+              changes to the R environment, workspace or project memory. Save them before continuing?
             </p>
             <p className="text-[11px] text-geo-muted mt-2">
               Your open scripts and scratch tabs are always kept regardless of this choice.

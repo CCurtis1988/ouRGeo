@@ -1,0 +1,196 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { randomBytes } from 'node:crypto'
+import { MemoryStorage } from './storage'
+import type { MemoryRecord } from '../../../src/lib/context/types'
+
+const dirs: string[] = []
+afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
+function record(): MemoryRecord { return { id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'preference', statement: 'Prefer metric units for distances.', evidence: [], assertion: 'user-declared', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: 'active', supersedes: [] } }
+describe('encrypted canonical memory and ephemeral FTS5', () => {
+  it('allocates stable persisted generations from committed scope state and invalidates them on edit or forget', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32), projectId = crypto.randomUUID()
+    const store = new MemoryStorage(path, Buffer.from(key)), memory = record()
+    const empty = store.scopeSnapshot('global')
+    store.save(memory)
+    const first = store.scopeSnapshot('global')
+    expect(first.generation).toBe(empty.generation + 1)
+    expect(first.records).toEqual([memory])
+    expect(store.scopeSnapshot('global')).toEqual(first)
+    // Unsaved project decisions are recovery data, never provider input.
+    store.stageProject(projectId, 0, { version: 1, revision: 1, memories: [{ ...record(), scope: 'project', projectId }] })
+    expect(store.scopeSnapshot(`project:${projectId}`).records).toEqual([])
+    store.save({ ...record(), status: 'candidate' })
+    expect(store.scopeSnapshot('global')).toEqual(first)
+    store.save({ ...memory, revision: 2, statement: 'Prefer imperial units for this comparison.' })
+    expect(store.scopeSnapshotCurrent('global', first.generation)).toBe(false)
+    const corrected = store.scopeSnapshot('global')
+    expect(corrected.generation).toBe(first.generation + 1)
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    expect(reopened.scopeSnapshot('global')).toEqual(corrected)
+    reopened.forget(memory.id)
+    expect(reopened.scopeSnapshot('global')).toEqual({ generation: corrected.generation + 1, records: [] })
+    expect(reopened.scopeSnapshot(`project:${projectId}`).generation).toBe(1)
+    reopened.close()
+  })
+  it('atomically replaces a conflicting explicit preference while keeping an unaccepted suggestion separate', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32))
+    const first = { ...record(), statement: 'I prefer metric units.' }
+    store.save(first)
+    const suggestion = { ...record(), status: 'candidate' as const, statement: 'I prefer imperial units.' }
+    store.save(suggestion)
+    expect(store.search('metric')).toEqual([first])
+    const accepted = store.save({ ...suggestion, revision: 2, status: 'active' })
+    expect(store.save({ ...suggestion, revision: 2, status: 'active' })).toEqual(accepted)
+    expect(accepted.supersedes).toEqual([first.id])
+    expect(store.search('metric')).toEqual([])
+    expect(store.search('imperial')).toEqual([accepted])
+    expect(store.list().find(memory => memory.id === first.id)?.status).toBe('superseded')
+    store.forget(accepted.id)
+    expect(store.search('metric imperial')).toEqual([])
+    store.close()
+  })
+  it('persists encrypted source exclusions without sharing them across project scopes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32)
+    const first = `project:${crypto.randomUUID()}`, second = `project:${crypto.randomUUID()}`
+    const id = 'environment:private-analysis:confidential-measurements'
+    const store = new MemoryStorage(path, Buffer.from(key))
+    store.exclude(first, id, true)
+    store.exclude(first, id, true)
+    expect(store.exclusions(first)).toEqual([id])
+    expect(store.exclusions(second)).toEqual([])
+    for (const name of readdirSync(dir)) expect(readFileSync(join(dir, name)).includes(Buffer.from(id))).toBe(false)
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    expect(reopened.exclusions(first)).toEqual([id])
+    reopened.exclude(first, id, false)
+    expect(reopened.exclusions(first)).toEqual([])
+    reopened.close()
+  })
+  it('does not retrieve unaccepted suggestions or relearn a forgotten source event', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), source = crypto.randomUUID()
+    const candidate = { ...record(), status: 'candidate' as const, evidence: [source] }
+    expect(store.learn(candidate)).toEqual(candidate)
+    expect(store.learn({ ...candidate, id: crypto.randomUUID() })).toEqual(candidate)
+    expect(store.search('metric')).toEqual([])
+    const active = { ...candidate, status: 'active' as const, revision: 2 }
+    store.save(active)
+    expect(store.search('metric')).toEqual([active])
+    store.forget(active.id)
+    expect(store.learn({ ...candidate, id: crypto.randomUUID() })).toBeNull()
+    expect(store.filterLearningSources([source])).toEqual([])
+    // A later explicit user request is independent of automatic extraction.
+    expect(store.save({ ...record(), evidence: [source] }).status).toBe('active')
+    store.close()
+  })
+  it('expires unaccepted suggestions without rebuilding them from old evidence', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), source = crypto.randomUUID()
+    const candidate = { ...record(), status: 'candidate' as const, evidence: [source], createdAt: new Date(Date.now() - 31 * 86400_000).toISOString() }
+    store.save(candidate)
+    expect(store.list()).toEqual([])
+    expect(store.search('metric')).toEqual([])
+    expect(store.learn({ ...candidate, id: crypto.randomUUID(), createdAt: new Date().toISOString() })).toBeNull()
+    store.close()
+  })
+  it('persists records without plaintext in the database, WAL or searchable index', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32)
+    const store = new MemoryStorage(path, Buffer.from(key)), memory = record()
+    store.save(memory)
+    expect(store.search('metric units')).toEqual([memory])
+    for (const name of readdirSync(dir)) expect(readFileSync(join(dir, name)).includes(Buffer.from(memory.statement))).toBe(false)
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    expect(reopened.list()).toEqual([memory])
+    expect(reopened.search('metric')).toEqual([memory])
+    reopened.close()
+  })
+  it('makes tombstones win against retries and old portable copies', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const store = new MemoryStorage(join(dir, 'canonical.sqlite'), randomBytes(32)), memory = record()
+    store.save(memory); store.save(memory)
+    expect(store.list()).toHaveLength(1)
+    store.forget(memory.id)
+    expect(store.list()).toEqual([])
+    expect(store.search('metric')).toEqual([])
+    expect(store.filterDeleted([memory.id, crypto.randomUUID()])).toHaveLength(1)
+    expect(() => store.save(memory)).toThrow('forgotten')
+    store.close()
+  })
+  it('does not interpret search input as SQL or FTS control syntax', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), memory = record()
+    store.save(memory)
+    expect(store.search('"metric" OR units*; DROP TABLE memories')).toEqual([memory])
+    expect(store.list()).toEqual([memory])
+    store.close()
+  })
+  it('recovers encrypted project drafts only against their original bundle revision', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32), projectId = crypto.randomUUID()
+    const memory = { ...record(), scope: 'project' as const, projectId }
+    const draft = { version: 1 as const, revision: 4, memories: [memory] }
+    const store = new MemoryStorage(path, Buffer.from(key))
+    store.stageProject(projectId, 3, draft)
+    for (const name of readdirSync(dir)) expect(readFileSync(join(dir, name)).includes(Buffer.from(memory.statement))).toBe(false)
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    expect(reopened.recoverProject(projectId, 2)).toBeNull()
+    expect(reopened.recoverProject(crypto.randomUUID(), 3)).toBeNull()
+    expect(reopened.recoverProject(projectId, 3)).toEqual(draft)
+    reopened.forget(memory.id, [], `project:${projectId}`)
+    expect(reopened.recoverProject(projectId, 3)?.memories).toEqual([])
+    // A late producer cannot put forgotten content back into the journal.
+    reopened.stageProject(projectId, 3, draft)
+    expect(reopened.recoverProject(projectId, 3)?.memories).toEqual([])
+    reopened.discardProject(projectId)
+    expect(reopened.recoverProject(projectId, 3)).toBeNull()
+    reopened.close()
+  })
+  it('quarantines copied foreign identities and refuses cross-scope edits or forgetting', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), global = record(), project = crypto.randomUUID()
+    store.save(global)
+    expect(store.registerProjectReferences(project, [global.id])).toEqual([])
+    expect(() => store.forget(global.id, [], `project:${project}`)).toThrow('another scope')
+    const projectMemory = { ...record(), scope: 'project' as const, projectId: project }
+    expect(store.registerProjectReferences(project, [projectMemory.id])).toEqual([projectMemory.id])
+    expect(() => store.save({ ...projectMemory, scope: 'global', projectId: null })).toThrow('another scope')
+    expect(store.registerProjectReferences(crypto.randomUUID(), [projectMemory.id])).toEqual([])
+    expect(store.list()).toEqual([global])
+    expect(store.filterDeleted([global.id, projectMemory.id])).toHaveLength(2)
+    store.close()
+  })
+  it('filters lexical scope before the result limit and separates identical project decisions', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), global = record(), first = crypto.randomUUID(), second = crypto.randomUUID()
+    store.save(global)
+    for (let index = 0; index < 15; index++) store.save({ ...record(), scope: 'project', projectId: first })
+    const other = { ...record(), scope: 'project' as const, projectId: second }
+    expect(store.learn(other)?.id).toBe(other.id)
+    expect(store.search('metric')).toEqual([global])
+    expect(store.search('metric', `project:${first}`)).toHaveLength(10)
+    expect(store.search('metric', `project:${second}`)).toEqual([other])
+    expect(store.list('global')).toEqual([global])
+    store.close()
+  })
+  it('keeps local editor access separate from portable project identity', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32), project = crypto.randomUUID()
+    const links = [{ id: 'editor-local', filePath: '/authorised/analysis.R' }]
+    const store = new MemoryStorage(path, Buffer.from(key))
+    store.saveFileLinks(project, links)
+    store.saveProjectLocation(project, '/authorised/private-project.ourgeoproj')
+    expect(store.projectLocation(crypto.randomUUID())).toBeNull()
+    for (const name of readdirSync(dir)) expect(readFileSync(join(dir, name)).includes(Buffer.from('/authorised/private-project.ourgeoproj'))).toBe(false)
+    expect(store.fileLinks(crypto.randomUUID())).toEqual([])
+    for (const name of readdirSync(dir)) expect(readFileSync(join(dir, name)).includes(Buffer.from(links[0].filePath))).toBe(false)
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    expect(reopened.fileLinks(project)).toEqual(links)
+    expect(reopened.projectLocation(project)).toBe('/authorised/private-project.ourgeoproj')
+    reopened.close()
+  })
+})

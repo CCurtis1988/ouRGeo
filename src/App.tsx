@@ -10,6 +10,8 @@ import { usePlottingStore } from './store/plotting'
 import { useWidgetsStore } from './store/widgets'
 import { loadSession, setupSessionAutosave, saveSessionImmediate } from './lib/session-persistence'
 import { loadChats, setupChatsAutosave } from './lib/ai-chats-persistence'
+import { setupContextLifecycle } from './lib/context/lifecycle'
+import { useContextStore } from './store/context'
 import { flushLayout } from './store/layout'
 import { loadPlugins } from './lib/plugins/loader'
 import { APP_VERSION } from './components/settings/versionHistory'
@@ -268,6 +270,8 @@ function MainApp(): React.ReactElement {
 
     const cleanupAutosave = setupSessionAutosave()
     const cleanupChatsAutosave = setupChatsAutosave()
+    const cleanupContext = setupContextLifecycle()
+    void useContextStore.getState().init()
     const cleanupPlotsAutosave = setupPlotsAutosave()
     const cleanupPlotPopoutSync = setupPlotPopoutSync()
     const cleanupWorkspaceAutosave = setupWorkspaceAutosave()
@@ -326,6 +330,7 @@ function MainApp(): React.ReactElement {
       cleanupWsMessages()
       cleanupAutosave()
       cleanupChatsAutosave()
+      cleanupContext()
       cleanupPlotsAutosave()
       cleanupPlotPopoutSync()
       cleanupWorkspaceAutosave()

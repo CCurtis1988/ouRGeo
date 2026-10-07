@@ -29,6 +29,23 @@ describe('a manifest that is fine', () => {
   })
 })
 
+describe('context capability compatibility', () => {
+  it('refuses required dynamic context capabilities instead of silently dropping them', () => {
+    const result = read({ context: { version: 1, skills: [], required: ['dynamic-sources'] } })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('unsupported context capabilities')
+    expect(read({ context: { version: 1, skills: [], required: ['skills'] } }).ok).toBe(true)
+  })
+  it('refuses a skill body that leaves the plugin directory', () => {
+    expect(read({ context: { version: 1, skills: [{ id: 'flood', summary: 'Assess flood exposure', bodyFile: '../private.md' }] } }).ok).toBe(false)
+  })
+  it('does not let a declarative skill attach requirements to another plugin action', () => {
+    const result = read({ context: { version: 1, skills: [{ id: 'flood', summary: 'Assess flood exposure', bodyFile: 'skills/flood.md', actions: ['another-plugin:assess'] }] } })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('without another namespace')
+  })
+})
+
 describe('refusals name the field', () => {
   it('refuses text that is not JSON, and says which file', () => {
     const r = readManifest('{ nope', '1.11.0')

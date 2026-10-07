@@ -14,6 +14,7 @@ import { RVersionPicker } from './RVersionPicker'
 import { InitialExtentPicker } from './InitialExtentPicker'
 import { AttributePopupToggle } from './AttributePopupToggle'
 import { CrsSettings } from './CrsSettings'
+import { ContextMemorySettings } from './ContextMemorySettings'
 import { AiProviderSettings } from './AiProviderSettings'
 import { VoiceSettings } from './VoiceSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
@@ -394,6 +395,7 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
               description="AI provider and model configuration"
             >
               <AiProviderSettings />
+              <ContextMemorySettings />
             </SettingsSection>
 
             <SettingsSection

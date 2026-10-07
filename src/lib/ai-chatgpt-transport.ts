@@ -1,5 +1,5 @@
 import type { OpenAiAssistantMessage } from '@/store/ai'
-import type { SendOptions } from '@/lib/ai-client'
+import { checkInvocation, compactInvocation, reportInvocationUsage, type SendOptions } from '@/lib/ai-client'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
 
 export function chatGptFailure(data: unknown, status?: number): string {
@@ -33,6 +33,8 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
   const visibleMessages: OpenAiAssistantMessage[] = []
   for (;;) {
     opts.signal?.throwIfAborted()
+    compactInvocation(opts, input, 'responses', () => ({ model: opts.model, instructions: opts.systemPrompt, input, tools }))
+    checkInvocation(opts, { model: opts.model, instructions: opts.systemPrompt, input, tools })
     const response = await proxyFetch('https://api.openai.com/v1/responses', {
       method: 'POST', billing: 'chatgpt', billingAccountId: account.activeId, signal: opts.signal,
       body: JSON.stringify({
@@ -104,8 +106,10 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
         completed = data.response
         data.response?.output?.forEach((item: Record<string, unknown>, index: number) => record(index, item))
       } else if (data.type === 'response.failed' || data.type === 'error') {
+        reportInvocationUsage(opts, data.response?.usage, 'openai-responses')
         throw new Error(chatGptFailure(data.response ?? { error: data.error ?? data }) + diagnostic)
       } else if (data.type === 'response.incomplete') {
+        reportInvocationUsage(opts, data.response?.usage, 'openai-responses')
         throw new Error(`ChatGPT’s response was incomplete (${data.response?.incomplete_details?.reason ?? 'unknown reason'}). Try again.`)
       }
     }
@@ -121,8 +125,9 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
     }
     if (!completed) throw new Error('ChatGPT’s stream ended before the response completed. Try again.')
     // Assigned by the event callback; TS cannot follow assignments inside it.
-    const result = completed as { output?: Record<string, unknown>[]; usage?: { input_tokens?: number } }
+    const result = completed as { output?: Record<string, unknown>[]; usage?: Record<string, unknown> & { input_tokens?: number } }
     if (result.usage?.input_tokens != null) opts.onUsage?.(result.usage.input_tokens, opts.contextSize ?? 128_000)
+    reportInvocationUsage(opts, result.usage, 'openai-responses')
     const output = [...items.entries()].sort(([a], [b]) => a - b).map(([, item]) => item)
     const messages = output.filter((item) => item.type === 'message' && item.role === 'assistant')
     for (const message of messages) {

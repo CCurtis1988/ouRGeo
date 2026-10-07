@@ -44,7 +44,7 @@ export function buildSessionData(): SessionData {
 
 // Restore code tabs from a SessionData object, re-reading file-backed tabs from
 // disk. Reused by session.json load and project load. Returns false if empty.
-export async function applySessionData(data: SessionData): Promise<boolean> {
+export async function applySessionData(data: SessionData, options: { portable?: boolean; authorisedFileLinks?: import('@/lib/context/types').AuthorisedFileLink[] } = {}): Promise<boolean> {
   if (!data.tabs || data.tabs.length === 0) return false
 
   // Defensive: only code tabs belong here (object tabs are restored separately).
@@ -54,7 +54,9 @@ export async function applySessionData(data: SessionData): Promise<boolean> {
   // Re-read file-backed tabs from disk to pick up external changes.
   const restoredTabs: TabState[] = []
   for (const tab of codeTabs) {
-    if (tab.filePath) {
+    if (options.portable && tab.filePath && !options.authorisedFileLinks?.some(link => link.id === tab.id && link.filePath === tab.filePath)) {
+      restoredTabs.push({ ...tab, filePath: null, isDirty: true })
+    } else if (tab.filePath) {
       try {
         const diskContent = await window.electronAPI.file.read(tab.filePath)
         restoredTabs.push({ ...tab, content: diskContent, savedContent: diskContent, isDirty: false })

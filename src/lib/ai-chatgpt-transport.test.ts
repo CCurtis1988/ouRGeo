@@ -28,6 +28,21 @@ beforeEach(() => {
 })
 
 describe('ChatGPT subscription assistant', () => {
+  it('accounts each tool-loop invocation and retains reported usage on an incomplete response', async () => {
+    const call = { type: 'function_call', name: 'inspect', namespace: 'ourgeo', call_id: 'usage-call', arguments: '{}' }
+    fetchMock.mockResolvedValueOnce(stream([
+      { type: 'response.completed', response: { output: [call], usage: { input_tokens: 100, output_tokens: 30, input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 20 } } } },
+    ])).mockResolvedValueOnce(stream([
+      { type: 'response.output_text.delta', delta: 'Partial' },
+      { type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' }, usage: { input_tokens: 140, output_tokens: 40 } } },
+    ]))
+    const onInvocationUsage = vi.fn()
+    await expect(sendMessage(options({ onInvocationUsage, onToolCall: async () => 'schema', tools: [{ name: 'inspect', description: 'Inspect', inputSchema: { type: 'object', properties: {}, required: [] } }] }))).rejects.toThrow('incomplete')
+    expect(onInvocationUsage.mock.calls.map(([report]) => report)).toEqual([
+      { invocation: 1, attempt: 0, scope: 'invocation', inputTokens: 100, outputTokens: 30, cachedInputTokens: 80, reasoningTokens: 20, reasoningIncludedInOutput: true, totalTokens: 130 },
+      { invocation: 2, attempt: 0, scope: 'invocation', inputTokens: 140, outputTokens: 40, reasoningIncludedInOutput: true, totalTokens: 180 },
+    ])
+  })
   it('keeps the final text when it arrives in completed items instead of text deltas', async () => {
     const message = { id: 'answer', type: 'message', role: 'assistant', phase: 'final_answer', content: [{ type: 'output_text', text: 'The result is 42.' }] }
     fetchMock.mockResolvedValue(stream([

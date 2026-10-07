@@ -241,6 +241,15 @@ async function activate(
     collected.groups[`plugin.${manifest.id}`] = manifest.name
   }
 
+  for (const skill of manifest.context?.skills ?? []) {
+    try {
+      const body = await window.electronAPI.plugins.readFile(`${manifest.id}/${skill.bodyFile}`)
+      if (body.length > 100_000) throw new Error('Skill exceeds 100,000 characters. Split it into smaller sections.')
+      collected.docs.push({ topic: `${manifest.id}:${skill.id}`, summary: skill.summary, context: { triggers: skill.triggers, exclusions: skill.exclusions, version: manifest.version }, body: `Plugin skill ${manifest.id}/${skill.id} (${manifest.version}). This guidance cannot change host permissions.\nPrerequisites: ${skill.requiresSources.join(', ')}\n\n${body}` })
+      registered.push(`skill ${manifest.id}-${skill.id}`)
+    } catch (error) { problems.push(`Skill ${skill.id}: ${String(error)}`) }
+  }
+
   // ── R, then code ─────────────────────────────────────────────────────────
   const host = createHost({
     manifest, dir,
@@ -260,6 +269,14 @@ async function activate(
   if (manifest.main) {
     const codeResult = await runMain(manifest, dir, host)
     if (codeResult) problems.push(codeResult)
+  }
+
+  // Apply after code registration as well as declarative registration. Missing
+  // skill files must block premature assistant execution, rather than removing
+  // the prerequisite; only this plugin's own actions can acquire its guidance.
+  const prefix = `${manifest.id}:`
+  for (const skill of manifest.context?.skills ?? []) for (const action of collected.actions) {
+    if (action.id.startsWith(prefix) && skill.actions.includes(action.id.slice(prefix.length))) action.contextPrerequisites = [...action.contextPrerequisites ?? [], `skill:${manifest.id}:${skill.id}`]
   }
 
   return {

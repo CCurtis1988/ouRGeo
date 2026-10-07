@@ -24,11 +24,11 @@ describe('starting a Claude Code session mid-conversation', () => {
     expect(out).toContain('do not answer them again')
   })
 
-  it('keeps the most recent turns when the history is too long to carry', () => {
+  it('preserves original user instructions in a fresh authorised reconstruction', () => {
     const old = msg('user', `ancient ${'x'.repeat(20000)}`)
     const recent = msg('assistant', 'the recent one')
     const out = withEarlierTurns([old, recent, msg('user', 'now')], 'now')
     expect(out).toContain('the recent one')
-    expect(out).not.toContain('ancient')
+    expect(out).toContain(old.content)
   })
 })

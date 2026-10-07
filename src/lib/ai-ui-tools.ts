@@ -16,7 +16,7 @@ import { validateArgs, GROUP_LABELS, type Args } from '@/lib/ai-actions/types'
 import {
   findTool, searchTools, toolLine, describeTool, runToolboxTool, categoryListing,
 } from '@/lib/ai-actions/toolbox'
-import { OURGEO_TOPICS, topicListing, readTopic } from '@/lib/ai-skill-ourgeo'
+import { topicListing, readTopic } from '@/lib/ai-skill-ourgeo'
 import { isTransportFailure, transportFailureForModel } from '@/lib/transport-retry'
 import { useUiStore } from '@/store/ui'
 import type { Values } from '@/components/toolbox/tools'
@@ -27,10 +27,11 @@ export const LIST_UI_ACTIONS_TOOL: AiTool = {
     'Search the things you can do in the ouRGeo interface — open panels and dialogs, add and ' +
     'style map layers, import data, manage the R environment, point at controls. Returns each ' +
     'action id with its parameters and its permission tier. Call this when you need an action\'s ' +
-    'parameters; the ids themselves are already listed in your context.',
+    'parameters; use a narrow query or group rather than asking for every schema.',
   inputSchema: {
     type: 'object' as const,
     properties: {
+      cursor: { type: 'string', description: 'Continue a scoped discovery page.' },
       query: { type: 'string', description: 'Free text, e.g. "symbology", "import", "highlight".' },
       group: {
         type: 'string',
@@ -108,9 +109,10 @@ export const OURGEO_DOCS_TOOL: AiTool = {
   inputSchema: {
     type: 'object' as const,
     properties: {
+      cursor: { type: 'string' },
       topic: {
         type: 'string',
-        description: `One of: ${Object.keys(OURGEO_TOPICS).join(', ')}. Omit to list the topics.`,
+        description: 'A documentation topic. Omit to discover topics.',
       },
     },
     required: [],
@@ -147,17 +149,23 @@ function renderArgs(args: Args): string {
   return entries.map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`).join('\n')
 }
 
-async function runAction(id: string, args: Args, opts: Switches): Promise<string> {
+async function runAction(id: string, args: Args, opts: Switches, ensureSkills?: (ids: string[]) => Promise<string | null>): Promise<string> {
   const action = actionById(id)
   if (!action) {
     return `Error: no action called "${id}". Use list_ui_actions to find the right id. ` +
       `Groups: ${Object.keys(GROUP_LABELS).join(', ')}.`
   }
 
+  if (action.contextPrerequisites?.length && ensureSkills) {
+    const guidance = await ensureSkills(action.contextPrerequisites)
+    if (guidance) return guidance
+  }
+
   const invalid = validateArgs(action, args)
   if (invalid) return `Error: ${invalid}`
 
   const decision = checkAllowed(action, opts)
+  let confirmed = false
   if (!decision.allowed && decision.reason === 'autopilot') return decision.message
   if (!decision.allowed && decision.reason === 'requires') return decision.message
   if (!decision.allowed && decision.reason === 'confirm') {
@@ -170,9 +178,21 @@ async function runAction(id: string, args: Args, opts: Switches): Promise<string
       return `Refused: the user declined "${action.id}". Do not retry it. Say what you were going ` +
         'to do and let them decide; you can point at the control with ui:highlight instead.'
     }
+    confirmed = true
   }
 
   try {
+    if (actionById(id) !== action) return 'SOURCE_UNAVAILABLE: this capability changed. Search again before executing.'
+    if (ensureSkills) {
+      const guidance = await ensureSkills(action.contextPrerequisites ?? [])
+      if (guidance) return guidance
+    }
+    const currentDecision = checkAllowed(action, opts)
+    if (!currentDecision.allowed && (currentDecision.reason !== 'confirm' || !confirmed)) {
+      return currentDecision.reason === 'confirm'
+        ? 'Permission changed: this action now needs confirmation. Request it again before executing.'
+        : currentDecision.message
+    }
     const result = await action.run(args)
     const body = typeof result.data === 'string' && result.data ? `\n\n${result.data}` : ''
     return `${result.ok ? '' : 'Failed: '}${result.message}${body}`
@@ -209,6 +229,7 @@ async function runToolbox(input: Record<string, unknown>): Promise<string> {
  *  model can recover from, never a thrown error. */
 export async function runUiTool(
   name: string, input: Record<string, unknown>, opts: Switches,
+  ensureSkills?: (ids: string[]) => Promise<string | null>,
 ): Promise<string> {
   switch (name) {
     case LIST_UI_ACTIONS_TOOL.name:
@@ -227,6 +248,7 @@ export async function runUiTool(
         typeof input.id === 'string' ? input.id : '',
         asArgs(input.params),
         opts,
+        ensureSkills,
       )
 
     case TOOLBOX_TOOLS_TOOL.name: {

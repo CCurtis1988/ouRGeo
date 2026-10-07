@@ -36,6 +36,33 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  context: {
+    lease: () => ipcRenderer.invoke('context:lease'),
+    learningSettings: () => ipcRenderer.invoke('context:learningSettings'),
+    configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => ipcRenderer.invoke('context:configureLearning', settings),
+    closeProject: (lease: string) => ipcRenderer.invoke('context:closeProject', lease),
+    exclusions: (lease: string) => ipcRenderer.invoke('context:exclusions', lease),
+    exclude: (input: { id: string; scope: import('../../src/lib/context/exclusions').ExclusionScope; projectId: string | null; lease: string | null; excluded: boolean }) => ipcRenderer.invoke('context:exclude', input),
+    listGlobal: () => ipcRenderer.invoke('context:listGlobal'),
+    storageStatus: () => ipcRenderer.invoke('context:storageStatus'),
+    connections: () => ipcRenderer.invoke('context:connections'),
+    runtimeStatus: () => ipcRenderer.invoke('context:runtimeStatus'),
+    stageRuntime: (lease: string, acknowledged: boolean) => ipcRenderer.invoke('context:stageRuntime', lease, acknowledged),
+    cancelRuntime: () => ipcRenderer.invoke('context:cancelRuntime'),
+    rollbackRuntime: (lease: string) => ipcRenderer.invoke('context:rollbackRuntime', lease),
+    removeConnection: (id: string) => ipcRenderer.invoke('context:removeConnection', id),
+    saveConnection: (input: import('../../src/lib/context/providers/connections').MemoryConnectionInput, lease: string) => ipcRenderer.invoke('context:saveConnection', input, lease),
+    probeConnection: (id: string) => ipcRenderer.invoke('context:probeConnection', id),
+    disconnectConnection: (id: string) => ipcRenderer.invoke('context:disconnectConnection', id),
+    saveGlobal: (record: import('../../src/lib/context/types').MemoryRecord, preserveCandidate?: boolean) => ipcRenderer.invoke('context:saveGlobal', record, preserveCandidate),
+    forget: (id: string, deletion: import('../../src/lib/context/types').MemoryDeletion) => ipcRenderer.invoke('context:forget', id, deletion),
+    learnGlobal: (messageId: string, text: string) => ipcRenderer.invoke('context:learnGlobal', { messageId, text }),
+    filterLearningSources: (ids: string[]) => ipcRenderer.invoke('context:filterLearningSources', ids),
+    filterDeleted: (ids: string[]) => ipcRenderer.invoke('context:filterDeleted', ids),
+    stageProject: (id: string, revision: number, context: import('../../src/lib/context/types').ProjectContext, lease: string) => ipcRenderer.invoke('context:stageProject', id, revision, context, lease),
+    recoverProject: (id: string, revision: number, lease: string) => ipcRenderer.invoke('context:recoverProject', id, revision, lease),
+    discardProject: (id: string, lease: string) => ipcRenderer.invoke('context:discardProject', id, lease),
+  },
   preflight: { interrupt: (operationId: string): Promise<void> => ipcRenderer.invoke('preflight:interrupt', operationId), review: (operationId: string): Promise<boolean> => ipcRenderer.invoke('preflight:review', operationId) },
   health: {
     history: () => ipcRenderer.invoke('health:history'),
@@ -120,9 +147,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   project: {
     tempEnvPath: (): Promise<string> => ipcRenderer.invoke('project:tempEnvPath'),
-    pack: (bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<void> =>
+    pack: (bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] }> =>
       ipcRenderer.invoke('project:pack', bundlePath, projectJson, envRDataPath),
-    unpack: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null }> =>
+    unpack: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; identityForked?: boolean; contextWarnings: string[]; authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths: string[] }> =>
       ipcRenderer.invoke('project:unpack', bundlePath)
   },
   file: {

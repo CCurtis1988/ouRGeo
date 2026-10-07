@@ -28,12 +28,13 @@ describe('buildToolGuidance', () => {
     expect(g).toContain('Web access — ON')
   })
 
-  it('states plainly that web access is cut off when the switch is off', () => {
+  it('distinguishes web-tool permission from the assistant connection', () => {
     const g = buildToolGuidance({ autoPilot: true, webAccess: false, terminal: false })
     expect(g).toContain('Web access — OFF')
-    expect(g).toMatch(/cut off your internet access/)
+    expect(g).toMatch(/Web tools are off/)
     expect(g).toMatch(/Do not claim to have looked anything up/)
     expect(g).not.toContain('`web_search`')
+    expect(g).toContain('does not disable the configured assistant connection')
   })
 
   it('tells the model to hand code to the user when Autopilot is off', () => {

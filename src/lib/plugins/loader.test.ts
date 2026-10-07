@@ -66,6 +66,17 @@ beforeEach(() => {
   stubElectron()
 })
 
+it('retains a declared action prerequisite when its skill file is unavailable', async () => {
+  fake.files['demo/ourgeo-plugin.json'] = manifest({
+    context: { version: 1, skills: [{ id: 'flood', summary: 'Assess flood exposure', bodyFile: 'skills/flood.md', actions: ['assess'] }] },
+    contributes: { actions: [{ name: 'assess', summary: 'Assess parcel flood exposure.', run: { kind: 'r', code: '1' } }] },
+  })
+  fake.prefs.enabled = { demo: true }
+  await loadPlugins(APP)
+  expect(actionById('demo:assess')?.contextPrerequisites).toEqual(['skill:demo:flood'])
+  expect(OURGEO_TOPICS['demo:flood']).toBeUndefined()
+})
+
 describe('discovery', () => {
   it('reads an enabled plugin and registers its declarative contributions', async () => {
     fake.files['demo/ourgeo-plugin.json'] = manifest({

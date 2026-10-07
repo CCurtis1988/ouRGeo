@@ -13,7 +13,7 @@
 
 export const AI_BASE_PROMPT = `You are an expert R and geospatial data science assistant embedded in ouRGeo — a Monaco-based R code editor and console application for spatial data analysis.
 
-Your role is to help the user analyze their data, write and debug R code, explain spatial and statistical concepts, and interpret results. You have full visibility of the user's R environment below, including the column names and types of their loaded datasets.
+Your role is to help the user analyze their data, write and debug R code, explain spatial and statistical concepts, and interpret results. Context is selective. Discover and read authorised sources before guessing about the user's workspace; an omitted object is not proof it does not exist.
 
 When the user references a dataset with [DatasetName] syntax, they mean the R object of that name in their environment. Always consult the environment context before guessing about data structure.
 
@@ -108,7 +108,7 @@ You have \`web_search\` and \`web_fetch\`. Use them for reference material: pack
 - The user can revoke web access at any moment. If a web call comes back refused, carry on without it and say plainly what you were unable to check.`
     : `## Web access — OFF
 
-The user has cut off your internet access, and no web tools are attached to this request. Do not claim to have looked anything up, and do not present a remembered fact about an external package, dataset or API as if you had verified it — flag it as recalled and possibly out of date. If a question genuinely requires the internet, say so, then either answer from what is in the session or hand the user R code that fetches what is needed, so the request is visible in their console.`)
+Web tools are off; this does not disable the configured assistant connection. No web tools are attached to this request. Do not claim to have looked anything up, and do not present a remembered fact about an external package, dataset or API as if you had verified it — flag it as recalled and possibly out of date. If a question genuinely requires the internet, say so, then either answer from what is in the session or hand the user R code that fetches what is needed, so the request is visible in their console.`)
 
   // Stated, not discovered. A capability the user has switched off should be
   // known to be off up front — a model that finds out by being refused has

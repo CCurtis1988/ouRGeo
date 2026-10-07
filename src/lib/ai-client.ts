@@ -1,9 +1,14 @@
 import type { AiProvider, ChatMessage, OpenAiAssistantMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
+import { selectConversation } from '@/lib/context/compaction'
+import { compactToolResults, type ToolProtocol } from '@/lib/context/tool-compaction'
+import { estimateTokens, inputCapacity, assertInvocationBudget } from '@/lib/context/budget'
+import { redactContext } from '@/lib/context/policy'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
 import { parseClaudeLine, claudeFailureMessage, isMissingSession } from '@/lib/ai-claude-stream'
 import { sendChatGptSubscription } from '@/lib/ai-chatgpt-transport'
+import { normaliseUsage, type UsageProtocol, type UsageReport } from '@/lib/context/usage'
 
 // ── Context window sizes ───────────────────────────────────────────────────
 export const CONTEXT_SIZES: Record<string, number> = {
@@ -29,7 +34,7 @@ export const CONTEXT_SIZES: Record<string, number> = {
 }
 
 export function getContextSize(model: string): number {
-  return CONTEXT_SIZES[model] ?? 128_000
+  return CONTEXT_SIZES[model] ?? 32_000
 }
 
 /** What to show for a Claude Code alias until the run reports its real
@@ -500,12 +505,24 @@ export async function fetchLocalContextSize(
   provider: AiProvider, baseUrl: string, apiKey = '', model = '',
 ): Promise<number | null> {
   const meta = LOCAL_PROVIDER_MAP[provider]
-  if (!meta || meta.transport !== 'openai') return null
+  if (!meta) return null
   const base = baseUrl.replace(/\/$/, '')
   const headers: Record<string, string> = {}
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
   const pick = (n: unknown): number | null =>
     typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.floor(n) : null
+
+  if (meta.transport === 'ollama') {
+    try {
+      const res = await proxyFetch(`${base}/api/ps`, { headers })
+      if (res.ok) {
+        const data = await res.json() as { models?: { name?: string; model?: string; context_length?: number }[] }
+        const entry = data.models?.find(entry => entry.name === model || entry.model === model || entry.name === `${model}:latest`)
+        return pick(entry?.context_length)
+      }
+    } catch { /* A not-yet-loaded runner has no verified allocation. */ }
+    return null
+  }
 
   // 1. llama.cpp /props — the actual runtime n_ctx (base URL without the /v1 suffix)
   try {
@@ -529,7 +546,7 @@ export async function fetchLocalContextSize(
         data?: { id?: string; max_model_len?: number; context_length?: number; meta?: { n_ctx_train?: number } }[]
       }
       const list = data.data ?? []
-      const entry = list.find((m) => m.id === model) ?? list[0]
+      const entry = list.find((m) => m.id === model) ?? (!model ? list[0] : undefined)
       if (entry) {
         const n = pick(entry.max_model_len) ?? pick(entry.context_length) ?? pick(entry.meta?.n_ctx_train)
         if (n) return n
@@ -541,7 +558,7 @@ export async function fetchLocalContextSize(
 }
 
 /** Resolve the context window to display/use for a (provider, model):
- *  explicit manual override → auto-detected → static table → 128k default.
+ *  manual override → verified runtime → model table → conservative fallback.
  *  `detected` is the optional result of fetchLocalContextSize (cached by caller). */
 export function resolveContextSize(
   provider: AiProvider, model: string, keys: Record<string, string>, detected?: number | null,
@@ -550,6 +567,7 @@ export function resolveContextSize(
     const override = localCtxOverride(provider, keys)
     if (override) return override
     if (detected && detected > 0) return detected
+    if (provider === 'ollama') return 4096
   }
   // The CLI is given an ALIAS — `opus`, `sonnet`, `haiku` — and which model
   // and window that resolves to is the user's plan's business (a `sonnet`
@@ -564,6 +582,8 @@ export function resolveContextSize(
 // ── Send message to provider ───────────────────────────────────────────────
 export interface SendOptions {
   /** Optional bound for short diagnostics and other small responses. */
+  beforeInvocation?: (payload: unknown, estimatedInput: number, window: number) => void
+  archiveToolResult?: (text: string) => string
   maxOutputTokens?: number
   testConnection?: boolean
   /** Explicit runtime context cap for memory-constrained Ollama setups. */
@@ -588,6 +608,8 @@ export interface SendOptions {
   onChunk: (text: string) => void
   onToolCall?: (call: ToolCall) => Promise<string>
   onUsage?: (used: number, total: number) => void
+  /** Per-request cost accounting, separate from the latest context occupancy. */
+  onInvocationUsage?: (report: UsageReport) => void
   /** Visible Responses messages only; encrypted reasoning stays in turn memory. */
   onOpenAiMessages?: (messages: OpenAiAssistantMessage[]) => void
   signal?: AbortSignal
@@ -628,7 +650,43 @@ export interface SendOptions {
   onClaudeRateLimit?: (fiveHour: number, sevenDay: number, resetsAt: number) => void
 }
 
+export function checkInvocation(opts: SendOptions, payload: unknown): void {
+  opts.signal?.throwIfAborted()
+  const window = opts.contextSize ?? getContextSize(opts.model)
+  const used = assertInvocationBudget(payload, window, opts.maxOutputTokens ?? 4000)
+  opts.beforeInvocation?.(payload, used, window)
+}
+
+export function compactInvocation(opts: SendOptions, messages: unknown[], protocol: ToolProtocol, payload: () => unknown): void {
+  if (!opts.archiveToolResult) return
+  compactToolResults(messages, protocol, inputCapacity(opts.contextSize ?? getContextSize(opts.model), opts.maxOutputTokens ?? 4000), payload, opts.archiveToolResult)
+}
+export function reportInvocationUsage(opts: SendOptions, value: unknown, protocol: UsageProtocol, scope: UsageReport['scope'] = 'invocation', attempt = 0): void {
+  const usage = normaliseUsage(value, protocol)
+  if (usage) opts.onInvocationUsage?.({ ...usage, invocation: 1, scope, attempt })
+}
+
 export async function sendMessage(opts: SendOptions): Promise<string> {
+  const window = Math.min(opts.contextSize ?? (opts.provider === 'claude-cli' ? CLAUDE_CLI_MIN_CONTEXT : getContextSize(opts.model)), opts.ollamaContextSize ?? Infinity)
+  let invocations = 0, toolCalls = 0
+  const beforeInvocation = opts.beforeInvocation
+  const invocationUsage = opts.onInvocationUsage
+  const originalTool = opts.onToolCall
+  opts = { ...opts, contextSize: window, maxOutputTokens: opts.maxOutputTokens ?? Math.min(4000, Math.floor(window / 4)),
+    beforeInvocation: (payload, used, capacity) => {
+      if (++invocations > 12) throw new Error('BUDGET_LIMIT: invocation limit reached. Continue in another turn if more inspection is needed.')
+      beforeInvocation?.(payload, used, capacity)
+    },
+    onInvocationUsage: report => invocationUsage?.({ ...report, invocation: invocations }),
+    onToolCall: originalTool ? async call => {
+      opts.signal?.throwIfAborted()
+      if (++toolCalls > 24) throw new Error('BUDGET_LIMIT: tool-call limit reached. Continue in another turn.')
+      return redactContext(await originalTool(call))
+    } : undefined,
+    systemPrompt: redactContext(opts.systemPrompt), messages: opts.messages.map(m => ({ id: m.id, role: m.role, timestamp: m.timestamp, content: redactContext(m.content), openAiMessages: m.openAiMessages?.map(p => ({ ...p, content: redactContext(p.content) })) })) }
+  const dialogueBudget = inputCapacity(window, opts.maxOutputTokens) - estimateTokens({ system: opts.systemPrompt, tools: opts.tools, context: opts.sessionContext })
+  opts.messages = selectConversation(opts.messages, dialogueBudget).messages
+  assertInvocationBudget({ system: opts.systemPrompt, messages: opts.messages, tools: opts.tools, context: opts.sessionContext }, opts.contextSize ?? getContextSize(opts.model), opts.maxOutputTokens ?? 4000)
   if (opts.provider === 'openai-subscription') return sendChatGptSubscription(opts)
   if (opts.provider === 'anthropic') return sendAnthropic(opts)
   if (opts.provider === 'claude-cli') return sendClaudeCli(opts)
@@ -706,7 +764,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
 
   const body: Record<string, unknown> = {
     model,
-    max_tokens: opts.maxOutputTokens ?? 8096,
+    max_tokens: opts.maxOutputTokens ?? 4000,
     system: systemPrompt,
     messages: apiMessages,
     stream: true,
@@ -715,12 +773,13 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
 
   let fullText = ''
   let inputTokens = 0
-  let priorOutput = 0
 
   // One streamed assistant turn. Text is forwarded to `onChunk` as it arrives —
   // tool_use blocks arrive as `input_json_delta` fragments and are reassembled
   // here, so Autopilot/web turns stream just like plain chat.
   const streamTurn = async (): Promise<{ blocks: AnthropicBlock[]; stopReason: string }> => {
+    compactInvocation(opts, apiMessages, 'anthropic', () => body)
+    checkInvocation(opts, body)
     const res = await proxyFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -739,6 +798,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
     const byIndex = new Map<number, AnthropicBlock>()
     let stopReason = ''
     let turnOutput = 0
+    let reportedUsage: Record<string, unknown> = {}
 
     await readLineStream(res.body!, (line) => {
       const raw = ssePayload(line)
@@ -748,13 +808,15 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
         index?: number
         content_block?: { type?: string; id?: string; name?: string }
         delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string }
-        usage?: { output_tokens?: number }
-        message?: { usage?: { input_tokens: number } }
+        usage?: Record<string, unknown> & { output_tokens?: number }
+        message?: { usage?: Record<string, unknown> & { input_tokens: number } }
       }
       try { evt = JSON.parse(raw) } catch { return /* malformed chunk */ }
 
       if (evt.type === 'message_start' && evt.message?.usage) {
-        inputTokens = evt.message.usage.input_tokens
+        reportedUsage = { ...reportedUsage, ...evt.message.usage }
+        inputTokens = normaliseUsage(reportedUsage, 'anthropic')?.inputTokens ?? 0
+        reportInvocationUsage(opts, reportedUsage, 'anthropic')
       } else if (evt.type === 'content_block_start' && evt.index != null) {
         const cb = evt.content_block
         if (cb?.type === 'tool_use') {
@@ -774,13 +836,15 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
       } else if (evt.type === 'message_delta') {
         if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason
         if (evt.usage?.output_tokens != null) {
+          reportedUsage = { ...reportedUsage, ...evt.usage }
+          inputTokens = normaliseUsage(reportedUsage, 'anthropic')?.inputTokens ?? inputTokens
           turnOutput = evt.usage.output_tokens
-          onUsage?.(inputTokens + priorOutput + turnOutput, opts.contextSize ?? getContextSize(model))
+          onUsage?.(inputTokens + turnOutput, opts.contextSize ?? getContextSize(model))
+          reportInvocationUsage(opts, reportedUsage, 'anthropic')
         }
       }
     })
 
-    priorOutput += turnOutput
     return {
       blocks: [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, b]) => b),
       stopReason,
@@ -842,6 +906,8 @@ async function sendOpenAICompatible(
   let fullText = ''
 
   const doRequest = async (): Promise<void> => {
+    compactInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }))
+    checkInvocation(opts, { ...body, messages: apiMessages })
     const res = await proxyFetch(endpoint, {
       method: 'POST',
       headers: {
@@ -873,12 +939,13 @@ async function sendOpenAICompatible(
           }
           finish_reason?: string
         }[]
-        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+        usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details?: { cached_tokens?: number }; completion_tokens_details?: { reasoning_tokens?: number } }
       }
       try { chunk = JSON.parse(raw) } catch { return /* malformed chunk */ }
 
       if (chunk.usage) {
         onUsage?.(chunk.usage.total_tokens, opts.contextSize ?? getContextSize(model))
+        reportInvocationUsage(opts, chunk.usage, 'openai-chat')
       }
       const choice = chunk.choices?.[0]
       if (!choice) return
@@ -951,6 +1018,8 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
 
   const doRequest = async (): Promise<void> => {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`
+    compactInvocation(opts, contents, 'google', () => ({ ...body, contents }))
+    checkInvocation(opts, { ...body, contents })
     const res = await proxyFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -973,12 +1042,13 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
             parts?: { text?: string; functionCall?: { name: string; args: Record<string, unknown> } }[]
           }
         }[]
-        usageMetadata?: { totalTokenCount: number }
+        usageMetadata?: Record<string, unknown> & { totalTokenCount: number }
       }
       try { chunk = JSON.parse(raw) } catch { return /* malformed */ }
 
-      if (chunk.usageMetadata?.totalTokenCount) {
-        onUsage?.(chunk.usageMetadata.totalTokenCount, opts.contextSize ?? getContextSize(model))
+      if (chunk.usageMetadata) {
+        if (chunk.usageMetadata.totalTokenCount != null) onUsage?.(chunk.usageMetadata.totalTokenCount, opts.contextSize ?? getContextSize(model))
+        reportInvocationUsage(opts, chunk.usageMetadata, 'google')
       }
       for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
         if (part.text) {
@@ -1024,7 +1094,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     messages: apiMessages,
     stream: !hasTools,
     ...(opts.testConnection ? { think: false, options: { num_ctx: 4096, num_predict: opts.maxOutputTokens ?? 512 } }
-      : opts.ollamaContextSize ? { options: { num_ctx: opts.ollamaContextSize } } : {}),
+      : { options: { num_predict: opts.maxOutputTokens ?? 4000, ...(opts.ollamaContextSize ? { num_ctx: opts.ollamaContextSize } : {}) } }),
   }
   if (hasTools) body.tools = openAiTools(tools)
 
@@ -1033,12 +1103,15 @@ async function sendOllama(opts: SendOptions): Promise<string> {
   if (hasTools) {
     // Non-streaming for tool calls (Ollama streaming + tools is unreliable)
     while (true) {
+      compactInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }))
+      checkInvocation(opts, { ...body, messages: apiMessages })
       const res = await proxyFetch(`${base}/api/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ ...body, messages: apiMessages }),
         signal,
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as {
         message?: {
           content?: string
@@ -1046,6 +1119,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
         }
         prompt_eval_count?: number
         eval_count?: number
+        total_duration?: number
         done?: boolean
       }
       const msg = data.message
@@ -1053,6 +1127,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
       if (data.prompt_eval_count != null && data.eval_count != null) {
         onUsage?.(data.prompt_eval_count + data.eval_count, opts.contextSize ?? getContextSize(model))
       }
+      reportInvocationUsage(opts, data, 'ollama')
       if (!msg?.tool_calls?.length) break
       apiMessages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls })
       for (const tc of msg.tool_calls) {
@@ -1069,6 +1144,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
   }
 
   // Streaming (no tools) — NDJSON, one JSON object per line
+  checkInvocation(opts, body)
   const res = await proxyFetch(`${base}/api/chat`, {
     method: 'POST',
     headers,
@@ -1081,6 +1157,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
       message?: { content?: string }
       prompt_eval_count?: number
       eval_count?: number
+      total_duration?: number
       done?: boolean
     }
     try { chunk = JSON.parse(line) } catch { return /* malformed */ }
@@ -1091,6 +1168,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     if (chunk.done && chunk.prompt_eval_count != null && chunk.eval_count != null) {
       onUsage?.(chunk.prompt_eval_count + chunk.eval_count, opts.contextSize ?? getContextSize(model))
     }
+    if (chunk.done) reportInvocationUsage(opts, chunk, 'ollama')
   })
   return fullText
 }
@@ -1100,21 +1178,10 @@ async function sendOllama(opts: SendOptions): Promise<string> {
 /** How much of an existing conversation to hand a session that is starting
  *  fresh. Enough to answer a follow-up; not so much that the first turn after
  *  a provider switch costs a whole context window. */
-const CLAUDE_CATCHUP_CHARS = 12000
-
 export function withEarlierTurns(messages: ChatMessage[], latest: string): string {
   const earlier = messages.slice(0, -1).filter((m) => m.content.trim())
   if (earlier.length === 0) return latest
-  const lines: string[] = []
-  let budget = CLAUDE_CATCHUP_CHARS
-  // Newest first while filling, so what survives the cap is what the follow-up
-  // most likely refers to.
-  for (const m of [...earlier].reverse()) {
-    const line = `${m.role === 'user' ? 'User' : 'You'}: ${m.content.trim()}`
-    if (line.length > budget) break
-    budget -= line.length
-    lines.unshift(line)
-  }
+  const lines = earlier.map(m => `${m.role === 'user' ? 'User' : 'You'}: ${m.content.trim()}`)
   if (lines.length === 0) return latest
   return `<earlier-conversation>\nThis conversation started with another provider, so you do not have these turns. They are here for reference only — do not answer them again.\n\n${lines.join('\n\n')}\n</earlier-conversation>\n\n${latest}`
 }
@@ -1187,6 +1254,7 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
   // The session context leads the turn rather than the system prompt, so the
   // CLI's cached prefix survives from one turn to the next. See
   // `SendOptions.sessionContext` for what that is worth in money.
+  checkInvocation(opts, { systemPrompt, turn, context: opts.sessionContext, tools: opts.tools })
   const prompt = opts.sessionContext ? `${opts.sessionContext}\n\n---\n\n${turn}` : turn
 
   const tools = (opts.tools ?? []).map((t) => ({
@@ -1243,6 +1311,11 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
           } else if (ev.kind === 'rateLimit') {
             opts.onClaudeRateLimit?.(ev.fiveHour, ev.sevenDay, ev.resetsAt)
           } else if (ev.kind === 'result') {
+            // The CLI result sums its internal calls. Keep it distinct from
+            // host invocation counts and the latest context-window occupancy.
+            let rawUsage: unknown
+            try { rawUsage = JSON.parse(line).usage } catch { /* Malformed lines carry no receipt. */ }
+            reportInvocationUsage(opts, rawUsage, 'anthropic', 'transport-run')
             sawResult = true
             resultSubtype = ev.subtype
             resultIsError = ev.isError

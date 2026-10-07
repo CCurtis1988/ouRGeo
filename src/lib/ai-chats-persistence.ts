@@ -1,6 +1,7 @@
 import { useAiStore, type AiChat } from '@/store/ai'
 import { useProjectStore } from '@/store/project'
 import { getDataPath } from '@/lib/persistence'
+import { importChats } from '@/lib/context/chat-import'
 
 /**
  * Where the AI panel's conversations are kept.
@@ -58,11 +59,8 @@ export function buildChatsData(): ChatsData {
  * a hand-edited or truncated file must leave a usable panel, not a switcher
  * full of rows that crash when opened.
  */
-export function applyChatsData(data: ChatsData | undefined | null): boolean {
-  const chats = Array.isArray(data?.chats)
-    ? data.chats.filter((c): c is AiChat =>
-        !!c && typeof c.id === 'string' && Array.isArray(c.messages))
-    : []
+export function applyChatsData(data: ChatsData | undefined | null, portable = false): boolean {
+  const chats = importChats(data?.chats, portable)
   if (chats.length === 0) return false
   useAiStore.getState().loadChats(chats, data?.activeChatId ?? null)
   return true
@@ -71,6 +69,7 @@ export function applyChatsData(data: ChatsData | undefined | null): boolean {
 /** Put the panel back to a single empty conversation — what a project load or
  *  New Project starts from, so one project never inherits another's chats. */
 export function resetChats(): void {
+  useAiStore.getState().cancelStream()
   useAiStore.getState().loadChats([], null)
 }
 

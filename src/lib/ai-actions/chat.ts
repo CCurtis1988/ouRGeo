@@ -20,6 +20,7 @@
 // only what the user can already see by clicking the switcher.
 
 import { ok, fail, argStr, type UiAction } from './types'
+import { useProjectStore } from '@/store/project'
 import { useAiStore } from '@/store/ai'
 import { truncateForModel } from '@/lib/ai-client'
 
@@ -42,7 +43,8 @@ export const chatActions: UiAction[] = [
     params: [],
     tier: 'always',
     run: () => {
-      const { chats, activeChatId } = useAiStore.getState()
+      const { chats: allChats, activeChatId } = useAiStore.getState()
+      const chats = useProjectStore.getState().path ? allChats : allChats.filter(c => c.id === activeChatId)
       const rows = [...chats]
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .map((c) => {
@@ -76,7 +78,8 @@ export const chatActions: UiAction[] = [
     tier: 'always',
     run: (args) => {
       const id = argStr(args, 'id')
-      const { chats, activeChatId } = useAiStore.getState()
+      const { chats: allChats, activeChatId } = useAiStore.getState()
+      const chats = useProjectStore.getState().path ? allChats : allChats.filter(c => c.id === activeChatId)
       const chat = chats.find((c) => c.id === id)
         // A model that has just been handed a list of titles will reach for a
         // title, so accept one rather than refusing over a formality.

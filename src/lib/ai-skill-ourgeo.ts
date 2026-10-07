@@ -235,6 +235,84 @@ Curves commit as real \`CIRCULARSTRING\`/\`COMPOUNDCURVE\` geometry, fitted to w
 
 **Edits stage; they do not apply.** Everything drawn accumulates as pending edits, counted in the ribbon's Save Edits badge. Save Edits writes them to the R object as one batched statement echoed to the console, or discards them and restores the previous geometry. Database-backed layers flush through the .Rgeo update path instead. This staging is also how the AI's \`draw:addFeature\` works: a geometry the assistant produces is reviewed exactly like one the user drew.`,
 
+  'context-memory': `# Context and memory
+
+Context is selective. Use context_search to find enabled skills, action descriptions,
+current workspace schemas, console executions, open documents, authorised chats
+and active memories. Use context_read with the returned opaque ref and cursor for
+bounded evidence; partial pages are not complete documents. A missing indexed hit
+does not prove the source is absent. before/after accept ISO timestamps. Scope
+selectors narrow the current chat/project/profile access; they cannot open another
+project or another scratch chat. Never infer current measurements from memories.
+
+list_ui_actions uses paginated discovery; narrow the query or read a source ref to
+obtain actual parameter definitions. Consequential theme/document actions require
+their skill prerequisites to have reached the model. A REQUIRED_SKILL response
+does not execute the action: read the guidance and retry on the next invocation.
+
+Under each answer, expand Context to inspect selected redacted excerpts, revisions,
+their delivery state, the assistant destination and estimated prompt size. Reported
+input/output/cache/reasoning usage is separate; missing counters and monetary
+costs remain unknown. Failed or cancelled requests retain available receipts on
+their originating turn or partial answer. CLI run totals do not establish internal
+invocation occupancy. Cached/reasoning breakdowns are provider-specific and must
+not be double-counted. Conversation only means no
+auxiliary sources were selected. Cancelled delivery can be uncertain. Effort sets
+retrieval depth, not permissions. Web off disables web tools, not the configured
+assistant connection.
+
+Exclude a source in the inspector; saved-project and reference choices persist
+on this device. Context & memory lists exclusions with Allow again. Scratch
+choices are transient. Exclusions omit older assistant prose from future prompts
+while preserving user messages, and pause generic assistant execution that could
+bypass a private-source filter. Direct GUI/R use remains available. A source
+excluded locally may already have been transmitted; exclusion cannot unsend it.
+
+The Memory library has Conversation, Project and About you tabs. Explicit memories
+can be added, corrected, moved, exported as readable JSONL and forgotten. Project
+instructions such as “Use miles for this project” await project save. Direct
+remember/forget commands are fulfilled locally without model inference. Narrow
+conflicting unit-system and English preferences supersede within their own scope;
+project instructions take precedence without changing About you.
+Project memory requires a saved project and commits on project save; Save As creates a new
+project identity with snapshot lineage. Scratch has conversation context and live
+resources, but no project memory. About you is protected local personal storage.
+Moving a project bundle keeps its identity. Duplicate bundles offer Open as this
+project or Open as a copy. Copies get new project/memory IDs and must be saved;
+external memory bindings and local exclusions are not inherited.
+On import, unknown editor paths use bundled text; choose Save As to link local
+scripts. Unknown database paths require choosing local files. A portable bundle
+cannot authorise unrelated absolute paths on this device.
+
+context_remember requires an explicit request in the current user message; the host
+derives the statement and scope. context_forget requires a specific authorised
+memory; ambiguous/broad requests go to the library for review. Source text cannot
+supply memory intent. Forgetting excludes future retrieval and suppresses learning
+from the same old evidence, but cannot erase already transmitted bytes or backups.
+Deleting a chat also forgets memories supported solely by that chat. The review
+can retain independently edited or pinned records; shared/manual memories remain.
+Storage failures keep the chat reviewable. Restore unavailable protected storage
+before deleting non-empty chats so their derived memories are not orphaned.
+
+Settings → AI Assistant → Context & memory offers remember-only, suggestions and
+opt-in automatic learning for narrow user-declared preferences/decisions. Suggestions
+are not retrieved until accepted. Scratch learning needs a separate opt-in. No paid
+extractor or mandatory model download runs. Always apply pins have a visible recurring
+token cost and a separate 1,200-token card limit; oversized pins are never silently
+dropped. Global defaults do not overwrite project preferences.
+
+The active manager is currently Built-in, on this device. Settings can save scoped
+Mnemosyne/Hindsight connections with protected authentication and test reachability
+without sending chat or memory content. Disconnect revokes tests and removes local
+authentication; removing disconnected settings does not erase remote copies.
+Reachability does not certify isolation, deletion or processing destinations.
+Linux x86_64 offers explicitly acknowledged experimental managed-runtime staging
+with synthetic health checks and cancellation. It does not enable personal memory.
+Provider retrieval/ingestion remain unavailable pending certification.
+Do not promise automatic provider writes, offline runtime
+certification, precise provider-held occupancy or a hard invoice cap.
+`,
+
   projects: `# Projects and persistence
 
 ouRGeo launches into a **scratch workspace**: a clean R session every time, never saved in place. Save As turns it into a real project.
@@ -797,25 +875,27 @@ export const BUILTIN_OURGEO_TOPICS: Readonly<Record<string, string>> = BUILTIN_T
 export const OURGEO_TOPICS: Record<string, string> = { ...BUILTIN_TOPICS }
 
 const PLUGIN_SUMMARIES: Record<string, string> = {}
+const PLUGIN_CONTEXT: Record<string, { triggers: string[]; exclusions: string[]; version: string }> = {}
 
 export function registerPluginTopics(
-  topics: { topic: string; summary: string; body: string }[],
+  topics: { topic: string; summary: string; body: string; context?: { triggers: string[]; exclusions: string[]; version: string } }[],
 ): void {
   for (const key of Object.keys(OURGEO_TOPICS)) {
     if (!(key in BUILTIN_TOPICS)) delete OURGEO_TOPICS[key]
   }
   for (const key of Object.keys(PLUGIN_SUMMARIES)) delete PLUGIN_SUMMARIES[key]
+  for (const key of Object.keys(PLUGIN_CONTEXT)) delete PLUGIN_CONTEXT[key]
   for (const t of topics) {
     const key = t.topic.trim().toLowerCase()
     if (!key || key in BUILTIN_TOPICS) continue
     OURGEO_TOPICS[key] = t.body
-    PLUGIN_SUMMARIES[key] = t.summary
+    PLUGIN_SUMMARIES[key] = t.summary.slice(0, 500)
+    if (t.context) PLUGIN_CONTEXT[key] = { triggers: t.context.triggers.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), exclusions: t.context.exclusions.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), version: String(t.context.version).slice(0, 128) }
   }
 }
 
-/** Topic names, for when the model calls `ourgeo_docs` with nothing. */
-export function topicListing(): string {
-  const summaries: Record<string, string> = {
+const TOPIC_SUMMARIES: Record<string, string> = {
+    'context-memory': 'selective retrieval, context inspector, effort, scoped memory, learning controls and forgetting',
     interface: 'panels, toolbar, editor, console, viewers, settings',
     toolbox: 'the 88 geoprocessing tools, piping, Linearize and Calculation CRS',
     'data-import': 'Load Data, the Data Connector and its providers, .Rgeo',
@@ -833,9 +913,15 @@ export function topicListing(): string {
     'plugin-tools': 'toolbox tools, actions and toolbar buttons as JSON',
     'plugin-code': 'when a plugin needs real code, and the rules it runs under',
     layout: 'the four zones, moving and sizing panels, the toolbar, presets',
-  }
+}
+export function topicDescriptors(): { topic: string; summary: string; triggers: string[]; exclusions: string[]; version: string }[] {
+  return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin' }))
+}
+
+/** Topic names, for when the model calls `ourgeo_docs` with nothing. */
+export function topicListing(): string {
   const lines = Object.keys(OURGEO_TOPICS)
-    .map((t) => `- ${t} — ${summaries[t] ?? PLUGIN_SUMMARIES[t] ?? ''}`)
+    .map((t) => `- ${t} — ${TOPIC_SUMMARIES[t] ?? PLUGIN_SUMMARIES[t] ?? ''}`)
   return `ouRGeo documentation topics (pass one as \`topic\`):\n${lines.join('\n')}`
 }
 

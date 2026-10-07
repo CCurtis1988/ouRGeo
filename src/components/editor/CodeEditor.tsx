@@ -48,6 +48,7 @@ import { ChunkOutputView } from './chunks/ChunkOutputView'
 import { useChunkStore } from '@/store/chunks'
 import { createPortal } from 'react-dom'
 import { registerRMarkdownLanguage } from '@/lib/markdown/rmarkdown-monarch'
+import { registerDocumentSnapshot } from '@/lib/context/document-snapshots'
 
 loader.config({ monaco })
 
@@ -150,6 +151,15 @@ export function CodeEditor(): React.ReactElement {
   // if it hasn't changed on exit we write back the ORIGINAL text, so toggling
   // in and straight back out leaves the file byte-identical.
   const visualRef = useRef<VisualEditorHandle>(null)
+  useEffect(() => registerDocumentSnapshot(panelId, tabId => {
+    if (activeIdRef.current !== tabId) return null
+    const tab = tabById(tabId)
+    if (tab?.viewMode !== 'visual') return modelsRef.current.get(tabId)?.getValue() ?? tab?.content ?? null
+    const baseline = visualBaseline.current
+    const edited = visualRef.current?.getMarkdown()
+    if (!baseline || edited == null) return null
+    return edited === baseline.body ? baseline.original : joinFrontMatter(baseline.frontMatter, edited)
+  }), [panelId])
   const visualBaseline = useRef<{ body: string; original: string; frontMatter: string } | null>(null)
   // Where the reader was when they switched, carried across in both directions
   // so a mode toggle keeps its place instead of jumping to the top. The view

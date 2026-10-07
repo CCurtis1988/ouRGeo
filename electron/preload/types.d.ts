@@ -192,6 +192,33 @@ export interface VoiceModelStatus {
 declare global {
   interface Window {
     electronAPI: {
+      context: {
+        learningSettings: () => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
+        configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
+        lease: () => Promise<{ id: string; projectId: string | null }>
+        closeProject: (lease: string) => Promise<void>
+        exclusions: (lease: string) => Promise<import('../../src/lib/context/exclusions').ExclusionSelection[]>
+        exclude: (input: { id: string; scope: import('../../src/lib/context/exclusions').ExclusionScope; projectId: string | null; lease: string | null; excluded: boolean }) => Promise<void>
+        listGlobal: () => Promise<import('../../src/lib/context/types').MemoryRecord[]>
+        storageStatus: () => Promise<{ empty: boolean }>
+        connections: () => Promise<import('../../src/lib/context/providers/connections').PublicMemoryConnection[]>
+        runtimeStatus: () => Promise<import('../../src/lib/context/providers/runtimes').ManagedRuntimeStatus>
+        stageRuntime: (lease: string, acknowledged: boolean) => Promise<import('../../src/lib/context/providers/runtimes').ManagedRuntimeStatus>
+        cancelRuntime: () => Promise<void>
+        rollbackRuntime: (lease: string) => Promise<import('../../src/lib/context/providers/runtimes').ManagedRuntimeStatus>
+        removeConnection: (id: string) => Promise<void>
+        saveConnection: (input: import('../../src/lib/context/providers/connections').MemoryConnectionInput, lease: string) => Promise<import('../../src/lib/context/providers/connections').PublicMemoryConnection>
+        probeConnection: (id: string) => Promise<import('../../src/lib/context/providers/connections').PublicMemoryConnection>
+        disconnectConnection: (id: string) => Promise<void>
+        saveGlobal: (record: import('../../src/lib/context/types').MemoryRecord, preserveCandidate?: boolean) => Promise<import('../../src/lib/context/types').MemoryRecord>
+        forget: (id: string, deletion: import('../../src/lib/context/types').MemoryDeletion) => Promise<void>
+        learnGlobal: (messageId: string, text: string) => Promise<import('../../src/lib/context/types').MemoryRecord | null>
+        filterLearningSources: (ids: string[]) => Promise<string[]>
+        filterDeleted: (ids: string[]) => Promise<string[]>
+        stageProject: (id: string, revision: number, context: import('../../src/lib/context/types').ProjectContext, lease: string) => Promise<void>
+        recoverProject: (id: string, revision: number, lease: string) => Promise<import('../../src/lib/context/types').ProjectContext | null>
+        discardProject: (id: string, lease: string) => Promise<void>
+      }
       preflight: { interrupt: (operationId: string) => Promise<void>; review: (operationId: string) => Promise<boolean> }
     health: import('../../src/lib/health-types').HealthAPI
       r: {
@@ -236,8 +263,8 @@ declare global {
       }
       project: {
         tempEnvPath(): Promise<string>
-        pack(bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<void>
-        unpack(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null }>
+        pack(bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] } | void>
+        unpack(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; identityForked?: boolean; contextWarnings?: string[]; authorisedFileLinks?: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths?: string[] }>
       }
       file: {
         read(filePath: string): Promise<string>

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { BUILTIN_ACTIONS, actionById } from './registry'
 import { validateArgs } from './types'
+import { useProjectStore } from '@/store/project'
 import { useAiStore, makeChat, type AiChat, type ChatMessage } from '@/store/ai'
 
 vi.mock('@/lib/ai-preferences-persistence', () => ({
@@ -40,6 +41,7 @@ async function run(id: string, args: Record<string, unknown> = {}): Promise<stri
 }
 
 beforeEach(() => {
+  useProjectStore.setState({ path: '/saved/project.ourgeoproj', projectId: 'saved-project' })
   useAiStore.setState({ chats: seed(), activeChatId: 'current' })
 })
 
@@ -117,5 +119,14 @@ describe('chat:read', () => {
         ...useAiStore.getState().chats],
     })
     expect(await run('chat:read', { id: 'blank' })).toContain('is empty')
+  })
+})
+
+
+describe('scratch conversation boundaries', () => {
+  it('does not list or read another scratch conversation without attachment', async () => {
+    useProjectStore.setState({ path: null, projectId: null })
+    expect(await run('chat:list')).not.toContain('Buffer the roads')
+    expect(await run('chat:read', { id: 'older' })).toMatch(/^FAILED:/)
   })
 })

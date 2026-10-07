@@ -68,6 +68,7 @@ export interface DocsSpec {
   /** One line for the topic listing. */
   summary: string
   body: string
+  context?: { triggers: string[]; exclusions: string[]; version: string }
 }
 
 /** An action the assistant can run. `run` is declarative in all three forms,
@@ -170,6 +171,7 @@ export interface PluginManifest {
   description?: string
   author?: string
   homepage?: string
+  context?: { version: 1; skills: import('@/lib/context/skills').SkillDescriptor[] }
   permissions?: PluginPermission[]
   /** Entry point, relative to the plugin directory. `.ts`/`.tsx` are compiled
    *  on load; omit it entirely for a declarative-only plugin. */

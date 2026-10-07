@@ -3,6 +3,11 @@
 // packed/unpacked in the Electron main process (see electron/main/ipc.ts); this
 // module owns collecting/hydrating the renderer state and driving the R server.
 
+import { useContextStore } from '@/store/context'
+import { validateProjectContext, forkProjectContext } from '@/lib/context/memory-schema'
+import type { ProjectContext, AuthorisedFileLink } from '@/lib/context/types'
+import { createWorkspaceQueue } from '@/lib/context/transitions'
+import { chatContentChanged } from '@/lib/context/disclosure-dialogue'
 import { rClient, type DbReconnectEntry, type RgeoObjectInfo } from '@/lib/r-client'
 import {
   buildSessionData,
@@ -34,9 +39,12 @@ import {
 } from '@/lib/ai-chats-persistence'
 
 const PROJECT_VERSION = 1
+const workspaceOperation = createWorkspaceQueue()
 
 interface ProjectManifest {
   version: number
+  projectId?: string
+  context?: ProjectContext
   name: string
   savedAt: string
   ui: {
@@ -108,10 +116,12 @@ async function collectDatabases(): Promise<DbReconnectEntry[]> {
   return [...byFile].map(([filePath, proxies]) => ({ filePath, proxies }))
 }
 
-function buildManifest(name: string, databases: DbReconnectEntry[]): ProjectManifest {
+function buildManifest(name: string, databases: DbReconnectEntry[], projectId: string, context: ProjectContext): ProjectManifest {
   const p = usePlottingStore.getState()
   return {
     version: PROJECT_VERSION,
+    projectId,
+    context,
     name,
     savedAt: new Date().toISOString(),
     ui: {
@@ -124,12 +134,26 @@ function buildManifest(name: string, databases: DbReconnectEntry[]): ProjectMani
   }
 }
 
-async function applyUiState(ui: ProjectManifest['ui']): Promise<void> {
+function applyProjectChats(ui: ProjectManifest['ui']): void {
   // A bundle from before chats existed carries none, and `clearWorkspaceStores`
   // has already left one empty conversation — which is the right answer for a
   // project that has never had any.
-  applyChatsData(ui.chats)
-  if (ui.session) await applySessionData(ui.session)
+  const restoredChats = applyChatsData(ui.chats, true)
+  const chatCount = Array.isArray(ui.chats?.chats) ? ui.chats.chats.length : 0
+  const excludedChats = chatCount - (restoredChats ? useAiStore.getState().chats.length : 0)
+  if (excludedChats > 0) useSessionStore.getState().addConsoleEntry('info', `${excludedChats} conversations were excluded because their records are malformed. The original bundle is unchanged; repair or restore it to recover those conversations.`)
+  // Bundled provider IDs are neither delivery receipts nor authority to replay
+  // old context. Reconstruct locally so newer exclusions and tombstones win.
+  useAiStore.setState(state => ({ chats: state.chats.map(chat => ({ ...chat, claudeSessionId: null, lastSessionContext: null })) }))
+}
+
+async function applyUiState(ui: ProjectManifest['ui'], authorisedFileLinks: AuthorisedFileLink[] = []): Promise<void> {
+  // A portable bundle names files from its author's machine. Opening it is
+  // permission to use the bundled buffers, not to read those absolute paths.
+  if (ui.session) {
+    await applySessionData(ui.session, { portable: true, authorisedFileLinks })
+    if (ui.session.tabs?.some(tab => tab.filePath && !authorisedFileLinks.some(link => link.id === tab.id && link.filePath === tab.filePath))) useSessionStore.getState().addConsoleEntry('info', 'Imported scripts use their bundled buffers. Choose Save As to link them to files on this device.')
+  }
   if (ui.workspace) applyWorkspaceData(ui.workspace)
   if (ui.plots) {
     const plots = normalizePersistedPlots(ui.plots.plots)
@@ -223,7 +247,13 @@ function persistRecents(recents: RecentProject[]): void {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 async function saveProjectToPath(path: string): Promise<boolean> {
+  return workspaceOperation(() => packProjectToPath(path))
+}
+
+async function packProjectToPath(path: string): Promise<boolean> {
   const name = baseName(path)
+  const lease = useProjectStore.getState().workspaceEpoch
+  const stillCurrent = (): boolean => useProjectStore.getState().workspaceEpoch === lease
 
   // Snapshot the R environment to a temp .RData that the packer folds into the
   // bundle. If R is down or the save fails, pack without an env snapshot.
@@ -238,13 +268,45 @@ async function saveProjectToPath(path: string): Promise<boolean> {
   }
 
   const databases = await collectDatabases()
-  const manifest = buildManifest(name, databases)
+  if (!stillCurrent()) throw new Error('SCOPE_CHANGED: project changed during save. Save the current project again.')
+  const original = useProjectStore.getState()
+  const projectId = !original.projectId || original.path !== path ? crypto.randomUUID() : original.projectId
+  const draft = useContextStore.getState().projectContext
+  const context = original.projectId !== projectId ? forkProjectContext(draft, projectId) : draft
+  const manifest = buildManifest(name, databases, projectId, context)
 
-  await window.electronAPI.project.pack(path, JSON.stringify(manifest), envPath)
+  const packed = await window.electronAPI.project.pack(path, JSON.stringify(manifest), envPath)
 
+  if (!stillCurrent()) return true
+  for (const warning of packed?.contextWarnings ?? []) useSessionStore.getState().addConsoleEntry('info', warning)
+  const savedLease = await window.electronAPI.context.lease()
+  if (!stillCurrent() || savedLease.projectId !== projectId) return true
+  useContextStore.setState({ projectLease: savedLease.id })
   const store = useProjectStore.getState()
   store.setCurrent(name, path)
-  store.clearDirty()
+  useProjectStore.setState({ projectId })
+  if (original.projectId !== projectId) {
+    // Save As opens an independent privacy/provider scope. Exclusions from
+    // the original project are local settings, not inherited bundle content.
+    useContextStore.setState(state => ({ excluded: [], savedExclusions: [], exclusionsLoaded: false, policyRevision: state.policyRevision + 1 }))
+    useContextStore.getState().revokeDelivery()
+  }
+  await useContextStore.getState().refreshExclusions()
+  if (useContextStore.getState().projectContext === draft) {
+    useContextStore.setState({ projectContext: context, committedRevision: context.revision })
+    store.clearDirty()
+  } else {
+    if (original.projectId !== projectId) useContextStore.setState({ projectContext: forkProjectContext(useContextStore.getState().projectContext, projectId) })
+    store.markDirty()
+  }
+  try {
+    if (useContextStore.getState().projectContext !== context) {
+      useContextStore.setState({ committedRevision: context.revision })
+      await useContextStore.getState().stageProject()
+    }
+  } catch (error) {
+    useSessionStore.getState().addConsoleEntry('info', `Project bundle saved; memory recovery journal unavailable: ${String(error)}`)
+  }
   persistRecents(store.pushRecent({ name, path }))
   useSessionStore.getState().addConsoleEntry('info', `Project saved: ${path}`)
   return true
@@ -269,13 +331,31 @@ export async function saveProjectAs(): Promise<boolean> {
 // ── Load ──────────────────────────────────────────────────────────────────────
 /** Open a `.ourgeoproj` bundle: reset R + UI, hydrate state, reconnect DBs. */
 export async function loadProjectFromPath(path: string): Promise<boolean> {
+  return workspaceOperation(async () => {
+    useAiStore.getState().cancelStream()
+    useProjectStore.setState(state => ({ phase: 'loading', workspaceEpoch: state.workspaceEpoch + 1 }))
+    try { return await openProjectFromPath(path) }
+    finally { useProjectStore.setState({ phase: 'ready' }) }
+  })
+}
+
+async function openProjectFromPath(path: string): Promise<boolean> {
   let manifest: ProjectManifest
   let envRDataPath: string | null
+  let authorisedFileLinks: AuthorisedFileLink[] = []
+  let authorisedDatabasePaths: string[] = []
+  const contextWarnings: string[] = []
+  let identityForked = false
   try {
     const unpacked = await window.electronAPI.project.unpack(path)
     manifest = JSON.parse(unpacked.projectJson) as ProjectManifest
     envRDataPath = unpacked.envRDataPath
+    authorisedFileLinks = unpacked.authorisedFileLinks ?? []
+    authorisedDatabasePaths = unpacked.authorisedDatabasePaths ?? []
+    identityForked = unpacked.identityForked === true
+    contextWarnings.push(...(unpacked.contextWarnings ?? []))
   } catch (err) {
+    if (String(err).includes('PROJECT_OPEN_CANCELLED')) return false
     useSessionStore.getState().addConsoleEntry('error', `Failed to open project: ${String(err)}`)
     return false
   }
@@ -283,7 +363,34 @@ export async function loadProjectFromPath(path: string): Promise<boolean> {
   const name = baseName(path)
   // Switch to the named project up-front so the gated session autosave leaves
   // temp's session.json untouched while we hydrate this bundle's code tabs.
+  useAiStore.getState().cancelStream()
+  useProjectStore.setState({ projectId: typeof manifest.projectId === 'string' && /^[a-f0-9-]{36}$/i.test(manifest.projectId) ? manifest.projectId : null })
   useProjectStore.getState().setCurrent(name, path)
+  useContextStore.getState().loadProject()
+  // Clear the previous scope before waiting for R/keyring recovery. Otherwise
+  // a responsive chat could disclose old chats/buffers under the new UUID.
+  clearWorkspaceStores()
+  resetToBlankScratch()
+  applyProjectChats(manifest.ui)
+  const loadedChats = useAiStore.getState().chats
+  let context = validateProjectContext(manifest.context, useProjectStore.getState().projectId)
+  const committedRevision = context.revision
+  const projectLease = await window.electronAPI.context.lease()
+  try {
+    const allowed = new Set(await window.electronAPI.context.filterDeleted(context.memories.map(m => m.id)))
+    context = { ...context, memories: context.memories.filter(m => allowed.has(m.id)) }
+    const projectId = useProjectStore.getState().projectId
+    const recovered = projectId ? await window.electronAPI.context.recoverProject(projectId, committedRevision, projectLease.id) : null
+    if (recovered && recovered.revision > committedRevision) {
+      context = validateProjectContext(recovered, projectId)
+      contextWarnings.push('Recovered unsaved project memory. Save the project to commit it, or discard the recovered edits.')
+    }
+  } catch (error) {
+    // Failure to check newer tombstones is not permission to resurrect old data.
+    context = { version: 1, revision: context.revision, memories: [] }
+    contextWarnings.push(`Project memory unavailable: ${String(error)}. Restore protected storage and reopen the original bundle.`)
+  }
+  useContextStore.getState().loadProject(context, committedRevision, projectLease.id)
 
   await withDirtySuppressed(async () => {
     try {
@@ -291,7 +398,7 @@ export async function loadProjectFromPath(path: string): Promise<boolean> {
     } catch {
       // R may be unavailable — still hydrate the UI.
     }
-    clearWorkspaceStores()
+    for (const warning of contextWarnings) useSessionStore.getState().addConsoleEntry('info', warning)
 
     // Load the R env BEFORE applying UI state, so a spatial layer's backing R
     // object already exists when the editor renders it.
@@ -312,12 +419,15 @@ export async function loadProjectFromPath(path: string): Promise<boolean> {
     }
 
     try {
-      await reconnectDatabases(manifest.databases ?? [])
+      const databases = Array.isArray(manifest.databases) ? manifest.databases : []
+      const allowed = databases.filter(database => authorisedDatabasePaths.includes(database.filePath))
+      if (allowed.length < databases.length) useSessionStore.getState().addConsoleEntry('info', 'Imported database paths were not opened automatically. Choose the database files on this device to reconnect them.')
+      await reconnectDatabases(allowed)
     } catch (err) {
       useSessionStore.getState().addConsoleEntry('error', `Database reconnect failed: ${String(err)}`)
     }
 
-    await applyUiState(manifest.ui)
+    await applyUiState(manifest.ui, authorisedFileLinks)
     // Refresh panels after env load + DB reconnect so they reflect the rebound
     // proxies and restored objects.
     await refreshRPanels()
@@ -329,6 +439,7 @@ export async function loadProjectFromPath(path: string): Promise<boolean> {
 
   const store = useProjectStore.getState()
   store.clearDirty()
+  if (identityForked || context.revision !== committedRevision || useAiStore.getState().chats !== loadedChats) store.markDirty()
   persistRecents(store.pushRecent({ name, path }))
   useSessionStore.getState().addConsoleEntry('info', `Project loaded: ${name}`)
   return true
@@ -347,15 +458,30 @@ export async function loadProject(): Promise<boolean> {
  * scratch's persisted code/.R tabs (scratch is the always-available workspace).
  */
 export async function newProject(): Promise<void> {
+  return workspaceOperation(async () => {
+    useAiStore.getState().cancelStream()
+    useProjectStore.setState(state => ({ phase: 'loading', workspaceEpoch: state.workspaceEpoch + 1 }))
+    try { await openScratch() }
+    finally { useProjectStore.setState({ phase: 'ready' }) }
+  })
+}
+
+async function openScratch(): Promise<void> {
   // Back to scratch up-front so restoring its tabs writes to scratch's session.json.
+  useAiStore.getState().cancelStream()
+  const lease = await window.electronAPI.context.lease()
+  await window.electronAPI.context.closeProject(lease.id)
+  useProjectStore.setState({ projectId: null })
+  useContextStore.getState().loadProject()
   useProjectStore.getState().setCurrent(SCRATCH_PROJECT_NAME, null)
+  clearWorkspaceStores()
+  resetToBlankScratch()
   await withDirtySuppressed(async () => {
     try {
       await rClient.sessionReset()
     } catch {
       // R may be unavailable
     }
-    clearWorkspaceStores()
     const restored = await loadSession()
     if (!restored) resetToBlankScratch()
     // No chats are restored here. `clearWorkspaceStores` has left one empty
@@ -394,13 +520,16 @@ export function setupProjectTracking(): () => void {
 
   // A conversation is project content now — it goes in the bundle — so a chat
   // held since the last save is unsaved work, and the quit prompt has to say
-  // so. `chats` identity only: `streamingContent` changes per token and would
-  // mark the project dirty hundreds of times per answer.
+  // so. Delivery/session caches are excluded; a privacy reset alone is not
+  // unsaved project work. Streaming text is outside the chat records.
   const unsubChats = useAiStore.subscribe((s, p) => {
-    if (s.chats !== p.chats) mark()
+    if (s.chats !== p.chats && chatContentChanged(s.chats, p.chats)) mark()
   })
 
+  const unsubContext = useContextStore.subscribe((s, p) => {
+    if (s.projectContext !== p.projectContext) mark()
+  })
   return () => {
-    unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs(); unsubChats()
+    unsubContext(); unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs(); unsubChats()
   }
 }

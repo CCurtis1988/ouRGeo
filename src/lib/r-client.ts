@@ -445,6 +445,7 @@ class RClient {
   // Clear .GlobalEnv, disconnect all DuckDB connections, drop proxies — a clean
   // slate for the project workflow's New action and before loading a project.
   async sessionReset(): Promise<RResponse> {
+    useSessionStore.setState(s => ({ rGeneration: s.rGeneration + 1 }))
     const res = await this.http.post<RResponse>('/session/reset', {})
     return res.data
   }
@@ -547,6 +548,11 @@ class RClient {
       { name, package: pkg }
     )
     return res.data
+  }
+
+  async contextSchema(name: string, envName: string): Promise<RResponse & { columns?: ColumnInfo[] }> {
+    const { data } = await this.http.post('/context/schema', { name, envName }, { timeout: 8000 })
+    return data
   }
 
   async getObjectDataFrame(
