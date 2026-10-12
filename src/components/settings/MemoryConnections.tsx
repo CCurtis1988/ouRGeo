@@ -1,15 +1,19 @@
+import { MemoryImportSelection } from './MemoryImportSelection'
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '@/store/project'
 import { useContextStore } from '@/store/context'
 import type { MemoryAdapter, ProcessingDestination, ProcessingPurpose, PublicMemoryConnection } from '@/lib/context/providers/connections'
+import type { ProviderActivationStatus } from '@/lib/context/providers/activation'
 
 const purposes: ProcessingPurpose[] = ['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync']
 export function MemoryConnections(): React.ReactElement {
   const projectId = useProjectStore(state => state.projectId)
   const workspaceEpoch = useProjectStore(state => state.workspaceEpoch)
+  const providerRevision = useContextStore(state => state.providerRevision)
   const ready = useContextStore(state => state.ready)
   const personalMemoryAvailable = useContextStore(state => state.personalMemoryAvailable)
   const [connections, setConnections] = useState<PublicMemoryConnection[]>([])
+  const [activation, setActivation] = useState<ProviderActivationStatus[]>([])
   const [adapter, setAdapter] = useState<MemoryAdapter>('hindsight')
   const [label, setLabel] = useState('')
   const [endpoint, setEndpoint] = useState('')
@@ -26,13 +30,14 @@ export function MemoryConnections(): React.ReactElement {
     let current = true
     const request = ++listing.current
     setConnections([])
+    setActivation([])
     setToken('')
     setError('')
-    if (ready && personalMemoryAvailable) void window.electronAPI.context.connections().then(
-      connections => { if (current && listing.current === request) setConnections(connections) },
+    if (ready && personalMemoryAvailable) void Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus()]).then(
+      ([connections, status]) => { if (current && listing.current === request) { setConnections(connections); setActivation(status) } },
       () => { if (current && listing.current === request) setError('Connection settings are unavailable. Restore protected storage and retry.') })
     return () => { current = false }
-  }, [workspaceEpoch, ready, personalMemoryAvailable])
+  }, [workspaceEpoch, ready, personalMemoryAvailable, providerRevision])
   useEffect(() => { if (!projectId) setScope('global') }, [projectId])
   const act = async (action: () => Promise<unknown>): Promise<void> => {
     const epoch = useProjectStore.getState().workspaceEpoch
@@ -42,8 +47,8 @@ export function MemoryConnections(): React.ReactElement {
       await action()
       if (useProjectStore.getState().workspaceEpoch === epoch) {
         const request = ++listing.current
-        const connections = await window.electronAPI.context.connections()
-        if (useProjectStore.getState().workspaceEpoch === epoch && listing.current === request) setConnections(connections)
+        const [connections, status] = await Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus()])
+        if (useProjectStore.getState().workspaceEpoch === epoch && listing.current === request) { setConnections(connections); setActivation(status) }
       }
     } catch {
       if (useProjectStore.getState().workspaceEpoch === epoch) setError('The connection operation failed. Check its endpoint, authentication and protected storage, then retry.')
@@ -54,15 +59,35 @@ export function MemoryConnections(): React.ReactElement {
   }
   return <details className="text-xs border border-geo-border rounded p-2" aria-label="Memory provider connections">
     <summary className="cursor-pointer">Mnemosyne and Hindsight connections</summary>
-    <p className="text-geo-muted mt-2">The built-in manager remains active. These connections currently test reachability only; retrieval and ingestion remain disabled until certification. Testing sends no chat or memory content. A local server may use remote processing.</p>
+    <p className="text-geo-muted mt-2">The built-in manager remains active. Deployment review is required before enabling memory updates; testing reachability grants no access. Activation reviews this scope and future committed updates. Testing sends no chat or memory content. A local server may use remote processing.</p>
     {!personalMemoryAvailable && <p className="text-geo-muted mt-1">Restore protected memory storage to save connections and authentication.</p>}
     {connections.map(connection => <div key={connection.id} className="border-t border-geo-border mt-2 pt-2">
-      <p>{connection.label} · {connection.adapter} · {connection.location === 'loopback' ? 'Your server, loopback' : 'Your server or hosted service'} · {connection.scope === 'global' ? 'About you' : 'This project'}</p>
+      <p>{connection.label} · {connection.adapter} · {connection.location === 'managed-local' ? 'On this device' : connection.location === 'loopback' ? 'Your server, loopback' : 'Your server or hosted service'} · {connection.scope === 'global' ? 'About you' : 'This project'}</p>
       <p className="text-geo-muted break-words">{connection.endpoint}</p>
-      <p className="text-geo-muted">{connection.state} · certification pending · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
+      <p className="text-geo-muted">{connection.state} · {connection.location === 'managed-local' ? 'experimental Linux lexical profile' : 'certification pending'} · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
+      <p className="text-geo-muted">Memory updates: {activation.find(item => item.connectionId === connection.id)?.state ?? 'review-required'}</p>
+      {activation.find(item => item.connectionId === connection.id)?.state === 'review-required' && <p className="text-geo-muted">Review of this exact deployment, isolation, derivative deletion, processing destinations and billing is required.</p>}
+      {['ready', 'paused'].includes(activation.find(item => item.connectionId === connection.id)?.state ?? '') && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(async () => {
+        const lease = await window.electronAPI.context.lease()
+        const preview = await window.electronAPI.context.previewActivation(connection.id, [], lease.id)
+        await window.electronAPI.context.activateProvider(preview.ref)
+      })}>Review activation of future memory updates</button>}
+      {activation.find(item => item.connectionId === connection.id)?.state === 'active' && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(() => window.electronAPI.context.pauseProvider(connection.id))}>Pause memory updates</button>}
+      {activation.find(item => item.connectionId === connection.id)?.state === 'active' && <MemoryImportSelection connection={connection} disabled={busy} review={async ids => {
+        let accepted = false, failed = false
+        await act(async () => {
+          try {
+            const lease = await window.electronAPI.context.lease()
+            const preview = await window.electronAPI.context.previewMemoryImport(connection.id, ids, lease.id)
+            accepted = await window.electronAPI.context.activateProvider(preview.ref)
+          } catch (error) { failed = true; throw error }
+        })
+        if (failed) throw new Error('Refresh the current selection and retry the import.')
+        return accepted
+      }} />}
       <details className="text-geo-muted"><summary>Declared processing destinations</summary>{connection.destinations.map(item => <p key={item.purpose} className="break-words">{item.purpose}: {item.destination}</p>)}</details>
       {connection.state !== 'disconnected' && <>
-        <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(() => window.electronAPI.context.probeConnection(connection.id))}>Test connection</button>
+        {connection.location !== 'managed-local' && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(() => window.electronAPI.context.probeConnection(connection.id))}>Test connection</button>}
         <button className="text-geo-accent" onClick={() => void act(async () => { await window.electronAPI.context.disconnectConnection(connection.id); useContextStore.getState().revokeDelivery() })}>Disconnect</button>
       </>}
       {connection.state === 'disconnected' && <>

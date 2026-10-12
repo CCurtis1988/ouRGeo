@@ -3,6 +3,7 @@ import { ContextBroker } from './broker'
 import { estimateTokens } from './budget'
 import type { BrokerHost } from './broker'
 import type { ContextSource } from './types'
+import { readDocumentRange } from './document-range'
 
 function fixture(sources: ContextSource[] = []) {
   const controller = new AbortController()
@@ -16,6 +17,43 @@ function source(extra: Partial<ContextSource> = {}): ContextSource {
 function first(broker: ContextBroker, query = 'theme') { return JSON.parse(broker.search({ query })).results[0].ref }
 
 describe('context leases and budgets', () => {
+  it('reads a bounded selected span in a multi-megabyte document and keeps every cursor inside it', async () => {
+    const selected = '# Relevant\n' + 'selected text '.repeat(250)
+    const text = 'x'.repeat(2_000_000) + '\n' + selected + '\nDO NOT INCLUDE THIS NEIGHBOUR'
+    const read = vi.fn(() => { throw new Error('The full body must not be fetched') })
+    const readRange = vi.fn(range => readDocumentRange(text, range))
+    const item = source({ id: 'document:large', kind: 'document', read, readRange })
+    const { broker } = fixture([item])
+    const response = JSON.parse(await broker.attach({ sourceId: item.id, revision: item.revision, workspaceEpoch: 0, range: { startLine: 2, endLine: 3 } }, 500))
+    expect(response).toMatchObject({ range: { startLine: 2, endLine: 3 }, completeness: 'partial' })
+    expect(JSON.parse(await broker.read({ cursor: response.nextCursor, startLine: 1, endLine: 4 })).status).toBe('SOURCE_UNAVAILABLE')
+    expect(JSON.parse(await broker.read({ ref: response.ref, startLine: 1, endLine: 4 })).status).toBe('SOURCE_UNAVAILABLE')
+    let gathered = response.content
+    let cursor = response.nextCursor
+    while (cursor) {
+      const page = JSON.parse(await broker.read({ cursor }, 'assistant requested evidence', 500))
+      expect(page.range).toEqual({ startLine: 2, endLine: 3 })
+      expect(page.status).toBe('ok')
+      gathered += page.content; cursor = page.nextCursor
+    }
+    expect(gathered).toBe(selected)
+    expect(gathered).not.toContain('NEIGHBOUR')
+    expect(read).not.toHaveBeenCalled()
+    expect(readRange).toHaveBeenCalledOnce()
+  })
+  it('does not reuse a cached document range after the current buffer revision changes', async () => {
+    const item = source({ id: 'document:large', kind: 'document', readRange: range => readDocumentRange('first\n' + 'large selected span '.repeat(1000), range) })
+    const { broker, state } = fixture([item])
+    const page = JSON.parse(await broker.attach({ sourceId: item.id, revision: '1', workspaceEpoch: 0, range: { startLine: 2, endLine: 2 } }, 500))
+    state.sources = [{ ...item, revision: '2' }]
+    expect(JSON.parse(await broker.read({ cursor: page.nextCursor })).status).toBe('STALE_REFERENCE')
+  })
+  it('checks the revision again after a range adapter reads a changed current buffer', async () => {
+    const { broker, state } = fixture()
+    const item = source({ id: 'document:large', kind: 'document', readRange: () => { state.sources = [{ ...item, revision: '2' }]; return 'changed' } })
+    state.sources = [item]
+    await expect(broker.attach({ sourceId: item.id, revision: '1', workspaceEpoch: 0, range: { startLine: 1, endLine: 1 } })).rejects.toThrow('STALE_REFERENCE')
+  })
   it('preserves reported cancelled-request usage without acknowledging evidence or updating another scope', () => {
     const { broker, host, state } = fixture()
     host.changed = vi.fn()
@@ -38,6 +76,30 @@ describe('context leases and budgets', () => {
     state.excluded = []
     item.id = 'skill:api_key%3Dprivate-value'
     expect(JSON.parse(broker.search({ query: 'theme' })).results).toEqual([])
+  })
+  it('keeps source revision cache keys distinct when IDs and revisions contain colons', async () => {
+    const first = source({ id: 'document:note:part', kind: 'document', revision: 'v1', title: 'First note', read: () => 'First canonical section.' })
+    const second = source({ id: 'document:note', kind: 'document', revision: 'part:v1', title: 'Second note', read: () => 'Different canonical section.' })
+    const { broker } = fixture([first, second])
+    const one = JSON.parse(broker.search({ query: 'First note' })).results[0]
+    const two = JSON.parse(broker.search({ query: 'Second note' })).results[0]
+    expect(JSON.parse(await broker.read({ ref: one.ref })).content).toBe('First canonical section.')
+    expect(JSON.parse(await broker.read({ ref: two.ref })).content).toBe('Different canonical section.')
+  })
+  it('bounds attached envelopes and refuses stale, excluded or cross-workspace attachment metadata before fetching', async () => {
+    const read = vi.fn(() => '# Heading\n' + 'long authorised text '.repeat(1000))
+    const item = source({ id: 'document:attached', kind: 'document', read }), { broker, state, host } = fixture([item])
+    const attachment = { sourceId: item.id, revision: item.revision, workspaceEpoch: host.identity.workspaceEpoch, range: { startLine: 1, endLine: 2 } }
+    const response = await broker.attach(attachment, 500)
+    expect(estimateTokens(response)).toBeLessThanOrEqual(500)
+    expect(JSON.parse(response)).toMatchObject({ completeness: 'partial', reason: 'user attachment' })
+    expect(JSON.parse(response).nextCursor).toMatch(/^ctx_/)
+    expect(broker.trace.selected[0].delivery).toBeUndefined()
+    await expect(broker.attach({ ...attachment, workspaceEpoch: attachment.workspaceEpoch + 1 })).rejects.toThrow('SCOPE_CHANGED')
+    await expect(broker.attach({ ...attachment, revision: 'old' })).rejects.toThrow('STALE_REFERENCE')
+    state.excluded = [item.id]
+    await expect(broker.attach(attachment)).rejects.toThrow('SOURCE_UNAVAILABLE')
+    expect(read).toHaveBeenCalledTimes(1)
   })
   it('budgets escaped code and long identities without clipping a source ID', async () => {
     const text = '\\"\n'.repeat(3000)
@@ -170,7 +232,8 @@ describe('context leases and budgets', () => {
   it('stops repeated searches at the configured turn limit', () => {
     const { broker } = fixture()
     for (let i = 0; i < 6; i++) broker.search({ query: `q${i}` })
-    expect(() => broker.search({ query: 'one more' })).toThrow('BUDGET_LIMIT')
+    expect(() => broker.search({ query: 'one more' })).toThrow('this turn has used its 6 context lookups at balanced effort')
+    expect(broker.trace.retrievalCalls).toBe(6)
   })
   it('returns every eligible result over pages without exposing the corpus in one response', () => {
     const { broker } = fixture(Array.from({ length: 201 }, (_, i) => source({ id: `skill:${i}`, title: `theme ${i}` })))
@@ -183,5 +246,72 @@ describe('context leases and budgets', () => {
       cursor = result.nextCursor
     }
     expect(seen.size).toBe(15)
+  })
+})
+
+
+describe('provider-assisted memory discovery', () => {
+  it('uses provider ordinal matches only for current authorised canonical memory and reads original provenance', async () => {
+    const recordId = crypto.randomUUID()
+    const memory = source({ id: `memory:${recordId}`, kind: 'memory', scope: 'global', revision: '3', title: 'Prefer SI', summary: 'Prefer SI', trust: 'user', read: () => 'Original user preference: prefer SI units.' })
+    const { broker, host } = fixture([memory])
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>(async () => ({ status: 'ok', coverage: 'provider', hits: [{ id: recordId, revision: 3, scope: 'global' }] }))
+    const discovered = JSON.parse(await broker.searchWithMemory({ query: 'metric units', scope: 'global' }))
+    expect(discovered.coverage).toBe('local-and-provider-ranked')
+    expect(discovered.results).toHaveLength(1)
+    expect(discovered.results[0].matchReason).toBe('memory provider rank')
+    expect(JSON.parse(await broker.read({ ref: discovered.results[0].ref })).content).toBe('Original user preference: prefer SI units.')
+    expect(host.recall).toHaveBeenCalledOnce()
+  })
+  it('does not fetch memory for capability discovery, empty queries, workspace reads or a context-free prefetch', async () => {
+    const { broker, host } = fixture()
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>()
+    await broker.prefetch([])
+    await broker.searchWithMemory({ query: 'themes', kinds: ['skill'] })
+    await broker.searchWithMemory({ query: '' })
+    await broker.searchWithMemory({ query: 'roads', scope: 'workspace' })
+    expect(host.recall).not.toHaveBeenCalled()
+  })
+  it('does not disclose a query to a provider when local policy excludes every canonical memory', async () => {
+    const item = source({ id: 'memory:private', kind: 'memory', scope: 'global' })
+    const { broker, host, state } = fixture([item])
+    state.excluded = [item.id]
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>()
+    expect(JSON.parse(await broker.searchWithMemory({ query: 'private project fields' })).results).toEqual([])
+    expect(host.recall).not.toHaveBeenCalled()
+  })
+  it('reuses provider rankings but filters deleted, excluded and superseded records again', async () => {
+    const id = crypto.randomUUID(), memory = source({ id: `memory:${id}`, kind: 'memory', scope: 'global', title: 'SI', summary: 'SI' })
+    const { broker, host, state } = fixture([memory])
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>(async () => ({ status: 'ok', coverage: 'provider', hits: [{ id, revision: 1, scope: 'global' }] }))
+    expect(JSON.parse(await broker.searchWithMemory({ query: 'metric' })).results).toHaveLength(1)
+    memory.revision = '2'
+    expect(JSON.parse(await broker.searchWithMemory({ query: 'metric' })).results).toEqual([])
+    memory.revision = '1'; state.excluded = [memory.id]
+    expect(JSON.parse(await broker.searchWithMemory({ query: 'metric' })).results).toEqual([])
+    state.sources = []
+    expect(JSON.parse(await broker.searchWithMemory({ query: 'metric' })).results).toEqual([])
+    expect(host.recall).toHaveBeenCalledOnce()
+  })
+  it('keeps local lexical results and reports degraded coverage when a provider fails', async () => {
+    const { broker, host } = fixture([source({ id: 'memory:test', kind: 'memory', scope: 'global', title: 'metric', summary: 'metric units' })])
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>(async () => { throw new Error('PROVIDER_OFFLINE') })
+    const result = JSON.parse(await broker.searchWithMemory({ query: 'metric' }))
+    expect(result.coverage).toBe('degraded-local-fallback')
+    expect(result.results).toHaveLength(1)
+    expect(broker.trace.limitations).toHaveLength(1)
+  })
+  it('rejects late provider results after a scope switch', async () => {
+    const { broker, host, state } = fixture([source({ id: 'memory:metric', kind: 'memory', scope: 'global' })])
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>(async () => { state.active = false; return { status: 'ok', coverage: 'provider', hits: [] } })
+    await expect(broker.searchWithMemory({ query: 'metric' })).rejects.toThrow('SCOPE_CHANGED')
+    expect(broker.trace.selected).toEqual([])
+  })
+  it('uses current project recall by default without sending the query to a separate global provider', async () => {
+    const { broker, host } = fixture([source({ id: 'memory:decision', kind: 'memory', scope: 'project' })])
+    host.identity.projectId = crypto.randomUUID()
+    host.recall = vi.fn<NonNullable<BrokerHost['recall']>>(async () => ({ status: 'unavailable', coverage: 'local-only', hits: [] }))
+    await broker.searchWithMemory({ query: 'project CRS decision' })
+    expect(vi.mocked(host.recall!).mock.calls[0][0].scope).toBe('project')
   })
 })

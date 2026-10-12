@@ -20,7 +20,8 @@ export interface MemoryConnection {
   adapter: MemoryAdapter
   label: string
   endpoint: string
-  location: 'loopback' | 'server'
+  location: 'loopback' | 'server' | 'managed-local'
+  runtimeId?: string
   scope: 'global' | `project:${string}`
   namespaceRef: string
   credentialRef: string | null

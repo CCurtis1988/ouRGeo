@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { mkdir, open, readFile, rm } from 'node:fs/promises'
+import { lstat, mkdir, open, readFile, readdir, rm } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -17,9 +17,9 @@ export async function stopManagedContextRuntimes(): Promise<void> {
   await Promise.allSettled([...instances].map(runtime => runtime.shutdown()))
 }
 
-/** This candidate stages verified assets and uses synthetic health data only.
- * Its availability never grants personal memory access or certifies offline
- * behaviour. Production provider activation requires a separate host gate. */
+/** Staging verifies assets with synthetic health data. Personal snapshots
+ * require the separate reviewed profile, scoped binding and native consent;
+ * an installed runtime cannot grant itself memory access or certification. */
 export class ManagedMnemosyneRuntime {
   private state: ManagedRuntimeStatus
   private installer?: RuntimeInstaller
@@ -28,6 +28,8 @@ export class ManagedMnemosyneRuntime {
   private generation = 0
   private metadataUnavailable = false
   private activeRuntime?: MemoryRuntime
+  private providerRuntime?: MemoryRuntime
+  private providerFolder?: string
   constructor(private directory: string, private bridgeFile: string) {
     const supported = process.platform === 'linux' && process.arch === 'x64'
     this.state = { id: candidate.id, label: 'Mnemosyne on this device', version: candidate.provider.engineVersion, experimental: true, platformSupported: supported,
@@ -51,6 +53,76 @@ export class ManagedMnemosyneRuntime {
     return this.initialising
   }
   async status(): Promise<ManagedRuntimeStatus> { await this.initialise(); return { ...this.state } }
+  async installed(): Promise<RuntimeInstallation> {
+    await this.initialise()
+    if (this.installing || !this.state.platformSupported || this.metadataUnavailable) throw new Error('Finish verified runtime staging before activation.')
+    const installed = await this.installer?.current()
+    if (!installed) throw new Error('Stage the pinned runtime before activation.')
+    return installed
+  }
+  async request(payload: Record<string, unknown>, host: Parameters<MemoryRuntime['request']>[1]): Promise<unknown> {
+    const generation = this.generation, installed = await this.installed()
+    host.signal.throwIfAborted()
+    if (!host.authorised() || generation !== this.generation) throw new Error('POLICY_REFUSED')
+    if (!this.providerRuntime || this.providerFolder !== installed.folder) {
+      await this.providerRuntime?.stop('Managed runtime/data pair changed.')
+      const directory = join(this.directory, installed.folder), data = join(directory, 'derived')
+      await mkdir(data, { mode: 0o700 })
+      if ((await lstat(data)).isSymbolicLink()) throw new Error('Restore the private derived store; symbolic links are refused.')
+      const path = (role: string): string => {
+        const artifact = installed.artifacts.find(item => item.role === role)
+        if (!artifact) throw new Error('Restage the complete pinned runtime.')
+        return join(directory, artifact.directory, artifact.root)
+      }
+      // The bridge is app-owned code, not a runtime manifest contribution.
+      const bridge = join(directory, 'ourgeo-bridge.py')
+      const file = await open(bridge, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o600)
+      try { await file.writeFile(await readFile(this.bridgeFile)); await file.sync() } finally { await file.close() }
+      if (!host.authorised() || generation !== this.generation) throw new Error('POLICY_REFUSED')
+      this.providerRuntime = new MemoryRuntime({ executable: join(path('python'), 'bin', 'python3.12'), arguments: ['-I', '-S', bridge, path('engine'), join(path('yaml'), 'lib'), data], directory, environment: mnemosyneEnvironment(data), profile: candidate.id })
+      this.providerFolder = installed.folder
+    }
+    const result = await this.providerRuntime.request(payload, host)
+    if (payload.operation === 'replace') {
+      // Older rollback pairs are rebuildable caches too. Forgetting must not
+      // leave their copies available for a later rollback on this profile.
+      const namespace = payload.namespace
+      if (typeof namespace !== 'string' || !/^[a-f0-9-]{36}$/.test(namespace)) throw new Error('POLICY_REFUSED')
+      const folders = (await readdir(this.directory)).filter(name => /^installed_[a-f0-9-]{36}$/.test(name) && name !== installed.folder)
+      if (folders.length > 32) throw new Error('Review old runtime cache pairs before further indexing.')
+      for (const folder of folders) {
+        const parent = join(this.directory, folder)
+        if (!(await lstat(parent)).isDirectory() || (await lstat(parent)).isSymbolicLink()) throw new Error('Restore the private runtime cache directories.')
+        const old = join(parent, 'derived')
+        let info
+        try { info = await lstat(old) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error }
+        if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Restore the private derived cache directories.')
+        for (const suffix of ['', '-wal', '-shm', '-journal', '.init.lock']) await rm(join(old, `${namespace}.sqlite${suffix}`), { force: true })
+      }
+    }
+    return result
+  }
+  /** A disconnected index is still a managed copy. Forgetting can remove it
+   * without restarting native code or granting the old connection access. */
+  async forgetDerived(namespaces: string[]): Promise<void> {
+    if (!namespaces.length) return
+    if (namespaces.length > 32 || namespaces.some(namespace => !/^[a-f0-9-]{36}$/i.test(namespace))) throw new Error('Review the bounded managed memory namespaces before cleanup.')
+    await this.providerRuntime?.stop('Forgotten memory requires a clean derived reconstruction.')
+    this.providerRuntime = undefined; this.providerFolder = undefined
+    let folders: string[]
+    try { folders = (await readdir(this.directory)).filter(folder => /^installed_[a-f0-9-]{36}$/i.test(folder)) }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error }
+    if (folders.length > 32) throw new Error('Review older managed runtime caches before completing deletion.')
+    for (const folder of folders) {
+      const parent = join(this.directory, folder), data = join(parent, 'derived')
+      const parentInfo = await lstat(parent)
+      if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink()) throw new Error('Restore the private runtime directories before completing deletion.')
+      let info
+      try { info = await lstat(data) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error }
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Restore the private derived cache directories before completing deletion.')
+      for (const namespace of new Set(namespaces)) for (const suffix of ['', '-wal', '-shm', '-journal', '.init.lock']) await rm(join(data, `${namespace}.sqlite${suffix}`), { force: true })
+    }
+  }
   stage(suppliedLease: unknown, acknowledged: unknown): Promise<ManagedRuntimeStatus> {
     if (acknowledged !== true) return Promise.reject(new Error('Review and acknowledge the experimental native runtime before staging it.'))
     if (suppliedLease !== contextLease().id) return Promise.reject(new Error('SCOPE_CHANGED: review runtime setup in the active workspace.'))
@@ -64,6 +136,8 @@ export class ManagedMnemosyneRuntime {
       if (!this.installer || !this.state.platformSupported) throw new Error('This platform has connection-only support until its runtime is tested.')
       this.state = { ...this.state, state: 'installing', error: undefined }
       try {
+        await this.providerRuntime?.stop('Runtime staging requires a fresh provider reconstruction.')
+        this.providerRuntime = undefined; this.providerFolder = undefined
         await this.installer.install()
         this.state = { ...this.state, state: 'ready-for-certification', canRollback: await this.installer.canRollback(), step: 'complete', receivedBytes: undefined, totalBytes: undefined }
       } catch {
@@ -77,11 +151,13 @@ export class ManagedMnemosyneRuntime {
     this.generation++
     if (this.installing) { this.installer?.cancel(); this.state = { ...this.state, state: 'cancelled' } }
     void this.activeRuntime?.stop('Managed runtime setup cancelled.')
+    void this.providerRuntime?.stop('Managed runtime scope revoked.')
   }
-  isRunning(): boolean { return Boolean(this.installing || this.activeRuntime) }
+  isRunning(): boolean { return Boolean(this.installing || this.activeRuntime || this.providerRuntime) }
   async shutdown(): Promise<void> {
     this.cancel()
     await this.activeRuntime?.stop('ouRGeo is closing.')
+    await this.providerRuntime?.stop('ouRGeo is closing.')
     let timer: ReturnType<typeof setTimeout> | undefined
     try { await Promise.race([this.installing?.catch(() => {}), new Promise<void>(resolve => { timer = setTimeout(resolve, 2000) })]) }
     finally { clearTimeout(timer) }
@@ -96,6 +172,8 @@ export class ManagedMnemosyneRuntime {
       if (!this.installer) throw new Error('Use a tested runtime platform or connect to your server.')
       this.state = { ...this.state, state: 'installing', step: 'health', error: undefined }
       try {
+        await this.providerRuntime?.stop('Runtime rollback requires a fresh provider reconstruction.')
+        this.providerRuntime = undefined; this.providerFolder = undefined
         await this.installer.rollback()
         this.state = { ...this.state, state: 'ready-for-certification', canRollback: await this.installer.canRollback(), step: 'complete', error: undefined }
       } catch {
@@ -127,7 +205,7 @@ export class ManagedMnemosyneRuntime {
   }
 }
 
-export function registerManagedRuntimeHandlers(ipc: IpcMain, authorised: (event: IpcMainInvokeEvent) => void, directory: string, bridgeFile: string): void {
+export function registerManagedRuntimeHandlers(ipc: IpcMain, authorised: (event: IpcMainInvokeEvent) => void, directory: string, bridgeFile: string): ManagedMnemosyneRuntime {
   const runtime = new ManagedMnemosyneRuntime(directory, bridgeFile)
   instances.add(runtime)
   subscribeContextScope(() => runtime.cancel())
@@ -135,4 +213,5 @@ export function registerManagedRuntimeHandlers(ipc: IpcMain, authorised: (event:
   ipc.handle('context:stageRuntime', (event, lease, acknowledged) => { authorised(event); return runtime.stage(lease, acknowledged) })
   ipc.handle('context:cancelRuntime', event => { authorised(event); runtime.cancel() })
   ipc.handle('context:rollbackRuntime', (event, lease) => { authorised(event); return runtime.rollback(lease) })
+  return runtime
 }

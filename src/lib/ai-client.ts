@@ -3,9 +3,11 @@ import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
 import { selectConversation } from '@/lib/context/compaction'
 import { compactToolResults, type ToolProtocol } from '@/lib/context/tool-compaction'
-import { estimateTokens, inputCapacity, assertInvocationBudget } from '@/lib/context/budget'
+import { estimateTokens, inputCapacity, assertInvocationBudget, boundedText } from '@/lib/context/budget'
+import { retainedResume, retainedHeadroom } from '@/lib/context/retained'
 import { redactContext } from '@/lib/context/policy'
-import { proxyFetch } from '@/lib/ai-proxy-fetch'
+import { proxyFetch, type ProxyResponse } from '@/lib/ai-proxy-fetch'
+import { contextOverflow, reduceOverflowMessages } from '@/lib/context/overflow'
 import { parseClaudeLine, claudeFailureMessage, isMissingSession } from '@/lib/ai-claude-stream'
 import { sendChatGptSubscription } from '@/lib/ai-chatgpt-transport'
 import { normaliseUsage, type UsageProtocol, type UsageReport } from '@/lib/context/usage'
@@ -582,7 +584,9 @@ export function resolveContextSize(
 // ── Send message to provider ───────────────────────────────────────────────
 export interface SendOptions {
   /** Optional bound for short diagnostics and other small responses. */
+  prepareInvocation?: (payload: unknown) => void
   beforeInvocation?: (payload: unknown, estimatedInput: number, window: number) => void
+  beforeDispatch?: () => Promise<void>
   archiveToolResult?: (text: string) => string
   maxOutputTokens?: number
   testConnection?: boolean
@@ -619,6 +623,9 @@ export interface SendOptions {
   claudeSessionId?: string
   /** False on the first turn (`--session-id`), true after (`--resume`). */
   claudeResume?: boolean
+  /** Last confirmed per-call occupancy, not cumulative billed input. Missing
+   * measurements force a fresh reconstruction rather than guessing retention. */
+  claudeContextUsed?: number
   /** R's working directory, so a path in the answer means what it means in the
    *  console. */
   claudeCwd?: string
@@ -652,6 +659,7 @@ export interface SendOptions {
 
 export function checkInvocation(opts: SendOptions, payload: unknown): void {
   opts.signal?.throwIfAborted()
+  opts.prepareInvocation?.(payload)
   const window = opts.contextSize ?? getContextSize(opts.model)
   const used = assertInvocationBudget(payload, window, opts.maxOutputTokens ?? 4000)
   opts.beforeInvocation?.(payload, used, window)
@@ -660,6 +668,32 @@ export function checkInvocation(opts: SendOptions, payload: unknown): void {
 export function compactInvocation(opts: SendOptions, messages: unknown[], protocol: ToolProtocol, payload: () => unknown): void {
   if (!opts.archiveToolResult) return
   compactToolResults(messages, protocol, inputCapacity(opts.contextSize ?? getContextSize(opts.model), opts.maxOutputTokens ?? 4000), payload, opts.archiveToolResult)
+}
+const overflowRetries = new WeakSet<SendOptions>()
+/** Retry the rejected inference, never the turn or its already executed tools.
+ * A stream accepted by the provider is outside this recovery path. */
+export async function requestInvocation(opts: SendOptions, messages: unknown[], protocol: ToolProtocol, payload: () => unknown, request: () => Promise<ProxyResponse>): Promise<ProxyResponse> {
+  compactInvocation(opts, messages, protocol, payload)
+  checkInvocation(opts, payload())
+  await opts.beforeDispatch?.()
+  opts.signal?.throwIfAborted()
+  const response = await request()
+  if (response.ok) return response
+  const raw = await response.text()
+  if (contextOverflow(response.status, raw)) {
+    if (overflowRetries.has(opts) || !reduceOverflowMessages(messages, protocol, payload)) throw new Error('BUDGET_LIMIT: the provider rejected the context size and essential input cannot be reduced safely. Select a larger-window model or a smaller conversation; original messages are retained.')
+    overflowRetries.add(opts)
+    opts.signal?.throwIfAborted()
+    checkInvocation(opts, payload())
+    await opts.beforeDispatch?.()
+    opts.signal?.throwIfAborted()
+    const retry = await request()
+    if (retry.ok) return retry
+    const retryRaw = await retry.text()
+    if (contextOverflow(retry.status, retryRaw)) throw new Error('BUDGET_LIMIT: the provider rejected the smaller reconstruction. No further automatic retry was made. Select a larger-window model or a smaller conversation; original messages are retained.')
+    return { ...retry, body: null, text: async () => retryRaw, json: async () => JSON.parse(retryRaw) }
+  }
+  return { ...response, body: null, text: async () => raw, json: async () => JSON.parse(raw) }
 }
 export function reportInvocationUsage(opts: SendOptions, value: unknown, protocol: UsageProtocol, scope: UsageReport['scope'] = 'invocation', attempt = 0): void {
   const usage = normaliseUsage(value, protocol)
@@ -778,9 +812,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
   // tool_use blocks arrive as `input_json_delta` fragments and are reassembled
   // here, so Autopilot/web turns stream just like plain chat.
   const streamTurn = async (): Promise<{ blocks: AnthropicBlock[]; stopReason: string }> => {
-    compactInvocation(opts, apiMessages, 'anthropic', () => body)
-    checkInvocation(opts, body)
-    const res = await proxyFetch('https://api.anthropic.com/v1/messages', {
+    const res = await requestInvocation(opts, apiMessages, 'anthropic', () => body, () => proxyFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -789,7 +821,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
       },
       body: JSON.stringify(body),
       signal,
-    })
+    }))
     if (!res.ok) {
       const err = await res.json() as { error?: { message: string } }
       throw new Error(err.error?.message ?? `HTTP ${res.status}`)
@@ -906,9 +938,7 @@ async function sendOpenAICompatible(
   let fullText = ''
 
   const doRequest = async (): Promise<void> => {
-    compactInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }))
-    checkInvocation(opts, { ...body, messages: apiMessages })
-    const res = await proxyFetch(endpoint, {
+    const res = await requestInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }), () => proxyFetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -916,7 +946,7 @@ async function sendOpenAICompatible(
       },
       body: JSON.stringify({ ...body, messages: apiMessages }),
       signal,
-    })
+    }))
     if (!res.ok) {
       const err = await res.json() as { error?: { message: string } }
       throw new Error(err.error?.message ?? `HTTP ${res.status}`)
@@ -1018,14 +1048,12 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
 
   const doRequest = async (): Promise<void> => {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`
-    compactInvocation(opts, contents, 'google', () => ({ ...body, contents }))
-    checkInvocation(opts, { ...body, contents })
-    const res = await proxyFetch(url, {
+    const res = await requestInvocation(opts, contents, 'google', () => ({ ...body, contents }), () => proxyFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, contents }),
       signal,
-    })
+    }))
     if (!res.ok) {
       const err = await res.text()
       throw new Error(`HTTP ${res.status}: ${err.slice(0, 200)}`)
@@ -1103,14 +1131,12 @@ async function sendOllama(opts: SendOptions): Promise<string> {
   if (hasTools) {
     // Non-streaming for tool calls (Ollama streaming + tools is unreliable)
     while (true) {
-      compactInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }))
-      checkInvocation(opts, { ...body, messages: apiMessages })
-      const res = await proxyFetch(`${base}/api/chat`, {
+      const res = await requestInvocation(opts, apiMessages, 'openai', () => ({ ...body, messages: apiMessages }), () => proxyFetch(`${base}/api/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ ...body, messages: apiMessages }),
         signal,
-      })
+      }))
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as {
         message?: {
@@ -1128,7 +1154,10 @@ async function sendOllama(opts: SendOptions): Promise<string> {
         onUsage?.(data.prompt_eval_count + data.eval_count, opts.contextSize ?? getContextSize(model))
       }
       reportInvocationUsage(opts, data, 'ollama')
-      if (!msg?.tool_calls?.length) break
+      if (!msg?.tool_calls?.length) {
+        if (!msg?.content?.trim()) throw new Error('The local model returned no visible answer or tool call. Its reported usage has been retained; retry or select another model.')
+        break
+      }
       apiMessages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls })
       for (const tc of msg.tool_calls) {
         const name = tc.function.name
@@ -1144,13 +1173,12 @@ async function sendOllama(opts: SendOptions): Promise<string> {
   }
 
   // Streaming (no tools) — NDJSON, one JSON object per line
-  checkInvocation(opts, body)
-  const res = await proxyFetch(`${base}/api/chat`, {
+  const res = await requestInvocation(opts, apiMessages, 'openai', () => body, () => proxyFetch(`${base}/api/chat`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
     signal,
-  })
+  }))
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   await readLineStream(res.body!, (line) => {
     let chunk: {
@@ -1170,6 +1198,7 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     }
     if (chunk.done) reportInvocationUsage(opts, chunk, 'ollama')
   })
+  if (!fullText.trim()) throw new Error('The local model returned no visible answer. Its reported usage has been retained; retry or select another model.')
   return fullText
 }
 
@@ -1223,11 +1252,18 @@ export function withEarlierTurns(messages: ChatMessage[], latest: string): strin
  * a question and got an answer with the history intact.
  */
 async function sendClaudeCli(opts: SendOptions): Promise<string> {
-  try {
-    return await runClaudeCli(opts, opts.claudeResume === true)
-  } catch (err) {
-    if (!(err instanceof MissingClaudeSession)) throw err
+  const latest = [...opts.messages].reverse().find(m => m.role === 'user')?.content ?? ''
+  const pending = estimateTokens({ turn: latest, context: opts.sessionContext, system: opts.systemPrompt, tools: opts.tools })
+  const resume = opts.claudeResume === true && retainedResume(opts.claudeContextUsed, pending, opts.contextSize ?? CLAUDE_CLI_MIN_CONTEXT, opts.maxOutputTokens ?? 4000)
+  if (opts.claudeResume && !resume) {
     opts.onClaudeSessionLost?.()
+    opts = { ...opts, claudeSessionId: crypto.randomUUID() }
+  }
+  try {
+    return await runClaudeCli(opts, resume)
+  } catch (err) {
+    opts.onClaudeSessionLost?.()
+    if (!(err instanceof MissingClaudeSession)) throw err
     return runClaudeCli({ ...opts, claudeSessionId: crypto.randomUUID() }, false)
   }
 }
@@ -1254,8 +1290,11 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
   // The session context leads the turn rather than the system prompt, so the
   // CLI's cached prefix survives from one turn to the next. See
   // `SendOptions.sessionContext` for what that is worth in money.
-  checkInvocation(opts, { systemPrompt, turn, context: opts.sessionContext, tools: opts.tools })
-  const prompt = opts.sessionContext ? `${opts.sessionContext}\n\n---\n\n${turn}` : turn
+  const prepared = { systemPrompt, turn, context: opts.sessionContext, tools: opts.tools }
+  checkInvocation(opts, prepared)
+  await opts.beforeDispatch?.()
+  opts.signal?.throwIfAborted()
+  const prompt = prepared.context ? `${prepared.context}\n\n---\n\n${prepared.turn}` : prepared.turn
 
   const tools = (opts.tools ?? []).map((t) => ({
     name: t.name, description: t.description, inputSchema: t.inputSchema,
@@ -1267,6 +1306,9 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
     let settled = false
     let resultSubtype: string | null = null
     let resultIsError = false
+    let sessionId: string | undefined
+    let compacted = false
+    let pendingToolTokens = 0
     // The context the LAST API call carried, and that call's output so far.
     // Kept rather than summed: the agent loop makes several calls per turn and
     // each one re-sends the conversation, so adding them up measures how many
@@ -1274,7 +1316,7 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
     let contextTokens = 0
     let outputTokens = 0
     let contextWindow = opts.contextSize ?? CLAUDE_CLI_MIN_CONTEXT
-    const reportUsage = (): void => onUsage?.(contextTokens + outputTokens, contextWindow)
+    const reportUsage = (): void => onUsage?.(contextTokens + outputTokens + pendingToolTokens, contextWindow)
     const finish = (fn: () => void): void => { if (!settled) { settled = true; fn() } }
 
     const abort = api.start(
@@ -1292,7 +1334,7 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
           const ev = parseClaudeLine(line)
           if (ev.kind === 'text') { answer += ev.text; onChunk(ev.text) }
           else if (ev.kind === 'init') {
-            opts.onClaudeSession?.(ev.sessionId)
+            sessionId = ev.sessionId
             // An MCP server that failed to connect is why every tool call is
             // about to fail, and it is invisible from inside the model.
             if (ev.mcpFailed.length > 0 && tools.length > 0) {
@@ -1302,10 +1344,14 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
               )))
               abort()
             }
+          } else if (ev.kind === 'compaction') {
+            // The CLI does not identify which evidence survived compaction.
+            // Keep the visible chat, but reconstruct a new session next turn.
+            compacted = true
           } else if (ev.kind === 'usage') {
             // A delta may carry only the output count; the prompt cannot
             // shrink mid-call, so the last figure stands.
-            if (ev.contextTokens > 0) contextTokens = ev.contextTokens
+            if (ev.contextTokens > 0) { contextTokens = ev.contextTokens; pendingToolTokens = 0 }
             outputTokens = ev.outputTokens
             reportUsage()
           } else if (ev.kind === 'rateLimit') {
@@ -1322,7 +1368,7 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
             // The window the model that answered actually has. Its token
             // counts are cumulative across the run's API calls and are NOT
             // the context — that comes from the per-call `usage` events.
-            if (ev.contextWindow) { contextWindow = ev.contextWindow; reportUsage() }
+            if (ev.contextWindow) { contextWindow = Math.min(contextWindow, ev.contextWindow); reportUsage() }
             // The CLI assembles the final text itself; prefer it over the
             // deltas, which omit anything it emitted without streaming.
             if (ev.text) answer = ev.text
@@ -1342,11 +1388,31 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
         },
         onToolCall: async (call) => {
           if (!onToolCall) return 'Error: no tools are available in this session.'
-          return onToolCall({ id: call.name, name: call.name, input: call.input })
+          signal?.throwIfAborted()
+          const base = contextTokens || ((resume ? opts.claudeContextUsed ?? 0 : 0) + estimateTokens({ systemPrompt, prompt, tools }))
+          pendingToolTokens += estimateTokens(call)
+          const headroom = (): number => retainedHeadroom(base, outputTokens + pendingToolTokens, contextWindow, opts.maxOutputTokens ?? 4000)
+          if (headroom() < 256) return 'BUDGET_LIMIT: no safe space remains for another tool result. Continue in a new turn.'
+          const result = await onToolCall({ id: call.name, name: call.name, input: call.input })
+          signal?.throwIfAborted()
+          const limit = Math.min(2000, headroom())
+          const bounded = boundedText(result, limit)
+          let delivered = result
+          if (!bounded.complete) {
+            const archived = opts.archiveToolResult?.(result)
+            delivered = archived && estimateTokens(archived) <= limit ? archived : 'BUDGET_LIMIT: the tool completed, but its result is too large for this retained session. Inspect the visible source or continue in a new turn.'
+          }
+          pendingToolTokens += estimateTokens(delivered)
+          return delivered
         },
         onDone: (code, stderr) => {
           finish(() => {
-            if (code === 0 && sawResult && !resultIsError) { resolve(answer); return }
+            if (code === 0 && sawResult && !resultIsError) {
+              if (pendingToolTokens > 0) reportUsage()
+              if (sessionId && contextTokens > 0 && !compacted) opts.onClaudeSession?.(sessionId)
+              else opts.onClaudeSessionLost?.()
+              resolve(answer); return
+            }
             // A cold cache, not a failure — `sendClaudeCli` retries this one.
             if (resume && isMissingSession(stderr, resultSubtype)) {
               reject(new MissingClaudeSession('the stored Claude Code session is gone'))

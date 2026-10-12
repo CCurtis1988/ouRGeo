@@ -22,6 +22,8 @@ export type ProviderRequest =
   | { operation: 'read'; id: string }
   | { operation: 'upsert'; records: MemoryRecord[] }
   | { operation: 'delete'; ids: string[] }
+  /** Host-only operation in the already resolved isolated namespace. */
+  | { operation: 'delete-scope' }
   | { operation: 'export' }
   | { operation: 'reflect'; query: string }
 
@@ -46,7 +48,7 @@ export interface ProviderEvidence {
   sourceIds?: string[]
 }
 export type ProviderResult =
-  | { status: 'ok' | 'pending'; operationId: string; records: MemoryRecord[]; evidence?: ProviderEvidence[]; usage: { inputTokens?: number; outputTokens?: number; cost?: number; estimated: boolean }; complete: boolean }
+  | { status: 'ok' | 'pending'; operationId: string; records: MemoryRecord[]; evidence?: ProviderEvidence[]; usage: { inputTokens?: number; outputTokens?: number; cost?: number; currency?: 'USD'; estimated: boolean }; complete: boolean }
   | { status: 'failed'; operationId: string; code: 'UNSUPPORTED' | 'PROVIDER_OFFLINE' | 'POLICY_REFUSED' | 'INVALID_RESPONSE' | 'BUDGET_LIMIT'; recovery: string }
 
 /** Privileged implementations live in main. Plugins cannot replace prompts,

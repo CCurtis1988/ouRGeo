@@ -7,6 +7,7 @@ import { useApiKeysStore } from '@/store/apiKeys'
 export function packageResults(r: RHealth): HealthResult[] {
   const groups = [...new Set(r.packages.map((p) => p.group))]
   return [
+    { id: 'package-duplicates', title: 'Duplicate package installations', status: r.duplicates.length ? 'warning' : 'pass', detail: r.duplicates.length ? `${new Set(r.duplicates.map((copy) => copy.name)).size} packages have multiple installations across R libraries: ${[...new Set(r.duplicates.map((copy) => copy.name))].join(', ')}. Review which copies to keep; R uses the first library in its search order.` : 'No duplicate packages were found in this R installation’s library search paths.' },
     ...groups.map((group): HealthResult => {
       const packages = r.packages.filter((p) => p.group === group)
       const bad = packages.filter((p) => p.reason)
@@ -16,6 +17,8 @@ export function packageResults(r: RHealth): HealthResult[] {
         detail: bad.length ? bad.map((p) => `${p.name}: ${p.reason}`).join(' · ') : `${packages.length} packages load successfully and match this R version.`,
       }
     }),
+    ...(r.s2 ? [{ id: 's2-engine', title: 'S2 spherical geometry engine', status: r.s2.ok ? 'pass' as const : 'error' as const,
+      detail: r.s2.ok ? r.s2.detail : `${r.s2.detail}. ${r.s2.repair} Repair library: ${r.s2.library}` }] : []),
     { id: 'cran', title: 'CRAN package updates', status: r.updatesChecked ? 'pass' : 'warning', detail: r.updatesChecked ? 'Checked compatible package releases on CRAN.' : 'Could not reach the CRAN package index. Loading and R-version compatibility were checked; newer releases could not be checked. Check your network or proxy and rerun.' },
     { id: 'github', title: 'Curved geometry package updates', status: r.githubUpdatesChecked ? 'pass' : 'warning', detail: r.githubUpdatesChecked ? 'Checked sfarc’s current version on its GitHub repository.' : 'Could not check sfarc’s latest GitHub version. Its installation, loading and R-version compatibility were still checked.' },
     { id: 'r-library', title: 'R package library', status: r.libraryWritable ? 'pass' : 'error', detail: r.libraryWritable ? `User library: ${r.library}` : `R cannot write to ${r.library}. Choose a writable R_LIBS_USER library and restart ouRGeo.` },

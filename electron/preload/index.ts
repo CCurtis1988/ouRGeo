@@ -37,6 +37,35 @@ interface PlotPopoutState {
 
 contextBridge.exposeInMainWorld('electronAPI', {
   context: {
+    onRetentionChanged: (callback: () => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('context:retentionChanged', handler)
+      return () => ipcRenderer.removeListener('context:retentionChanged', handler)
+    },
+    chatBudgetStatus: () => ipcRenderer.invoke('context:chatBudgetStatus'),
+    configureChatBudget: (policy: import('../../src/lib/context/chat-budget').ChatBudgetPolicy, lease: string) => ipcRenderer.invoke('context:configureChatBudget', policy, lease),
+    prepareInferenceUsage: (input: import('../../src/lib/context/inference-usage').InferenceUsageInput, outputTokens: number, authority: string) => ipcRenderer.invoke('context:prepareInferenceUsage', input, outputTokens, authority),
+    endInferenceUsage: (authority: string) => ipcRenderer.invoke('context:endInferenceUsage', authority),
+    beginInferenceUsage: (chatId: string, turnId: string, provider: import('../../src/lib/context/inference-usage').InferenceUsageProvider, lease: string, model?: string) => ipcRenderer.invoke('context:beginInferenceUsage', chatId, turnId, provider, lease, model),
+    recordInferenceUsage: (inputs: import('../../src/lib/context/inference-usage').InferenceUsageInput[], authority: string) => ipcRenderer.invoke('context:recordInferenceUsage', inputs, authority),
+    inferenceUsageSummary: (chatId: string | undefined, lease: string) => ipcRenderer.invoke('context:inferenceUsageSummary', chatId, lease),
+    columnPolicies: (lease: string) => ipcRenderer.invoke('context:columnPolicies', lease),
+    saveColumnPolicies: (revision: number, selections: Record<string, string[]>, lease: string) => ipcRenderer.invoke('context:saveColumnPolicies', revision, selections, lease),
+    folderCatalogue: (lease: string) => ipcRenderer.invoke('context:folderCatalogue', lease),
+    chooseContextFolder: (lease: string) => ipcRenderer.invoke('context:chooseFolder', lease),
+    refreshContextFolder: (id: string, lease: string) => ipcRenderer.invoke('context:refreshFolder', id, lease),
+    removeContextFolder: (id: string, lease: string) => ipcRenderer.invoke('context:removeFolder', id, lease),
+    readContextFile: (id: string, revision: string, lease: string, range?: import('../../src/lib/context/types').DocumentRange) => ipcRenderer.invoke('context:readFolderFile', id, revision, lease, range),
+    onFoldersChanged: (callback: () => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('context:foldersChanged', handler)
+      return () => ipcRenderer.removeListener('context:foldersChanged', handler)
+    },
+    memoryRecoveryStatus: () => ipcRenderer.invoke('context:memoryRecoveryStatus'),
+    createMemoryBackup: (lease: string) => ipcRenderer.invoke('context:createMemoryBackup', lease),
+    inspectMemoryBackup: (id: string, lease: string) => ipcRenderer.invoke('context:inspectMemoryBackup', id, lease),
+    restoreMemoryBackup: (id: string, lease: string) => ipcRenderer.invoke('context:restoreMemoryBackup', id, lease),
+    retryMemoryStorage: (lease: string) => ipcRenderer.invoke('context:retryMemoryStorage', lease),
     lease: () => ipcRenderer.invoke('context:lease'),
     learningSettings: () => ipcRenderer.invoke('context:learningSettings'),
     configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => ipcRenderer.invoke('context:configureLearning', settings),
@@ -46,6 +75,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listGlobal: () => ipcRenderer.invoke('context:listGlobal'),
     storageStatus: () => ipcRenderer.invoke('context:storageStatus'),
     connections: () => ipcRenderer.invoke('context:connections'),
+    recallMemory: (input: import('../../src/lib/context/providers/recall').MemoryRecallRequest, id: string, lease: string) => ipcRenderer.invoke('context:recallMemory', input, id, lease),
+    cancelRecall: (id: string) => ipcRenderer.invoke('context:cancelRecall', id),
+    activationStatus: () => ipcRenderer.invoke('context:activationStatus'),
+    previewManagedActivation: (scope: 'global' | 'project', lease: string) => ipcRenderer.invoke('context:previewManagedActivation', scope, lease),
+    previewActivation: (id: string, ids: string[], lease: string) => ipcRenderer.invoke('context:previewActivation', id, ids, lease),
+    previewMemoryImport: (id: string, ids: string[], lease: string) => ipcRenderer.invoke('context:previewMemoryImport', id, ids, lease),
+    activateProvider: (ref: string) => ipcRenderer.invoke('context:activateProvider', ref),
+    pauseProvider: (id: string) => ipcRenderer.invoke('context:pauseProvider', id),
+    maintenanceStatus: () => ipcRenderer.invoke('context:maintenanceStatus'),
+    configureMaintenance: (policy: import('../../src/lib/context/providers/maintenance').MaintenancePolicy, lease: string) => ipcRenderer.invoke('context:configureMaintenance', policy, lease),
     runtimeStatus: () => ipcRenderer.invoke('context:runtimeStatus'),
     stageRuntime: (lease: string, acknowledged: boolean) => ipcRenderer.invoke('context:stageRuntime', lease, acknowledged),
     cancelRuntime: () => ipcRenderer.invoke('context:cancelRuntime'),
@@ -56,6 +95,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     disconnectConnection: (id: string) => ipcRenderer.invoke('context:disconnectConnection', id),
     saveGlobal: (record: import('../../src/lib/context/types').MemoryRecord, preserveCandidate?: boolean) => ipcRenderer.invoke('context:saveGlobal', record, preserveCandidate),
     forget: (id: string, deletion: import('../../src/lib/context/types').MemoryDeletion) => ipcRenderer.invoke('context:forget', id, deletion),
+    cleanupStatus: () => ipcRenderer.invoke('context:cleanupStatus'),
+    retryCleanup: (lease: string) => ipcRenderer.invoke('context:retryCleanup', lease),
     learnGlobal: (messageId: string, text: string) => ipcRenderer.invoke('context:learnGlobal', { messageId, text }),
     filterLearningSources: (ids: string[]) => ipcRenderer.invoke('context:filterLearningSources', ids),
     filterDeleted: (ids: string[]) => ipcRenderer.invoke('context:filterDeleted', ids),
@@ -66,6 +107,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   preflight: { interrupt: (operationId: string): Promise<void> => ipcRenderer.invoke('preflight:interrupt', operationId), review: (operationId: string): Promise<boolean> => ipcRenderer.invoke('preflight:review', operationId) },
   health: {
     history: () => ipcRenderer.invoke('health:history'),
+    activity: () => ipcRenderer.invoke('health:activity'),
     acknowledge: () => ipcRenderer.invoke('health:acknowledge'),
     saveReport: (report: import('../../src/lib/health-types').HealthReport) => ipcRenderer.invoke('health:saveReport', report),
     checkR: () => ipcRenderer.invoke('health:checkR'),
@@ -74,6 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     installPlan: (target: 'r' | 'ollama') => ipcRenderer.invoke('health:installPlan', target),
     install: (target: 'r' | 'ollama', approved: boolean) => ipcRenderer.invoke('health:install', target, approved),
     repairPackages: (names: string[], approved: boolean) => ipcRenderer.invoke('health:repairPackages', names, approved),
+    removePackageCopies: (copies: import('../../src/lib/health-types').HealthPackageCopy[], approved: boolean) => ipcRenderer.invoke('health:removePackageCopies', copies, approved),
     connectR: (approved: boolean) => ipcRenderer.invoke('health:connectR', approved),
     ollamaModels: () => ipcRenderer.invoke('health:ollamaModels'),
     startOllama: (approved: boolean) => ipcRenderer.invoke('health:startOllama', approved),
@@ -129,8 +172,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openRgeo: (): Promise<string | null> => ipcRenderer.invoke('dialog:openRgeo'),
     openWorkspaceFolder: (): Promise<string | null> =>
       ipcRenderer.invoke('dialog:openWorkspaceFolder'),
-    saveExportFile: (format: string): Promise<string | null> =>
-      ipcRenderer.invoke('dialog:saveExportFile', format),
+    saveExportFile: (format: string, existing?: boolean): Promise<string | null> =>
+      ipcRenderer.invoke('dialog:saveExportFile', format, existing),
     savePlot: (format: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:savePlot', format),
     openTheme: (): Promise<string | null> => ipcRenderer.invoke('dialog:openTheme'),

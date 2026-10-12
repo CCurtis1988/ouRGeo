@@ -1,3 +1,4 @@
+import './context/acceptance-profile'
 import {
   app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
 } from 'electron'
@@ -8,7 +9,8 @@ import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
-import { registerContextHandlers } from './context/ipc'
+import { createSleepRecovery, repaintWindow as forceRepaint } from './sleep-recovery'
+import { registerContextHandlers, stopContextProviders } from './context/ipc'
 import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
 import { registerHealthHandlers } from './health-check'
 import { registerDataPreflightHandlers } from './data-preflight'
@@ -47,26 +49,6 @@ let mainWindow: BrowserWindow | null = null
 // The first close attempt is intercepted so the renderer can prompt to save the
 // current project; it then calls `app:confirm-quit` to let the window close.
 let quitConfirmed = false
-
-// Force the renderer to repaint after the compositor drops the window surface
-// (common on Linux after suspend/resume, leaving a black screen even though all
-// app + R state is intact). invalidate() asks for a repaint; a 1px resize nudge
-// makes the compositor rebuild the surface. Both preserve state — nothing
-// reloads. The resize is skipped when maximized/full-screen so window geometry
-// is left untouched (invalidate alone covers those).
-function forceRepaint(win: BrowserWindow | null): void {
-  if (!win || win.isDestroyed()) return
-  try {
-    win.webContents.invalidate()
-    if (!win.isMaximized() && !win.isFullScreen() && !win.isMinimized()) {
-      const [w, h] = win.getSize()
-      win.setSize(w, h + 1)
-      setTimeout(() => { if (!win.isDestroyed()) win.setSize(w, h) }, 80)
-    }
-  } catch (err) {
-    console.error('[Main] forceRepaint failed:', err)
-  }
-}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -122,7 +104,8 @@ function createWindow(): void {
 
   // If the renderer process itself dies (GPU driver reset on resume, OOM, …),
   // Electron leaves a blank window with no auto-recovery. Reload it — persisted
-  // session/plots restore on load. 'clean-exit' happens on normal shutdown.
+  // session/plots and the active health-check checkpoint restore on load.
+  // 'clean-exit' happens on normal shutdown.
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     console.error('[Main] Renderer process gone:', details.reason)
     if (details.reason !== 'clean-exit' && mainWindow && !mainWindow.isDestroyed()) {
@@ -245,8 +228,9 @@ app.whenReady().then(async () => {
   rBridge.onUnexpectedExit = async () => {
     console.log('[Main] R exited unexpectedly — restarting...')
     await new Promise((r) => setTimeout(r, 500))
+    if (!rBridge.shouldRestart) return
     try {
-      await rBridge.restart()
+      await rBridge.start()
       console.log('[Main] R restarted, port:', rBridge.port)
       mainWindow?.webContents.send('r:restarted')
     } catch (err) {
@@ -257,24 +241,12 @@ app.whenReady().then(async () => {
   // On system resume from sleep/hibernate: repaint the (often-blacked-out)
   // window and tell the renderer to revalidate its R connection. Only restart R
   // if it actually died — a needless restart would drop the user's R objects.
-  const onResume = async (): Promise<void> => {
-    console.log('[Main] System resumed — repainting + checking R health...')
-    forceRepaint(mainWindow)
-    mainWindow?.webContents.send('system:resume')
-    if (!rBridge.isReady) {
-      try {
-        await rBridge.restart()
-        console.log('[Main] R restarted after resume, port:', rBridge.port)
-        mainWindow?.webContents.send('r:restarted')
-      } catch (err) {
-        console.error('[Main] R restart after resume failed:', err)
-      }
-    }
-  }
-  powerMonitor.on('resume', onResume)
+  const sleepRecovery = createSleepRecovery(() => mainWindow, rBridge)
+  powerMonitor.on('suspend', sleepRecovery.suspend)
+  powerMonitor.on('resume', sleepRecovery.resume)
   // Screen unlock can be a distinct event from resume on some desktops; repaint
   // there too so a locked-through-suspend session comes back painted.
-  powerMonitor.on('unlock-screen', () => forceRepaint(mainWindow))
+  powerMonitor.on('unlock-screen', sleepRecovery.resume)
 
   // The GPU process crashing blacks out the window; it auto-restarts, so repaint
   // once it's back. (Renderer crashes are handled per-window above.)
@@ -308,6 +280,7 @@ app.on('window-all-closed', () => {
 // EXCEPT session.json (open code/.R tabs), which we deliberately keep between
 // sessions. A crash (no will-quit) leaves these intact for recovery on relaunch.
 app.on('will-quit', (event) => {
+  stopContextProviders()
   if (managedContextRuntimesRunning()) {
     event.preventDefault()
     void stopManagedContextRuntimes().finally(() => app.quit())

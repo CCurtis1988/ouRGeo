@@ -5,6 +5,7 @@ source('r/lib/util-core.R')
 source('r/lib/util-env.R')
 Sys.setenv(OURGEO_PREFLIGHT_SECRET='test-only-private-main-secret')
 source('r/lib/data-preflight.R')
+source('r/lib/vector-export.R')
 stopifnot(!exists('secret',dq_state,inherits=FALSE),!nzchar(Sys.getenv('OURGEO_PREFLIGHT_SECRET')))
 broadcast_env_if_changed <- function() invisible(NULL)
 point <- st_sf(key = 'A', optional = NA_character_, geometry = st_sfc(st_point(c(500000,4100000)), crs=32610))
@@ -57,6 +58,12 @@ buf <- run('sf-buffer',list(dist='100',units='m',workingCRS='native',method='s2'
 point_at <- function(m) st_sfc(st_point(c(m/6371010*180/pi,0)),crs='OGC:CRS84')
 stopifnot(lengths(st_intersects(point_at(99),buf))==1,lengths(st_intersects(point_at(105),buf))==0)
 stopifnot(check('sf-buffer',list(dist='100',units='degrees',workingCRS='native'))$status=='blocked',check('sf-buffer',list(dist='100',units='m',workingCRS='native',method='planar'))$status=='blocked')
+# sf can load while its suggested S2 dependency has a broken shared-library
+# link. The check must expose the repair route and preserve the source.
+before_s2_failure<-serialize(x,NULL)
+loadNamespace<-function(package,...) {if(package=='s2')stop('missing Abseil shared library');base::loadNamespace(package,...)}
+missing_s2<-tryCatch(check('sf-buffer',list(dist='100',units='m',workingCRS='native')),finally=rm(loadNamespace))
+stopifnot(missing_s2$status=='blocked',any(vapply(missing_s2$issues,function(i)grepl('Health check and repair s2',i$message)&&grepl('missing Abseil',i$message),logical(1))),identical(before_s2_failure,serialize(x,NULL)))
 old_s2 <- sf_use_s2(); run('sf-add-area',list(workingCRS='native',colname='area')); stopifnot(identical(old_s2,sf_use_s2()))
 # Invalid, empty, and non-finite are distinct and never repaired.
 bow <- st_polygon(list(rbind(c(0,0),c(2,2),c(0,2),c(2,0),c(0,0))))
@@ -133,7 +140,7 @@ stopifnot(inherits(try(dq_transform(x,3857),silent=TRUE),'try-error'))
 # Different projected inputs require an explicit working CRS.
 x<-st_sf(key='A',geometry=st_sfc(st_point(c(500000,4100000)),crs=32610));y<-st_transform(x,3857)
 stopifnot(dq_validate(request('sf-intersection',list(workingCRS='native'),list(list(name='x'),list(name='y'))))$status=='blocked')
-# Output/export absence is honestly blocked, never a passed driver badge.
+# Export without a destination is honestly blocked, never a passed driver badge.
 stopifnot(dq_validate(request('export-gpkg'))$status=='blocked',dq_validate(request('export-geojson',list(precision='7')))$status=='blocked')
 # Selection revision is checked at execution, not just at button enablement.
 refs<-list(list(name='x',rows=list(0),selectionVersion=1))
@@ -146,7 +153,7 @@ x<-st_sf(key=seq_len(8192),geometry=st_sfc(rep(list(st_point(c(500000,4100000)))
 start<-dq_start(request('inspect'));j<-dq_find(start$operationId)
 later::run_now(0.005);stopifnot(j$status=='checking',j$checked>0,j$checked<8192)
 j$status<-'cancelled';checked<-j$checked;later::run_now(0.01);stopifnot(j$checked==checked,j$status=='cancelled')
-cat('Authority, revision, cancellation and missing export integration acceptance passed\n')
+cat('Authority, revision, cancellation and export path requirements acceptance passed\n')
 
 # Row indices are identities: fractional values must never be truncated.
 stopifnot(inherits(try(dq_inputs(request('inspect',refs=list(list(name='x',rows=list(0.5))))),silent=TRUE),'try-error'))
@@ -193,10 +200,29 @@ x<-data.frame(key=c(NA_character_,''));y<-data.frame(key=c(NA_character_,''))
 jp<-list(leftkey='key',rightkey='key',relationship='one-to-one')
 j<-run('left-join',jp,list(list(name='x'),list(name='y')));stopifnot(nrow(j)==2,all(is.na(attr(j,'ourgeo_trace')$right)))
 # Recorded R replays the actual policy for the same unchanged source revision.
+for(op in c('right-join','full-join')) {
+  x<-data.frame(key=c('A','B','C'),left=1:3);y<-data.frame(key=c('A','B','C'),right=4:6)
+  result<-run(op,jp,list(list(name='x'),list(name='y')))
+  stopifnot(nrow(result)==3,identical(result$key,x$key),identical(result$right,y$right))
+  y<-y[1,,drop=FALSE]
+  result<-run(op,jp,list(list(name='x'),list(name='y')))
+  stopifnot(nrow(result)==if(op=='right-join') 1L else 3L)
+}
+x<-data.frame(key=c(NA_character_,''));y<-data.frame(key=c(NA_character_,''))
 j<-await_job(request('left-join',c(jp,list(out='recorded_join')),list(list(name='x'),list(name='y'))))
 dq_approve(list(operationId=j$id,fingerprint=j$report$validationFingerprint,secret=test_review_secret))
 r<-dq_commit(list(operationId=j$id,fingerprint=j$report$validationFingerprint));before<-recorded_join;rm(recorded_join)
 eval(parse(text=r$code));stopifnot(identical(before,recorded_join))
+stopifnot(!grepl('fromJSON',r$code),grepl('request = list',r$code,fixed=TRUE))
+# The checked preview and recording use the same backend-owned code. A custom
+# output environment must replay into that environment, not into .GlobalEnv.
+recording_env<-new.env();req<-request('left-join',c(jp,list(out='scoped_join')),list(list(name='x'),list(name='y')));req$outputEnv<-'recording_env'
+j<-await_job(req);dq_approve(list(operationId=j$id,fingerprint=j$report$validationFingerprint,secret=test_review_secret))
+preview<-dq_job_report(j)$executionCode
+r<-dq_commit(list(operationId=j$id,fingerprint=j$report$validationFingerprint))
+stopifnot(identical(preview,r$code),!exists('scoped_join',.GlobalEnv,inherits=FALSE))
+before<-recording_env$scoped_join;rm(scoped_join,envir=recording_env)
+eval(parse(text=r$code));stopifnot(identical(before,recording_env$scoped_join))
 cat('Curves, dimensions, engine restoration and recording acceptance passed\n')
 # Native database identities: deliberately unordered PKs, installed spatial
 # extension only. No extension installation or network access is requested.

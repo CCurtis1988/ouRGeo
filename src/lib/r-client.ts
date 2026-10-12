@@ -261,14 +261,16 @@ class RClient {
   }
 
   async preflightStatus(operationId: string): Promise<PreflightReport> {
-    return (await this.http.post('/preflight/status', { operationId })).data
+    // R serves queued HTTP between native write/readback stages. A large native
+    // call must not time out in the UI while its verified save proceeds.
+    return (await this.http.post('/preflight/status', { operationId }, { timeout: 3_600_000 })).data
   }
 
   async preflightCancel(operationId: string): Promise<PreflightReport> {
-    return (await this.http.post('/preflight/cancel', { operationId })).data
+    return (await this.http.post('/preflight/cancel', { operationId }, { timeout: 3_600_000 })).data
   }
 
-  async preflightExecute(operationId: string, fingerprint: string): Promise<RResponse & { validation?: PreflightReport }> {
+  async preflightExecute(operationId: string, fingerprint: string): Promise<RResponse & { outputClass?: string; validation?: PreflightReport; pending?: boolean; path?: string; featureCount?: number; verified?: boolean }> {
     return withPowerBlock(async () => (await this.http.post('/preflight/execute', { operationId, fingerprint }, { timeout: 3_600_000 })).data)
   }
 
@@ -344,14 +346,12 @@ class RClient {
     return res.data
   }
 
-  async loadPackage(name: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/packages/load', { name })
-    return res.data
+  async loadPackage(name: string, libPath?: string, version?: string): Promise<RResponse> {
+    return this.ask('/packages/load', { name, libPath, version })
   }
 
-  async unloadPackage(name: string): Promise<RResponse> {
-    const res = await this.http.post<RResponse>('/packages/unload', { name })
-    return res.data
+  async unloadPackage(name: string, libPath?: string, version?: string): Promise<RResponse> {
+    return this.ask('/packages/unload', { name, libPath, version })
   }
 
   async installPackage(code: string): Promise<RResponse<{ output: string }>> {

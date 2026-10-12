@@ -1,11 +1,23 @@
 // ── Themed scene illustrations ────────────────────────────────────────────
-// Each theme gets a small scenic SVG built from its own palette — a snowy
-// landscape for Arctic, an erupting volcano for Volcanic, and so on. The same
-// scene is shown (in colour) in the theme picker and (grey-scaled, faint)
-// behind the code editor. Scenes are returned as data URIs so they can be used
-// as an <img> src or a CSS background-image.
+// Shipped themes use bundled cinematic paintings. Keep the palette-based SVG
+// generator for custom themes so their existing artwork never changes.
 
 import { THEMES, type ThemeDef } from './themes'
+
+// Static URLs let Vite package the images for offline Electron use. Deliberately
+// keyed by shipped id only: custom themes must not inherit these via basedOn.
+const BUILTIN_ART: Readonly<Record<string, string>> = {
+  dark: new URL('../assets/themes/dark.webp', import.meta.url).href,
+  bespin: new URL('../assets/themes/bespin.webp', import.meta.url).href,
+  neonLights: new URL('../assets/themes/neonLights.webp', import.meta.url).href,
+  forest: new URL('../assets/themes/forest.webp', import.meta.url).href,
+  midnightDream: new URL('../assets/themes/midnightDream.webp', import.meta.url).href,
+  candyAddiction: new URL('../assets/themes/candyAddiction.webp', import.meta.url).href,
+  heaven: new URL('../assets/themes/heaven.webp', import.meta.url).href,
+  volcanic: new URL('../assets/themes/volcanic.webp', import.meta.url).href,
+  arctic: new URL('../assets/themes/arctic.webp', import.meta.url).href,
+  retroTerminal: new URL('../assets/themes/retroTerminal.webp', import.meta.url).href,
+}
 
 export interface ScenePalette {
   bg: string
@@ -206,7 +218,7 @@ const SCENES: Record<string, SceneFn> = {
  *  in the user's blues rather than as a blank card. */
 export function sceneSvg(themeId: string): string {
   const t = THEMES[themeId] ?? THEMES.dark
-  const fn = SCENES[themeId] ?? SCENES[t.basedOn ?? ''] ?? SCENES.dark
+  const fn = SCENES[themeId] ?? SCENES[t.basedOn ?? ''] ?? SCENES[THEMES[t.basedOn ?? '']?.basedOn ?? ''] ?? SCENES.dark
   const inner = fn(pal(t), themeId)
   return `<svg viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">${inner}</svg>`
 }
@@ -217,10 +229,9 @@ export function generatedSceneUri(themeId: string): string {
   return `data:image/svg+xml,${encodeURIComponent(sceneSvg(themeId))}`
 }
 
-/** What is painted behind the code editor: the user's uploaded backdrop if
- *  they set one, otherwise the generated scene. */
+/** Uploaded artwork, a shipped painting, or a custom palette-based scene. */
 export function sceneDataUri(themeId: string): string {
-  return THEMES[themeId]?.backgroundImage || generatedSceneUri(themeId)
+  return THEMES[themeId]?.backgroundImage || BUILTIN_ART[themeId] || generatedSceneUri(themeId)
 }
 
 /** What the theme's card shows in the App Theme picker: an uploaded icon
@@ -228,15 +239,15 @@ export function sceneDataUri(themeId: string): string {
  *  what makes both uploads optional without ever leaving a card empty. */
 export function themeIconUri(themeId: string): string {
   const t = THEMES[themeId]
-  return t?.iconImage || t?.backgroundImage || generatedSceneUri(themeId)
+  return t?.iconImage || sceneDataUri(themeId)
 }
 
 /** The full backdrop declaration for the code editor's art layer.
  *
  *  Opacity and grey-scale are part of the theme rather than of the component
  *  because a photograph and a flat generated SVG do not want the same
- *  treatment: the shipped scenes are designed to be greyed to 15%, and a
- *  user's own artwork usually is not. */
+ *  treatment. Shipped paintings retain their colour at a low opacity; custom
+ *  themes keep their original defaults and any explicit artwork settings. */
 export function sceneBackdropStyle(themeId: string): {
   backgroundImage: string
   backgroundSize: string
@@ -245,11 +256,12 @@ export function sceneBackdropStyle(themeId: string): {
   opacity: number
 } {
   const t = THEMES[themeId]
+  const shipped = Object.prototype.hasOwnProperty.call(BUILTIN_ART, themeId)
   return {
     backgroundImage: `url("${sceneDataUri(themeId)}")`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
-    filter: (t?.backgroundGrayscale ?? true) ? 'grayscale(1)' : 'none',
-    opacity: t?.backgroundOpacity ?? 0.15,
+    filter: (t?.backgroundGrayscale ?? !shipped) ? 'grayscale(1)' : themeId === 'heaven' ? 'contrast(0.9) saturate(0.9)' : 'none',
+    opacity: t?.backgroundOpacity ?? (shipped ? (t?.isDark ? 0.18 : 0.12) : 0.15),
   }
 }

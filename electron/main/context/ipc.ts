@@ -1,4 +1,4 @@
-import { app, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { app, dialog, net, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { Worker } from 'node:worker_threads'
 import { randomUUID } from 'node:crypto'
 import { mkdir, chmod } from 'node:fs/promises'
@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import type { MemoryRecord, MemoryDeletion, AuthorisedFileLink, ProjectContext } from '../../../src/lib/context/types'
 import { redactContext } from '../../../src/lib/context/policy'
 import { validateProjectContext } from '../../../src/lib/context/memory-schema'
-import { contextLease, closeContextProject, requireProjectLease } from './scope'
+import { contextLease, closeContextProject, requireProjectLease, subscribeContextScope } from './scope'
 import { memoryCandidate } from '../../../src/lib/context/learning'
 import { getLearningPolicy, configureLearningPolicy, learningPolicyRevision } from './learning-policy'
 import { collectFileLinks } from './file-links'
@@ -14,11 +14,56 @@ import { protectedMemoryKey } from './key'
 import { validateExclusions, type ExclusionScope } from '../../../src/lib/context/exclusions'
 import { protectedPolicyAbsent } from './policy-store'
 import { registerMemoryConnectionHandlers } from './providers/connections'
-import { registerManagedRuntimeHandlers } from './managed-runtime'
+import { registerManagedRuntimeHandlers, type ManagedMnemosyneRuntime } from './managed-runtime'
+import { ProviderActivation } from './providers/activation'
+import { DeploymentRegistry, REVIEWED_EXTERNAL_DEPLOYMENTS } from './providers/certification'
+import { managedDeploymentReview } from './managed-profile'
+import { MNEMOSYNE_LOCAL_CANDIDATE } from './runtime-catalogue'
+import { createManagedMnemosyne } from './providers/managed-mnemosyne'
+import { createHindsightProvider } from './providers/hindsight'
+import { createJsonTransport } from './providers/transport'
+import type { CanonicalScopeSnapshot } from '../../../src/lib/context/providers/types'
+import type { MemoryRecallRequest } from '../../../src/lib/context/providers/recall'
+import type { MemoryConnection } from '../../../src/lib/context/providers/connections'
+import { registerContextFolders } from './folders-ipc'
+import { type InferenceUsageInput } from '../../../src/lib/context/inference-usage'
+import { validateColumnPolicy } from '../../../src/lib/context/column-policy'
+import { MemoryWriteRecovery } from '../../../src/lib/context/storage-recovery'
+import { memoryBackupCatalog } from './storage-recovery'
+import { MEMORY_SCHEMA_VERSION } from './storage'
+import { UsageAuthority } from './usage-authority'
+import { LocalCleanupRunner } from './cleanup'
+import type { LocalCleanupJob } from './cleanup'
+import type { MemoryCleanupStatus } from '../../../src/lib/context/types'
 
+const usageAuthority = new UsageAuthority()
+const writeRecovery = new MemoryWriteRecovery()
 let starting: Promise<Worker> | undefined
 let nextId = 0
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>()
+let providerActivation: ProviderActivation | undefined
+let managedRuntime: ManagedMnemosyneRuntime | undefined
+let cleanupRunner: LocalCleanupRunner | undefined
+let retentionTimer: ReturnType<typeof setTimeout> | undefined
+let retentionStopped = false
+const accountingMutations = new Set(['recordInferenceUsage', 'prepareInferenceUsage', 'configureChatBudget'])
+const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'removeConnection', 'activateBinding', 'importBinding', 'configureBinding', 'configureMaintenance', 'exclude'])
+export function stopContextProviders(): void { retentionStopped = true; clearTimeout(retentionTimer); providerActivation?.stop(); cleanupRunner?.stop() }
+
+async function sweepRetention(): Promise<void> {
+  if (retentionStopped) return
+  let delay = 3_600_000
+  try {
+    const result = await dispatch('sweepRetention') as { more: boolean; removed: number }
+    if (result.removed) cleanupRunner?.wake()
+    if (result.more) delay = 1000
+  } catch {
+    // An unavailable keyring/corrupt store is already surfaced by normal
+    // memory operations. Retry idle cleanup without creating plaintext storage.
+    delay = 60_000
+  }
+  if (!retentionStopped) { retentionTimer = setTimeout(() => void sweepRetention(), delay); retentionTimer.unref() }
+}
 
 async function worker(): Promise<Worker> {
   if (!starting) starting = (async () => {
@@ -31,7 +76,8 @@ async function worker(): Promise<Worker> {
     const key = await protectedMemoryKey(dir, safeStorage)
     const child = new Worker(join(__dirname, 'context-worker.js'), { workerData: { path: join(dir, 'canonical.sqlite'), key } })
     key.fill(0)
-    child.on('message', (message: { id: number; result?: unknown; error?: string }) => {
+    child.on('message', (message: { id: number; result?: unknown; error?: string; retentionChanged?: boolean }) => {
+      if (message.retentionChanged) { providerActivation?.invalidate(); cleanupRunner?.wake(); owner()?.send('context:retentionChanged') }
       const call = pending.get(message.id)
       pending.delete(message.id)
       if (message.error) call?.reject(new Error(message.error))
@@ -46,15 +92,37 @@ async function worker(): Promise<Worker> {
 }
 
 async function dispatch(op: string, value?: unknown, guard?: () => void): Promise<unknown> {
-  const child = await worker()
+  // Revoke synchronous routing authority before a queued canonical/policy
+  // mutation can race with a network request. Failed writes stay revoked.
+  const mutation = providerMutations.has(op)
+  if (mutation) providerActivation?.invalidate()
+  if (mutation || accountingMutations.has(op)) writeRecovery.assertWritable()
+  const child = await worker().catch(error => { writeRecovery.failed(error); throw error })
   guard?.()
   if (pending.size >= 32) throw new Error('Memory is busy. Try again shortly.')
-  return new Promise((resolve, reject) => {
+  const result = await new Promise((resolve, reject) => {
     const id = nextId++
     const timer = setTimeout(() => { pending.delete(id); reject(new Error('Memory operation timed out. Reopen the library to verify its state.')) }, 5000)
     pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value) }, reject: error => { clearTimeout(timer); reject(error) } })
     child.postMessage({ id, op, value })
-  })
+  }).catch(error => { writeRecovery.failed(error); throw error })
+  if (op === 'forget' && managedRuntime) {
+    const scope = (value as { scope?: string }).scope
+    try {
+      await cleanupRunner?.flush()
+      const status = await dispatch('cleanupStatus', scope ? [scope] : []) as MemoryCleanupStatus
+      if (status.pending || status.needsReview) throw new Error('Cleanup is pending')
+    } catch {
+      // Canonical deletion has committed. A cache permission failure must not
+      // leave its old renderer copy eligible for another prompt.
+      providerActivation?.wake()
+      return { local: 'excluded', managed: 'pending', recovery: 'Managed cache cleanup is pending and will retry after restart. Restore private runtime directory access, then use Retry local cleanup in Context & memory settings; future retrieval stays blocked.' }
+    }
+    if (mutation) providerActivation?.wake()
+    return { local: 'excluded', managed: 'removed' }
+  }
+  if (mutation) providerActivation?.wake()
+  return result
 }
 
 async function projectDispatch(op: string, value: unknown, projectId: string, lease: unknown): Promise<unknown> {
@@ -80,6 +148,7 @@ function memoryId(id: unknown): string {
 export async function savedProjectDraft(projectId: string, context: ProjectContext, previousProjectId: string | null, leaseId: string): Promise<void> {
   const guard = (): void => { if (contextLease().id !== leaseId) throw new Error('SCOPE_CHANGED') }
   await dispatch('commitProject', { projectId: memoryId(projectId), context }, guard)
+  if (previousProjectId && previousProjectId !== projectId) await dispatch('forkColumnPolicies', { fromProjectId: previousProjectId, projectId }, guard)
   if (previousProjectId && previousProjectId !== projectId) await dispatch('discardProject', previousProjectId, guard)
 }
 export async function registerProjectMemory(projectId: string, ids: string[]): Promise<string[]> {
@@ -105,12 +174,240 @@ export async function savedProjectLocation(projectId: string, path: string): Pro
 
 export function registerContextHandlers(ipc: IpcMain, workspace: () => WebContents | undefined): void {
   owner = workspace
+  registerContextFolders(ipc, authorised, async () => {
+    const window = owner()
+    if (!window) throw new Error('The workspace is unavailable.')
+    const result = await dialog.showOpenDialog({ title: 'Choose a context source folder', properties: ['openDirectory'] })
+    return result.canceled ? null : result.filePaths[0] ?? null
+  }, () => owner()?.send('context:foldersChanged'))
+  const bridgeFile = join(__dirname, 'mnemosyne-sidecar.py')
+  const runtime = registerManagedRuntimeHandlers(ipc, authorised, join(app.getPath('userData'), 'memory-runtimes'), bridgeFile)
+  managedRuntime = runtime
+  cleanupRunner = new LocalCleanupRunner({
+    jobs: async () => await dispatch('cleanupJobs') as LocalCleanupJob[],
+    remove: namespace => runtime.forgetDerived([namespace]),
+    complete: (job, success, now) => dispatch('completeCleanup', { job, success, now }).then(() => undefined),
+  })
+  cleanupRunner.wake()
+  retentionStopped = false
+  retentionTimer = setTimeout(() => void sweepRetention(), 1000)
+  retentionTimer.unref()
+  const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS)
+  providerActivation = new ProviderActivation({ dispatch, lease: contextLease, registry,
+    fetcher: net.fetch as typeof fetch,
+    prepareManaged: async connections => {
+      for (const connection of connections.filter(item => item.location === 'managed-local' && item.state === 'reachable')) {
+        registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
+      }
+    },
+    provider: async (connection, token, certificate) => {
+      if (connection.location !== 'managed-local') return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, net.fetch as typeof fetch))
+      await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)
+      const lease = contextLease()
+      const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
+      return createManagedMnemosyne(MNEMOSYNE_LOCAL_CANDIDATE.id, { request: (payload, host) => runtime.request(payload as Record<string, unknown>, host) }, {
+        snapshot: async (namespace, signal) => {
+          signal.throwIfAborted(); guard()
+          if (namespace !== connection.namespaceRef) throw new Error('POLICY_REFUSED')
+          const snapshot = await dispatch('bindingSnapshot', { bindingId: certificate.bindingId, scope: connection.scope }, guard) as CanonicalScopeSnapshot
+          guard(); signal.throwIfAborted()
+          return { ...snapshot, namespace }
+        },
+        current: async (snapshot, signal) => {
+          signal.throwIfAborted(); guard()
+          const current = await dispatch('bindingSnapshotCurrent', { bindingId: certificate.bindingId, scope: connection.scope, generation: snapshot.generation }, guard)
+          guard(); signal.throwIfAborted()
+          return current === true
+        },
+      })
+    },
+    approve: async (preview, connection) => {
+      const review = await dialog.showMessageBox({ type: 'question', title: preview.operation === 'import' ? 'Import selected memories' : 'Activate memory processing', buttons: ['Cancel', preview.operation === 'import' ? 'Import selected' : 'Activate'], defaultId: 0, cancelId: 0,
+        message: `${preview.operation === 'import' ? 'Copy selected memories to' : 'Use'} ${preview.label} for ${preview.scope === 'global' ? 'About you' : 'this saved project'}?`,
+        detail: `${connection.location === 'managed-local' ? 'This is an experimental beta native runtime with machine access and a readable derived SQLite store. The reviewed Linux lexical profile disables embeddings, extraction, reflection and sync. Your separately selected assistant still receives selected context.\n\n' : ''}${preview.operation === 'import' ? `This copies ${preview.selectedCount} selected committed memories. Future update permissions remain as previously approved.` : `This sends ${preview.selectedCount} selected committed memories and future approved changes to this provider.`} Estimated initial ingestion: USD ${(preview.estimatedIngestionMicros / 1e6).toFixed(6)}. Maintenance limits are estimated, not an invoice cap.\n\n${connection.destinations.map(item => `${item.purpose}: ${item.destination}`).join('\n')}\n\nPausing or disconnecting stops new requests; it does not erase already transmitted content.`,
+      })
+      return review.response === 1
+    } })
+  subscribeContextScope(() => { providerActivation?.invalidate(); providerActivation?.wake() })
+  providerActivation.wake()
+  ipc.handle('context:previewManagedActivation', async (event, scope, suppliedLease) => {
+    authorised(event)
+    const lease = contextLease()
+    if (suppliedLease !== lease.id || !['global', 'project'].includes(scope) || scope === 'project' && !lease.projectId) throw new Error('Choose About you or save this project before activating managed memory.')
+    const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
+    const resolvedScope = scope === 'global' ? 'global' : `project:${lease.projectId}`
+    const records = await dispatch('connections', undefined, guard) as MemoryConnection[]
+    let connection = records.find(item => item.location === 'managed-local' && item.scope === resolvedScope && item.state !== 'disconnected')
+    if (!connection) {
+      connection = { id: randomUUID(), revision: 1, adapter: 'mnemosyne', label: 'Mnemosyne on this device · experimental', location: 'managed-local', runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id,
+        endpoint: 'on-device', scope: resolvedScope as MemoryConnection['scope'], namespaceRef: randomUUID(), credentialRef: null, certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
+        destinations: (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: purpose === 'storage' ? 'on-device' : 'disabled' })) }
+      registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
+      await dispatch('saveConnection', { connection }, guard)
+    }
+    guard()
+    return providerActivation!.preview(connection.id, [], lease.id)
+  })
+  ipc.handle('context:recallMemory', (event, input: MemoryRecallRequest, id, lease) => {
+    authorised(event)
+    if (!input || typeof input.query !== 'string' || input.query.length > 512 || !['global', 'project'].includes(input.scope)
+      || [input.before, input.after].some(value => value !== undefined && (typeof value !== 'string' || value.length > 64 || !Number.isFinite(Date.parse(value)))) || typeof lease !== 'string') throw new Error('Choose a bounded memory query in the active scope.')
+    return providerActivation!.recall(input, memoryId(id), lease)
+  })
+  ipc.handle('context:cancelRecall', (event, id) => { authorised(event); providerActivation!.cancelRecall(memoryId(id)) })
+  ipc.handle('context:activationStatus', event => { authorised(event); return providerActivation!.status() })
+  ipc.handle('context:previewActivation', (event, id, ids, lease) => {
+    authorised(event)
+    if (!Array.isArray(ids) || ids.length > 1000 || typeof lease !== 'string') throw new Error('Choose a bounded memory selection in this workspace.')
+    return providerActivation!.preview(memoryId(id), ids.map(memoryId), lease)
+  })
+  ipc.handle('context:previewMemoryImport', (event, id, ids, lease) => {
+    authorised(event)
+    if (!Array.isArray(ids) || !ids.length || ids.length > 1000 || typeof lease !== 'string') throw new Error('Choose a bounded committed memory selection in this workspace.')
+    return providerActivation!.preview(memoryId(id), ids.map(memoryId), lease, 'import')
+  })
+  ipc.handle('context:activateProvider', (event, ref) => { authorised(event); return providerActivation!.activate(memoryId(ref)) })
+  ipc.handle('context:pauseProvider', (event, id) => { authorised(event); return providerActivation!.pause(memoryId(id)) })
   registerMemoryConnectionHandlers(ipc, authorised, dispatch, contextLease)
-  registerManagedRuntimeHandlers(ipc, authorised, join(app.getPath('userData'), 'memory-runtimes'), join(__dirname, 'mnemosyne-sidecar.py'))
+  ipc.handle('context:maintenanceStatus', event => { authorised(event); return dispatch('maintenanceStatus') })
+  ipc.handle('context:configureMaintenance', async (event, input, suppliedLease) => {
+    authorised(event)
+    const snapshot = contextLease().id
+    const guard = (): void => { if (suppliedLease !== snapshot || contextLease().id !== snapshot) throw new Error('SCOPE_CHANGED: refresh maintenance settings before saving.') }
+    guard()
+    await dispatch('configureMaintenance', input, guard)
+    guard()
+    return dispatch('maintenanceStatus', undefined, guard)
+  })
   ipc.handle('context:lease', event => { authorised(event); return contextLease() })
+  ipc.handle('context:beginInferenceUsage', (event, chatId, turnId, provider, lease, model) => {
+    authorised(event)
+    return usageAuthority.begin(contextLease(), lease, chatId, turnId, provider, model)
+  })
+  ipc.handle('context:chatBudgetStatus', event => { authorised(event); return dispatch('chatBudgetStatus') })
+  ipc.handle('context:configureChatBudget', async (event, policy, lease: string) => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard(); await dispatch('configureChatBudget', policy, guard)
+    return dispatch('chatBudgetStatus', undefined, guard)
+  })
+  ipc.handle('context:prepareInferenceUsage', async (event, input: InferenceUsageInput, outputTokens: number, authority: string) => {
+    authorised(event)
+    const scope = usageAuthority.scope(authority, [input]), model = usageAuthority.model(authority)
+    const guard = (): void => { usageAuthority.scope(authority, [input]) }
+    // Only a genuinely fresh profile may proceed without protected accounting.
+    // An unreadable existing budget must never silently become disabled.
+    if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') {
+      if (await protectedPolicyAbsent(join(app.getPath('userData'), 'context'))) return { persisted: false }
+      throw new Error('Protected chat accounting is unavailable. Restore access to the OS keyring before sending.')
+    }
+    await dispatch('prepareInferenceUsage', { input, scope, model, outputTokens }, guard)
+    return { persisted: true }
+  })
+  ipc.handle('context:endInferenceUsage', (event, authority: string) => { authorised(event); usageAuthority.end(authority) })
+  ipc.handle('context:recordInferenceUsage', async (event, inputs: InferenceUsageInput[], authority: string) => {
+    authorised(event)
+    const scope = usageAuthority.scope(authority, inputs)
+    const guard = (): void => { usageAuthority.scope(authority, inputs) }
+    for (const input of inputs) await dispatch('recordInferenceUsage', { input, scope }, guard)
+  })
+  ipc.handle('context:inferenceUsageSummary', async (event, chatId: string | undefined, lease: string) => {
+    authorised(event)
+    const current = contextLease()
+    const guard = (): void => { if (current.id !== lease || contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    const scope = current.projectId ? `project:${current.projectId}` : 'global'
+    const result = await dispatch('inferenceUsageSummary', { scope, chatId }, guard) as Record<string, unknown>
+    const cost = await dispatch('chatCostSummary', { scope, chatId }, guard)
+    guard(); return { ...result, cost }
+  })
+  const cleanupScopes = (): string[] => { const lease = contextLease(); return ['global', ...(lease.projectId ? [`project:${lease.projectId}`] : [])] }
+  ipc.handle('context:cleanupStatus', async event => {
+    authorised(event)
+    const lease = contextLease().id
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    const result = await dispatch('cleanupStatus', cleanupScopes(), guard)
+    guard(); return result
+  })
+  ipc.handle('context:retryCleanup', async (event, suppliedLease) => {
+    authorised(event)
+    const lease = contextLease().id
+    const guard = (): void => { if (suppliedLease !== lease || contextLease().id !== lease) throw new Error('SCOPE_CHANGED: refresh cleanup status in the current workspace.') }
+    guard()
+    await dispatch('retryCleanup', cleanupScopes(), guard)
+    await cleanupRunner!.flush()
+    guard()
+    const result = await dispatch('cleanupStatus', cleanupScopes(), guard)
+    guard(); return result
+  })
   ipc.handle('context:learningSettings', async event => { authorised(event); return (await getLearningPolicy()).settings })
   ipc.handle('context:configureLearning', (event, settings) => { authorised(event); return configureLearningPolicy(settings) })
   ipc.handle('context:closeProject', (event, lease) => { authorised(event); closeContextProject(lease) })
+  ipc.handle('context:columnPolicies', async (event, lease) => {
+    authorised(event)
+    const current = contextLease()
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    if (!current.projectId) return { revision: 0, selections: {} }
+    if ((!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') && await protectedPolicyAbsent(join(app.getPath('userData'), 'context'))) { guard(); return { revision: 0, selections: {} } }
+    const result = await dispatch('columnPolicies', current.projectId, guard)
+    guard(); return result
+  })
+  ipc.handle('context:saveColumnPolicies', async (event, revision, selections, lease) => {
+    authorised(event)
+    const current = contextLease()
+    if (!current.projectId) throw new Error('Save this workspace before storing a durable column policy.')
+    const guard = (): void => requireProjectLease(current.projectId!, lease)
+    guard()
+    const policy = validateColumnPolicy({ revision, selections })
+    const result = await dispatch('saveColumnPolicies', { projectId: current.projectId, policy }, guard)
+    guard(); return result
+  })
+  ipc.handle('context:memoryRecoveryStatus', async event => {
+    authorised(event)
+    const indexRepair = starting ? await dispatch('indexRepairReceipt').catch(() => undefined) : undefined
+    return { health: writeRecovery.status(), backups: memoryBackupCatalog(join(app.getPath('userData'), 'context', 'canonical.sqlite')), indexRepair }
+  })
+  ipc.handle('context:createMemoryBackup', async (event, lease) => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard(); writeRecovery.assertWritable()
+    const result = await dispatch('createBackup', undefined, guard)
+    guard(); return result
+  })
+  ipc.handle('context:inspectMemoryBackup', async (event, id, lease) => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    if (!safeStorage.isEncryptionAvailable() || process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') throw new Error('Restore access to this profile’s protected key before inspecting its backup.')
+    const directory = join(app.getPath('userData'), 'context')
+    const key = await protectedMemoryKey(directory, safeStorage)
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const inspection = new Worker(join(__dirname, 'context-backup-inspection.js'), { workerData: { path: join(directory, 'canonical.sqlite'), id: String(id), key, schema: MEMORY_SCHEMA_VERSION } })
+        const timer = setTimeout(() => { void inspection.terminate(); reject(new Error('Backup inspection timed out. Preserve the backup and choose a smaller supported export.')) }, 15000)
+        inspection.once('message', message => { clearTimeout(timer); void inspection.terminate(); if (message.error) reject(new Error(message.error)); else resolve(message.result) })
+        inspection.once('error', error => { clearTimeout(timer); reject(error) })
+        inspection.once('exit', code => { clearTimeout(timer); if (code !== 0) reject(new Error('Backup inspection stopped before completion. Try again.')) })
+      })
+      guard(); return result
+    } finally { key.fill(0) }
+  })
+  ipc.handle('context:restoreMemoryBackup', async (event, id, lease) => {
+    authorised(event)
+    const current = contextLease()
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard(); writeRecovery.assertWritable()
+    const result = await dispatch('restoreBackup', { id, scopes: ['global', ...(current.projectId ? [`project:${current.projectId}`] : [])] }, guard)
+    guard(); owner()?.send('context:retentionChanged'); return result
+  })
+  ipc.handle('context:retryMemoryStorage', async (event, lease) => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    await dispatch('probeWritable', undefined, guard)
+    guard(); return writeRecovery.retry(() => undefined)
+  })
   ipc.handle('context:exclusions', async (event, lease) => {
     authorised(event)
     const current = contextLease()

@@ -18,7 +18,7 @@ export interface CanonicalSnapshotPort {
 /** Integration is separate from certification and installation. Replacement
  * snapshots are host-owned maintenance, never a model tool. A read-only caller
  * supplies no canonical port and cannot accidentally enable writes. */
-export function createManagedMnemosyne(runtimeId: string, runtime: MemoryRuntime, canonical?: CanonicalSnapshotPort): MemoryProviderDef {
+export function createManagedMnemosyne(runtimeId: string, runtime: Pick<MemoryRuntime, 'request'>, canonical?: CanonicalSnapshotPort): MemoryProviderDef {
   return { id: 'mnemosyne-managed', label: 'Mnemosyne on this device', apiVersion: 1, location: { kind: 'managed-local', runtimeId },
     capabilities: { lexicalSearch: true, semanticSearch: false, temporalSearch: false, readById: true, upsert: Boolean(canonical),
       deleteBySource: Boolean(canonical), deleteScope: false, export: false, reflection: false, usageReporting: false, scopeIsolation: 'dedicated-instance' },

@@ -101,6 +101,8 @@ const FIXED_TARGETS: UiTarget[] = [
 
   // Environment panel.
   { id: 'dataViewer.dataChecks', label: 'Data checks', where: 'Data Viewer header; opens read-only inspection' },
+  { id: 'dataViewer.exportVector', label: 'Export layer', where: 'Spatial Data Viewer header; opens checked vector export' },
+  { id: 'dataViewer.exportVector.save', label: 'Check and save', where: 'Vector export dialog; validates, reviews and verifies output' },
   { id: 'environment.export', label: 'Export', where: 'Environment panel, action bar' },
   { id: 'environment.load', label: 'Load', where: 'Environment panel, action bar' },
 

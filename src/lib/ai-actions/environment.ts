@@ -301,7 +301,7 @@ export const packagesActions: UiAction[] = [
         for (const p of lib.packages) {
           if (pattern && !p.name.toLowerCase().includes(pattern)) continue
           if (attachedOnly && !p.loaded) continue
-          rows.push(`${p.name} ${p.version}${p.loaded ? ' (attached)' : ''}`)
+          rows.push(`${p.name} ${p.version}${p.loaded ? ' (attached)' : ''} · ${lib.path}`)
         }
       }
       if (rows.length === 0) return ok('No matching packages.')
@@ -316,11 +316,14 @@ export const packagesActions: UiAction[] = [
     group: 'packages',
     tier: 'autopilot',
     summary: 'Attach a package (library()), as ticking its box in the Packages panel does.',
-    params: [{ name: 'name', type: 'string', required: true, description: 'Package name.' }],
+    params: [
+      { name: 'name', type: 'string', required: true, description: 'Package name.' },
+      { name: 'libPath', type: 'string', description: 'Library containing the selected package copy. Switches from another loaded copy when possible.' },
+    ],
     run: async (args) => {
       const name = argStr(args, 'name')
-      const res = await rClient.loadPackage(name)
-      if (res.success) usePackagesStore.getState().setPackageLoaded(name, true)
+      const res = await rClient.loadPackage(name, argStr(args, 'libPath') || undefined)
+      await usePackagesStore.getState().refreshPackages()
       return res.success ? ok(`Attached "${name}".`) : fail(res.error ?? `Could not attach "${name}".`)
     },
   },
@@ -334,7 +337,7 @@ export const packagesActions: UiAction[] = [
     run: async (args) => {
       const name = argStr(args, 'name')
       const res = await rClient.unloadPackage(name)
-      if (res.success) usePackagesStore.getState().setPackageLoaded(name, false)
+      await usePackagesStore.getState().refreshPackages()
       return res.success ? ok(`Detached "${name}".`) : fail(res.error ?? `Could not detach "${name}".`)
     },
   },

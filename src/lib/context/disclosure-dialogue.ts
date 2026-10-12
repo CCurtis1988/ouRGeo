@@ -14,6 +14,17 @@ export function chatContentChanged(chats: AiChat[], previous: AiChat[]): boolean
   return chats.some((chat, index) => {
     const prior = previous[index]
     const keys: (keyof AiChat)[] = ['id', 'title', 'renamed', 'createdAt', 'updatedAt', 'messages', 'workingState', 'provider', 'model', 'tokenUsage']
-    return keys.some(key => chat[key] !== prior[key])
+    return keys.some(key => {
+      if (key !== 'messages') return chat[key] !== prior[key]
+      if (chat.messages === prior.messages) return false
+      if (chat.messages.length !== prior.messages.length) return true
+      return chat.messages.some((message, position) => {
+        const old = prior.messages[position]
+        // Diagnostic retention is not an edit to the user's conversation.
+        const fields = Object.keys(message).filter(field => field !== 'contextTrace')
+        return fields.length !== Object.keys(old).filter(field => field !== 'contextTrace').length
+          || fields.some(field => message[field as keyof ChatMessage] !== old[field as keyof ChatMessage])
+      })
+    })
   })
 }

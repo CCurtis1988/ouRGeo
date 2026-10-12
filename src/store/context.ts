@@ -1,17 +1,27 @@
 import { create } from 'zustand'
-import type { ContextEffort, ContextTrace, MemoryRecord, ProjectContext, ContextScope } from '@/lib/context/types'
+import { inferenceUsageInputs, type InferenceUsageProvider } from '@/lib/context/inference-usage'
+import type { ContextEffort, ContextTrace, MemoryForgetReceipt, MemoryRecord, ProjectContext, ContextScope } from '@/lib/context/types'
 import { redactContext } from '@/lib/context/policy'
 import { createJsonFileStore } from '@/lib/persistence'
+import { useSessionStore } from '@/store/session'
 import { useAiStore } from '@/store/ai'
 import { useProjectStore } from '@/store/project'
+import { clearFolderSources, refreshFolderSources } from '@/lib/context/folder-sources'
 import { clearResultCache } from '@/lib/context/result-cache'
 import { defaultLearning, memoryCandidate, type MemoryLearningSettings } from '@/lib/context/learning'
 import { exclusionScope, type ExclusionSelection } from '@/lib/context/exclusions'
 import { applyMemoryRevision } from '@/lib/context/preferences'
 import { conversationMemories } from '@/lib/context/conversation-deletion'
+import { assertTranscriptForget, applyTranscriptForget, type TranscriptForgetPlan, type TranscriptForgetScope } from '@/lib/context/transcript-forgetting'
+import { accountingOnlyTrace, traceExpired, traceRetentionDays } from '@/lib/context/retention'
 
 const preferences = createJsonFileStore('context-preferences.json', 'Context')
 let initialisation: Promise<void> | undefined
+let usageWrites: Promise<void> = Promise.resolve()
+let lastTraceSweep = 0
+let traceTimer: ReturnType<typeof setInterval> | undefined
+let folderSubscription: (() => void) | undefined
+let retentionSubscription: (() => void) | undefined
 
 interface ContextState {
   effort: ContextEffort
@@ -20,8 +30,12 @@ interface ContextState {
   exclusionsLoaded: boolean
   savedExclusions: ExclusionSelection[]
   traces: Record<string, ContextTrace>
+  traceRetentionDays: number
+  setTraceRetentionDays: (days: number) => Promise<void>
+  sweepTraces: () => void
   projectContext: ProjectContext
   committedRevision: number
+  scopeLease: string | null
   projectLease: string | null
   globals: MemoryRecord[]
   error: string | null
@@ -39,14 +53,19 @@ interface ContextState {
   accept: (id: string) => Promise<void>
   setPinned: (id: string, pinned: boolean) => Promise<void>
   exclude: (id: string, scope: ContextScope, projectId: string | null) => Promise<void>
+  providerRevision: number
+  refreshProviders: () => void
   refreshExclusions: () => Promise<void>
   revokeDelivery: () => void
   setTrace: (trace: ContextTrace) => void
+  recordTraceUsage: (trace: ContextTrace, provider: InferenceUsageProvider, final?: boolean, authority?: string) => Promise<void>
+  prepareTraceUsage: (trace: ContextTrace, provider: InferenceUsageProvider, outputTokens: number, authority: string) => Promise<void>
   loadProject: (context?: ProjectContext, committedRevision?: number, projectLease?: string) => void
   stageProject: () => Promise<void>
   discardProjectDraft: () => Promise<void>
   remember: (statement: string, scope: 'project' | 'global', evidence?: string[]) => Promise<MemoryRecord>
-  forget: (id: string, preserveActiveTurn?: boolean) => Promise<void>
+  forgetEverywhere: (plan: TranscriptForgetPlan) => Promise<void>
+  forget: (id: string, preserveActiveTurn?: boolean, extraSources?: string[]) => Promise<MemoryForgetReceipt | undefined>
   deleteConversation: (chatId: string, keepIndependent?: boolean) => Promise<void>
   edit: (id: string, statement: string) => Promise<void>
 }
@@ -58,20 +77,64 @@ function resetProviderSessions(cancel = true): void {
 }
 
 export const useContextStore = create<ContextState>((set, get) => ({
+  scopeLease: null, providerRevision: 0, refreshProviders: () => set(s => ({ providerRevision: s.providerRevision + 1 })),
   effort: 'balanced', policyRevision: 0, excluded: [], exclusionsLoaded: false, savedExclusions: [], traces: {},
+  traceRetentionDays: 7,
+  setTraceRetentionDays: async days => {
+    if (!Number.isSafeInteger(days) || days < 1 || days > 7) throw new Error('Choose between one and seven days for diagnostic evidence.')
+    await preferences.merge({ traceRetentionDays: days })
+    set({ traceRetentionDays: days })
+    traceRetentionDays(days)
+    lastTraceSweep = 0
+    get().sweepTraces()
+  },
+  sweepTraces: () => {
+    const now = Date.now(), days = get().traceRetentionDays
+    if (now - lastTraceSweep < 60_000) return
+    lastTraceSweep = now
+    set(s => ({ traces: Object.fromEntries(Object.entries(s.traces).filter(([, trace]) => !traceExpired(trace, 0, now, days))) }))
+    const chats = useAiStore.getState().chats
+    const retained = chats.map(chat => {
+      let changed = false
+      const messages = chat.messages.map(message => {
+        if (!message.contextTrace || message.contextTrace.evidenceExpired || !traceExpired(message.contextTrace, message.timestamp, now, days)) return message
+        changed = true
+        return { ...message, contextTrace: accountingOnlyTrace(message.contextTrace) }
+      })
+      return changed ? { ...chat, messages } : chat
+    })
+    if (retained.some((chat, index) => chat !== chats[index])) useAiStore.setState({ chats: retained })
+  },
   projectContext: { version: 1, revision: 0, memories: [] }, committedRevision: 0, projectLease: null, globals: [], error: null, learning: { ...defaultLearning }, notice: null, ready: false, personalMemoryAvailable: false, memoryStoreAbsent: false,
   init: () => {
     // A recovered CLI session may contain content excluded after its last
     // delivery. Do not resume it before the protected policy has been read.
     resetProviderSessions()
     if (!initialisation) initialisation = (async () => {
+      if (!traceTimer) traceTimer = setInterval(() => get().sweepTraces(), 60_000)
+      if (!folderSubscription && window.electronAPI.context.onFoldersChanged) folderSubscription = window.electronAPI.context.onFoldersChanged(() => {
+        get().revokeDelivery()
+        clearFolderSources()
+        void window.electronAPI.context.lease().then(lease => refreshFolderSources(window.electronAPI.context, lease.id)).catch(error => set({ error: `Context folders unavailable: ${String(error)}. Refresh the folder selection.` }))
+      })
+      if (!retentionSubscription) retentionSubscription = window.electronAPI.context.onRetentionChanged?.(() => {
+        resetProviderSessions()
+        set(s => ({ policyRevision: s.policyRevision + 1 }))
+        const snapshot = get().globals
+        void window.electronAPI.context.listGlobal().then(globals => {
+          if (get().globals === snapshot) set({ globals })
+        }).catch(error => set({ error: `Expired memory is blocked, but the library could not refresh: ${String(error)}. Retry local memory.` }))
+      })
       set({ ready: false, personalMemoryAvailable: false, memoryStoreAbsent: false, globals: [], exclusionsLoaded: false })
       await get().refreshExclusions()
       try {
         const status = await window.electronAPI.context.storageStatus?.()
         set({ memoryStoreAbsent: status?.empty === true })
         const snapshot = get().learning, previousEffort = get().effort, previousGlobals = get().globals
-        const prefs = await preferences.read<{ effort?: ContextEffort }>()
+        const prefs = await preferences.read<{ effort?: ContextEffort; traceRetentionDays?: number }>()
+        if (Number.isSafeInteger(prefs.traceRetentionDays) && prefs.traceRetentionDays! >= 1 && prefs.traceRetentionDays! <= 7) { set({ traceRetentionDays: prefs.traceRetentionDays }); traceRetentionDays(prefs.traceRetentionDays) }
+        lastTraceSweep = 0
+        get().sweepTraces()
         if (get().effort === previousEffort && ['efficient', 'balanced', 'thorough'].includes(prefs.effort ?? '')) set({ effort: prefs.effort })
         const learning = await window.electronAPI.context.learningSettings()
         const globals = await window.electronAPI.context.listGlobal()
@@ -126,10 +189,14 @@ export const useContextStore = create<ContextState>((set, get) => ({
     try {
       const lease = await window.electronAPI.context.lease()
       const savedExclusions = await window.electronAPI.context.exclusions(lease.id)
+      const { useColumnDisclosureStore } = await import('./column-disclosure')
+      await useColumnDisclosureStore.getState().hydrate(lease.id)
+      if (!useColumnDisclosureStore.getState().loaded) throw new Error(useColumnDisclosureStore.getState().error)
+      await refreshFolderSources(window.electronAPI.context, lease.id)
       if (useProjectStore.getState().workspaceEpoch !== project.workspaceEpoch || lease.projectId !== useProjectStore.getState().projectId || get().policyRevision !== revision) return
       const savedIds = new Set(get().savedExclusions.flatMap(selection => selection.ids))
       const transient = get().excluded.filter(id => !savedIds.has(id))
-      set({ excluded: [...new Set([...transient, ...savedExclusions.flatMap(selection => selection.ids)])], savedExclusions, exclusionsLoaded: true })
+      set({ scopeLease: lease.id, excluded: [...new Set([...transient, ...savedExclusions.flatMap(selection => selection.ids)])], savedExclusions, exclusionsLoaded: true })
     } catch (error) {
       if (useProjectStore.getState().workspaceEpoch === project.workspaceEpoch) set({ error: `Source privacy settings unavailable: ${String(error)}. Retrieval stays disabled until protected storage is available.` })
     }
@@ -155,10 +222,44 @@ export const useContextStore = create<ContextState>((set, get) => ({
     }
   },
   revokeDelivery: () => { set(s => ({ policyRevision: s.policyRevision + 1 })); resetProviderSessions() },
-  setTrace: (trace) => set(s => ({ traces: { ...Object.fromEntries(Object.entries(s.traces).slice(-49)), [trace.turnId]: trace } })),
+  setTrace: (trace) => {
+    get().sweepTraces()
+    const recordedAt = get().traces[trace.turnId]?.recordedAt ?? trace.recordedAt ?? Date.now()
+    if (!traceExpired({ ...trace, recordedAt }, 0, Date.now(), get().traceRetentionDays)) set(s => ({ traces: { ...Object.fromEntries(Object.entries(s.traces).slice(-49)), [trace.turnId]: { ...trace, recordedAt } } }))
+  },
+  recordTraceUsage: (trace, provider, final = false, authority) => {
+    const inputs = inferenceUsageInputs(trace, provider, final)
+    if (!inputs.length) return Promise.resolve()
+    const active = (): boolean => {
+      const project = useProjectStore.getState()
+      return project.workspaceEpoch === trace.identity.workspaceEpoch && project.projectId === trace.identity.projectId
+    }
+    const write = usageWrites.then(async () => {
+      if (!authority) throw new Error('No host authority was captured before inference.')
+      await window.electronAPI.context.recordInferenceUsage(inputs, authority)
+    }).catch(error => {
+      if (active()) set({ error: `Durable inference accounting is unavailable: ${String(error)}. Available chat receipts remain; totals may be incomplete.` })
+    })
+    usageWrites = write
+    return write
+  },
+  prepareTraceUsage: (trace, provider, outputTokens, authority) => {
+    const input = inferenceUsageInputs(trace, provider).find(input => input.invocation === trace.invocations.length && input.attempt === 0 && input.accountingScope === 'invocation')
+    if (!input || !authority) return Promise.reject(new Error('Prepare numeric invocation accounting before sending.'))
+    const completed = inferenceUsageInputs(trace, provider, true).filter(receipt => receipt.invocation < input.invocation)
+    // Drain streaming snapshots before finalising earlier invocations. Otherwise
+    // a slower queued observation can conflict with the newly final receipt.
+    const write = usageWrites.then(async () => {
+      if (completed.length) await window.electronAPI.context.recordInferenceUsage(completed, authority)
+      await window.electronAPI.context.prepareInferenceUsage(input, outputTokens, authority)
+    })
+    usageWrites = write.catch(() => undefined)
+    return write
+  },
   loadProject: (context, committedRevision, projectLease) => {
+    clearFolderSources()
     clearResultCache()
-    set(s => ({ projectContext: context ?? { version: 1, revision: 0, memories: [] }, committedRevision: committedRevision ?? context?.revision ?? 0, projectLease: projectLease ?? null, traces: {}, excluded: [], exclusionsLoaded: false, savedExclusions: [], notice: null, policyRevision: s.policyRevision + 1 }))
+    set(s => ({ scopeLease: null, projectContext: context ?? { version: 1, revision: 0, memories: [] }, committedRevision: committedRevision ?? context?.revision ?? 0, projectLease: projectLease ?? null, traces: {}, excluded: [], exclusionsLoaded: false, savedExclusions: [], notice: null, policyRevision: s.policyRevision + 1 }))
     void get().refreshExclusions()
   },
   stageProject: async () => {
@@ -201,22 +302,38 @@ export const useContextStore = create<ContextState>((set, get) => ({
     await get().stageProject()
     return update.record
   },
-  forget: async (id, preserveActiveTurn = false) => {
+  forget: async (id, preserveActiveTurn = false, extraSources = []) => {
     const project = useProjectStore.getState(), lease = get().projectLease
     const memory = [...get().globals, ...get().projectContext.memories].find(m => m.id === id)
     if (!memory) throw new Error('This memory is unavailable. Refresh the library.')
     // A tombstone precedes removal, including project drafts. Old bundles must
     // not resurrect a forgotten record on this profile.
-    await window.electronAPI.context.forget(id, { scope: memory.scope, projectId: memory.projectId, lease, sources: memory.evidence.filter(source => /^[a-zA-Z0-9_:.-]{1,128}$/.test(source)) })
+    const receipt = await window.electronAPI.context.forget(id, { scope: memory.scope, projectId: memory.projectId, lease, sources: [...new Set([...memory.evidence.filter(source => /^[a-zA-Z0-9_:.-]{1,128}$/.test(source)), ...extraSources])] })
     if (memory.scope === 'project' && (useProjectStore.getState().workspaceEpoch !== project.workspaceEpoch || get().projectLease !== lease)) throw new Error('SCOPE_CHANGED: the old project memory was forgotten; reopen that project to inspect its state.')
     const withoutMemory = (trace: ContextTrace): ContextTrace => ({ ...trace, selected: trace.selected.filter(source => source.sourceId !== `memory:${id}`) })
-    set(s => ({ globals: s.globals.filter(m => m.id !== id), ...(memory.scope === 'project' ? { projectContext: { version: 1 as const, revision: s.projectContext.revision + 1, memories: s.projectContext.memories.filter(m => m.id !== id) } } : {}), traces: Object.fromEntries(Object.entries(s.traces).map(([key, trace]) => [key, withoutMemory(trace)])), policyRevision: s.policyRevision + 1, notice: 'Memory forgotten from future retrieval. Already transmitted content and older exports cannot be recalled.' }))
+    set(s => ({ globals: s.globals.filter(m => m.id !== id), ...(memory.scope === 'project' ? { projectContext: { version: 1 as const, revision: s.projectContext.revision + 1, memories: s.projectContext.memories.filter(m => m.id !== id) } } : {}), traces: Object.fromEntries(Object.entries(s.traces).map(([key, trace]) => [key, withoutMemory(trace)])), policyRevision: s.policyRevision + 1, notice: receipt?.managed === 'pending' ? `Memory forgotten from future retrieval. ${receipt.recovery}` : 'Memory forgotten from future retrieval. Already transmitted content and older exports cannot be recalled.' }))
     useAiStore.setState(s => ({ chats: s.chats.map(chat => {
       if (!chat.messages.some(message => message.contextTrace?.selected.some(source => source.sourceId === `memory:${id}`))) return chat
       return { ...chat, messages: chat.messages.map(message => message.contextTrace?.selected.some(source => source.sourceId === `memory:${id}`) ? { ...message, contextTrace: withoutMemory(message.contextTrace) } : message) }
     }) }))
     resetProviderSessions(!preserveActiveTurn)
     if (memory.scope === 'project') { useProjectStore.getState().markDirty(); await get().stageProject() }
+    return receipt
+  },
+  forgetEverywhere: async plan => {
+    const scope = (): TranscriptForgetScope => {
+      const project = useProjectStore.getState()
+      return { workspaceEpoch: project.workspaceEpoch, projectId: project.projectId, savedProject: !!project.path, activeChatId: useAiStore.getState().activeChatId }
+    }
+    const memory = (): MemoryRecord | undefined => [...get().globals, ...get().projectContext.memories].find(record => record.id === plan.memoryId)
+    assertTranscriptForget(plan, memory(), useAiStore.getState().chats, scope())
+    get().revokeDelivery()
+    const receipt = await get().forget(plan.memoryId, false, plan.sourceIds)
+    assertTranscriptForget(plan, memory(), useAiStore.getState().chats, scope(), true)
+    useAiStore.setState(state => ({ chats: applyTranscriptForget(plan, state.chats) }))
+    set({ traces: {}, notice: `Memory and ${plan.copies.length} selected message copies removed from this workspace. Other projects, exports, backups and already transmitted content are unaffected.${receipt?.managed === 'pending' ? ` ${receipt.recovery}` : ''}` })
+    if (useProjectStore.getState().path && plan.copies.length) useProjectStore.getState().markDirty()
+    useSessionStore.getState().addConsoleEntry('info', `Context memory: removed ${plan.copies.length} reviewed transcript copies.`)
   },
   deleteConversation: async (chatId, keepIndependent = false) => {
     const project = useProjectStore.getState()

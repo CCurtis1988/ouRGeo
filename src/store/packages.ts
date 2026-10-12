@@ -14,7 +14,6 @@ interface PackagesState {
   setError: (error: string | null) => void
   setSearchQuery: (query: string) => void
   toggleOpen: () => void
-  setPackageLoaded: (name: string, loaded: boolean) => void
   addLoadingPackage: (name: string) => void
   removeLoadingPackage: (name: string) => void
   refreshPackages: () => Promise<void>
@@ -33,16 +32,6 @@ export const usePackagesStore = create<PackagesState>((set) => ({
   setError: (error) => set({ error }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   toggleOpen: () => set((s) => ({ isOpen: !s.isOpen })),
-
-  setPackageLoaded: (name, loaded) =>
-    set((s) => ({
-      libraries: s.libraries.map((lib) => ({
-        ...lib,
-        packages: lib.packages.map((pkg) =>
-          pkg.name === name ? { ...pkg, loaded } : pkg
-        )
-      }))
-    })),
 
   addLoadingPackage: (name) =>
     set((s) => ({ loadingPackages: new Set(s.loadingPackages).add(name) })),

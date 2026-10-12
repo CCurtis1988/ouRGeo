@@ -27,6 +27,8 @@ export interface ThemeDef {
 
   /** Marks a theme the user made. Drives the "Custom" badge and Delete. */
   custom?: true
+  /** Original palette/SVG version, kept in the collapsed legacy collection. */
+  legacy?: true
   /** The shipped theme this one was started from. Supplies the generated scene
    *  art when the user has not uploaded a background image of their own. */
   basedOn?: string
@@ -34,9 +36,9 @@ export interface ThemeDef {
   defaultBasemap?: string
   /** A `data:` URI. Replaces the generated scene behind the code editor. */
   backgroundImage?: string | null
-  /** How strongly that backdrop is painted, 0–1. Shipped themes use 0.15. */
+  /** How strongly that backdrop is painted, 0–1. Generated scenes default to 0.15. */
   backgroundOpacity?: number
-  /** Whether the backdrop is grey-scaled. Shipped themes are. */
+  /** Whether the backdrop is grey-scaled. Generated scenes are; paintings retain colour. */
   backgroundGrayscale?: boolean
   /** A `data:` URI shown on the theme's card in the App Theme picker. Falls
    *  back to the background image, then to the generated scene. */
@@ -77,7 +79,7 @@ const chrome = (
   panel: string, bg: string, border: string, accent: string, muted: string, fg: string
 ): EditorChrome => ({ panel, bg, border, accent, muted, fg })
 
-const BUILTIN: Record<string, ThemeDef> = {
+const ORIGINAL_THEMES: Record<string, ThemeDef> = {
   dark: {
     id: 'dark', label: 'Dark', isDark: true,
     defaultCodeTheme: 'dark', defaultMarkdownTheme: 'dark',
@@ -168,6 +170,17 @@ const BUILTIN: Record<string, ThemeDef> = {
     palette: { accent: '#00ff00', error: '#ff5219', success: '#00ff00', muted: '#2d5c30' },
     editorChrome: chrome('#051205', '#030f03', '#0f2e0f', '#00ff00', '#2d5c30', '#66cc66'),
   },
+}
+
+// Stable existing ids keep the painted themes. Legacy variants retain the
+// original surfaces, generated scenes and syntax defaults under separate ids.
+const BUILTIN: Record<string, ThemeDef> = {
+  ...ORIGINAL_THEMES,
+  heaven: { ...ORIGINAL_THEMES.heaven, backgroundOpacity: 0.30 },
+  ...Object.fromEntries(Object.values(ORIGINAL_THEMES).map(theme => [
+    `legacy-${theme.id}`,
+    { ...theme, id: `legacy-${theme.id}`, label: `${theme.label} (Legacy)`, legacy: true as const, basedOn: theme.id },
+  ])),
 }
 
 /** The themes ouRGeo ships. Never mutated. */

@@ -216,10 +216,10 @@ export function buildLoadCode(
     }
   }
 
+  if (isSpatialFormat(format)) lines.push(`attr(${varName}, "ourgeo_source_files") <- normalizePath(${JSON.stringify(path)}, winslash = "/", mustWork = TRUE)`)
   return lines.join('\n')
 }
 
 // ---------------------------------------------------------------------------
 // FormulaInput
 // ---------------------------------------------------------------------------
-

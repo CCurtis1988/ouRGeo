@@ -87,7 +87,7 @@ new diagnostic-upload or export feature was added.
 | Attribute toolbox | Left/right/inner/full/semi/anti joins and selected-column group summaries. |
 | Rgeo/DuckDB | Existing proxy materialisation and primary keys, ordered to match the table viewer. No second database/catalogue. |
 | Map display | Known-CRS display transformation uses strict installed-resource checks; native source remains unchanged. |
-| GeoPackage/GeoJSON vector-file export or publication | **No controlled exporter exists in this tree.** Shared contract returns blocked requirements with `not_checked` integration findings. Driver availability is not a preservation result. |
+| GeoPackage/GeoJSON vector-file export | Since 1.16.5: Data Viewer and data:exportVector share checked profiles, staged writes/readback, specific approval and safe publication. See [vector export](vector-export.md). Server publication remains absent. |
 | Raster, other tools, user-authored R | Outside this validation guarantee; no new tool, projection engine, connector, Server/Cloud bridge or scientific validator. |
 
 Vector inspection covers sf-compatible objects from the existing supported
@@ -100,13 +100,13 @@ be explicitly prepared as an attribute table. Unevaluated pipelines and implicit
 viewport approximations are not validated: run/materialise first, or choose an
 explicit row selection. Other existing tools retain their previous behaviour.
 
-The only existing vector `st_write` is the map's temporary GeoJSON payload;
-image, raster, RData, Rgeo and forum export paths are not a vector-file exporter.
-Consequently destination-aware vector write plans, staged GeoPackage/GeoJSON
-readback, precision-loss approval and preservation of unrelated GeoPackage
-layers have **no wired integration and no executed acceptance claim** (requested
-acceptance 13–14). Driver availability/profile requirements alone remain blocked.
-No new writer was built to disguise that missing product surface.
+The 1.16.4 implementation had no controlled vector file writer. The 1.16.5
+export slice now wires GeoPackage/GeoJSON profiles and the previously missing
+acceptance 13–14 through `tests/fixtures/preflight/export.R`: full staged
+readback, explicit field/CRS/precision plans, loss detection, previous-file
+protection and unrelated vector-layer preservation. See [scope, versions and
+actual verification](vector-export.md). Display/image/raster/RData/Rgeo exports
+remain separate; there is no Desktop-to-Server publication bridge.
 
 ## Backend contract and authority
 
@@ -180,7 +180,7 @@ repository run skill. Screenshots are saved under `/tmp/ourgeo-data-preflight`.
 The first-run health prompt is acknowledged only in that temporary profile;
 existing health-check tests remain in the full regression suite.
 
-Final gate results: type checking passed; lint passed with **0 errors and the
+1.16.4 baseline gate results: type checking passed; lint passed with **0 errors and the
 existing 38 warnings**; **140 test files / 1815 tests passed**; production build
 passed. Intentional invalid CRS/geometry and transformation fixtures emit R
 warnings; these are assertions of failure handling, not unreviewed failures.
@@ -205,7 +205,10 @@ sfarc 0.5.0, geos 0.2.5, DuckDB 1.5.4, GEOS 3.14.1, GDAL 3.13.3, PROJ 9.8.1. The
 1.1.11 could not load because of an Abseil shared-library mismatch; it initially
 produced honest uncheckable/blocked geographic checks. Geographic acceptance
 used S2 1.1.13 built in the ignored local `.cache/preflight-r` library with
-bundled Abseil. The normal user library was not changed. Actual installed
+bundled Abseil. The normal user library was unchanged during that original
+acceptance run. The [1.16.12 Buffer investigation](toolbox-buffer-fix.md) later
+repaired this machine's active S2 installation and verified the normal library
+in both development and built app modes. Actual installed
 versions/resources determine supported execution; strict transformation needs
 GDAL ≥3.3, and a working S2 library is required for the advertised geographic
 path. Other vector format reads were regression checked through the existing

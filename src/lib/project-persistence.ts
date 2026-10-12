@@ -275,6 +275,8 @@ async function packProjectToPath(path: string): Promise<boolean> {
   const context = original.projectId !== projectId ? forkProjectContext(draft, projectId) : draft
   const manifest = buildManifest(name, databases, projectId, context)
 
+  const { useColumnDisclosureStore } = await import('@/store/column-disclosure')
+  const forkColumns = original.projectId === projectId ? null : { ...useColumnDisclosureStore.getState().selections }
   const packed = await window.electronAPI.project.pack(path, JSON.stringify(manifest), envPath)
 
   if (!stillCurrent()) return true
@@ -290,6 +292,16 @@ async function packProjectToPath(path: string): Promise<boolean> {
     // the original project are local settings, not inherited bundle content.
     useContextStore.setState(state => ({ excluded: [], savedExclusions: [], exclusionsLoaded: false, policyRevision: state.policyRevision + 1 }))
     useContextStore.getState().revokeDelivery()
+  }
+  if (forkColumns && Object.keys(forkColumns).length) {
+    try {
+      const currentPolicy = await window.electronAPI.context.columnPolicies(savedLease.id)
+      if (JSON.stringify(currentPolicy.selections) !== JSON.stringify(forkColumns)) await window.electronAPI.context.saveColumnPolicies(currentPolicy.revision, forkColumns, savedLease.id)
+    }
+    catch (error) {
+      useColumnDisclosureStore.setState({ selections: forkColumns, loaded: false, error: `Project saved, but column privacy could not be committed: ${String(error)}. Restore protected storage before using workspace context.` })
+      throw error
+    }
   }
   await useContextStore.getState().refreshExclusions()
   if (useContextStore.getState().projectContext === draft) {

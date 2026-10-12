@@ -55,6 +55,7 @@ export interface PreflightReport {
   selectionRevision?: string
   parametersDigest?: string
   checkedAt?: string
+  executionCode?: string
   coverage: { complete: boolean; rowsChecked: number; totalRows?: number; scope?: string }
   issues: PreflightIssue[]
   profiles: DataProfile[]
@@ -68,9 +69,32 @@ export interface PreflightReport {
     includedAndExcludedRows: { layerId: string; selectedCount: number; includedCount: number; excludedCount: number; includedReference: string; excludedReference: string; reason: string | null }[]
     joinPolicy: { leftKey: string; rightKey: string; keyTypes: { left: string | string[]; right: string | string[] }; nullLeft: number; nullRight: number; blankLeft: number; blankRight: number; joinType: string; leftRows: number; rightRows: number; unmatchedLeft: number; unmatchedRight: number; missingLeft: number; missingRight: number; duplicateLeft: number; duplicateRight: number; predictedRows: number; relationship: string; keyPolicy: string } | null
     missingValuePolicy: { policy: string; totalRows: number; missingOrNonFinite: number; usableRows: number; units: string | null; allMissingResult: string } | null
-    exportProfileAndOptions: unknown
+    exportProfileAndOptions: ExportProfile | null
   }
   acknowledgments?: { issueCode: string; fingerprint: string }[]
   error?: string
+  executionPhase?: string
+  executionResult?: { success: boolean; code?: string; path?: string; featureCount?: number; verified?: boolean; error?: string }
   success?: boolean
+}
+
+export interface ExportProfile {
+  driver: string
+  path: string
+  layer: string
+  mode: string
+  sourceCRS: string
+  destinationCRS: string
+  axisConvention: string
+  geometryTypes: string[]
+  dimensions: string[]
+  curves: string
+  fields: { retained: string[]; omitted: string[]; converted: string[]; schema: { name: string; sourceType: string; destinationType: string; conversion: string }[] }
+  coordinatePrecision: number | null
+  geometryTolerance: number
+  datasetOptions: string[]
+  layerOptions: string[]
+  readbackOptions: string[]
+  featureCount: number
+  coverage: string
 }

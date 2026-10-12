@@ -12,6 +12,7 @@
  */
 
 export type ClaudeEvent =
+  | { kind: 'compaction' }
   /** The run has started: the session to resume next turn, and whether our
    *  MCP server actually connected (a `failed` here is why no tool works). */
   | { kind: 'init'; sessionId: string; tools: string[]; mcpFailed: string[] }
@@ -85,6 +86,8 @@ export function parseClaudeLine(line: string): ClaudeEvent {
     return { kind: 'ignore' }
   }
   if (!msg) return { kind: 'ignore' }
+
+  if (msg.type === 'system' && (msg.subtype === 'compact_boundary' || msg.subtype === 'pre_compact')) return { kind: 'compaction' }
 
   if (msg.type === 'system' && msg.subtype === 'init') {
     const servers = Array.isArray(msg.mcp_servers) ? msg.mcp_servers : []

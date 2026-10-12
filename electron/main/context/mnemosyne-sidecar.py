@@ -67,6 +67,24 @@ def open_index(path):
     return connection
 
 
+def seal_index(path):
+    # The private protocol has one serial owner. A read-only connection can
+    # prevent upstream's last writer from checkpointing on close. Never rename
+    # a new snapshot over a path still carrying the previous database's WAL.
+    if not path.exists():
+        return
+    connection = sqlite3.connect(path)
+    try:
+        checkpoint = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if checkpoint[0] != 0:
+            raise RuntimeError("Index checkpoint is busy")
+        mode = connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+        if mode.lower() != "delete":
+            raise RuntimeError("Index journal did not close")
+    finally:
+        connection.close()
+
+
 def replace_index(path, namespace, payload):
     generation = payload.get("generation")
     records = payload.get("records")
@@ -119,10 +137,12 @@ def replace_index(path, namespace, payload):
             raise RuntimeError("Incomplete index")
         connection.close()
         memory = None
+        seal_index(Path(staging))
         if os.stat(staging).st_size > 250 * 1024 * 1024:
             raise OverflowError("Index size limit")
         with open(staging, "rb") as handle:
             os.fsync(handle.fileno())
+        seal_index(path)
         os.replace(staging, path)
         if os.name != "nt":
             handle = os.open(directory, os.O_RDONLY)
@@ -134,7 +154,7 @@ def replace_index(path, namespace, payload):
     finally:
         if memory is not None:
             memory.conn.close()
-        for suffix in ("", "-wal", "-shm", "-journal"):
+        for suffix in ("", "-wal", "-shm", "-journal", ".init.lock"):
             with contextlib.suppress(FileNotFoundError):
                 os.unlink(staging + suffix)
 
@@ -182,6 +202,7 @@ def dispatch(payload):
         return {"generation": generation, "evidence": [{"id": row["id"], "revision": row["revision"], "text": row["text"], "updatedAt": row["updated_at"]} for row in rows], "complete": True}
     finally:
         connection.close()
+        seal_index(path)
 
 
 # Staged rebuilds are never search sources. A crashed, incomplete generation

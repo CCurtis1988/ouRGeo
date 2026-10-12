@@ -1,0 +1,2623 @@
+{
+  "version": 1,
+  "appVersion": "1.16.14",
+  "releaseCertification": false,
+  "ownerAcceptance": "Pending owner results; no independent usability results supplied. Owner will perform all Linux manual testing; Windows/macOS are deferred.",
+  "nativeBeforeConsoleClassification": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:17:22.395Z",
+    "appVersion": "1.16.14",
+    "profile": "/tmp/ourgeo-context-scale-n6d1LY",
+    "screenshot": "/tmp/ourgeo-context-scale-n6d1LY/native-context-scale.png",
+    "platform": "linux-x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "corpus": {
+      "objects": 10000,
+      "consoleEvents": 100000,
+      "documents": 100000,
+      "plugins": 200
+    },
+    "coldMs": 1024.0669399999988,
+    "timings": [
+      {
+        "query": "flood parcel exposure",
+        "warmP95Ms": 270.10000002384186,
+        "samples": [
+          258.19999998807907,
+          256.5,
+          246.69999998807907,
+          250.4000000357628,
+          254.69999998807907,
+          254.0999999642372,
+          252.5999999642372,
+          258.69999998807907,
+          254,
+          270.10000002384186
+        ]
+      },
+      {
+        "query": "",
+        "warmP95Ms": 205.39999997615814,
+        "samples": [
+          189.80000001192093,
+          179.4000000357628,
+          188.10000002384186,
+          192.79999995231628,
+          188.4000000357628,
+          185.80000001192093,
+          200.89999997615814,
+          187.30000001192093,
+          205.39999997615814,
+          190.80000001192093
+        ]
+      },
+      {
+        "query": "scale",
+        "warmP95Ms": 268.80000001192093,
+        "samples": [
+          231,
+          232.60000002384186,
+          268.80000001192093,
+          228,
+          227.60000002384186,
+          227.0999999642372,
+          235.0999999642372,
+          250.19999998807907,
+          231.29999995231628,
+          236.9000000357628
+        ]
+      },
+      {
+        "query": ".GlobalEnv::object_9876",
+        "warmP95Ms": 288.19999998807907,
+        "samples": [
+          225.30000001192093,
+          232.69999998807907,
+          225.30000001192093,
+          233.10000002384186,
+          288.19999998807907,
+          236.0999999642372,
+          236,
+          245.69999998807907,
+          239.89999997615814,
+          226.60000002384186
+        ]
+      }
+    ],
+    "snapshots": [
+      {
+        "label": "before-inputs",
+        "pid": 1022421,
+        "residentBytes": 348409856,
+        "peakResidentBytes": 355151872
+      },
+      {
+        "label": "inputs-before-discovery",
+        "pid": 1022421,
+        "residentBytes": 398745600,
+        "peakResidentBytes": 463724544
+      },
+      {
+        "label": "cold-browser",
+        "pid": 1022421,
+        "residentBytes": 464175104,
+        "peakResidentBytes": 464175104
+      },
+      {
+        "label": "browser-flood parcel exposure-0",
+        "pid": 1022421,
+        "residentBytes": 464695296,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-1",
+        "pid": 1022421,
+        "residentBytes": 463998976,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-2",
+        "pid": 1022421,
+        "residentBytes": 463880192,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-3",
+        "pid": 1022421,
+        "residentBytes": 463515648,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-4",
+        "pid": 1022421,
+        "residentBytes": 463519744,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-5",
+        "pid": 1022421,
+        "residentBytes": 463499264,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-6",
+        "pid": 1022421,
+        "residentBytes": 463171584,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-7",
+        "pid": 1022421,
+        "residentBytes": 463097856,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-8",
+        "pid": 1022421,
+        "residentBytes": 463052800,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-flood parcel exposure-9",
+        "pid": 1022421,
+        "residentBytes": 462905344,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--0",
+        "pid": 1022421,
+        "residentBytes": 463429632,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--1",
+        "pid": 1022421,
+        "residentBytes": 463724544,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--2",
+        "pid": 1022421,
+        "residentBytes": 463683584,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--3",
+        "pid": 1022421,
+        "residentBytes": 461152256,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--4",
+        "pid": 1022421,
+        "residentBytes": 461111296,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--5",
+        "pid": 1022421,
+        "residentBytes": 461398016,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--6",
+        "pid": 1022421,
+        "residentBytes": 461180928,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--7",
+        "pid": 1022421,
+        "residentBytes": 461148160,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--8",
+        "pid": 1022421,
+        "residentBytes": 461074432,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser--9",
+        "pid": 1022421,
+        "residentBytes": 457433088,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-0",
+        "pid": 1022421,
+        "residentBytes": 457678848,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-1",
+        "pid": 1022421,
+        "residentBytes": 457732096,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-2",
+        "pid": 1022421,
+        "residentBytes": 458022912,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-3",
+        "pid": 1022421,
+        "residentBytes": 458031104,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-4",
+        "pid": 1022421,
+        "residentBytes": 458178560,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-5",
+        "pid": 1022421,
+        "residentBytes": 458080256,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-6",
+        "pid": 1022421,
+        "residentBytes": 458203136,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-7",
+        "pid": 1022421,
+        "residentBytes": 458043392,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-8",
+        "pid": 1022421,
+        "residentBytes": 458264576,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-scale-9",
+        "pid": 1022421,
+        "residentBytes": 458235904,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-0",
+        "pid": 1022421,
+        "residentBytes": 458186752,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-1",
+        "pid": 1022421,
+        "residentBytes": 458317824,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-2",
+        "pid": 1022421,
+        "residentBytes": 458080256,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-3",
+        "pid": 1022421,
+        "residentBytes": 458117120,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-4",
+        "pid": 1022421,
+        "residentBytes": 458362880,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-5",
+        "pid": 1022421,
+        "residentBytes": 458293248,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-6",
+        "pid": 1022421,
+        "residentBytes": 458403840,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-7",
+        "pid": 1022421,
+        "residentBytes": 458121216,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-8",
+        "pid": 1022421,
+        "residentBytes": 458379264,
+        "peakResidentBytes": 465985536
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-9",
+        "pid": 1022421,
+        "residentBytes": 458121216,
+        "peakResidentBytes": 465985536
+      }
+    ],
+    "managerPeakAdditionalResidentBytes": 65949696,
+    "inputAndManagerAdditionalResidentBytes": 109711360,
+    "sourceHashes": {
+      "scripts/check-context-scale.mjs": "46404c0f21513cbe0884a74e59d569b88a43fe56b9661479475a2552d8355f74",
+      "src/components/ai/ContextSourceBrowser.tsx": "820c42e6c5593b7f3fbee0fd60a78ad49169b37135d367af3c14ebfbfa526de2",
+      "src/lib/context/source-browser.ts": "9ec2515eac978b889367e6afa99229a0f4fc0d0022bb5520f0478edca3cebb53",
+      "src/lib/context/descriptor-index.ts": "7852f9d7e3d1ed45415a381e1831c4311eb1c77d8aaf27074f53c02533aa5a6b",
+      "src/lib/context/descriptor-identity.ts": "23be3a9a4c811184013423224bb0edde97d4c488558e179bc7fa2db47df3bcd0",
+      "src/lib/context/sources/workspace.ts": "1caf7098baeaf66fbb479d24f7e102fb2722312370b50989d55dfb9fda29d112"
+    },
+    "bodyReads": 0,
+    "contextFreeTurns": [
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7215
+      },
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7341
+      }
+    ],
+    "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; editor/console/environment panes closed, normal AI/context UI rendered. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; transient pre-GC peaks and whole-app pane rendering are not certified. Loopback mock model, no real inference or R source reads.",
+    "gates": {
+      "warmSearchBelow200Ms": false,
+      "additionalManagerBelow150MiB": true,
+      "contextFreeNoAuxiliarySources": true,
+      "noSchemaReads": true
+    },
+    "passed": false
+  },
+  "nativeBeforeControlCaching": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:23:41.799Z",
+    "appVersion": "1.16.14",
+    "profile": "/tmp/ourgeo-context-scale-pP2D8C",
+    "screenshot": "/tmp/ourgeo-context-scale-pP2D8C/native-context-scale.png",
+    "platform": "linux-x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "corpus": {
+      "objects": 10000,
+      "consoleEvents": 100000,
+      "documents": 100000,
+      "plugins": 200
+    },
+    "coldMs": 1100.4515439999996,
+    "timings": [
+      {
+        "query": "flood parcel exposure",
+        "warmP95Ms": 202.60000002384186,
+        "samples": [
+          209.0999999642372,
+          201.10000002384186,
+          202.60000002384186,
+          198.19999998807907,
+          197.19999998807907,
+          194.69999998807907,
+          195.19999998807907,
+          197.80000001192093,
+          198.69999998807907,
+          195.29999995231628
+        ]
+      },
+      {
+        "query": "",
+        "warmP95Ms": 138.4000000357628,
+        "samples": [
+          132.69999998807907,
+          144.19999998807907,
+          134,
+          131.70000004768372,
+          130,
+          136.69999998807907,
+          138.4000000357628,
+          133.39999997615814,
+          130.9000000357628,
+          127.60000002384186
+        ]
+      },
+      {
+        "query": "scale",
+        "warmP95Ms": 180.39999997615814,
+        "samples": [
+          168.80000001192093,
+          170.5999999642372,
+          169.0999999642372,
+          170.60000002384186,
+          170.69999998807907,
+          177.5,
+          172,
+          180.39999997615814,
+          171.39999997615814,
+          170.80000001192093
+        ]
+      },
+      {
+        "query": ".GlobalEnv::object_9876",
+        "warmP95Ms": 177.29999995231628,
+        "samples": [
+          178.80000001192093,
+          167.5999999642372,
+          166.69999998807907,
+          169.80000001192093,
+          174.4000000357628,
+          171.5,
+          177.29999995231628,
+          171.10000002384186,
+          170.10000002384186,
+          169
+        ]
+      }
+    ],
+    "snapshots": [
+      {
+        "label": "before-inputs",
+        "pid": 1024265,
+        "residentBytes": 347537408,
+        "peakResidentBytes": 354557952
+      },
+      {
+        "label": "inputs-before-discovery",
+        "pid": 1024265,
+        "residentBytes": 396853248,
+        "peakResidentBytes": 461058048
+      },
+      {
+        "label": "cold-browser",
+        "pid": 1024265,
+        "residentBytes": 460783616,
+        "peakResidentBytes": 462311424
+      },
+      {
+        "label": "browser-flood parcel exposure-0",
+        "pid": 1024265,
+        "residentBytes": 462835712,
+        "peakResidentBytes": 463409152
+      },
+      {
+        "label": "browser-flood parcel exposure-1",
+        "pid": 1024265,
+        "residentBytes": 462770176,
+        "peakResidentBytes": 464465920
+      },
+      {
+        "label": "browser-flood parcel exposure-2",
+        "pid": 1024265,
+        "residentBytes": 462774272,
+        "peakResidentBytes": 464465920
+      },
+      {
+        "label": "browser-flood parcel exposure-3",
+        "pid": 1024265,
+        "residentBytes": 463114240,
+        "peakResidentBytes": 464465920
+      },
+      {
+        "label": "browser-flood parcel exposure-4",
+        "pid": 1024265,
+        "residentBytes": 463142912,
+        "peakResidentBytes": 464465920
+      },
+      {
+        "label": "browser-flood parcel exposure-5",
+        "pid": 1024265,
+        "residentBytes": 463302656,
+        "peakResidentBytes": 464465920
+      },
+      {
+        "label": "browser-flood parcel exposure-6",
+        "pid": 1024265,
+        "residentBytes": 463282176,
+        "peakResidentBytes": 464678912
+      },
+      {
+        "label": "browser-flood parcel exposure-7",
+        "pid": 1024265,
+        "residentBytes": 463216640,
+        "peakResidentBytes": 464678912
+      },
+      {
+        "label": "browser-flood parcel exposure-8",
+        "pid": 1024265,
+        "residentBytes": 463175680,
+        "peakResidentBytes": 464678912
+      },
+      {
+        "label": "browser-flood parcel exposure-9",
+        "pid": 1024265,
+        "residentBytes": 463392768,
+        "peakResidentBytes": 464678912
+      },
+      {
+        "label": "browser--0",
+        "pid": 1024265,
+        "residentBytes": 463622144,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--1",
+        "pid": 1024265,
+        "residentBytes": 463527936,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--2",
+        "pid": 1024265,
+        "residentBytes": 462954496,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--3",
+        "pid": 1024265,
+        "residentBytes": 463032320,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--4",
+        "pid": 1024265,
+        "residentBytes": 462786560,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--5",
+        "pid": 1024265,
+        "residentBytes": 460242944,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--6",
+        "pid": 1024265,
+        "residentBytes": 460595200,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--7",
+        "pid": 1024265,
+        "residentBytes": 460562432,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--8",
+        "pid": 1024265,
+        "residentBytes": 460648448,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser--9",
+        "pid": 1024265,
+        "residentBytes": 460648448,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-0",
+        "pid": 1024265,
+        "residentBytes": 460869632,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-1",
+        "pid": 1024265,
+        "residentBytes": 461131776,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-2",
+        "pid": 1024265,
+        "residentBytes": 461017088,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-3",
+        "pid": 1024265,
+        "residentBytes": 461074432,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-4",
+        "pid": 1024265,
+        "residentBytes": 460636160,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-5",
+        "pid": 1024265,
+        "residentBytes": 460972032,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-6",
+        "pid": 1024265,
+        "residentBytes": 460816384,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-7",
+        "pid": 1024265,
+        "residentBytes": 460820480,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-8",
+        "pid": 1024265,
+        "residentBytes": 460869632,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-scale-9",
+        "pid": 1024265,
+        "residentBytes": 460668928,
+        "peakResidentBytes": 465252352
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-0",
+        "pid": 1024265,
+        "residentBytes": 460705792,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-1",
+        "pid": 1024265,
+        "residentBytes": 460992512,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-2",
+        "pid": 1024265,
+        "residentBytes": 460967936,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-3",
+        "pid": 1024265,
+        "residentBytes": 461074432,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-4",
+        "pid": 1024265,
+        "residentBytes": 461058048,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-5",
+        "pid": 1024265,
+        "residentBytes": 461111296,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-6",
+        "pid": 1024265,
+        "residentBytes": 461049856,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-7",
+        "pid": 1024265,
+        "residentBytes": 461017088,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-8",
+        "pid": 1024265,
+        "residentBytes": 461156352,
+        "peakResidentBytes": 467681280
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-9",
+        "pid": 1024265,
+        "residentBytes": 461094912,
+        "peakResidentBytes": 467681280
+      }
+    ],
+    "managerPeakAdditionalResidentBytes": 66768896,
+    "inputAndManagerAdditionalResidentBytes": 113557504,
+    "sourceHashes": {
+      "scripts/check-context-scale.mjs": "794e1e7fd1f6a9024064744bb478a2485f38f9c14422426eb0e8c37cf48cafc9",
+      "src/components/ai/ContextSourceBrowser.tsx": "820c42e6c5593b7f3fbee0fd60a78ad49169b37135d367af3c14ebfbfa526de2",
+      "src/lib/context/source-browser.ts": "9ec2515eac978b889367e6afa99229a0f4fc0d0022bb5520f0478edca3cebb53",
+      "src/lib/context/descriptor-index.ts": "7852f9d7e3d1ed45415a381e1831c4311eb1c77d8aaf27074f53c02533aa5a6b",
+      "src/lib/context/descriptor-identity.ts": "23be3a9a4c811184013423224bb0edde97d4c488558e179bc7fa2db47df3bcd0",
+      "src/lib/context/sources/workspace.ts": "1caf7098baeaf66fbb479d24f7e102fb2722312370b50989d55dfb9fda29d112",
+      "src/lib/context/sources/console-index.ts": "83a58bf6f4e5c0bef5f54e6e51d757864a5f83ceeffd0a5d14d4800f88b9e4a7"
+    },
+    "bodyReads": 0,
+    "contextFreeTurns": [
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7215
+      },
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7341
+      }
+    ],
+    "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; editor/console/environment panes closed, normal AI/context UI rendered. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; transient pre-GC peaks and whole-app pane rendering are not certified. Loopback mock model, no real inference or R source reads.",
+    "gates": {
+      "warmSearchBelow200Ms": false,
+      "additionalManagerBelow150MiB": true,
+      "contextFreeNoAuxiliarySources": true,
+      "noSchemaReads": true
+    },
+    "passed": false
+  },
+  "nativeContextBrowserScale": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:26:08.607Z",
+    "appVersion": "1.16.14",
+    "profile": "/tmp/ourgeo-context-scale-P5lds9",
+    "screenshot": "/tmp/ourgeo-context-scale-P5lds9/native-context-scale.png",
+    "platform": "linux-x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "corpus": {
+      "objects": 10000,
+      "consoleEvents": 100000,
+      "documents": 100000,
+      "plugins": 200
+    },
+    "coldMs": 1034.905643,
+    "timings": [
+      {
+        "query": "flood parcel exposure",
+        "warmP95Ms": 190.20000004768372,
+        "samples": [
+          190.5,
+          200.79999995231628,
+          188.60000002384186,
+          190.20000004768372,
+          187.4000000357628,
+          184.19999998807907,
+          180.29999995231628,
+          180.69999998807907,
+          182.30000001192093,
+          184.69999998807907
+        ]
+      },
+      {
+        "query": "",
+        "warmP95Ms": 129.4000000357628,
+        "samples": [
+          121.80000001192093,
+          113.10000002384186,
+          121.09999996423721,
+          129.4000000357628,
+          115.60000002384186,
+          113.80000001192093,
+          112.89999997615814,
+          116.69999998807907,
+          116.5,
+          116.90000003576279
+        ]
+      },
+      {
+        "query": "scale",
+        "warmP95Ms": 170.89999997615814,
+        "samples": [
+          161.5,
+          158.9000000357628,
+          161.69999998807907,
+          159.9000000357628,
+          157.79999995231628,
+          157.30000001192093,
+          170.89999997615814,
+          160.5,
+          156.39999997615814,
+          169.60000002384186
+        ]
+      },
+      {
+        "query": ".GlobalEnv::object_9876",
+        "warmP95Ms": 183.80000001192093,
+        "samples": [
+          155.5,
+          156.10000002384186,
+          174.30000001192093,
+          152.39999997615814,
+          160.70000004768372,
+          151.10000002384186,
+          154,
+          183.80000001192093,
+          160.70000004768372,
+          150
+        ]
+      }
+    ],
+    "snapshots": [
+      {
+        "label": "before-inputs",
+        "pid": 1025080,
+        "residentBytes": 348180480,
+        "peakResidentBytes": 355491840
+      },
+      {
+        "label": "inputs-before-discovery",
+        "pid": 1025080,
+        "residentBytes": 395776000,
+        "peakResidentBytes": 461778944
+      },
+      {
+        "label": "cold-browser",
+        "pid": 1025080,
+        "residentBytes": 459612160,
+        "peakResidentBytes": 462229504
+      },
+      {
+        "label": "browser-flood parcel exposure-0",
+        "pid": 1025080,
+        "residentBytes": 461733888,
+        "peakResidentBytes": 462491648
+      },
+      {
+        "label": "browser-flood parcel exposure-1",
+        "pid": 1025080,
+        "residentBytes": 461570048,
+        "peakResidentBytes": 464027648
+      },
+      {
+        "label": "browser-flood parcel exposure-2",
+        "pid": 1025080,
+        "residentBytes": 461692928,
+        "peakResidentBytes": 464027648
+      },
+      {
+        "label": "browser-flood parcel exposure-3",
+        "pid": 1025080,
+        "residentBytes": 461975552,
+        "peakResidentBytes": 464027648
+      },
+      {
+        "label": "browser-flood parcel exposure-4",
+        "pid": 1025080,
+        "residentBytes": 461856768,
+        "peakResidentBytes": 464027648
+      },
+      {
+        "label": "browser-flood parcel exposure-5",
+        "pid": 1025080,
+        "residentBytes": 461627392,
+        "peakResidentBytes": 464179200
+      },
+      {
+        "label": "browser-flood parcel exposure-6",
+        "pid": 1025080,
+        "residentBytes": 461873152,
+        "peakResidentBytes": 464179200
+      },
+      {
+        "label": "browser-flood parcel exposure-7",
+        "pid": 1025080,
+        "residentBytes": 461725696,
+        "peakResidentBytes": 464179200
+      },
+      {
+        "label": "browser-flood parcel exposure-8",
+        "pid": 1025080,
+        "residentBytes": 462274560,
+        "peakResidentBytes": 464179200
+      },
+      {
+        "label": "browser-flood parcel exposure-9",
+        "pid": 1025080,
+        "residentBytes": 462331904,
+        "peakResidentBytes": 464277504
+      },
+      {
+        "label": "browser--0",
+        "pid": 1025080,
+        "residentBytes": 462393344,
+        "peakResidentBytes": 464773120
+      },
+      {
+        "label": "browser--1",
+        "pid": 1025080,
+        "residentBytes": 462409728,
+        "peakResidentBytes": 464773120
+      },
+      {
+        "label": "browser--2",
+        "pid": 1025080,
+        "residentBytes": 462462976,
+        "peakResidentBytes": 464777216
+      },
+      {
+        "label": "browser--3",
+        "pid": 1025080,
+        "residentBytes": 462487552,
+        "peakResidentBytes": 464924672
+      },
+      {
+        "label": "browser--4",
+        "pid": 1025080,
+        "residentBytes": 462745600,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser--5",
+        "pid": 1025080,
+        "residentBytes": 460271616,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser--6",
+        "pid": 1025080,
+        "residentBytes": 460189696,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser--7",
+        "pid": 1025080,
+        "residentBytes": 460214272,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser--8",
+        "pid": 1025080,
+        "residentBytes": 460304384,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser--9",
+        "pid": 1025080,
+        "residentBytes": 460247040,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-0",
+        "pid": 1025080,
+        "residentBytes": 460427264,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-1",
+        "pid": 1025080,
+        "residentBytes": 460828672,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-2",
+        "pid": 1025080,
+        "residentBytes": 461115392,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-3",
+        "pid": 1025080,
+        "residentBytes": 461156352,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-4",
+        "pid": 1025080,
+        "residentBytes": 461295616,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-5",
+        "pid": 1025080,
+        "residentBytes": 459558912,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-6",
+        "pid": 1025080,
+        "residentBytes": 459841536,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-7",
+        "pid": 1025080,
+        "residentBytes": 459784192,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-8",
+        "pid": 1025080,
+        "residentBytes": 459673600,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-scale-9",
+        "pid": 1025080,
+        "residentBytes": 459431936,
+        "peakResidentBytes": 464990208
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-0",
+        "pid": 1025080,
+        "residentBytes": 459481088,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-1",
+        "pid": 1025080,
+        "residentBytes": 459595776,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-2",
+        "pid": 1025080,
+        "residentBytes": 459636736,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-3",
+        "pid": 1025080,
+        "residentBytes": 459587584,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-4",
+        "pid": 1025080,
+        "residentBytes": 459722752,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-5",
+        "pid": 1025080,
+        "residentBytes": 459755520,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-6",
+        "pid": 1025080,
+        "residentBytes": 459251712,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-7",
+        "pid": 1025080,
+        "residentBytes": 459538432,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-8",
+        "pid": 1025080,
+        "residentBytes": 459472896,
+        "peakResidentBytes": 466132992
+      },
+      {
+        "label": "browser-.GlobalEnv::object_9876-9",
+        "pid": 1025080,
+        "residentBytes": 459636736,
+        "peakResidentBytes": 466132992
+      }
+    ],
+    "managerPeakAdditionalResidentBytes": 66969600,
+    "inputAndManagerAdditionalResidentBytes": 111456256,
+    "sourceHashes": {
+      "scripts/check-context-scale.mjs": "794e1e7fd1f6a9024064744bb478a2485f38f9c14422426eb0e8c37cf48cafc9",
+      "src/components/ai/ContextSourceBrowser.tsx": "820c42e6c5593b7f3fbee0fd60a78ad49169b37135d367af3c14ebfbfa526de2",
+      "src/lib/context/source-browser.ts": "13cf5bb3a84f5a46434992ad4119de4e1e1c694ccf7125a5654c136a70884da1",
+      "src/lib/context/descriptor-index.ts": "7852f9d7e3d1ed45415a381e1831c4311eb1c77d8aaf27074f53c02533aa5a6b",
+      "src/lib/context/descriptor-identity.ts": "81758f646cf624a04aea7b19a5b1403911e0907c696754fb713518836bd9b6b3",
+      "src/lib/context/sources/workspace.ts": "1caf7098baeaf66fbb479d24f7e102fb2722312370b50989d55dfb9fda29d112",
+      "src/lib/context/sources/console-index.ts": "83a58bf6f4e5c0bef5f54e6e51d757864a5f83ceeffd0a5d14d4800f88b9e4a7"
+    },
+    "bodyReads": 0,
+    "contextFreeTurns": [
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7215
+      },
+      {
+        "hasAuxiliaryEvidence": false,
+        "bytes": 7341
+      }
+    ],
+    "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; editor/console/environment panes closed, normal AI/context UI rendered. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; transient pre-GC peaks and whole-app pane rendering are not certified. Loopback mock model, no real inference or R source reads.",
+    "gates": {
+      "warmSearchBelow200Ms": true,
+      "additionalManagerBelow150MiB": true,
+      "contextFreeNoAuxiliarySources": true,
+      "noSchemaReads": true
+    },
+    "passed": true
+  },
+  "recordedAt": "2026-10-11T20:36:58.497623+00:00",
+  "checks": {
+    "typecheck": {
+      "status": "passed",
+      "summary": "passed",
+      "log": "/tmp/ourgeo-stage02-followup-typecheck.log",
+      "sha256": "e8b8a5e98c041417c41f7c7683c1cc863a72e11db8acf732dfaddf473be41e8f"
+    },
+    "lint": {
+      "status": "passed",
+      "summary": "0 errors / 37 existing warnings",
+      "log": "/tmp/ourgeo-stage02-followup-lint.log",
+      "sha256": "f329b8c3478ca350ccb6b58676feeb77cdb1fe20b6a478819c2245cfa8c850fc"
+    },
+    "tests": {
+      "status": "passed",
+      "summary": "235 files / 2,424 tests passed",
+      "log": "/tmp/ourgeo-stage02-followup-tests-native-final.log",
+      "sha256": "1bf7f70e175e6745d744a786999406e514e4049cfd59bac4961c1a423c0c65a9"
+    },
+    "package": {
+      "status": "passed",
+      "summary": "AppImage and Debian package built with standard command and workspace TMPDIR",
+      "log": "/tmp/ourgeo-stage02-followup-package-final.log",
+      "sha256": "fa0ee70fc7427d0dbc9b07206f59d8b9f56b3905c4219e011585f8c8bf9391c5"
+    }
+  },
+  "packagingHistory": [
+    {
+      "version": "1.16.13",
+      "command": "npm run package:linux",
+      "status": "passed outside sandbox without dependency collector override",
+      "log": "/tmp/ourgeo-stage02-linux-package-debug.log"
+    },
+    {
+      "version": "1.16.14",
+      "status": "initial Debian tar/xz failed with small nearly full RAM-backed /tmp",
+      "log": "/tmp/ourgeo-stage02-followup-package.log"
+    },
+    {
+      "version": "1.16.14",
+      "status": "passed after directing temporary storage to workspace cache; dependency collector unchanged",
+      "log": "/tmp/ourgeo-stage02-followup-package-final.log"
+    }
+  ],
+  "remaining": [
+    "Owner seven-test acceptance results",
+    "Comparable live model task-quality/cost baseline and independently reviewed held-out recall/provenance corpus",
+    "Strict attempted-network certification: external DNS/route-probe connects and opaque io_uring; shared desktop services outside traced tree",
+    "FUSE, native desktop integration and Debian package-manager installation/uninstall; portable extracted installation tested separately",
+    "Provider invoice/restart reconciliation and opaque retained-transport certification",
+    "Representative-participant validation separately unverified; Windows/macOS deferred"
+  ],
+  "hashes": {
+    "dist/ouRGeo-1.16.14.AppImage": "e7ac807bdb257ce23c607a1f034a433f2d979cc6a3b57f69a9280b913a3a2e33",
+    "dist/ouRGeo-1.16.14.deb": "8af8469056af983157350320ae80240488edf7b884fe3fca565ce5c787ed64bf",
+    "dist/linux-unpacked/resources/app.asar": "a41b90ff3707790efb6d92ebf1a9b64ccb3a77547d5bf00ea667c7593e46fb3f",
+    "src/lib/context/source-browser.ts": "13cf5bb3a84f5a46434992ad4119de4e1e1c694ccf7125a5654c136a70884da1",
+    "src/lib/context/descriptor-identity.ts": "81758f646cf624a04aea7b19a5b1403911e0907c696754fb713518836bd9b6b3",
+    "src/lib/context/descriptor-index.ts": "7852f9d7e3d1ed45415a381e1831c4311eb1c77d8aaf27074f53c02533aa5a6b",
+    "src/lib/context/sources/console-index.ts": "83a58bf6f4e5c0bef5f54e6e51d757864a5f83ceeffd0a5d14d4800f88b9e4a7",
+    "src/components/ai/ContextSourceBrowser.tsx": "820c42e6c5593b7f3fbee0fd60a78ad49169b37135d367af3c14ebfbfa526de2",
+    "scripts/check-context-scale.mjs": "794e1e7fd1f6a9024064744bb478a2485f38f9c14422426eb0e8c37cf48cafc9",
+    "scripts/check-context-package.mjs": "d95b4725ada1bc8b45992dd69876052f7387136cfe24f2ae17613662591761f3",
+    "scripts/check-context-network.mjs": "3a541160c08a985eb38abdea84cbbcc0f330534887422584b0caeb3577166c6f",
+    "src/lib/context/network-audit.ts": "ff82b89e3973d7a1302cef64852a388196b711a4e0bc798ec0599198bd22f204",
+    "docs/context-owner-acceptance.md": "69b8a9c9c7b7aad3327440bcf817ae39681a390f0ec26b7a48ce0ef0ce813e43"
+  },
+  "previousStartupNetworkAudit": {
+    "version": 1,
+    "measuredAt": "2026-10-11T18:36:53.247Z",
+    "platform": "linux-x64",
+    "executable": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/ourgeo",
+    "directory": "/tmp/ourgeo-context-network-NSgXaW",
+    "tracer": {
+      "path": "/tmp/strace-7.2/src/strace",
+      "sha256": "4ec274a7151546d24123225de5aefd5e8de028060db2aff00ca19f0f574d3d3d"
+    },
+    "scope": "Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.",
+    "canary": {
+      "outboundCalls": 1,
+      "loopbackCalls": 0,
+      "unixCalls": 0,
+      "externalAttempts": [
+        {
+          "pid": 1010204,
+          "call": "connect",
+          "address": "198.51.100.42",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        }
+      ],
+      "unclassifiedInternetCalls": [],
+      "ioUringCalls": 6,
+      "processes": 6,
+      "passed": false
+    },
+    "acceptanceExitCode": 0,
+    "traceBytes": 13991585,
+    "traceSha256": "1059c198fef0d69578f07d6592f1d4c9050c68d6b0e31d40e592bf4c3192dd53",
+    "sourceHashes": {
+      "scripts/check-context-network.mjs": "3a541160c08a985eb38abdea84cbbcc0f330534887422584b0caeb3577166c6f",
+      "src/lib/context/network-audit.ts": "f278c81bae6214e9b8db05e640ee8239cb50a0c8a9835aa6a6d7acb30f706ae8",
+      "scripts/check-context.mjs": "5e5a40b61f0cfa9ddde8b58ac33a1da0d45d85df23820343178c0fe2889e3793"
+    },
+    "audit": {
+      "outboundCalls": 129,
+      "loopbackCalls": 33,
+      "unixCalls": 54,
+      "externalAttempts": [
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "10243 11:36:09.695899 connect(93, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"100.100.100.100\")}, 16 <unfinished ...>"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "10243 11:36:09.697865 connect(93, {sa_family=AF_INET, sin_port=htons(53), sin_addr=inet_addr(\"100.100.100.100\")}, 16 <unfinished ...>"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010243,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "10283 11:36:17.267300 connect(22, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010507,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010459,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010507,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010507,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "10283 11:36:39.349149 connect(26, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010283,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010669,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010620,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010669,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010669,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010785,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010736,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010785,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1010785,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        }
+      ],
+      "unclassifiedInternetCalls": [],
+      "ioUringCalls": 445,
+      "processes": 439,
+      "passed": false
+    },
+    "passed": false
+  },
+  "previousPortableInstallation": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:19:52.000Z",
+    "appVersion": "1.16.14",
+    "platform": "linux-x64",
+    "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-install-RNFSu3",
+    "artifact": "/home/roosteyr/Documents/Projects/ourgeo/dist/ouRGeo-1.16.14.AppImage",
+    "artifactSha256": "dc3f93450fcaca5b55eb803875f7bbedf0cebe3845e772c196b974e81fb12ea5",
+    "archiveSha256": "5c42a4bd5334e48dc2acda32cf791815b3b6e093c7dbc695c027b79165b1a03d",
+    "extraction": true,
+    "installedPayloadMatchesUnpacked": true,
+    "acceptanceExitCode": 0,
+    "fixture": {
+      "profile": "/tmp/ourgeo-context-ui-6CT4Xu",
+      "mockRequests": 13,
+      "simpleRequestCount": 2,
+      "auxiliaryContext": false,
+      "electronSqliteWorker": {
+        "encryptedStorage": true,
+        "backend": "kwallet6"
+      },
+      "electronHttpAfterLaunch": {
+        "loopbackRequests": 81,
+        "blockedHosts": [],
+        "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+      },
+      "packaged": true,
+      "memoryEditsAndTombstone": true,
+      "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+      "protectedConnectionSetupAndHealthOnly": true,
+      "suggestionsPinsAndSuppression": true,
+      "projectSaveForkAndDiscard": true,
+      "responsiveDuringRLoadWithoutScopeLeak": true,
+      "scopedPersistentExclusions": true,
+      "duplicateProjectFork": true,
+      "hostMemoryCommandsWithoutInference": true,
+      "relevantUnitPreferencesAndSupersession": true,
+      "conversationDerivedDeletionAndEditedRetention": true,
+      "stagedDocumentAttachment": true,
+      "workspaceColumnPrivacy": true,
+      "protectedColumnPolicy": true,
+      "authorisedFolderIndexing": true,
+      "packedFolderSearchAndRead": true,
+      "watcherRevocation": true,
+      "verifiedBackupInspection": true,
+      "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+      "durableInferenceAccounting": true,
+      "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+      "currentSourceBrowser": true,
+      "reviewedTranscriptForgetting": true,
+      "scopedUsageTotals": true,
+      "diagnosticRetentionControl": true,
+      "freshSourceDiscoveryWithoutKeyring": true,
+      "unreadablePolicyFailsClosed": true,
+      "screenshots": [
+        "/tmp/ourgeo-context-index-repair.png",
+        "/tmp/ourgeo-context-chat-budget.png",
+        "/tmp/ourgeo-context-forget-copies.png",
+        "/tmp/ourgeo-context-folders.png",
+        "/tmp/ourgeo-context-backups.png",
+        "/tmp/ourgeo-context-column-privacy.png",
+        "/tmp/ourgeo-context-attachments.png",
+        "/tmp/ourgeo-context-conversation.png",
+        "/tmp/ourgeo-context-settings.png",
+        "/tmp/ourgeo-context-learning.png",
+        "/tmp/ourgeo-context-project.png",
+        "/tmp/ourgeo-context-exclusions.png",
+        "/tmp/ourgeo-context-retention.png",
+        "/tmp/ourgeo-context-connections.png",
+        "/tmp/ourgeo-context-maintenance.png"
+      ]
+    },
+    "uninstallRemovedDisposableInstallation": true,
+    "passed": true,
+    "scope": "Copy, extract, launch and remove a portable AppImage installation under the workspace cache. No FUSE mounting, native desktop integration, Debian package-manager installation or removal of user data is certified."
+  },
+  "startupNetworkAudit": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:35:13.592Z",
+    "platform": "linux-x64",
+    "executable": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/ourgeo",
+    "directory": "/tmp/ourgeo-context-network-7dGUaZ",
+    "tracer": {
+      "path": "/tmp/strace-7.2/src/strace",
+      "sha256": "4ec274a7151546d24123225de5aefd5e8de028060db2aff00ca19f0f574d3d3d"
+    },
+    "scope": "Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.",
+    "canary": {
+      "outboundCalls": 1,
+      "loopbackCalls": 0,
+      "unixCalls": 0,
+      "externalAttempts": [
+        {
+          "pid": 1029542,
+          "call": "connect",
+          "address": "198.51.100.42",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        }
+      ],
+      "unclassifiedInternetCalls": [],
+      "ioUringCalls": 6,
+      "tracedTasks": 6,
+      "passed": false
+    },
+    "acceptanceExitCode": 0,
+    "traceBytes": 15403742,
+    "traceSha256": "6b6045a8810c03a5f849e78866f1db920e85b3ffc3f6ebcd9b117bdac5d57203",
+    "sourceHashes": {
+      "scripts/check-context-network.mjs": "3a541160c08a985eb38abdea84cbbcc0f330534887422584b0caeb3577166c6f",
+      "src/lib/context/network-audit.ts": "ff82b89e3973d7a1302cef64852a388196b711a4e0bc798ec0599198bd22f204",
+      "scripts/check-context.mjs": "5e5a40b61f0cfa9ddde8b58ac33a1da0d45d85df23820343178c0fe2889e3793"
+    },
+    "audit": {
+      "outboundCalls": 140,
+      "loopbackCalls": 39,
+      "unixCalls": 54,
+      "externalAttempts": [
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029575,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "29625 13:34:10.246942 connect(30, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029839,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029790,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029839,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029839,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "29625 13:34:50.179954 connect(25, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "29625 13:34:55.896863 connect(25, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029625,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "29625 13:34:59.434474 connect(25, {sa_family=AF_INET6, sin6_port=htons(443), sin6_flowinfo=htonl(0), inet_pton(AF_INET6, \"2001:4860:4860::8888\", &sin6_addr), sin6_scope_id=0}, 28 <unfinished ...>"
+        },
+        {
+          "pid": 1030027,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1029972,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030027,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030027,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030152,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "100.100.100.100",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030103,
+          "call": "connect",
+          "address": "fd7a:115c:a1e0::53",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030152,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030152,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        },
+        {
+          "pid": 1030152,
+          "call": "connect",
+          "address": "2001:4860:4860::8888",
+          "result": "-1 ENETUNREACH (Network is unreachable)"
+        }
+      ],
+      "unclassifiedInternetCalls": [],
+      "ioUringCalls": 451,
+      "tracedTasks": 460,
+      "passed": false
+    },
+    "passed": false
+  },
+  "portableInstallation": {
+    "version": 1,
+    "measuredAt": "2026-10-11T20:33:36.957Z",
+    "appVersion": "1.16.14",
+    "platform": "linux-x64",
+    "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-install-CUo6CB",
+    "artifact": "/home/roosteyr/Documents/Projects/ourgeo/dist/ouRGeo-1.16.14.AppImage",
+    "artifactSha256": "e7ac807bdb257ce23c607a1f034a433f2d979cc6a3b57f69a9280b913a3a2e33",
+    "archiveSha256": "a41b90ff3707790efb6d92ebf1a9b64ccb3a77547d5bf00ea667c7593e46fb3f",
+    "extraction": true,
+    "installedPayloadMatchesUnpacked": true,
+    "acceptanceExitCode": 0,
+    "fixture": {
+      "profile": "/tmp/ourgeo-context-ui-mGVVVv",
+      "mockRequests": 13,
+      "simpleRequestCount": 2,
+      "auxiliaryContext": false,
+      "electronSqliteWorker": {
+        "encryptedStorage": true,
+        "backend": "kwallet6"
+      },
+      "electronHttpAfterLaunch": {
+        "loopbackRequests": 81,
+        "blockedHosts": [],
+        "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+      },
+      "packaged": true,
+      "memoryEditsAndTombstone": true,
+      "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+      "protectedConnectionSetupAndHealthOnly": true,
+      "suggestionsPinsAndSuppression": true,
+      "projectSaveForkAndDiscard": true,
+      "responsiveDuringRLoadWithoutScopeLeak": true,
+      "scopedPersistentExclusions": true,
+      "duplicateProjectFork": true,
+      "hostMemoryCommandsWithoutInference": true,
+      "relevantUnitPreferencesAndSupersession": true,
+      "conversationDerivedDeletionAndEditedRetention": true,
+      "stagedDocumentAttachment": true,
+      "workspaceColumnPrivacy": true,
+      "protectedColumnPolicy": true,
+      "authorisedFolderIndexing": true,
+      "packedFolderSearchAndRead": true,
+      "watcherRevocation": true,
+      "verifiedBackupInspection": true,
+      "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+      "durableInferenceAccounting": true,
+      "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+      "currentSourceBrowser": true,
+      "reviewedTranscriptForgetting": true,
+      "scopedUsageTotals": true,
+      "diagnosticRetentionControl": true,
+      "freshSourceDiscoveryWithoutKeyring": true,
+      "unreadablePolicyFailsClosed": true,
+      "screenshots": [
+        "/tmp/ourgeo-context-index-repair.png",
+        "/tmp/ourgeo-context-chat-budget.png",
+        "/tmp/ourgeo-context-forget-copies.png",
+        "/tmp/ourgeo-context-folders.png",
+        "/tmp/ourgeo-context-backups.png",
+        "/tmp/ourgeo-context-column-privacy.png",
+        "/tmp/ourgeo-context-attachments.png",
+        "/tmp/ourgeo-context-conversation.png",
+        "/tmp/ourgeo-context-settings.png",
+        "/tmp/ourgeo-context-learning.png",
+        "/tmp/ourgeo-context-project.png",
+        "/tmp/ourgeo-context-exclusions.png",
+        "/tmp/ourgeo-context-retention.png",
+        "/tmp/ourgeo-context-connections.png",
+        "/tmp/ourgeo-context-maintenance.png"
+      ]
+    },
+    "uninstallRemovedDisposableInstallation": true,
+    "passed": true,
+    "scope": "Copy, extract, launch and remove a portable AppImage installation under the workspace cache. No FUSE mounting, native desktop integration, Debian package-manager installation or removal of user data is certified."
+  },
+  "targetDecision": "Linux engineering first; owner will personally run the seven manual acceptance tests. Windows/macOS and the representative-participant study are separately deferred/unverified. Model quality, network and installer boundaries remain open.",
+  "networkPackageArchiveSha256": "a41b90ff3707790efb6d92ebf1a9b64ccb3a77547d5bf00ea667c7593e46fb3f"
+}

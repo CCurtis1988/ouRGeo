@@ -5,17 +5,19 @@ import { readFile, writeFile, mkdir, statfs, access, readdir, unlink } from 'nod
 import { constants } from 'node:fs'
 import { homedir, totalmem, freemem } from 'node:os'
 import { join, dirname } from 'node:path'
-import type { HealthHardware, HealthHistory, HealthReport, InstallPlan, RHealth } from '../../src/lib/health-types'
+import type { HealthHardware, HealthHistory, HealthReport, InstallPlan, RHealth, HealthPackageCopy } from '../../src/lib/health-types'
 import { rBridge } from './r-bridge'
 import { detectRInstallations } from './ipc'
 import { HEALTH_MODELS, modelFits, parseNvidiaMemory, comparePackageVersions } from '../../src/lib/health-policy'
 
 const GB = 1024 ** 3
-const emptyR = (): RHealth => ({ path: null, version: null, supported: false, configuredPathBroken: false, packages: [], updatesChecked: false, library: null, libraryWritable: false, tools: { pandoc: false, latex: false } })
+const emptyR = (): RHealth => ({ path: null, version: null, supported: false, configuredPathBroken: false, packages: [], duplicates: [], updatesChecked: false, library: null, libraryWritable: false, tools: { pandoc: false, latex: false } })
 const healthFile = () => join(app.getPath('userData'), 'health-check.json')
 let snapshot: RHealth | null = null
 let mutating = false
 let needsRestart = false
+let lastProgress = ''
+let lastRepairError: string | null = null
 let ownedOllama: ChildProcess | null = null
 
 async function history(): Promise<HealthHistory> {
@@ -27,6 +29,7 @@ async function save(data: HealthHistory): Promise<void> {
   await writeFile(healthFile(), JSON.stringify(data), 'utf8')
 }
 function progress(wc: WebContents, message: string): void {
+  lastProgress = message.slice(-4000)
   if (!wc.isDestroyed()) wc.send('health:progress', message.slice(-4000))
 }
 
@@ -68,7 +71,9 @@ export function parseRHealth(output: string, path: string): RHealth {
       result.supported = major > 4 || (major === 4 && minor >= 1)
     }
     if (kind === 'updates') result.updatesChecked = v[0] === 'TRUE'
+    if (kind === 's2') result.s2 = { ok: v[0] === 'TRUE', detail: v[1], repair: v[2], library: v[3] }
     if (kind === 'package') result.packages.push({ name: v[0], group: v[1], version: v[2], available: v[3], built: v[4], loaded: v[5] === 'TRUE', reason: v[6] })
+    if (kind === 'duplicate') result.duplicates.push({ name: v[0], version: v[1], library: v[2], built: v[3], active: v[4] === 'TRUE', removable: v[5] === 'TRUE' })
     if (kind === 'library') { result.library = v[0]; result.libraryWritable = v[1] === 'TRUE' }
     if (kind === 'tools') result.tools = { pandoc: v[0] === 'TRUE', latex: v[1] === 'TRUE' }
   }
@@ -185,7 +190,10 @@ async function exclusive<T>(approved: boolean, work: () => Promise<T>): Promise<
   if (approved !== true) throw new Error('Approval is required for this repair.')
   if (mutating) throw new Error('Another health-check installation is still running.')
   mutating = true
-  try { return await work() } finally { mutating = false }
+  lastProgress = ''; lastRepairError = null
+  try { return await work() }
+  catch (e) { lastRepairError = String(e); throw e }
+  finally { mutating = false }
 }
 
 async function writable(path: string): Promise<boolean> {
@@ -245,6 +253,7 @@ async function ollamaModels(): Promise<{ models: string[]; error?: string }> {
 export function registerHealthHandlers(ipc: IpcMain): void {
   app.on('will-quit', () => ownedOllama?.kill())
   ipc.handle('health:history', history)
+  ipc.handle('health:activity', () => ({ busy: mutating, progress: lastProgress, error: lastRepairError, needsRRestart: needsRestart }))
   ipc.handle('health:acknowledge', async () => save({ ...await history(), prompted: true }))
   ipc.handle('health:saveReport', async (_e, report: HealthReport) => {
     if (!report || !Array.isArray(report.results) || report.results.length > 100) throw new Error('Invalid health report.')
@@ -269,6 +278,25 @@ export function registerHealthHandlers(ipc: IpcMain): void {
     needsRestart = true
     rBridge.stop()
     await run(snapshot.path, [rScript(), 'repair', ...new Set(names)], e.sender, 3_600_000)
+    return checkPackages()
+  }))
+  ipc.handle('health:removePackageCopies', (e, copies: HealthPackageCopy[], approved: boolean) => exclusive(approved, async () => {
+    const duplicates = snapshot?.duplicates ?? []
+    if (!snapshot?.path || !Array.isArray(copies) || !copies.length || copies.length > 1000 || copies.some((copy) =>
+      !copy || !duplicates.some((known) => known.name === copy.name && known.library === copy.library && known.version === copy.version && known.removable))) {
+      throw new Error('Recheck packages before selecting duplicate copies to remove.')
+    }
+    const selected = duplicates.filter((known) => copies.some((copy) => copy.name === known.name && copy.library === known.library))
+    if (selected.length !== copies.length) throw new Error('Invalid duplicate selection.')
+    for (const name of new Set(selected.map((copy) => copy.name))) {
+      if (duplicates.filter((copy) => copy.name === name).length === selected.filter((copy) => copy.name === name).length) throw new Error(`Keep at least one installation of ${name}.`)
+    }
+    needsRestart = true
+    rBridge.stop()
+    // The independent R process also checks versions, permissions and survivors
+    // immediately before removal, so stale renderer selections cannot remove a
+    // changed package or the last remaining installation.
+    await run(snapshot.path, [rScript(), 'remove-copies', ...selected.flatMap((copy) => [copy.name, copy.library, copy.version])], e.sender, 180_000)
     return checkPackages()
   }))
   ipc.handle('health:connectR', (_e, approved: boolean) => exclusive(approved, async () => {

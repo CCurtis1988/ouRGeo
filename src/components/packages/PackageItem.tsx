@@ -3,6 +3,7 @@ import { Loader2, Check } from 'lucide-react'
 import { usePackagesStore } from '@/store/packages'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
+import { rStr } from '@/lib/r-identifier'
 
 interface PackageItemProps {
   name: string
@@ -18,34 +19,38 @@ export function PackageItem({ name, version, loaded, isBase, libPath, onContextM
   const isToggling = loadingPackages.has(name)
 
   const handleToggle = useCallback(async () => {
-    if (isBase || isToggling) return
+    if (isBase || usePackagesStore.getState().loadingPackages.has(name)) return
 
-    const { setPackageLoaded, addLoadingPackage, removeLoadingPackage } = usePackagesStore.getState()
+    const { libraries, refreshPackages, addLoadingPackage, removeLoadingPackage } = usePackagesStore.getState()
     const newLoaded = !loaded
+    const switching = newLoaded && libraries.some((lib) => lib.packages.some((pkg) =>
+      pkg.name === name && pkg.loaded && (lib.path !== libPath || pkg.version !== version)))
 
     const addConsoleEntry = useSessionStore.getState().addConsoleEntry
     const command = newLoaded
-      ? `library(${name})`
-      : `detach("package:${name}", unload = TRUE)`
+      ? `${switching ? `unloadNamespace(${rStr(name)})\n` : ''}library(${rStr(name)}, lib.loc = ${rStr(libPath)})`
+      : `unloadNamespace(${rStr(name)})`
     addConsoleEntry('input', command)
 
     addLoadingPackage(name)
-    setPackageLoaded(name, newLoaded)
 
     try {
       const res = newLoaded
-        ? await rClient.loadPackage(name)
-        : await rClient.unloadPackage(name)
+        ? await rClient.loadPackage(name, libPath, version)
+        : await rClient.unloadPackage(name, libPath, version)
 
       if (!res.success) {
-        setPackageLoaded(name, loaded) // revert
+        addConsoleEntry('error', res.error ?? `Failed to ${newLoaded ? 'load' : 'unload'} ${name}.`)
       }
-    } catch {
-      setPackageLoaded(name, loaded) // revert
+    } catch (e) {
+      addConsoleEntry('error', e instanceof Error ? e.message : String(e))
     } finally {
+      // R may refuse a switch or a new copy may fail to load after the old
+      // namespace was unloaded. Always show the state R actually ended with.
+      await refreshPackages()
       removeLoadingPackage(name)
     }
-  }, [name, loaded, isBase, isToggling])
+  }, [name, version, libPath, loaded, isBase])
 
   return (
     <label
@@ -63,6 +68,12 @@ export function PackageItem({ name, version, loaded, isBase, libPath, onContextM
           <Loader2 className="w-3 h-3 text-geo-accent animate-spin" />
         ) : (
           <div
+            role="checkbox"
+            aria-label={`${loaded ? 'Unload' : 'Load'} ${name} ${version} from ${libPath}`}
+            aria-checked={loaded}
+            aria-disabled={isBase || isToggling}
+            tabIndex={isBase || isToggling ? -1 : 0}
+            onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); void handleToggle() } }}
             onClick={!isBase ? handleToggle : undefined}
             className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-colors ${
               loaded

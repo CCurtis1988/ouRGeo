@@ -485,12 +485,18 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
   })
 
   // File dialog: export objects to filesystem
-  ipcMain.handle('dialog:saveExportFile', async (_evt, format: string) => {
+  ipcMain.handle('dialog:saveExportFile', async (_evt, format: string, existing?: boolean) => {
     const filters: Record<string, { name: string; extensions: string[] }[]> = {
+      gpkg: [{ name: 'GeoPackage', extensions: ['gpkg'] }],
+      geojson: [{ name: 'GeoJSON', extensions: ['geojson', 'json'] }],
       csv:  [{ name: 'CSV',      extensions: ['csv'] }, { name: 'All Files', extensions: ['*'] }],
       txt:  [{ name: 'Text',     extensions: ['txt'] }, { name: 'All Files', extensions: ['*'] }],
       xlsx: [{ name: 'Excel',    extensions: ['xlsx'] }, { name: 'All Files', extensions: ['*'] }],
       r:    [{ name: 'R Script', extensions: ['R', 'r'] }, { name: 'All Files', extensions: ['*'] }],
+    }
+    if (existing && (format === 'gpkg' || format === 'geojson')) {
+      const result = await dialog.showOpenDialog({ title: 'Choose export destination', filters: filters[format], properties: ['openFile'] })
+      return result.canceled ? null : result.filePaths[0]
     }
     const result = await dialog.showSaveDialog({
       title: 'Export',

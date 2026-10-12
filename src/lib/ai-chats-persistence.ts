@@ -2,6 +2,7 @@ import { useAiStore, type AiChat } from '@/store/ai'
 import { useProjectStore } from '@/store/project'
 import { getDataPath } from '@/lib/persistence'
 import { importChats } from '@/lib/context/chat-import'
+import { accountingOnlyTrace, traceExpired } from '@/lib/context/retention'
 
 /**
  * Where the AI panel's conversations are kept.
@@ -45,7 +46,10 @@ async function getChatsPath(): Promise<string> {
  *  `ai-chats.json` autosave and the project bundle. */
 export function buildChatsData(): ChatsData {
   const { chats, activeChatId } = useAiStore.getState()
-  return { chats, activeChatId }
+  const now = Date.now()
+  return { chats: chats.map(chat => ({ ...chat, messages: chat.messages.map(message =>
+    message.contextTrace && traceExpired(message.contextTrace, message.timestamp, now)
+      ? { ...message, contextTrace: accountingOnlyTrace(message.contextTrace) } : message) })), activeChatId }
 }
 
 /**

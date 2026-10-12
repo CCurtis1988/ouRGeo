@@ -293,7 +293,7 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
   }
 
   // ── Lists ──────────────────────────────────────────────────────────────
-  const mine: Array<{ id: string; label: string; swatches: string[]; icon?: string }> =
+  const mine: Array<{ id: string; label: string; swatches: string[]; icon?: string; legacy?: true }> =
     useMemo(() => {
       if (kind === 'system') {
         return custom.system.map((t) => ({
@@ -312,11 +312,11 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
       }))
     }, [kind, custom.system, custom.code, custom.markdown])
 
-  const builtin: Array<{ id: string; label: string; swatches: string[]; icon?: string }> =
+  const builtin: Array<{ id: string; label: string; swatches: string[]; icon?: string; legacy?: true }> =
     useMemo(() => {
       if (kind === 'system') {
         return BUILTIN_THEME_LIST.map((t) => ({
-          id: t.id, label: t.label, swatches: t.swatches, icon: themeIconUri(t.id),
+          id: t.id, label: t.label, swatches: t.swatches, icon: themeIconUri(t.id), legacy: t.legacy,
         }))
       }
       if (kind === 'code') {
@@ -587,7 +587,7 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
                   <div className="text-[10px] uppercase tracking-wider text-geo-muted px-2 py-1">
                     Built in
                   </div>
-                  {builtin.map((t) => (
+                  {builtin.filter(t => !t.legacy).map((t) => (
                     <ThemeRow
                       key={t.id}
                       label={t.label}
@@ -600,6 +600,16 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
                     />
                   ))}
                 </div>
+                {kind === 'system' && (
+                  <details className="border-t border-geo-border pt-2">
+                    <summary className="cursor-pointer text-xs text-geo-muted px-2 py-1">Legacy themes</summary>
+                    {builtin.filter(t => t.legacy).map(t => (
+                      <ThemeRow key={t.id} label={t.label} selected={selectedId === t.id}
+                        active={activeId === t.id} locked swatches={t.swatches} icon={t.icon}
+                        onClick={() => { select(t.id); setNotice(null) }} />
+                    ))}
+                  </details>
+                )}
               </div>
             </div>
 

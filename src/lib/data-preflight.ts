@@ -5,6 +5,7 @@ import { useEnvironmentStore } from '@/store/environment'
 import { useSelectionStore } from '@/store/selection'
 import { useSessionStore } from '@/store/session'
 import { useSpatialSettingsStore } from '@/store/spatialSettings'
+import { rStr } from './r-identifier'
 
 const trackedSelections = new Map<string, { name: string; envName: string }>()
 let selectionSync: Promise<void> = Promise.resolve()
@@ -44,8 +45,19 @@ export function toolPreflightRequest(tool: ToolDef, values: Values, selected: Re
 }
 
 export function requestPreview(request: PreflightRequest): string {
-  const quoted = JSON.stringify(JSON.stringify(request)).replace(/\u2028|\u2029/g, '')
-  return `# Read-only preflight; reviewed execution records the actual choices below.\ndq_validate(jsonlite::fromJSON(${quoted}, simplifyVector = FALSE))`
+  // Transport JSON is not useful R to review. Keep strings as strings (a
+  // dataset name/expression must never become executable code in this list).
+  const literal = (value: unknown, depth = 1): string => {
+    if (value === null || value === undefined) return 'NULL'
+    if (typeof value === 'string') return rStr(value).replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+    if (typeof value === 'number') return String(value)
+    const entries = Array.isArray(value)
+      ? value.map(v => literal(v, depth + 1))
+      : Object.entries(value as Record<string, unknown>).map(([key, v]) => `${rStr(key)} = ${literal(v, depth + 1)}`)
+    return entries.length ? `list(\n${'  '.repeat(depth + 1)}${entries.join(`,\n${'  '.repeat(depth + 1)}`)}\n${'  '.repeat(depth)})` : 'list()'
+  }
+  return `# Read-only data checks for ${request.operationType}.\n# Check data to preview the resolved operation, CRS and method.\ndq_validate(\n  ${literal(request)}\n)`
 }
 
 export async function inspectRequest(request: PreflightRequest, onProgress?: (report: PreflightReport) => void, signal?: AbortSignal): Promise<PreflightReport> {
@@ -53,8 +65,9 @@ export async function inspectRequest(request: PreflightRequest, onProgress?: (re
   // may arrive out of order and are ignored by the backend's monotonic version.
   await selectionSync
   for (const input of request.inputs) if (input.selectionVersion !== undefined) {
-    trackedSelections.set(`${input.name}::${input.envName}`, { name: input.name, envName: input.envName ?? '.GlobalEnv' })
-    await rClient.preflightSelection(input.name, input.envName ?? '.GlobalEnv', useSelectionStore.getState().getSelection(input.name, input.envName ?? '.GlobalEnv'), input.selectionVersion)
+    const name = input.accessPath ?? input.name
+    trackedSelections.set(`${name}::${input.envName}`, { name, envName: input.envName ?? '.GlobalEnv' })
+    await rClient.preflightSelection(name, input.envName ?? '.GlobalEnv', useSelectionStore.getState().getSelection(name, input.envName ?? '.GlobalEnv'), input.selectionVersion)
   }
   let report = await rClient.preflightStart(request)
   if (!report.operationId || !report.coverage) throw new Error(report.error ?? 'Could not start preflight')
@@ -74,14 +87,35 @@ export async function inspectRequest(request: PreflightRequest, onProgress?: (re
   } finally { signal?.removeEventListener('abort', cancel) }
 }
 
-export async function executeChecked(report: PreflightReport, isCurrent: () => boolean = () => true): Promise<{ success: boolean; code?: string; error?: string }> {
+/** Geometry vectors are native R results, not attribute tables. Keep them in
+ *  Environment instead of opening a data.frame endpoint that cannot read them. */
+export function checkedOutputViewClass(outputClass?: string): string | null {
+  return outputClass && /^(sfc($|_)|geos_geometry$)/.test(outputClass) ? null : outputClass ?? 'data.frame'
+}
+
+export async function executeChecked(report: PreflightReport, isCurrent: () => boolean = () => true, onProgress?: (report: PreflightReport) => void, signal?: AbortSignal): Promise<{ success: boolean; outputClass?: string; code?: string; error?: string; path?: string; featureCount?: number; verified?: boolean }> {
   if (!['ready', 'needs_confirmation'].includes(report.status) || !report.validationFingerprint) return { success: false, error: (report.error ?? report.issues.map(i => i.message).join('\n')) || 'Resolve the blocked checks and rerun preflight.' }
   if (report.status === 'needs_confirmation' && !(report.acknowledgments?.length)) {
     if (!await window.electronAPI.preflight.review(report.operationId)) return { success: false, error: 'Choices were not approved; no result was created.' }
   }
   await selectionSync
-  if (!isCurrent()) return { success: false, error: 'Parameters or selection changed during review; check again.' }
-  const res = await rClient.preflightExecute(report.operationId, report.validationFingerprint)
+  if (!isCurrent() || signal?.aborted) return { success: false, error: 'Parameters or selection changed during review; check again.' }
+  let res = await rClient.preflightExecute(report.operationId, report.validationFingerprint)
+  if (res.pending) {
+    const cancel = () => { void window.electronAPI.preflight.interrupt(report.operationId); void rClient.preflightCancel(report.operationId).catch(() => {}) }
+    signal?.addEventListener('abort', cancel, { once: true })
+    try {
+      for (;;) {
+        if (signal?.aborted || !isCurrent()) await rClient.preflightCancel(report.operationId)
+        const progress = await rClient.preflightStatus(report.operationId)
+        onProgress?.(progress)
+        if (progress.executionResult) { res = progress.executionResult; break }
+        if (progress.status !== 'checking') { res = { success: false, error: progress.error ?? `Export ${progress.status}; no staged output was published.` }; break }
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    } catch (error) { cancel(); throw error }
+    finally { signal?.removeEventListener('abort', cancel) }
+  }
   if (res.success && res.code) {
     const session = useSessionStore.getState()
     session.addConsoleEntry('input', res.code)

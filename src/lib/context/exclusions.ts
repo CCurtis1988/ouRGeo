@@ -25,8 +25,15 @@ export function validateExclusions(input: unknown, scope: ExclusionScope): strin
  * adapter. Until those results carry complete source/column lineage, pause
  * that route when a private source is excluded. App-reference exclusions do
  * not hide user data, and theme actions only inspect application palettes. */
+export const COLUMN_PRIVACY_MARKER = 'column-privacy:workspace'
+
+export function disclosureExclusions(excluded: string[], privateColumns: boolean): string[] {
+  return privateColumns ? [...excluded, COLUMN_PRIVACY_MARKER] : excluded
+}
+
 export function executionBlocked(name: string, input: Record<string, unknown>, excluded: string[], loaded: boolean): boolean {
   if (loaded && !excluded.some(id => !id.startsWith('skill:') && !id.startsWith('action:'))) return false
+  if (excluded.includes(COLUMN_PRIVACY_MARKER) && name === 'read_document') return true
   if (name === 'run_ui_action' && typeof input.id === 'string' && input.id.startsWith('theme:')) return false
   return ['execute_r_code', 'run_ui_action', 'run_toolbox_tool', 'write_document', 'edit_document'].includes(name)
 }

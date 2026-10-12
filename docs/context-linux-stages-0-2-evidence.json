@@ -1,0 +1,653 @@
+{
+  "version": 1,
+  "recordedAt": "2026-10-11T04:08:59.028924+00:00",
+  "appVersion": "1.16.10",
+  "platform": "linux-x64",
+  "targetDecision": "Owner selected Linux first; Windows 11 and macOS native acceptance deferred to later sessions. Quality and human criteria are retained.",
+  "releaseCertification": false,
+  "checks": {
+    "typecheck": {
+      "command": "npm run typecheck",
+      "status": "passed",
+      "log": "/tmp/ourgeo-stage02-linux-typecheck.log",
+      "logSha256": "d5353da20b420fe9b15477082cfadb2fe1ef0821de8b94162128a3fc0783dbe0",
+      "summary": "passed"
+    },
+    "lint": {
+      "command": "npm run lint",
+      "status": "passed",
+      "log": "/tmp/ourgeo-stage02-linux-lint.log",
+      "logSha256": "e66789ec50cd30304ad899f66156d35b185c4d70ef7f760123dc0a425540e76a",
+      "summary": "0 errors / 37 existing warnings"
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "passed",
+      "log": "/tmp/ourgeo-stage02-linux-build.log",
+      "logSha256": "210cacc1f15f0269533136b4913bf647f3e477b2c0445a43a079d4d48a51a0cf",
+      "summary": "passed"
+    },
+    "tests-final": {
+      "command": "npm run test -- --maxWorkers=2",
+      "status": "passed",
+      "log": "/tmp/ourgeo-stage02-linux-tests-final.log",
+      "logSha256": "d8d8e29ccd81012ad466386a64c29fe2f5ebf36dedb0caba7f7d06d01bf15fd9",
+      "summary": "231 files / 2,378 tests"
+    }
+  },
+  "package": {
+    "status": "built",
+    "electron": "41.0.2",
+    "electronBuilder": "26.8.1",
+    "ordinaryPackageCommand": "npm run package:linux",
+    "ordinaryCommandStatus": "failed: nested npm dependency collector returned empty stdout",
+    "workaround": "Direct npm list -a --include prod --include optional --omit dev --json --long --silent --loglevel=error produced a validated dependency tree. A temporary runtime-only collector override supplied this tree to electron-builder; project dependencies and production code were not changed.",
+    "snapshotSha256": "0c921eeaeea34005f095c100ec676eff8aefc97ee5be5b8185e42f9471e3ad4c",
+    "workaroundScript": "const fs = require('node:fs');\nconst root = '/home/roosteyr/Documents/Projects/ourgeo';\nconst { NpmNodeModulesCollector } = require(root + '/node_modules/app-builder-lib/out/node-module-collector/npmNodeModulesCollector.js');\n// The direct npm command produced this complete tree; nested npm collection\n// in this execution environment returns empty stdout. No dependencies or\n// production code are replaced.\nNpmNodeModulesCollector.prototype.getDependenciesTree = async function () {\n  const tree = JSON.parse(fs.readFileSync('/tmp/ourgeo-context-package-long.json', 'utf8'));\n  const current = JSON.parse(fs.readFileSync(root + '/package.json', 'utf8'));\n  if (tree.name !== current.name || tree.version !== current.version) throw new Error('Refresh the dependency snapshot before packaging.');\n  return tree;\n};\nconst { build, Platform } = require(root + '/node_modules/electron-builder');\nbuild({ targets: Platform.LINUX.createTarget(['AppImage', 'deb']), publish: 'never' }).catch(error => { console.error(error); process.exitCode = 1; });\n",
+    "log": "/tmp/ourgeo-stage02-linux-package-snapshot.log",
+    "appImageExtraction": {
+      "status": "passed",
+      "payloadExecutableMatchesUnpacked": true,
+      "payloadArchiveMatchesUnpacked": true,
+      "method": "AppImage --appimage-extract in isolated cache directory; SHA256 compared executable and app.asar to the acceptance-tested packaged payload. FUSE mounting, system installation and uninstall were not tested."
+    }
+  },
+  "hashes": {
+    "dist/ouRGeo-1.16.10.AppImage": "347b386c55d41186fe947f6683a80b5e1a67e6b460d79a91131862c5aaca5c96",
+    "dist/ouRGeo-1.16.10.deb": "bb444f90447dd93b5d1e9b520b3831d90db769af791988b29b0a1f2a2f96c4bf",
+    "dist/linux-unpacked/resources/app.asar": "4305902058d34ac082a47046445ceaaaf24cc0d288ef4a395394201d34d00c09",
+    "scripts/check-context.mjs": "5e5a40b61f0cfa9ddde8b58ac33a1da0d45d85df23820343178c0fe2889e3793",
+    "src/lib/context/descriptor-index.ts": "d86f1bce2676dcefdb7adec9d0195f5c5aeaa0770af4928cb0eae2b1e8ce8f28",
+    "src/lib/context/sources/workspace.ts": "1caf7098baeaf66fbb479d24f7e102fb2722312370b50989d55dfb9fda29d112",
+    "src/lib/context/sources/document-index.ts": "ebca387f056bff0515eec97ec74a2fb38058b53d11e8f133f8b2f0fc62319372",
+    "src/lib/context/sources/snapshot-index.ts": "8d5595458efdb7fdf0adc9eb1a6ff6367c401403da222996af5106379fabdcc3",
+    "src/lib/context/chat-budget.ts": "4b89a456ad331eb5dc022c32e8d14c2d3369f668097335232b181cc424def0f5",
+    "electron/main/context/chat-budget.ts": "40bd8d29fd6085843a561f3ec7e6bc6b0324411f43574b877c6798c06707bce1",
+    "electron/main/context/index-repair.ts": "e939c335ce075049e16f26047a9d35b2c0d1b0fedaff2b4ee9f0785a770c0a82",
+    "electron/main/context/acceptance-profile.ts": "bc8712be1c44d59c6a5c2644578b572cbf8b0db36d33735d65312ef3d2da57a7",
+    "src/lib/ai-client.ts": "344a58baca11ad897a4f0a00d98c646fa9ac85f0c8d47c8b726edaad6ef4c770",
+    "src/store/context.ts": "1a1067aae596a25920b28f54350cea2f518ee1b9d45c5a304b43279a1bc3af08"
+  },
+  "workspaceAdapterBenchmark": {
+    "version": 1,
+    "measuredAt": "2026-10-11T04:05:26.080Z",
+    "platform": "linux-x64",
+    "node": "v26.10.0",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "corpus": {
+      "objects": 10000,
+      "consoleEvents": 100000,
+      "consoleExecutions": 25000,
+      "documents": 100000,
+      "plugins": 200,
+      "actions": 200
+    },
+    "sourceHashes": {
+      "src/lib/context/sources/workspace.ts": "1caf7098baeaf66fbb479d24f7e102fb2722312370b50989d55dfb9fda29d112",
+      "src/lib/context/sources/document-index.ts": "ebca387f056bff0515eec97ec74a2fb38058b53d11e8f133f8b2f0fc62319372",
+      "src/lib/context/sources/snapshot-index.ts": "8d5595458efdb7fdf0adc9eb1a6ff6367c401403da222996af5106379fabdcc3",
+      "src/lib/context/descriptor-index.ts": "d86f1bce2676dcefdb7adec9d0195f5c5aeaa0770af4928cb0eae2b1e8ce8f28",
+      "src/lib/context/sources/console-index.ts": "4dd4cb8156b9a27400d72d4bc6535dec8faad87f9595407aa7e5202a01acb59d",
+      "src/lib/context/broker.ts": "8ae62db46fddbbc9ae612645c8b4193aba8c9368539dd5d1e4e4453f005260a9",
+      "src/lib/context/rank.ts": "98eb407db0bdbc76e193dbedd9640f5741173deafa9f6a541e380c34a9f17894",
+      "scripts/benchmark-context-workspace.mjs": "f83ad046cb2ef6d057696aefbcb99f11609fb93c883f1cad864bb960ec777d28"
+    },
+    "coldDocumentMs": 664.682004,
+    "timings": [
+      {
+        "query": "flood parcel exposure",
+        "warmP95Ms": 165.906747
+      },
+      {
+        "query": "",
+        "warmP95Ms": 139.9732469999999
+      },
+      {
+        "query": "synthetic",
+        "warmP95Ms": 161.68663899999956
+      },
+      {
+        "query": "[object_9876]",
+        "warmP95Ms": 135.40230099999917
+      }
+    ],
+    "snapshots": [
+      {
+        "label": "before-synthetic-store-allocation",
+        "rss": 63705088,
+        "heapTotal": 9211904,
+        "heapUsed": 6222408,
+        "external": 2947230,
+        "arrayBuffers": 225728,
+        "peakRss": 63705088
+      },
+      {
+        "label": "immutable-store-inputs-before-manager",
+        "rss": 140992512,
+        "heapTotal": 77664256,
+        "heapUsed": 59718064,
+        "external": 2656379,
+        "arrayBuffers": 225728,
+        "peakRss": 140992512
+      },
+      {
+        "label": "document-index-cold",
+        "rss": 227848192,
+        "heapTotal": 153948160,
+        "heapUsed": 86318976,
+        "external": 5721834,
+        "arrayBuffers": 3226120,
+        "peakRss": 227848192
+      },
+      {
+        "label": "query-flood parcel exposure-0",
+        "rss": 261378048,
+        "heapTotal": 184995840,
+        "heapUsed": 133350416,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 261378048
+      },
+      {
+        "label": "query-flood parcel exposure-1",
+        "rss": 261980160,
+        "heapTotal": 184995840,
+        "heapUsed": 121576440,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263606272
+      },
+      {
+        "label": "query-flood parcel exposure-2",
+        "rss": 261980160,
+        "heapTotal": 184995840,
+        "heapUsed": 142956032,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263606272
+      },
+      {
+        "label": "query-flood parcel exposure-3",
+        "rss": 262176768,
+        "heapTotal": 185532416,
+        "heapUsed": 131407960,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263684096
+      },
+      {
+        "label": "query-flood parcel exposure-4",
+        "rss": 262438912,
+        "heapTotal": 185532416,
+        "heapUsed": 119242408,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263684096
+      },
+      {
+        "label": "query-flood parcel exposure-5",
+        "rss": 262627328,
+        "heapTotal": 185532416,
+        "heapUsed": 140573656,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263684096
+      },
+      {
+        "label": "query-flood parcel exposure-6",
+        "rss": 262680576,
+        "heapTotal": 185532416,
+        "heapUsed": 127858752,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263684096
+      },
+      {
+        "label": "query-flood parcel exposure-7",
+        "rss": 262680576,
+        "heapTotal": 185532416,
+        "heapUsed": 147878432,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263684096
+      },
+      {
+        "label": "query--0",
+        "rss": 263417856,
+        "heapTotal": 187039744,
+        "heapUsed": 125454184,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263729152
+      },
+      {
+        "label": "query--1",
+        "rss": 263942144,
+        "heapTotal": 187039744,
+        "heapUsed": 135656520,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263942144
+      },
+      {
+        "label": "query--2",
+        "rss": 263942144,
+        "heapTotal": 187039744,
+        "heapUsed": 145307992,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 263942144
+      },
+      {
+        "label": "query--3",
+        "rss": 264073216,
+        "heapTotal": 187449344,
+        "heapUsed": 122132320,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 264073216
+      },
+      {
+        "label": "query--4",
+        "rss": 264466432,
+        "heapTotal": 187449344,
+        "heapUsed": 131713000,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 264466432
+      },
+      {
+        "label": "query--5",
+        "rss": 264466432,
+        "heapTotal": 187449344,
+        "heapUsed": 141383336,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 264466432
+      },
+      {
+        "label": "query--6",
+        "rss": 264466432,
+        "heapTotal": 187858944,
+        "heapUsed": 151625928,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 264466432
+      },
+      {
+        "label": "query--7",
+        "rss": 264990720,
+        "heapTotal": 187858944,
+        "heapUsed": 128228008,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 264990720
+      },
+      {
+        "label": "query-synthetic-0",
+        "rss": 265289728,
+        "heapTotal": 187994112,
+        "heapUsed": 122835936,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267218944
+      },
+      {
+        "label": "query-synthetic-1",
+        "rss": 265539584,
+        "heapTotal": 187994112,
+        "heapUsed": 150760472,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-2",
+        "rss": 265670656,
+        "heapTotal": 188575744,
+        "heapUsed": 145897304,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-3",
+        "rss": 266063872,
+        "heapTotal": 189247488,
+        "heapUsed": 141034352,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-4",
+        "rss": 266719232,
+        "heapTotal": 189521920,
+        "heapUsed": 136138392,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-5",
+        "rss": 267243520,
+        "heapTotal": 189657088,
+        "heapUsed": 130702000,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-6",
+        "rss": 267243520,
+        "heapTotal": 189919232,
+        "heapUsed": 125101488,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267255808
+      },
+      {
+        "label": "query-synthetic-7",
+        "rss": 267374592,
+        "heapTotal": 190054400,
+        "heapUsed": 153194232,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 267374592
+      },
+      {
+        "label": "query-[object_9876]-0",
+        "rss": 267476992,
+        "heapTotal": 190054400,
+        "heapUsed": 139831200,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 269209600
+      },
+      {
+        "label": "query-[object_9876]-1",
+        "rss": 267476992,
+        "heapTotal": 190054400,
+        "heapUsed": 126030304,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 269209600
+      },
+      {
+        "label": "query-[object_9876]-2",
+        "rss": 267476992,
+        "heapTotal": 190054400,
+        "heapUsed": 145780896,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 269209600
+      },
+      {
+        "label": "query-[object_9876]-3",
+        "rss": 268570624,
+        "heapTotal": 190054400,
+        "heapUsed": 132022960,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      },
+      {
+        "label": "query-[object_9876]-4",
+        "rss": 268570624,
+        "heapTotal": 190054400,
+        "heapUsed": 151748840,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      },
+      {
+        "label": "query-[object_9876]-5",
+        "rss": 268701696,
+        "heapTotal": 190328832,
+        "heapUsed": 138536504,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      },
+      {
+        "label": "query-[object_9876]-6",
+        "rss": 268832768,
+        "heapTotal": 190328832,
+        "heapUsed": 124722744,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      },
+      {
+        "label": "query-[object_9876]-7",
+        "rss": 268832768,
+        "heapTotal": 190328832,
+        "heapUsed": 144409168,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      },
+      {
+        "label": "after-warm-discovery-and-gc",
+        "rss": 264302592,
+        "heapTotal": 180314112,
+        "heapUsed": 89574976,
+        "external": 6021890,
+        "arrayBuffers": 3526176,
+        "peakRss": 270372864
+      }
+    ],
+    "managerAdditionalResidentBytes": 123310080,
+    "managerPeakAdditionalResidentBytes": 127840256,
+    "totalFixtureAndManagerResidentBytes": 200597504,
+    "methodology": "Actual default workspace/document/console adapters and broker. All manager construction and query allocations counted from immutable input snapshots. Input-store allocations and combined total also reported separately; no R/model/read dispatch. Node synthetic adapter evidence, not native UI/platform or task-quality certification."
+  },
+  "scriptedDevelopmentEvaluation": {
+    "releaseCertification": false,
+    "totals": {
+      "turns": 20,
+      "invocations": 52,
+      "estimatedInputTokens": 158665,
+      "estimatedLegacyCounterfactualInputTokens": 324940,
+      "estimatedInputReduction": 0.5117098541269157,
+      "legacyOverWindowInvocations": 0,
+      "retrievalCalls": 36,
+      "estimatedReturnedRetrievalTokens": 19926,
+      "backgroundOperations": 0,
+      "monetaryCost": "No billable operations issued; savings in money not measured."
+    },
+    "methodology": "Oracle retrieval with a conservative older-prompt counterfactual; no legacy app/model run or comparable answer-quality/billed-savings claim."
+  },
+  "localModelEvidence": "context-linux-local-model-evidence.json",
+  "nativePackagedPreviousRevision": {
+    "profile": "/tmp/ourgeo-context-ui-ZSITnN",
+    "mockRequests": 13,
+    "simpleRequestCount": 2,
+    "auxiliaryContext": false,
+    "electronSqliteWorker": {
+      "encryptedStorage": true,
+      "backend": "kwallet6"
+    },
+    "electronHttpAfterLaunch": {
+      "loopbackRequests": 81,
+      "blockedHosts": [],
+      "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+    },
+    "packaged": true,
+    "memoryEditsAndTombstone": true,
+    "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+    "protectedConnectionSetupAndHealthOnly": true,
+    "suggestionsPinsAndSuppression": true,
+    "projectSaveForkAndDiscard": true,
+    "responsiveDuringRLoadWithoutScopeLeak": true,
+    "scopedPersistentExclusions": true,
+    "duplicateProjectFork": true,
+    "hostMemoryCommandsWithoutInference": true,
+    "relevantUnitPreferencesAndSupersession": true,
+    "conversationDerivedDeletionAndEditedRetention": true,
+    "stagedDocumentAttachment": true,
+    "workspaceColumnPrivacy": true,
+    "protectedColumnPolicy": true,
+    "authorisedFolderIndexing": true,
+    "packedFolderSearchAndRead": true,
+    "watcherRevocation": true,
+    "verifiedBackupInspection": true,
+    "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+    "durableInferenceAccounting": true,
+    "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+    "currentSourceBrowser": true,
+    "reviewedTranscriptForgetting": true,
+    "scopedUsageTotals": true,
+    "diagnosticRetentionControl": true,
+    "freshSourceDiscoveryWithoutKeyring": true,
+    "unreadablePolicyFailsClosed": true,
+    "screenshots": [
+      "/tmp/ourgeo-context-index-repair.png",
+      "/tmp/ourgeo-context-chat-budget.png",
+      "/tmp/ourgeo-context-forget-copies.png",
+      "/tmp/ourgeo-context-folders.png",
+      "/tmp/ourgeo-context-backups.png",
+      "/tmp/ourgeo-context-column-privacy.png",
+      "/tmp/ourgeo-context-attachments.png",
+      "/tmp/ourgeo-context-conversation.png",
+      "/tmp/ourgeo-context-settings.png",
+      "/tmp/ourgeo-context-learning.png",
+      "/tmp/ourgeo-context-project.png",
+      "/tmp/ourgeo-context-exclusions.png",
+      "/tmp/ourgeo-context-retention.png",
+      "/tmp/ourgeo-context-connections.png",
+      "/tmp/ourgeo-context-maintenance.png"
+    ]
+  },
+  "remaining": [
+    "Independent frozen multilingual task/source corpus and model-selected recall/precision",
+    "Comparable local/hosted/retained model runs with explicit paid-evaluation budget where applicable",
+    "Independent human provenance/answer review and long-conversation task quality",
+    "Ten representative usability participants, at least eight completing required tasks unaided",
+    "Native UI full-corpus performance and opaque retained-transport invocation certification",
+    "Linux installer/uninstall behaviour and signing, plus full observation of attempted cold-start/subprocess network traffic",
+    "Historical trace-free usage, provider billing retrieval after restart and invoice-cap certification"
+  ],
+  "boundaries": [
+    "Estimated chat limits use user-reviewed rates, not a provider invoice cap.",
+    "Usage-index repair authenticates current rows and preserves original files; unsupported canonical/deletion damage fails closed.",
+    "Source-adapter scale fixtures do not certify full Electron UI performance."
+  ],
+  "nativePackagedFinalRevision": {
+    "profile": "/tmp/ourgeo-context-ui-IVyguM",
+    "mockRequests": 13,
+    "simpleRequestCount": 2,
+    "auxiliaryContext": false,
+    "electronSqliteWorker": {
+      "encryptedStorage": true,
+      "backend": "kwallet6"
+    },
+    "electronHttpAfterLaunch": {
+      "loopbackRequests": 81,
+      "blockedHosts": [],
+      "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+    },
+    "packaged": true,
+    "memoryEditsAndTombstone": true,
+    "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+    "protectedConnectionSetupAndHealthOnly": true,
+    "suggestionsPinsAndSuppression": true,
+    "projectSaveForkAndDiscard": true,
+    "responsiveDuringRLoadWithoutScopeLeak": true,
+    "scopedPersistentExclusions": true,
+    "duplicateProjectFork": true,
+    "hostMemoryCommandsWithoutInference": true,
+    "relevantUnitPreferencesAndSupersession": true,
+    "conversationDerivedDeletionAndEditedRetention": true,
+    "stagedDocumentAttachment": true,
+    "workspaceColumnPrivacy": true,
+    "protectedColumnPolicy": true,
+    "authorisedFolderIndexing": true,
+    "packedFolderSearchAndRead": true,
+    "watcherRevocation": true,
+    "verifiedBackupInspection": true,
+    "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+    "durableInferenceAccounting": true,
+    "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+    "currentSourceBrowser": true,
+    "reviewedTranscriptForgetting": true,
+    "scopedUsageTotals": true,
+    "diagnosticRetentionControl": true,
+    "freshSourceDiscoveryWithoutKeyring": true,
+    "unreadablePolicyFailsClosed": true,
+    "screenshots": [
+      "/tmp/ourgeo-context-index-repair.png",
+      "/tmp/ourgeo-context-chat-budget.png",
+      "/tmp/ourgeo-context-forget-copies.png",
+      "/tmp/ourgeo-context-folders.png",
+      "/tmp/ourgeo-context-backups.png",
+      "/tmp/ourgeo-context-column-privacy.png",
+      "/tmp/ourgeo-context-attachments.png",
+      "/tmp/ourgeo-context-conversation.png",
+      "/tmp/ourgeo-context-settings.png",
+      "/tmp/ourgeo-context-learning.png",
+      "/tmp/ourgeo-context-project.png",
+      "/tmp/ourgeo-context-exclusions.png",
+      "/tmp/ourgeo-context-retention.png",
+      "/tmp/ourgeo-context-connections.png",
+      "/tmp/ourgeo-context-maintenance.png"
+    ]
+  },
+  "offlineNamespace": {
+    "status": "passed",
+    "interfaces": [
+      {
+        "ifindex": 1,
+        "ifname": "lo",
+        "flags": [
+          "LOOPBACK",
+          "UP",
+          "LOWER_UP"
+        ],
+        "mtu": 65536,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "loopback",
+        "address": "00:00:00:00:00:00",
+        "broadcast": "00:00:00:00:00:00",
+        "addr_info": [
+          {
+            "family": "inet",
+            "local": "127.0.0.1",
+            "prefixlen": 8,
+            "scope": "host",
+            "label": "lo",
+            "valid_life_time": 4294967295,
+            "preferred_life_time": 4294967295
+          },
+          {
+            "family": "inet6",
+            "local": "::1",
+            "prefixlen": 128,
+            "scope": "host",
+            "protocol": "kernel_lo",
+            "valid_life_time": 4294967295,
+            "preferred_life_time": 4294967295
+          }
+        ]
+      }
+    ],
+    "routes": [],
+    "desktopUidPreserved": true,
+    "command": "unshare --user --map-current-user --keep-caps --net sh -c 'ip link set lo up && ip -j address show && ip -j route show && exec node scripts/check-context.mjs --stages-0-2 --packaged dist/linux-unpacked/ourgeo'",
+    "boundary": "Linux app startup and all descendant network sockets restricted to loopback; no external interface or route. Not a packet trace of attempted connections; external desktop services through IPC are outside the namespace.",
+    "initialFailedSetup": {
+      "command": "unshare --user --map-root-user --net \u2026",
+      "result": "Protected writes refused because mapping the desktop UID to root prevented kwallet authentication. App/R and a synthetic conversation started offline, but this is not a protected-memory acceptance pass.",
+      "log": "/tmp/ourgeo-stage02-linux-packaged-offline.log"
+    },
+    "log": "/tmp/ourgeo-stage02-linux-packaged-offline-current-user.log"
+  },
+  "documentHashes": {
+    "docs/context-linux-local-model-evidence.json": "9fd0287e31f003570ece94ed15586509057227d75a2f9c1de9b5998477fe8e44",
+    "docs/context-stages-0-2.md": "8fd1fe7964a88245dd6e99f394651d8cc6a9af7b0fa4bc88aa22b63181589f28",
+    "docs/context-platform-acceptance.md": "ea5604684968dc08c21d5f106fa348815d0cbde58a56ff1be160eb041dd38e57"
+  }
+}

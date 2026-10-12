@@ -1,4 +1,6 @@
 import type { ContextSource } from '../types'
+import { classifyDescriptor, safeDescriptorId } from '../descriptor-identity'
+import { redactContext } from '../policy'
 
 export interface ConsoleEvent { id: string; type: string; text: string; timestamp: number }
 interface Execution { id: string; code: string; timestamp: number; events: ConsoleEvent[]; error: string; source: ContextSource | null }
@@ -39,6 +41,12 @@ export class ConsoleIndex {
       execution.source = { id: `console:${execution.id}`, kind: 'console', scope: 'workspace', title: `${execution.error ? 'Failure' : 'Execution'} at ${timestamp}`,
         summary: (execution.error || execution.code).slice(0, 500), revision: `console-index:${++this.revision}`, timestamp, trust: 'untrusted',
         read: () => `Command:\n${execution.code}\n\nEvents (in order):\n${execution.events.slice(0, eventCount).map(entry => `${entry.type}: ${entry.text}`).join('\n')}` }
+      // This immutable descriptor survives warm searches. Classify its current
+      // metadata once, as packed documents do, instead of redacting all console
+      // executions on each source-browser keystroke. Edits invalidate the cache.
+      const source = execution.source
+      classifyDescriptor(source, safeDescriptorId(source.id), (source.title.toLowerCase() === source.title ? 1 : 0) | (source.summary.toLowerCase() === source.summary ? 2 : 0),
+        redactContext(source.title) === source.title && redactContext(source.summary) === source.summary)
     }
     // Audit-only appends keep the same descriptors and their revisions.
     if (!append || changed.size) this.descriptors = this.executions.map(execution => execution.source!).reverse()

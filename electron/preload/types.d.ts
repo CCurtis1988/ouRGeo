@@ -195,13 +195,44 @@ declare global {
       context: {
         learningSettings: () => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
         configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
+        chatBudgetStatus: () => Promise<import('../../src/lib/context/chat-budget').ChatBudgetStatus>
+        configureChatBudget: (policy: import('../../src/lib/context/chat-budget').ChatBudgetPolicy, lease: string) => Promise<import('../../src/lib/context/chat-budget').ChatBudgetStatus>
+        prepareInferenceUsage: (input: import('../../src/lib/context/inference-usage').InferenceUsageInput, outputTokens: number, authority: string) => Promise<{ persisted: boolean }>
+        endInferenceUsage: (authority: string) => Promise<void>
+        beginInferenceUsage: (chatId: string, turnId: string, provider: import('../../src/lib/context/inference-usage').InferenceUsageProvider, lease: string, model?: string) => Promise<string>
+        recordInferenceUsage: (inputs: import('../../src/lib/context/inference-usage').InferenceUsageInput[], authority: string) => Promise<void>
+        inferenceUsageSummary: (chatId: string | undefined, lease: string) => Promise<import('../../src/lib/context/inference-usage').InferenceUsageSummary>
+        columnPolicies: (lease: string) => Promise<import('../../src/lib/context/column-policy').ColumnPolicySnapshot>
+        saveColumnPolicies: (revision: number, selections: Record<string, string[]>, lease: string) => Promise<import('../../src/lib/context/column-policy').ColumnPolicySnapshot>
+        folderCatalogue: import('../../src/lib/context/folders').FolderContextApi['folderCatalogue']
+        chooseContextFolder: import('../../src/lib/context/folders').FolderContextApi['chooseContextFolder']
+        refreshContextFolder: import('../../src/lib/context/folders').FolderContextApi['refreshContextFolder']
+        removeContextFolder: import('../../src/lib/context/folders').FolderContextApi['removeContextFolder']
+        readContextFile: import('../../src/lib/context/folders').FolderContextApi['readContextFile']
+        onFoldersChanged: (callback: () => void) => () => void
+        memoryRecoveryStatus: () => Promise<{ health: import('../../src/lib/context/storage-recovery').MemoryStorageHealth; backups: import('../../src/lib/context/storage-recovery').MemoryBackupReceipt[]; indexRepair?: import('../../src/lib/context/storage-recovery').MemoryIndexRepair }>
+        createMemoryBackup: (lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryBackupReceipt>
+        inspectMemoryBackup: (id: string, lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryBackupInspection>
+        restoreMemoryBackup: (id: string, lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryRestoreReceipt>
+        retryMemoryStorage: (lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryStorageHealth>
         lease: () => Promise<{ id: string; projectId: string | null }>
         closeProject: (lease: string) => Promise<void>
         exclusions: (lease: string) => Promise<import('../../src/lib/context/exclusions').ExclusionSelection[]>
         exclude: (input: { id: string; scope: import('../../src/lib/context/exclusions').ExclusionScope; projectId: string | null; lease: string | null; excluded: boolean }) => Promise<void>
         listGlobal: () => Promise<import('../../src/lib/context/types').MemoryRecord[]>
+        onRetentionChanged: (callback: () => void) => () => void
         storageStatus: () => Promise<{ empty: boolean }>
         connections: () => Promise<import('../../src/lib/context/providers/connections').PublicMemoryConnection[]>
+        recallMemory: (input: import('../../src/lib/context/providers/recall').MemoryRecallRequest, id: string, lease: string) => Promise<import('../../src/lib/context/providers/recall').MemoryRecallResult>
+        cancelRecall: (id: string) => Promise<void>
+        activationStatus: () => Promise<import('../../src/lib/context/providers/activation').ProviderActivationStatus[]>
+        previewManagedActivation: (scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        previewActivation: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        previewMemoryImport: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        activateProvider: (ref: string) => Promise<boolean>
+        pauseProvider: (id: string) => Promise<void>
+        maintenanceStatus: () => Promise<import('../../src/lib/context/providers/maintenance').MaintenanceStatus>
+        configureMaintenance: (policy: import('../../src/lib/context/providers/maintenance').MaintenancePolicy, lease: string) => Promise<import('../../src/lib/context/providers/maintenance').MaintenanceStatus>
         runtimeStatus: () => Promise<import('../../src/lib/context/providers/runtimes').ManagedRuntimeStatus>
         stageRuntime: (lease: string, acknowledged: boolean) => Promise<import('../../src/lib/context/providers/runtimes').ManagedRuntimeStatus>
         cancelRuntime: () => Promise<void>
@@ -211,7 +242,9 @@ declare global {
         probeConnection: (id: string) => Promise<import('../../src/lib/context/providers/connections').PublicMemoryConnection>
         disconnectConnection: (id: string) => Promise<void>
         saveGlobal: (record: import('../../src/lib/context/types').MemoryRecord, preserveCandidate?: boolean) => Promise<import('../../src/lib/context/types').MemoryRecord>
-        forget: (id: string, deletion: import('../../src/lib/context/types').MemoryDeletion) => Promise<void>
+        forget: (id: string, deletion: import('../../src/lib/context/types').MemoryDeletion) => Promise<import('../../src/lib/context/types').MemoryForgetReceipt>
+        cleanupStatus: () => Promise<import('../../src/lib/context/types').MemoryCleanupStatus>
+        retryCleanup: (lease: string) => Promise<import('../../src/lib/context/types').MemoryCleanupStatus>
         learnGlobal: (messageId: string, text: string) => Promise<import('../../src/lib/context/types').MemoryRecord | null>
         filterLearningSources: (ids: string[]) => Promise<string[]>
         filterDeleted: (ids: string[]) => Promise<string[]>
@@ -251,7 +284,7 @@ declare global {
         openDataFile(): Promise<string | null>
         openRgeo(): Promise<string | null>
         openWorkspaceFolder(): Promise<string | null>
-        saveExportFile(format: string): Promise<string | null>
+        saveExportFile(format: string, existing?: boolean): Promise<string | null>
         savePlot(format: string): Promise<string | null>
         openTheme(): Promise<string | null>
         saveTheme(defaultName?: string): Promise<string | null>

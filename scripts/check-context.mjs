@@ -1,22 +1,51 @@
 /* global document, window */ // Functions passed to Playwright execute in the renderer.
 import { _electron as electron } from 'playwright-core'
+import electronExecutable from 'electron'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, writeFile, readdir, readFile, copyFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readdir, readFile, copyFile, symlink, unlink, chmod, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
 import AdmZip from 'adm-zip'
 import { build } from 'esbuild'
 import { pathToFileURL } from 'node:url'
 
 const root = resolve(import.meta.dirname, '..')
 const profile = await mkdtemp(join(tmpdir(), 'ourgeo-context-ui-'))
+const screenshot = name => join(tmpdir(), name)
 const userData = join(profile, 'ourgeo')
-await mkdir(userData)
+await mkdir(userData, { mode: 0o700 })
+const packagedExecutable = process.argv.includes('--packaged') ? resolve(process.argv[process.argv.indexOf('--packaged') + 1]) : undefined
+if (packagedExecutable) {
+  const archive = await readFile(process.platform === 'darwin' ? join(packagedExecutable, '../..', 'Resources/app.asar') : join(packagedExecutable, '..', 'resources/app.asar'))
+  assert(archive.includes(Buffer.from('OURGEO_CONTEXT_TEST_PROFILE')), 'Package lacks the synthetic profile guard. Rebuild before launching; no user profile was opened.')
+}
+// Explicitly set the data directory before importing main. XDG_CONFIG_HOME
+// alone does not isolate Windows/macOS, and acceptance must never reach the
+// user's actual preferences, memories or project session.
+async function launchIsolated(profileRoot, extraArgs = [], unavailableKeyring = false) {
+  const wrapper = join(profileRoot, 'launch.cjs'), data = join(profileRoot, 'ourgeo')
+  await mkdir(data, { recursive: true, mode: 0o700 })
+  await chmod(data, 0o700)
+  await writeFile(join(data, '.context-acceptance'), 'synthetic-context-profile-v1\n', { mode: 0o600 })
+  await writeFile(wrapper, `const {app,safeStorage}=require('electron');app.setPath('userData',${JSON.stringify(data)});${unavailableKeyring ? 'safeStorage.isEncryptionAvailable=()=>false;' : ''}require(${JSON.stringify(join(root, 'out/main/index.js'))});`)
+  const instance = await electron.launch({ executablePath: packagedExecutable ?? electronExecutable, args: ['--no-sandbox', ...extraArgs, ...(packagedExecutable ? [] : [wrapper])], cwd: root, env: { ...process.env, XDG_CONFIG_HOME: profileRoot, OURGEO_CONTEXT_TEST_PROFILE: await realpath(data), OURGEO_CONTEXT_TEST_NO_KEYRING: unavailableKeyring ? '1' : '0' }, timeout: 60000 })
+  assert.equal(resolve(await instance.evaluate(({ app }) => app.getPath('userData'))), resolve(data))
+  await instance.evaluate(({ session }) => {
+    globalThis.contextAcceptanceNetwork = { loopbackRequests: 0, blockedHosts: [] }
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, callback) => {
+      const host = new URL(details.url).hostname
+      if (['127.0.0.1', '[::1]', 'localhost'].includes(host)) { globalThis.contextAcceptanceNetwork.loopbackRequests++; callback({}) }
+      else { if (globalThis.contextAcceptanceNetwork.blockedHosts.length < 256) globalThis.contextAcceptanceNetwork.blockedHosts.push(host); callback({ cancel: true }) }
+    })
+  })
+  return instance
+}
 // Optional runtime coverage uses separately downloaded, pinned fixture assets.
 // The test never downloads packages or installs in the user's actual profile.
 let managedRuntimeFixture = false
-if (process.platform === 'linux' && process.arch === 'x64') {
+if (!process.argv.includes('--stages-0-2') && process.platform === 'linux' && process.arch === 'x64') {
   const catalogue = join(profile, 'runtime-catalogue.mjs')
   await build({ entryPoints: [join(root, 'electron/main/context/runtime-catalogue.ts')], outfile: catalogue, format: 'esm', platform: 'node' })
   const { MNEMOSYNE_LOCAL_CANDIDATE: candidate } = await import(pathToFileURL(catalogue).href)
@@ -39,6 +68,15 @@ const server = createServer(async (req, res) => {
     const payload = JSON.parse(raw)
     requests.push(payload)
     res.setHeader('Content-Type', 'application/x-ndjson')
+    const lastUser = payload.messages.filter(message => message.role === 'user').at(-1)?.content ?? ''
+    if (lastUser.includes('Verify packed folder retrieval fixture')) {
+      const lastTool = payload.messages.filter(message => message.role === 'tool').at(-1)
+      const searched = lastTool ? JSON.parse(lastTool.content) : null
+      const call = !lastTool ? { name: 'context_search', arguments: { query: 'Approved note', kinds: ['document'] } }
+        : searched.results ? { name: 'context_read', arguments: { ref: searched.results[0]?.ref } } : null
+      res.end(JSON.stringify({ message: call ? { content: '', tool_calls: [{ function: call }] } : { content: 'Packed folder evidence verified.' }, done: true, prompt_eval_count: 1000, eval_count: 30 }) + '\n')
+      return
+    }
     res.end(JSON.stringify({ message: { content: 'Synthetic example: `data.frame(id = seq_len(100), value = rnorm(100))`' }, done: true, prompt_eval_count: 1000, eval_count: 30 }) + '\n')
   } else if (req.url === '/memory/health') {
     connectionRequests.push({ method: req.method, body: raw, authenticated: req.headers.authorization === 'Bearer SYNTHETIC_CONNECTION_TOKEN' })
@@ -50,14 +88,23 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const url = `http://127.0.0.1:${server.address().port}`
 await writeFile(join(userData, 'ai-preferences.json'), JSON.stringify({ provider: 'ollama', modelByProvider: { ollama: 'context-fixture' }, webAccessEnabled: false, autopilotWarningDismissed: true }))
 await writeFile(join(userData, 'api-keys.json'), JSON.stringify({ ollama_url: url, ollama_ctx: '32768' }))
+async function settingsPage(target, title) {
+  await target.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'AI Assistant', exact: true }).click()
+  await target.getByRole('tab', { name: title, exact: true }).click()
+}
+
 let app
 let page
 let freshApp
+let repairApp
 try {
-  app = await electron.launch({ executablePath: join(root, 'node_modules/electron/dist/electron'), args: ['--no-sandbox', root], env: { ...process.env, XDG_CONFIG_HOME: profile }, timeout: 60000 })
+  app = await launchIsolated(profile)
   page = await app.firstWindow()
   const errors = []
   page.on('pageerror', error => errors.push(String(error)))
+  page.on('response', async response => {
+    if (response.url().includes('/context/schema') && response.status() >= 400) console.log(JSON.stringify({ event: 'synthetic-schema-error', request: response.request().postData(), response: await response.text() }))
+  })
   await page.waitForSelector('[data-ourgeo-id="toolbar.ai"]', { timeout: 30000 })
   await page.waitForFunction(() => document.body.innerText.includes('R session ready.'), { timeout: 30000 })
   const onboarding = page.getByRole('button', { name: 'Maybe later', exact: true })
@@ -78,25 +125,83 @@ try {
   assert(payload.tools.some(tool => tool.function.name === 'context_search'))
   await page.getByText('Conversation only', { exact: true }).first().evaluate(el => el.click())
   await page.getByText('Reported usage: 1,000 input; 30 output tokens.', { exact: true }).waitFor()
-  await page.screenshot({ path: '/tmp/ourgeo-context-conversation.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-conversation.png') })
   await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
-  await page.getByText('AI Assistant', { exact: true }).last().evaluate(el => el.closest('button').click())
+  await page.setViewportSize({ width: 1120, height: 900 })
+  const categories = page.getByRole('navigation', { name: 'Settings categories' })
+  for (const title of await categories.getByRole('button').allTextContents()) {
+    await categories.getByRole('button', { name: title, exact: true }).click()
+    await page.getByRole('region', { name: `${title} settings`, exact: true }).waitFor()
+    assert.equal(await page.getByRole('region', { name: / settings$/ }).count(), 1, 'Only the selected settings category should be exposed.')
+    assert.equal(await categories.getByRole('button', { name: title, exact: true }).getAttribute('aria-current'), 'page')
+  }
+  await settingsPage(page, 'Memory Library')
   await page.getByRole('region', { name: 'Context and memory' }).waitFor()
+  await settingsPage(page, 'Learning & context')
   await page.getByLabel('Default context effort').selectOption('efficient')
+  await settingsPage(page, 'Storage & recovery')
+  await page.getByLabel('Diagnostic evidence retention').selectOption('3')
+  await page.waitForFunction(() => document.querySelector('select[aria-label="Diagnostic evidence retention"]')?.value === '3')
+  await settingsPage(page, 'Memory Library')
   await page.getByRole('region', { name: 'Memory library' }).getByRole('button', { name: 'Project', exact: true }).click()
   await page.getByText('Save this workspace as a project to keep project memory.', { exact: true }).waitFor()
   await page.getByRole('region', { name: 'Context and memory' }).scrollIntoViewIfNeeded()
-  await page.screenshot({ path: '/tmp/ourgeo-context-settings.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-settings.png') })
   const library = page.getByRole('region', { name: 'Memory library' })
   await library.getByRole('button', { name: 'About you', exact: true }).evaluate(el => el.click())
+  await library.getByRole('heading', { name: 'Memory Library', exact: true }).waitFor()
   const statement = 'Prefer metric units for test distances.'
   await library.getByLabel('New memory').fill(statement)
   await library.getByRole('button', { name: 'Remember about you', exact: true }).evaluate(el => el.click())
   await library.getByText(statement, { exact: true }).first().waitFor({ timeout: 10000 })
   assert.equal((await page.evaluate(() => window.electronAPI.context.listGlobal())).length, 1)
+  assert.equal(requests.length, 1, 'Creating a memory directly must not invoke the model.')
+  await library.getByRole('heading', { name: 'Memory Library', exact: true }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: screenshot('ourgeo-settings-memory-library.png') })
+  await page.setViewportSize({ width: 620, height: 700 })
+  await page.getByLabel('Settings category', { exact: true }).selectOption('AI Assistant')
+  await library.getByRole('heading', { name: 'Memory Library', exact: true }).waitFor()
+  const narrowOverflow = await page.getByRole('dialog', { name: 'Settings', exact: true }).evaluate(dialog => dialog.scrollWidth > dialog.clientWidth)
+  assert.equal(narrowOverflow, false, 'Settings must fit the narrow application window.')
+  await page.getByRole('combobox', { name: 'AI assistant settings', exact: true }).selectOption('privacy')
+  await page.getByRole('region', { name: 'Memory library', exact: true }).waitFor({ state: 'hidden' })
+  await page.getByRole('combobox', { name: 'AI assistant settings', exact: true }).selectOption('library')
+  await library.getByRole('heading', { name: 'Memory Library', exact: true }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: screenshot('ourgeo-settings-memory-narrow.png') })
+  await page.setViewportSize({ width: 1120, height: 900 })
   for (const file of await readdir(join(userData, 'context'))) assert(!(await readFile(join(userData, 'context', file))).includes(Buffer.from(statement)))
+  await settingsPage(page, 'Budgets')
+  const maintenance = page.getByLabel('Memory maintenance budget', { exact: true })
+  await maintenance.locator(':scope > summary').click()
+  const initialMaintenance = await page.evaluate(() => window.electronAPI.context.maintenanceStatus())
+  assert.equal(initialMaintenance.policy.enabled, false)
+  assert.equal(initialMaintenance.policy.mode, 'estimated')
+  await maintenance.getByLabel('Daily memory maintenance estimate in USD', { exact: true }).fill('1')
+  await maintenance.getByLabel('Monthly memory maintenance estimate in USD', { exact: true }).fill('5')
+  await maintenance.getByLabel('Allow budgeted paid memory maintenance', { exact: true }).check()
+  await maintenance.getByRole('button', { name: 'Save maintenance budget', exact: true }).click()
+  await maintenance.getByText('Maintenance budget saved.', { exact: false }).waitFor()
+  const savedMaintenance = await page.evaluate(() => window.electronAPI.context.maintenanceStatus())
+  assert.equal(savedMaintenance.policy.dailyMicros, 1000000)
+  assert.equal(savedMaintenance.policy.monthlyMicros, 5000000)
+  assert.equal(savedMaintenance.policy.enabled, true)
+  assert.equal(savedMaintenance.summary.unresolvedOperations, 0)
+  const hardCapRefused = await page.evaluate(async () => {
+    const current = await window.electronAPI.context.maintenanceStatus(), lease = await window.electronAPI.context.lease()
+    try { await window.electronAPI.context.configureMaintenance({ ...current.policy, mode: 'hard', revision: current.policy.revision + 1 }, lease.id); return false }
+    catch { return true }
+  })
+  assert.equal(hardCapRefused, true)
+  await page.setViewportSize({ width: 1120, height: 900 })
+  await maintenance.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: screenshot('ourgeo-context-maintenance.png') })
+  await maintenance.getByLabel('Allow budgeted paid memory maintenance', { exact: true }).uncheck()
+  await maintenance.getByRole('button', { name: 'Save maintenance budget', exact: true }).click()
+  await page.waitForFunction(async () => !(await window.electronAPI.context.maintenanceStatus()).policy.enabled)
+  await maintenance.locator(':scope > summary').click()
   // The real settings flow stores a protected host-owned connection and sends
   // only a health request, never a transcript or a memory ingestion request.
+  await settingsPage(page, 'Advanced')
   const connections = page.getByLabel('Memory provider connections', { exact: true })
   await connections.locator(':scope > summary').click()
   const runtimeView = page.getByLabel('Managed memory runtime', { exact: true })
@@ -116,7 +221,96 @@ try {
     assert.equal(installed.state, 'ready-for-certification')
     assert.equal((await readdir(join(userData, 'memory-runtimes', installed.folder))).some(name => name.startsWith('.health-')), false)
     await runtimeView.scrollIntoViewIfNeeded()
-    await page.screenshot({ path: '/tmp/ourgeo-context-runtime.png' })
+    await page.screenshot({ path: screenshot('ourgeo-context-runtime.png') })
+    // Only this isolated test profile accepts the native activation review.
+    // The first review is cancelled, proving staging grants no personal access.
+    await app.evaluate(({ dialog }) => {
+      globalThis.__contextOriginalDialog = dialog.showMessageBox
+      dialog.showMessageBox = async options => options.title === 'Activate memory processing' ? { response: 0, checkboxChecked: false } : globalThis.__contextOriginalDialog(options)
+    })
+    await runtimeView.getByRole('button', { name: 'Review activation for About you', exact: true }).click()
+    await page.waitForFunction(async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'ready'))
+    assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.state === 'active'))
+    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async options => ['Activate memory processing', 'Import selected memories'].includes(options.title) ? { response: 1, checkboxChecked: false } : globalThis.__contextOriginalDialog(options) })
+    await runtimeView.getByRole('button', { name: 'Review activation for About you', exact: true }).click()
+    await page.waitForFunction(async () => { try { return (await window.electronAPI.context.activationStatus()).some(item => item.state === 'active') } catch { return false } })
+    await page.getByRole('button', { name: 'Pause memory updates', exact: true }).waitFor({ state: 'attached' })
+    assert.equal((await page.evaluate(() => window.electronAPI.context.maintenanceStatus())).policy.enabled, false)
+    const existing = await page.evaluate(() => window.electronAPI.context.listGlobal())
+    const syntheticId = crypto.randomUUID(), now = new Date().toISOString()
+    await page.evaluate(record => window.electronAPI.context.saveGlobal(record), { id: syntheticId, revision: 1, scope: 'global', projectId: null, category: 'preference', statement: 'SYNTHETIC_MANAGED_ACTIVATION_METRIC', evidence: [], assertion: 'user-declared', createdAt: now, updatedAt: now, status: 'active', supersedes: [] })
+    const derived = join(userData, 'memory-runtimes', installed.folder, 'derived')
+    let database
+    const dispatchDeadline = Date.now() + 20000
+    while (true) {
+      try {
+        database = (await readdir(derived)).find(name => name.endsWith('.sqlite'))
+        if (database && (await readFile(join(derived, database))).includes(Buffer.from(syntheticId))) break
+      } catch { /* Wait for this fixture's lazy runtime and first atomic snapshot. */ }
+      if (Date.now() > dispatchDeadline) throw new Error('Managed activation did not deliver the approved synthetic update.')
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    for (const record of existing) assert(!(await readFile(join(derived, database))).includes(Buffer.from(record.id)), 'Future-only activation indexed old memory without selection.')
+    const managedRecall = await page.evaluate(async () => {
+      const lease = await window.electronAPI.context.lease()
+      return window.electronAPI.context.recallMemory({ query: 'SYNTHETIC_MANAGED_ACTIVATION_METRIC', scope: 'global' }, crypto.randomUUID(), lease.id)
+    })
+    assert.equal(managedRecall.status, 'ok')
+    assert.equal(managedRecall.coverage, 'provider')
+    assert.deepEqual(managedRecall.hits, [{ id: syntheticId, revision: 1, scope: 'global' }])
+    assert(!JSON.stringify(managedRecall).includes('SYNTHETIC_MANAGED_ACTIVATION_METRIC'))
+    const importView = connections.getByLabel('Import memories to Mnemosyne on this device · experimental', { exact: true })
+    await importView.locator(':scope > summary').click()
+    await importView.getByRole('checkbox', { name: existing[0].statement, exact: true }).check()
+    await importView.getByRole('button', { name: 'Review import of 1 memory', exact: true }).click()
+    await importView.getByText('Selected memories queued for import.', { exact: false }).waitFor()
+    const importDeadline = Date.now() + 20000
+    while (!(await readFile(join(derived, database))).includes(Buffer.from(existing[0].id))) {
+      if (Date.now() > importDeadline) throw new Error('The explicitly selected memory was not imported.')
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    await page.screenshot({ path: screenshot('ourgeo-context-import.png') })
+    const oldPair = join(userData, 'memory-runtimes', `installed_${crypto.randomUUID()}`, 'derived')
+    await mkdir(oldPair, { recursive: true, mode: 0o700 })
+    await copyFile(join(derived, database), join(oldPair, database))
+    // A redirected private directory must be refused. The canonical tombstone
+    // still commits and the purge receipt survives until the user repairs it.
+    const badPair = join(userData, 'memory-runtimes', `installed_${crypto.randomUUID()}`)
+    const badTarget = join(profile, 'synthetic-linked-runtime'); await mkdir(badTarget)
+    await symlink(badTarget, badPair)
+    const forgetReceipt = await page.evaluate(id => window.electronAPI.context.forget(id, { scope: 'global', projectId: null, sources: [] }), syntheticId)
+    assert.equal(forgetReceipt.local, 'excluded'); assert.equal(forgetReceipt.managed, 'pending')
+    assert(!(await page.evaluate(() => window.electronAPI.context.listGlobal())).some(record => record.id === syntheticId))
+    await settingsPage(page, 'Storage & recovery')
+    const cleanup = page.getByLabel('Local memory cleanup', { exact: true })
+    await cleanup.locator(':scope > summary').click()
+    await cleanup.getByRole('button', { name: 'Refresh cleanup status', exact: true }).click()
+    await cleanup.getByText('Awaiting retry: 1 · Needs attention: 0.', { exact: true }).waitFor()
+    await cleanup.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: screenshot('ourgeo-context-cleanup.png') })
+    await unlink(badPair)
+    await cleanup.getByRole('button', { name: 'Retry local cleanup', exact: true }).click()
+    await cleanup.getByText('Awaiting retry: 0 · Needs attention: 0.', { exact: true }).waitFor()
+    await cleanup.locator(':scope > summary').click()
+    const deletionDeadline = Date.now() + 20000
+    const currentBytes = async () => { try { return await readFile(join(derived, database)) } catch (error) { if (error.code === 'ENOENT') return Buffer.alloc(0); throw error } }
+    while ((await currentBytes()).includes(Buffer.from(syntheticId)) || (await readdir(oldPair)).length) {
+      if (Date.now() > deletionDeadline) throw new Error('Managed deletion left an active/rollback derived copy.')
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    await settingsPage(page, 'Advanced')
+    await connections.getByRole('button', { name: 'Pause memory updates', exact: true }).scrollIntoViewIfNeeded()
+    await page.screenshot({ path: screenshot('ourgeo-context-activation.png') })
+    await connections.getByRole('button', { name: 'Pause memory updates', exact: true }).click()
+    await connections.getByText('Memory updates: paused', { exact: true }).waitFor()
+    assert.equal((await page.evaluate(async () => {
+      const lease = await window.electronAPI.context.lease()
+      return window.electronAPI.context.recallMemory({ query: 'metric', scope: 'global' }, crypto.randomUUID(), lease.id)
+    })).status, 'unavailable')
+    await connections.getByRole('button', { name: 'Disconnect', exact: true }).click()
+    await connections.getByRole('button', { name: 'Remove these settings', exact: true }).click()
+    await page.waitForFunction(async () => !(await window.electronAPI.context.connections()).some(item => item.location === 'managed-local'))
+    await app.evaluate(({ dialog }) => { dialog.showMessageBox = globalThis.__contextOriginalDialog; delete globalThis.__contextOriginalDialog })
     // Cancellation stops staging an update while preserving the original pair.
     await runtimeView.getByRole('button', { name: 'Stage verified runtime', exact: true }).click()
     await page.waitForFunction(async () => (await window.electronAPI.context.runtimeStatus()).state === 'installing')
@@ -148,17 +342,20 @@ try {
   assert.equal(connectionRequests.length, 0)
   await connections.getByRole('button', { name: 'Test connection', exact: true }).click()
   await connections.getByText('reachable · certification pending', { exact: false }).waitFor()
+  assert((await page.evaluate(() => window.electronAPI.context.activationStatus())).every(item => item.state === 'review-required'))
+  assert.equal(await connections.getByRole('button', { name: 'Review activation of future memory updates', exact: true }).count(), 0)
   assert.deepEqual(connectionRequests, [{ method: 'GET', body: '', authenticated: true }])
   assert.equal(requests.length, 1)
   assert.equal(await connections.getByLabel('Memory connection authentication', { exact: true }).inputValue(), '')
   await connections.scrollIntoViewIfNeeded()
-  await page.screenshot({ path: '/tmp/ourgeo-context-connections.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-connections.png') })
   await connections.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await connections.getByText('Authentication removed.', { exact: false }).waitFor()
   assert.equal((await page.evaluate(() => window.electronAPI.context.connections()))[0].authenticated, false)
   await connections.getByRole('button', { name: 'Remove these settings', exact: true }).click()
   await page.waitForFunction(async () => (await window.electronAPI.context.connections()).length === 0)
   await connections.locator(':scope > summary').click()
+  await settingsPage(page, 'Memory Library')
   await library.getByRole('button', { name: 'Edit', exact: true }).evaluate(el => el.click())
   await library.getByLabel('Edit memory').fill('Prefer metres for test distances.')
   await library.getByRole('button', { name: 'Save correction', exact: true }).evaluate(el => el.click())
@@ -170,13 +367,21 @@ try {
   await library.getByText('Forgotten from future retrieval.', { exact: false }).waitFor()
   assert.deepEqual(await page.evaluate(() => window.electronAPI.context.listGlobal()), [])
   assert.deepEqual(await page.evaluate(id => window.electronAPI.context.filterDeleted([id]), records[0].id), [])
+  if (managedRuntimeFixture) {
+    for (const folder of (await readdir(join(userData, 'memory-runtimes'))).filter(folder => folder.startsWith('installed_'))) {
+      const files = await readdir(join(userData, 'memory-runtimes', folder, 'derived')).catch(() => [])
+      assert(!files.some(file => file.endsWith('.sqlite')), 'Forgetting after disconnect/removal retained a managed derived index.')
+    }
+  }
   // Defaults do not learn from scratch, including suggestions.
   const sourceId = crypto.randomUUID()
   assert.equal(await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId }), null)
-  await page.getByLabel('Allow preference learning from scratch conversations').check()
+  await settingsPage(page, 'Learning & context')
+  await page.getByRole('switch', { name: 'Allow preference learning from scratch conversations', exact: true }).click()
   await page.waitForFunction(async () => (await window.electronAPI.context.learningSettings()).scratchLearning)
   const suggestion = await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId })
   assert.equal(suggestion.status, 'candidate')
+  await settingsPage(page, 'Memory Library')
   await library.getByRole('button', { name: 'Conversation', exact: true }).click()
   await library.getByText('Derived working state', { exact: false }).waitFor()
   await library.getByRole('button', { name: 'About you', exact: true }).click()
@@ -187,7 +392,7 @@ try {
   const secondOnboarding = page.getByRole('button', { name: 'Maybe later', exact: true })
   if (await secondOnboarding.isVisible()) await secondOnboarding.click()
   await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
-  await page.getByText('AI Assistant', { exact: true }).last().evaluate(el => el.closest('button').click())
+  await settingsPage(page, 'Memory Library')
   const recoveredLibrary = page.getByRole('region', { name: 'Memory library' })
   await recoveredLibrary.getByText('I prefer metric units', { exact: true }).waitFor({ timeout: 10000 })
   await recoveredLibrary.getByRole('button', { name: 'Accept suggestion', exact: true }).click()
@@ -202,7 +407,7 @@ try {
   await recoveredLibrary.getByRole('button', { name: 'Forget', exact: true }).click()
   await page.waitForFunction(async () => (await window.electronAPI.context.listGlobal()).length === 0)
   assert.equal(await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId }), null)
-  await page.screenshot({ path: '/tmp/ourgeo-context-learning.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-learning.png') })
   // Exercise save/fork/discard through the real UI. Native pickers are supplied
   // deterministic paths inside this isolated profile; no user bundle is opened.
   const originalPath = join(profile, 'Context original.ourgeoproj')
@@ -223,7 +428,7 @@ try {
   }
   const projectLibrary = async () => {
     await page.locator('[data-ourgeo-id="toolbar.settings"]').click()
-    await page.getByText('AI Assistant', { exact: true }).last().evaluate(el => el.closest('button').click())
+    await settingsPage(page, 'Memory Library')
     const view = page.getByRole('region', { name: 'Memory library' })
     await view.getByRole('button', { name: 'Project', exact: true }).click()
     return view
@@ -289,7 +494,7 @@ try {
   const reopenedView = await projectLibrary()
   await reopenedView.getByText(projectDecision, { exact: true }).waitFor()
   assert.equal(await reopenedView.getByText('Discard this unsaved project decision.', { exact: true }).count(), 0)
-  await page.screenshot({ path: '/tmp/ourgeo-context-project.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-project.png') })
   await page.keyboard.press('Escape')
   const decisionQuery = 'Which EPSG:27700 did we decide to use for this project?'
   await send(decisionQuery, 4)
@@ -314,9 +519,10 @@ try {
   await projectAction('Load…')
   await readyProject('Context copy')
   await projectLibrary()
+  await settingsPage(page, 'Privacy & sources')
   await page.getByText('Source exclusions (1)', { exact: true }).evaluate(el => el.click())
   await page.getByLabel(`Allow source Memory: ${projectDecision}`, { exact: true }).waitFor()
-  await page.screenshot({ path: '/tmp/ourgeo-context-exclusions.png' })
+  await page.screenshot({ path: screenshot('ourgeo-context-exclusions.png') })
   await page.getByLabel(`Allow source Memory: ${projectDecision}`, { exact: true }).click()
   await page.waitForFunction(async () => (await window.electronAPI.context.exclusions((await window.electronAPI.context.lease()).id)).every(selection => selection.ids.length === 0))
   await page.keyboard.press('Escape')
@@ -383,7 +589,7 @@ try {
     await page.getByTitle('Delete this chat', { exact: true }).first().evaluate(el => el.click())
     await page.getByText('memories derived solely from this chat', { exact: false }).waitFor()
     if (keep) await page.getByRole('checkbox', { name: /Keep 1 independently edited or pinned memories/ }).check()
-    await page.screenshot({ path: '/tmp/ourgeo-context-retention.png' })
+    await page.screenshot({ path: screenshot('ourgeo-context-retention.png') })
     await page.getByRole('button', { name: 'Delete', exact: true }).evaluate(el => el.click())
     await page.getByRole('button', { name: 'Cancel', exact: true }).waitFor({ state: 'hidden' })
     // The list remains open after deleting its row.
@@ -400,7 +606,7 @@ try {
   await newChat()
   await hostCommand('Remember that I prefer CSV output.', 'Remembered in About you: I prefer CSV output.')
   await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
-  await page.getByText('AI Assistant', { exact: true }).last().evaluate(el => el.closest('button').click())
+  await settingsPage(page, 'Memory Library')
   const retentionLibrary = page.getByRole('region', { name: 'Memory library' })
   await retentionLibrary.getByRole('button', { name: 'About you', exact: true }).click()
   await retentionLibrary.getByText('I prefer CSV output.', { exact: true }).locator('..').getByRole('button', { name: 'Edit', exact: true }).click()
@@ -417,7 +623,7 @@ try {
   await mkdir(freshData)
   await writeFile(join(freshData, 'ai-preferences.json'), JSON.stringify({ provider: 'ollama', modelByProvider: { ollama: 'context-fixture' }, webAccessEnabled: false, autopilotWarningDismissed: true }))
   await writeFile(join(freshData, 'api-keys.json'), JSON.stringify({ ollama_url: url, ollama_ctx: '32768' }))
-  freshApp = await electron.launch({ executablePath: join(root, 'node_modules/electron/dist/electron'), args: ['--no-sandbox', '--password-store=basic', root], env: { ...process.env, XDG_CONFIG_HOME: freshProfile }, timeout: 60000 })
+  freshApp = await launchIsolated(freshProfile, ['--password-store=basic'], true)
   const freshPage = await freshApp.firstWindow()
   await freshPage.waitForSelector('[data-ourgeo-id="toolbar.ai"]', { timeout: 30000 })
   await freshPage.waitForFunction(() => document.body.innerText.includes('R session ready.'), { timeout: 30000 })
@@ -431,8 +637,9 @@ try {
   assert.equal(requests.length, 8)
   assert(JSON.stringify(requests[7]).includes('Retrieved evidence'))
   assert(JSON.stringify(requests[7]).includes('theme:'))
-  const backend = await freshApp.evaluate(({ safeStorage }) => safeStorage.getSelectedStorageBackend())
-  assert.equal(backend, 'basic_text')
+  const backend = await freshApp.evaluate(({ safeStorage }) => ({ available: safeStorage.isEncryptionAvailable(), name: process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform }))
+  assert.equal(backend.available, false)
+  if (process.platform === 'linux') assert.equal(backend.name, 'basic_text')
   await mkdir(join(freshData, 'context'))
   await writeFile(join(freshData, 'context', 'key'), 'synthetic unreadable protected policy')
   const unavailable = await freshPage.evaluate(async () => {
@@ -442,14 +649,239 @@ try {
   assert.equal(unavailable, true)
   await freshApp.close()
   freshApp = undefined
+  // Deliberate staging reads no content until send. The selected section must
+  // arrive as attributed evidence, while an unrelated section stays local.
+  const attachmentPath = join(profile, 'attachment-fixture.md')
+  await writeFile(attachmentPath, '# Intro\nUnrelated private fixture text.\n# Method\nSelected reproducible workflow.\n```r\nmean(c(1, 2, 3))\n```\n')
+  await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }) }, attachmentPath)
+  await page.locator('[data-ourgeo-id="toolbar.openFile"]').evaluate(el => el.click())
+  await page.getByRole('button', { name: 'Attach context', exact: true }).click()
+  await page.getByRole('button', { name: 'Method (lines 3–8)', exact: true }).click()
+  await page.getByText('Staged:', { exact: false }).waitFor()
+  assert.equal(requests.length, 8, 'Staging must not call the assistant')
+  await page.screenshot({ path: screenshot('ourgeo-context-attachments.png') })
+  await input.fill('Explain the attached workflow.')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, 9)
+  const attachedPayload = JSON.stringify(requests[8])
+  assert(attachedPayload.includes('Selected reproducible workflow.'))
+  assert(!attachedPayload.includes('Unrelated private fixture text.'))
+  assert.equal(await page.getByText('Staged:', { exact: false }).count(), 0)
+  await page.getByText('Usage totals', { exact: true }).click()
+  await page.getByRole('button', { name: 'Load protected usage totals', exact: true }).click()
+  await page.getByText('Current conversation · protected local ledger', { exact: true }).waitFor()
+  const ledger = await page.evaluate(async () => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.inferenceUsageSummary(undefined, lease.id) })
+  assert(ledger.receipts > 0 && ledger.reportedInputTokens >= 1000, 'Protected ledger must contain actual reported usage, not just an empty UI label.')
+  await page.getByText('Current conversation · available receipts', { exact: true }).waitFor()
+  await page.getByText('Optional estimated chat budgets use explicitly reviewed model rates', { exact: false }).last().waitFor()
+  const consoleInput = page.getByPlaceholder(/Type R code/)
+  await consoleInput.fill('context_privacy_fixture <- data.frame(public_field = 1, fixture_private_column = 2)')
+  await consoleInput.press('Enter')
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  await settingsPage(page, 'Privacy & sources')
+  await page.getByText('Workspace column privacy', { exact: true }).click()
+  await page.getByRole('button', { name: 'Refresh workspace objects', exact: true }).click()
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Refresh workspace objects' && !button.disabled))
+  await page.getByRole('option', { name: '.GlobalEnv::context_privacy_fixture', exact: true }).waitFor({ state: 'attached' })
+  const columnObject = page.getByLabel('Column privacy object')
+  const objectId = await columnObject.getByRole('option', { name: '.GlobalEnv::context_privacy_fixture', exact: true }).getAttribute('value')
+  await columnObject.selectOption(objectId)
+  await page.getByRole('checkbox', { name: 'fixture_private_column', exact: true }).check()
+  await page.waitForFunction(() => ![...document.querySelectorAll('button')].some(button => button.textContent === 'Reload column privacy settings'))
+  await page.screenshot({ path: screenshot('ourgeo-context-column-privacy.png') })
+  await page.keyboard.press('Escape')
+  await input.fill('Which columns are in [context_privacy_fixture]?')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, 10)
+  const filteredPayload = JSON.stringify(requests[9])
+  assert(filteredPayload.includes('public_field'))
+  assert(!filteredPayload.includes('fixture_private_column'))
+  // Saved column privacy survives rereading the protected policy.
+  const privacyLease = await page.evaluate(() => window.electronAPI.context.lease())
+  const columnPolicy = await page.evaluate(lease => window.electronAPI.context.columnPolicies(lease), privacyLease.id)
+  assert(Object.values(columnPolicy.selections).some(columns => columns.includes('fixture_private_column')))
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  await settingsPage(page, 'Privacy & sources')
+  await page.getByText('Workspace column privacy', { exact: true }).click()
+  await page.getByRole('button', { name: 'Refresh workspace objects', exact: true }).click()
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Refresh workspace objects' && !button.disabled))
+  await page.getByLabel('Column privacy object').selectOption(objectId)
+  await page.getByRole('checkbox', { name: 'fixture_private_column', exact: true }).uncheck()
+  await page.getByRole('checkbox', { name: 'fixture_private_column', exact: true }).waitFor({ state: 'visible' })
+  await page.waitForFunction(() => ![...document.querySelectorAll('button')].some(button => button.textContent === 'Reload column privacy settings'))
+  const folderPath = join(profile, 'context-source-fixture')
+  await mkdir(folderPath)
+  await writeFile(join(folderPath, 'notes.md'), '# Approved note\nSelected folder evidence.\n')
+  await writeFile(join(folderPath, '.env'), 'SECRET_FIXTURE=not-for-indexing')
+  await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }) }, folderPath)
+  await page.getByRole('button', { name: 'Choose folder…', exact: true }).click()
+  await page.getByText('Folder sources updated.', { exact: false }).waitFor()
+  let folderCatalogue = await page.evaluate(lease => window.electronAPI.context.folderCatalogue(lease), privacyLease.id)
+  assert.equal(folderCatalogue.documents.length, 1)
+  assert(!JSON.stringify(folderCatalogue).includes('SECRET_FIXTURE'))
+  const file = folderCatalogue.documents[0]
+  assert((await page.evaluate(({ id, revision, lease }) => window.electronAPI.context.readContextFile(id, revision, lease), { id: file.id, revision: file.revision, lease: privacyLease.id })).includes('Selected folder evidence.'))
+  await page.getByText('Folder sources', { exact: true }).scrollIntoViewIfNeeded()
+  await page.screenshot({ path: screenshot('ourgeo-context-folders.png') })
+  await writeFile(join(folderPath, 'notes.md'), '# Approved note\nChanged evidence.\n')
+  await page.getByText('(refresh required)', { exact: false }).waitFor()
+  folderCatalogue = await page.evaluate(lease => window.electronAPI.context.folderCatalogue(lease), privacyLease.id)
+  assert.equal(folderCatalogue.documents.length, 0)
+  await page.getByRole('button', { name: 'Refresh folder context-source-fixture', exact: true }).click()
+  await page.getByText('Folder sources updated.', { exact: false }).waitFor()
+  await settingsPage(page, 'Storage & recovery')
+  await page.getByText('Memory backups and recovery', { exact: true }).first().click()
+  await page.getByRole('button', { name: 'Create encrypted backup', exact: true }).click()
+  await page.getByText('Encrypted backup verified.', { exact: false }).waitFor()
+  const recovery = await page.evaluate(() => window.electronAPI.context.memoryRecoveryStatus())
+  assert.equal(recovery.health.state, 'ready')
+  assert(recovery.backups.length)
+  await page.getByLabel('Local memory backup').selectOption(recovery.backups[0].id)
+  await page.getByRole('button', { name: 'Inspect encrypted backup', exact: true }).click()
+  await page.getByText('Backup verified:', { exact: false }).waitFor()
+  await page.screenshot({ path: screenshot('ourgeo-context-backups.png') })
+  await page.keyboard.press('Escape')
+  await page.getByText('Context: .GlobalEnv::context_privacy_fixture', { exact: true }).evaluate(el => el.click())
+  await page.getByRole('button', { name: 'Browse current context sources', exact: true }).first().click()
+  await page.getByLabel('Search current context sources').first().fill('notes.md')
+  await page.getByText('matching descriptions.', { exact: false }).first().waitFor()
+  await hostCommand('Remember that I prefer JSON output.', 'Remembered in About you: I prefer JSON output.')
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  const forgetLibrary = page.getByRole('region', { name: 'Memory library' })
+  await forgetLibrary.getByRole('button', { name: 'About you', exact: true }).click()
+  const forgetRow = forgetLibrary.getByText('I prefer JSON output.', { exact: true }).first().locator('..')
+  await forgetRow.getByRole('button', { name: 'Review transcript copies to forget', exact: true }).click()
+  const review = page.getByRole('region', { name: 'Review forgetting memory and transcript copies' })
+  await review.waitFor()
+  const boxes = review.getByRole('checkbox')
+  assert((await boxes.count()) > 0)
+  for (let at = 0; at < await boxes.count(); at++) await boxes.nth(at).check()
+  await page.screenshot({ path: screenshot('ourgeo-context-forget-copies.png') })
+  await review.getByRole('button', { name: /Forget memory and remove \d+ selected messages/ }).click()
+  await review.waitFor({ state: 'hidden' })
+  assert(!(await page.evaluate(() => window.electronAPI.context.listGlobal())).some(record => record.statement === 'I prefer JSON output.'))
+  await page.keyboard.press('Escape')
+  assert.equal(await page.getByText('Remember that I prefer JSON output.', { exact: true }).count(), 0)
+  // User-reviewed synthetic rates exercise the actual pre-dispatch host gate;
+  // no live pricing, external inference or invoice claim is involved.
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  await settingsPage(page, 'Budgets')
+  const chatBudget = page.getByLabel('Estimated chat budget', { exact: true })
+  await settingsPage(page, 'Budgets')
+  await chatBudget.locator('summary').click()
+  await chatBudget.getByLabel('Enforce estimated chat budget', { exact: true }).check()
+  await chatBudget.getByLabel('Daily chat estimate in USD').fill('0.000001')
+  await chatBudget.getByLabel('Monthly chat estimate in USD').fill('5')
+  for (const label of ['Input', 'Output including billed reasoning', 'Cached input', 'Cache write']) await chatBudget.getByLabel(`${label} USD per million tokens`, { exact: true }).fill('1')
+  await chatBudget.getByLabel('I checked these model rates', { exact: true }).check()
+  await chatBudget.getByRole('button', { name: 'Save chat budget', exact: true }).click()
+  await chatBudget.getByText('Estimated chat budget saved.', { exact: false }).waitFor()
+  await page.screenshot({ path: screenshot('ourgeo-context-chat-budget.png') })
+  await page.keyboard.press('Escape')
+  const rejectedStart = requests.length
+  await input.fill('Verify estimated budget refusal before dispatch.')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByText('BUDGET_LIMIT:', { exact: false }).first().waitFor()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, rejectedStart, 'Budget refusal must not dispatch a model request.')
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  await settingsPage(page, 'Budgets')
+  await chatBudget.locator('summary').click()
+  await chatBudget.getByLabel('Daily chat estimate in USD').fill('1')
+  await chatBudget.getByRole('button', { name: 'Save chat budget', exact: true }).click()
+  await chatBudget.getByText('Estimated chat budget saved.', { exact: false }).waitFor()
+  await page.keyboard.press('Escape')
+  const folderTurnStart = requests.length
+  await input.fill('Verify packed folder retrieval fixture: inspect the Approved note from the authorised folder.')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByText('Packed folder evidence verified.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, folderTurnStart + 3)
+  const folderDelivery = JSON.stringify(requests.at(-1))
+  assert(folderDelivery.includes('Changed evidence.'))
+  assert(!folderDelivery.includes('SECRET_FIXTURE'))
+  await page.waitForFunction(async () => {
+    const status = await window.electronAPI.context.chatBudgetStatus()
+    return status.summary.dailyMicros === 3090 && status.summary.pendingReceipts === 0
+  })
+  const repairProfile = join(profile, 'index-repair-fixture'), repairData = join(repairProfile, 'ourgeo')
+  await mkdir(repairData, { recursive: true })
+  await writeFile(join(repairData, 'ai-preferences.json'), JSON.stringify({ provider: 'ollama', modelByProvider: { ollama: 'context-fixture' }, autopilotWarningDismissed: true }))
+  await writeFile(join(repairData, 'api-keys.json'), JSON.stringify({ ollama_url: url, ollama_ctx: '32768' }))
+  const launchRepair = async () => {
+    repairApp = await launchIsolated(repairProfile)
+    const repairPage = await repairApp.firstWindow()
+    await repairPage.waitForSelector('[data-ourgeo-id="toolbar.settings"]')
+    await repairPage.waitForFunction(() => document.body.innerText.includes('R session ready.'), { timeout: 30000 })
+    return repairPage
+  }
+  let repairPage = await launchRepair()
+  await repairPage.evaluate(async () => {
+    const lease = await window.electronAPI.context.lease(), chatId = crypto.randomUUID(), turnId = crypto.randomUUID()
+    const authority = await window.electronAPI.context.beginInferenceUsage(chatId, turnId, 'ollama', lease.id, 'context-fixture')
+    const input = { chatId, turnId, provider: 'ollama', invocation: 1, attempt: 0, accountingScope: 'invocation', delivery: 'prepared', final: false, estimatedInputTokens: 1000 }
+    await window.electronAPI.context.prepareInferenceUsage(input, 1000, authority)
+    await window.electronAPI.context.recordInferenceUsage([{ ...input, delivery: 'acknowledged', final: true, reported: { inputTokens: 1000, outputTokens: 30 } }], authority)
+    await window.electronAPI.context.endInferenceUsage(authority)
+  })
+  await repairApp.close(); repairApp = undefined
+  const repairPath = join(repairData, 'context/canonical.sqlite'), damaged = new DatabaseSync(repairPath)
+  const pageNumber = Number(damaged.prepare('SELECT rootpage FROM sqlite_master WHERE name=?').get('inference_usage_scope').rootpage)
+  const pageSize = Number(damaged.prepare('PRAGMA page_size').get().page_size)
+  damaged.close()
+  const brokenBytes = await readFile(repairPath), base = (pageNumber - 1) * pageSize
+  assert.equal(brokenBytes[base], 10); assert.equal(brokenBytes.readUInt16BE(base + 3), 1)
+  let repairPayload = base + brokenBytes.readUInt16BE(base + 8)
+  while (brokenBytes[repairPayload++] & 128) { /* Skip the single index cell's payload-length varint. */ }
+  const key = repairPayload + brokenBytes[repairPayload]
+  brokenBytes[key] = brokenBytes[key] === 97 ? 98 : 97
+  await writeFile(repairPath, brokenBytes)
+  repairPage = await launchRepair()
+  await repairPage.evaluate(() => window.electronAPI.context.listGlobal())
+  const repairStatus = await repairPage.evaluate(() => window.electronAPI.context.memoryRecoveryStatus())
+  assert.equal(repairStatus.health.state, 'ready')
+  assert(repairStatus.indexRepair?.preservedFiles >= 1)
+  assert.deepEqual(await readFile(join(repairData, 'context/recovery-copies', repairStatus.indexRepair.recoveryId, 'canonical.sqlite')), brokenBytes)
+  const repairedUsage = await repairPage.evaluate(async () => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.inferenceUsageSummary(undefined, lease.id) })
+  assert.equal(repairedUsage.reportedTotalTokens, 1030)
+  await repairPage.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(repairPage, 'Storage & recovery')
+  await repairPage.getByText('Memory backups and recovery', { exact: true }).first().click()
+  await repairPage.getByText('The usage lookup index was repaired', { exact: false }).waitFor()
+  await repairPage.getByText('The usage lookup index was repaired', { exact: false }).scrollIntoViewIfNeeded()
+  await repairPage.screenshot({ path: screenshot('ourgeo-context-index-repair.png') })
+  await repairApp.close(); repairApp = undefined
+  const panelRequestCount = requests.length
+  await page.getByRole('button', { name: 'Memory Library', exact: true }).click()
+  const panelLibrary = page.getByRole('region', { name: 'Memory library', exact: true })
+  await panelLibrary.getByRole('button', { name: 'About you', exact: true }).click()
+  const panelMemory = 'SYNTHETIC_DIRECT_PANEL_NOTE'
+  await panelLibrary.getByLabel('New memory').fill(panelMemory)
+  await panelLibrary.getByRole('button', { name: 'Remember about you', exact: true }).click()
+  await panelLibrary.getByText(panelMemory, { exact: true }).waitFor()
+  assert.equal(requests.length, panelRequestCount, 'Direct entry below the conversation must not invoke the model.')
+  await page.screenshot({ path: screenshot('ourgeo-settings-panel-memory.png') })
+  await panelLibrary.getByText(panelMemory, { exact: true }).locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
+  await page.waitForFunction(async statement => !(await window.electronAPI.context.listGlobal()).some(record => record.statement === statement), panelMemory)
+  await page.getByRole('button', { name: 'Memory Library', exact: true }).click()
   const runtime = await app.evaluate(({ safeStorage }) => ({ encryptedStorage: safeStorage.isEncryptionAvailable(), backend: process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform }))
+  const network = await app.evaluate(() => globalThis.contextAcceptanceNetwork)
+  assert.deepEqual(network.blockedHosts, [], 'Local memory fixtures must not attempt external Electron HTTP(S) requests.')
   assert.deepEqual(errors, [])
-  console.log(JSON.stringify({ profile, mockRequests: requests.length, simpleRequestCount: 2, auxiliaryContext: false, electronSqliteWorker: runtime, memoryEditsAndTombstone: true, protectedConnectionSetupAndHealthOnly: true, ...(managedRuntimeFixture ? { experimentalRuntimeStagingAndCancellation: true } : {}), suggestionsPinsAndSuppression: true, projectSaveForkAndDiscard: true, responsiveDuringRLoadWithoutScopeLeak: true, scopedPersistentExclusions: true, duplicateProjectFork: true, hostMemoryCommandsWithoutInference: true, relevantUnitPreferencesAndSupersession: true, conversationDerivedDeletionAndEditedRetention: true, freshSourceDiscoveryWithoutKeyring: true, unreadablePolicyFailsClosed: true, screenshots: ['/tmp/ourgeo-context-conversation.png', '/tmp/ourgeo-context-settings.png', '/tmp/ourgeo-context-learning.png', '/tmp/ourgeo-context-project.png', '/tmp/ourgeo-context-exclusions.png', '/tmp/ourgeo-context-retention.png', '/tmp/ourgeo-context-connections.png', ...(managedRuntimeFixture ? ['/tmp/ourgeo-context-runtime.png'] : [])] }))
+  console.log(JSON.stringify({ profile, mockRequests: requests.length, simpleRequestCount: 2, auxiliaryContext: false, electronSqliteWorker: runtime, electronHttpAfterLaunch: { ...network, boundary: 'Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified.' }, packaged: Boolean(packagedExecutable), settingsCategoryNavigation: true, narrowSettingsLayout: true, directMemoryWithoutInferenceInBothLocations: true, memoryEditsAndTombstone: true, estimatedMaintenanceSettingsWithoutPaidDispatch: true, protectedConnectionSetupAndHealthOnly: true, ...(managedRuntimeFixture ? { experimentalRuntimeStagingAndCancellation: true, managedFutureOnlyActivationAndNativeReview: true, managedDeletionAcrossRuntimePairs: true, managedRecallAndPauseRevocation: true, selectedCommittedMemoryImport: true, disconnectedManagedCacheDeletion: true, durableLocalCleanupFailureAndRepair: true } : {}), suggestionsPinsAndSuppression: true, projectSaveForkAndDiscard: true, responsiveDuringRLoadWithoutScopeLeak: true, scopedPersistentExclusions: true, duplicateProjectFork: true, hostMemoryCommandsWithoutInference: true, relevantUnitPreferencesAndSupersession: true, conversationDerivedDeletionAndEditedRetention: true, stagedDocumentAttachment: true, workspaceColumnPrivacy: true, protectedColumnPolicy: true, authorisedFolderIndexing: true, packedFolderSearchAndRead: true, watcherRevocation: true, verifiedBackupInspection: true, nativeSecondaryIndexDamageAndPreservedRecovery: true, durableInferenceAccounting: true, estimatedChatBudgetPreDispatchAndToolReconciliation: true, currentSourceBrowser: true, reviewedTranscriptForgetting: true, scopedUsageTotals: true, diagnosticRetentionControl: true, freshSourceDiscoveryWithoutKeyring: true, unreadablePolicyFailsClosed: true, screenshots: [screenshot('ourgeo-settings-memory-library.png'), screenshot('ourgeo-settings-memory-narrow.png'), screenshot('ourgeo-settings-panel-memory.png'), screenshot('ourgeo-context-index-repair.png'), screenshot('ourgeo-context-chat-budget.png'), screenshot('ourgeo-context-forget-copies.png'), screenshot('ourgeo-context-folders.png'), screenshot('ourgeo-context-backups.png'), screenshot('ourgeo-context-column-privacy.png'), screenshot('ourgeo-context-attachments.png'), screenshot('ourgeo-context-conversation.png'), screenshot('ourgeo-context-settings.png'), screenshot('ourgeo-context-learning.png'), screenshot('ourgeo-context-project.png'), screenshot('ourgeo-context-exclusions.png'), screenshot('ourgeo-context-retention.png'), screenshot('ourgeo-context-connections.png'), screenshot('ourgeo-context-maintenance.png'), ...(managedRuntimeFixture ? [screenshot('ourgeo-context-runtime.png'), screenshot('ourgeo-context-activation.png'), screenshot('ourgeo-context-import.png'), screenshot('ourgeo-context-cleanup.png')] : [])] }))
 } catch (error) {
   console.log(JSON.stringify({ requests: requests.length, visible: await page?.locator('body').innerText() }))
-  await page?.screenshot({ path: '/tmp/ourgeo-context-ui-failure.png' })
+  await page?.screenshot({ path: screenshot('ourgeo-context-ui-failure.png') })
   throw error
 } finally {
+  if (repairApp) await repairApp.close()
   if (freshApp) await freshApp.close()
   if (app) {
     // Closing a named project invokes the ordinary unsaved-work flow. Resolve

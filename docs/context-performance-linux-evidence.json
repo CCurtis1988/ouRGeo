@@ -1,0 +1,814 @@
+{
+  "version": 1,
+  "scope": "Synthetic packed descriptor benchmark on Linux; folder discovery integration uses the same packed scanner. This is not complete application RSS or model task quality certification.",
+  "command": "OURGEO_CONTEXT_DESCRIPTOR_INDEX=compact npm run benchmark:context",
+  "baseline": {
+    "fixtureVersion": 1,
+    "measuredAt": "2026-10-10T16:14:24.018Z",
+    "node": "v26.10.0",
+    "platform": "linux-x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "logicalCpus": 12,
+    "systemMemoryBytes": 16471642112,
+    "descriptorCount": 210400,
+    "sourceRepresentation": "compact",
+    "constructionMs": 211.83495299999998,
+    "conservativePackedBytes": 48947192,
+    "corpus": {
+      "objects": 10000,
+      "consoleDescriptors": 100000,
+      "documentDescriptors": 100000,
+      "pluginSkills": 200,
+      "pluginActions": 200
+    },
+    "contextFree": {
+      "warmP95Ms": 0.022945999999990363,
+      "sourceDiscoveries": 0,
+      "contentFetches": 0,
+      "auxiliarySources": 0
+    },
+    "lexical": {
+      "warmP95Ms": 203.04271200000017,
+      "identifierRecallAt5": 1
+    },
+    "broadDiscovery": [
+      {
+        "query": "",
+        "matchingDescriptors": 210400,
+        "iterations": 5,
+        "pagesPerIteration": 3,
+        "resultsPerPage": 5,
+        "returnedResults": 75,
+        "warmP95Ms": 351.31971200000044,
+        "coverageAndUniquePages": true
+      },
+      {
+        "query": "synthetic",
+        "matchingDescriptors": 200400,
+        "iterations": 5,
+        "pagesPerIteration": 3,
+        "resultsPerPage": 5,
+        "returnedResults": 75,
+        "warmP95Ms": 365.55880100000104,
+        "coverageAndUniquePages": true
+      }
+    ],
+    "memorySnapshots": [
+      {
+        "label": "baseline-after-bundle-and-gc",
+        "rss": 59875328,
+        "heapTotal": 8785920,
+        "heapUsed": 5672224,
+        "external": 2641444,
+        "arrayBuffers": 225728,
+        "processPeakResidentBytes": 59875328
+      },
+      {
+        "label": "descriptors-before-gc",
+        "rss": 159068160,
+        "heapTotal": 97513472,
+        "heapUsed": 45713600,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 159068160
+      },
+      {
+        "label": "descriptors-after-gc",
+        "rss": 159854592,
+        "heapTotal": 98824192,
+        "heapUsed": 27223632,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 159854592
+      },
+      {
+        "label": "lexical-query-0",
+        "rss": 183185408,
+        "heapTotal": 104591360,
+        "heapUsed": 64447104,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 183185408
+      },
+      {
+        "label": "lexical-query-1",
+        "rss": 183611392,
+        "heapTotal": 106164224,
+        "heapUsed": 54926648,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 184852480
+      },
+      {
+        "label": "lexical-query-2",
+        "rss": 183840768,
+        "heapTotal": 106164224,
+        "heapUsed": 46150096,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-3",
+        "rss": 183840768,
+        "heapTotal": 106164224,
+        "heapUsed": 69824256,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-4",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 60932520,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-5",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 51066160,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-6",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 42119640,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-7",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 65737568,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-8",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 56738992,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-9",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 46860984,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-10",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 37933680,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-query-11",
+        "rss": 183775232,
+        "heapTotal": 106164224,
+        "heapUsed": 61543328,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "lexical-queries-after-gc",
+        "rss": 180211712,
+        "heapTotal": 102756352,
+        "heapUsed": 27677280,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      {
+        "label": "broad-query-empty-0",
+        "rss": 191090688,
+        "heapTotal": 105639936,
+        "heapUsed": 68769656,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 191090688
+      },
+      {
+        "label": "broad-query-empty-1",
+        "rss": 192663552,
+        "heapTotal": 105639936,
+        "heapUsed": 51544864,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 192663552
+      },
+      {
+        "label": "broad-query-empty-2",
+        "rss": 192663552,
+        "heapTotal": 105639936,
+        "heapUsed": 67645120,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 192663552
+      },
+      {
+        "label": "broad-query-empty-3",
+        "rss": 192663552,
+        "heapTotal": 105639936,
+        "heapUsed": 50570744,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 192663552
+      },
+      {
+        "label": "broad-query-empty-4",
+        "rss": 192663552,
+        "heapTotal": 105639936,
+        "heapUsed": 66727696,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 192663552
+      },
+      {
+        "label": "broad-query-synthetic-0",
+        "rss": 195022848,
+        "heapTotal": 105902080,
+        "heapUsed": 66190720,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "broad-query-synthetic-1",
+        "rss": 195022848,
+        "heapTotal": 105902080,
+        "heapUsed": 42175736,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "broad-query-synthetic-2",
+        "rss": 195022848,
+        "heapTotal": 105902080,
+        "heapUsed": 51544280,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "broad-query-synthetic-3",
+        "rss": 195022848,
+        "heapTotal": 105902080,
+        "heapUsed": 60991528,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "broad-query-synthetic-4",
+        "rss": 194879488,
+        "heapTotal": 105902080,
+        "heapUsed": 70352664,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "all-queries-after-gc",
+        "rss": 190464000,
+        "heapTotal": 103542784,
+        "heapUsed": 27714904,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      {
+        "label": "additional-console-adapter-fixture-after-clear",
+        "rss": 247635968,
+        "heapTotal": 143114240,
+        "heapUsed": 75712200,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 247635968
+      }
+    ],
+    "descriptorResidentBytes": 99979264,
+    "queryAdditionalResidentBytes": 30609408,
+    "additionalResidentBytes": 130588672,
+    "memoryDiagnostics": {
+      "units": "bytes; process.resourceUsage().maxRSS converted from KiB",
+      "baseline": {
+        "label": "baseline-after-bundle-and-gc",
+        "rss": 59875328,
+        "heapTotal": 8785920,
+        "heapUsed": 5672224,
+        "external": 2641444,
+        "arrayBuffers": 225728,
+        "processPeakResidentBytes": 59875328
+      },
+      "descriptors": {
+        "label": "descriptors-after-gc",
+        "rss": 159854592,
+        "heapTotal": 98824192,
+        "heapUsed": 27223632,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 159854592
+      },
+      "afterLexical": {
+        "label": "lexical-queries-after-gc",
+        "rss": 180211712,
+        "heapTotal": 102756352,
+        "heapUsed": 27677280,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 185053184
+      },
+      "afterAllQueries": {
+        "label": "all-queries-after-gc",
+        "rss": 190464000,
+        "heapTotal": 103542784,
+        "heapUsed": 27714904,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 195022848
+      },
+      "queryHeapUsedGrowthBytes": 491272,
+      "queryHeapTotalGrowthBytes": 4718592,
+      "processPeakAdditionalResidentBytes": 135147520,
+      "residentTargetBytes": 157286400,
+      "genericCorpusResidentTargetMet": true,
+      "measurement": "Baseline precedes all 210,400 corpus descriptors. All corpus, query allocations and broad pages remain counted. OS peak includes runner startup; GC does not reset it.",
+      "combinedRunner": {
+        "label": "additional-console-adapter-fixture-after-clear",
+        "rss": 247635968,
+        "heapTotal": 143114240,
+        "heapUsed": 75712200,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 247635968,
+        "additionalResidentBytes": 187760640,
+        "processPeakAdditionalResidentBytes": 187760640,
+        "note": "Includes generic descriptor corpus plus a separate extra 100,000-event console fixture concurrently; no allocation excluded."
+      }
+    },
+    "modelTaskQuality": "not measured",
+    "monetaryCost": "no billable operations issued",
+    "consoleIndex": {
+      "events": 100000,
+      "executions": 25000,
+      "coldMs": 44.965689999999086,
+      "unchangedP95Ms": 0.0002449999992677476,
+      "appendP95Ms": 2.282788000000437,
+      "clearRemovesDescriptors": true,
+      "contentBodiesFetched": 0
+    }
+  },
+  "current": {
+    "fixtureVersion": 1,
+    "measuredAt": "2026-10-10T16:24:32.094Z",
+    "node": "v26.10.0",
+    "platform": "linux-x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+    "logicalCpus": 12,
+    "systemMemoryBytes": 16471642112,
+    "descriptorCount": 210400,
+    "sourceRepresentation": "compact",
+    "constructionMs": 394.28608399999996,
+    "conservativePackedBytes": 48947192,
+    "corpus": {
+      "objects": 10000,
+      "consoleDescriptors": 100000,
+      "documentDescriptors": 100000,
+      "pluginSkills": 200,
+      "pluginActions": 200
+    },
+    "contextFree": {
+      "warmP95Ms": 0.02275600000001532,
+      "sourceDiscoveries": 0,
+      "contentFetches": 0,
+      "auxiliarySources": 0
+    },
+    "lexical": {
+      "warmP95Ms": 137.16468300000008,
+      "identifierRecallAt5": 1
+    },
+    "broadDiscovery": [
+      {
+        "query": "",
+        "matchingDescriptors": 210400,
+        "iterations": 5,
+        "pagesPerIteration": 3,
+        "resultsPerPage": 5,
+        "returnedResults": 75,
+        "warmP95Ms": 95.50902600000018,
+        "coverageAndUniquePages": true
+      },
+      {
+        "query": "synthetic",
+        "matchingDescriptors": 200400,
+        "iterations": 5,
+        "pagesPerIteration": 3,
+        "resultsPerPage": 5,
+        "returnedResults": 75,
+        "warmP95Ms": 151.84460500000023,
+        "coverageAndUniquePages": true
+      }
+    ],
+    "memorySnapshots": [
+      {
+        "label": "baseline-after-bundle-and-gc",
+        "rss": 61939712,
+        "heapTotal": 8785920,
+        "heapUsed": 5679144,
+        "external": 2643885,
+        "arrayBuffers": 225728,
+        "processPeakResidentBytes": 62377984
+      },
+      {
+        "label": "descriptors-before-gc",
+        "rss": 165400576,
+        "heapTotal": 100134912,
+        "heapUsed": 31560632,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 165400576
+      },
+      {
+        "label": "descriptors-after-gc",
+        "rss": 165531648,
+        "heapTotal": 100134912,
+        "heapUsed": 27255048,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 165531648
+      },
+      {
+        "label": "lexical-query-0",
+        "rss": 183853056,
+        "heapTotal": 101969920,
+        "heapUsed": 66069096,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 183853056
+      },
+      {
+        "label": "lexical-query-1",
+        "rss": 185974784,
+        "heapTotal": 105902080,
+        "heapUsed": 61522792,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187654144
+      },
+      {
+        "label": "lexical-query-2",
+        "rss": 185974784,
+        "heapTotal": 105902080,
+        "heapUsed": 55739600,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187654144
+      },
+      {
+        "label": "lexical-query-3",
+        "rss": 185974784,
+        "heapTotal": 105902080,
+        "heapUsed": 49599608,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187654144
+      },
+      {
+        "label": "lexical-query-4",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 43720984,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-5",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 37584880,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-6",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 65256320,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-7",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 59087704,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-8",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 53793472,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-9",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 47024280,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-10",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 41077448,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-query-11",
+        "rss": 186437632,
+        "heapTotal": 105902080,
+        "heapUsed": 68480184,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "lexical-queries-after-gc",
+        "rss": 182837248,
+        "heapTotal": 103018496,
+        "heapUsed": 27674680,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      {
+        "label": "broad-query-empty-0",
+        "rss": 193986560,
+        "heapTotal": 105115648,
+        "heapUsed": 63033304,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 193986560
+      },
+      {
+        "label": "broad-query-empty-1",
+        "rss": 194248704,
+        "heapTotal": 105115648,
+        "heapUsed": 40612776,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 194248704
+      },
+      {
+        "label": "broad-query-empty-2",
+        "rss": 194379776,
+        "heapTotal": 105115648,
+        "heapUsed": 51560280,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 194379776
+      },
+      {
+        "label": "broad-query-empty-3",
+        "rss": 194379776,
+        "heapTotal": 105115648,
+        "heapUsed": 62659392,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 194379776
+      },
+      {
+        "label": "broad-query-empty-4",
+        "rss": 194379776,
+        "heapTotal": 105115648,
+        "heapUsed": 40171592,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 194379776
+      },
+      {
+        "label": "broad-query-synthetic-0",
+        "rss": 197132288,
+        "heapTotal": 105902080,
+        "heapUsed": 45680176,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "broad-query-synthetic-1",
+        "rss": 197132288,
+        "heapTotal": 105902080,
+        "heapUsed": 60819008,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "broad-query-synthetic-2",
+        "rss": 197132288,
+        "heapTotal": 105902080,
+        "heapUsed": 42436608,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "broad-query-synthetic-3",
+        "rss": 197132288,
+        "heapTotal": 105902080,
+        "heapUsed": 57606184,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "broad-query-synthetic-4",
+        "rss": 197132288,
+        "heapTotal": 105902080,
+        "heapUsed": 39269416,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "all-queries-after-gc",
+        "rss": 192946176,
+        "heapTotal": 104329216,
+        "heapUsed": 27724992,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      {
+        "label": "additional-console-adapter-fixture-after-clear",
+        "rss": 249905152,
+        "heapTotal": 142589952,
+        "heapUsed": 75658856,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 249905152
+      }
+    ],
+    "descriptorResidentBytes": 103591936,
+    "queryAdditionalResidentBytes": 27414528,
+    "additionalResidentBytes": 131006464,
+    "memoryDiagnostics": {
+      "units": "bytes; process.resourceUsage().maxRSS converted from KiB",
+      "baseline": {
+        "label": "baseline-after-bundle-and-gc",
+        "rss": 61939712,
+        "heapTotal": 8785920,
+        "heapUsed": 5679144,
+        "external": 2643885,
+        "arrayBuffers": 225728,
+        "processPeakResidentBytes": 62377984
+      },
+      "descriptors": {
+        "label": "descriptors-after-gc",
+        "rss": 165531648,
+        "heapTotal": 100134912,
+        "heapUsed": 27255048,
+        "external": 8970122,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 165531648
+      },
+      "afterLexical": {
+        "label": "lexical-queries-after-gc",
+        "rss": 182837248,
+        "heapTotal": 103018496,
+        "heapUsed": 27674680,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 187678720
+      },
+      "afterAllQueries": {
+        "label": "all-queries-after-gc",
+        "rss": 192946176,
+        "heapTotal": 104329216,
+        "heapUsed": 27724992,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 197132288
+      },
+      "queryHeapUsedGrowthBytes": 469944,
+      "queryHeapTotalGrowthBytes": 4194304,
+      "processPeakAdditionalResidentBytes": 135192576,
+      "residentTargetBytes": 157286400,
+      "genericCorpusResidentTargetMet": true,
+      "measurement": "Baseline precedes all 210,400 corpus descriptors. All corpus, query allocations and broad pages remain counted. OS peak includes runner startup; GC does not reset it.",
+      "combinedRunner": {
+        "label": "additional-console-adapter-fixture-after-clear",
+        "rss": 249905152,
+        "heapTotal": 142589952,
+        "heapUsed": 75658856,
+        "external": 9064520,
+        "arrayBuffers": 6538552,
+        "processPeakResidentBytes": 249905152,
+        "additionalResidentBytes": 187965440,
+        "processPeakAdditionalResidentBytes": 187965440,
+        "note": "Includes generic descriptor corpus plus a separate extra 100,000-event console fixture concurrently; no allocation excluded."
+      }
+    },
+    "modelTaskQuality": "not measured",
+    "monetaryCost": "no billable operations issued",
+    "consoleIndex": {
+      "events": 100000,
+      "executions": 25000,
+      "coldMs": 39.62532999999985,
+      "unchangedP95Ms": 0.00022699999954056693,
+      "appendP95Ms": 2.4605799999999363,
+      "clearRemovesDescriptors": true,
+      "contentBodiesFetched": 0
+    }
+  },
+  "limitations": [
+    "Object-backed sources and combined runner RSS remain above target.",
+    "Authorised folder limits are unchanged; no source bodies or model calls were used in this benchmark.",
+    "Other platforms, complete-task quality and representative usability are not measured."
+  ],
+  "electronFixture": {
+    "profile": "/tmp/ourgeo-context-ui-OuKpB5",
+    "mockRequests": 13,
+    "simpleRequestCount": 2,
+    "auxiliaryContext": false,
+    "electronSqliteWorker": {
+      "encryptedStorage": true,
+      "backend": "kwallet6"
+    },
+    "memoryEditsAndTombstone": true,
+    "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+    "protectedConnectionSetupAndHealthOnly": true,
+    "suggestionsPinsAndSuppression": true,
+    "projectSaveForkAndDiscard": true,
+    "responsiveDuringRLoadWithoutScopeLeak": true,
+    "scopedPersistentExclusions": true,
+    "duplicateProjectFork": true,
+    "hostMemoryCommandsWithoutInference": true,
+    "relevantUnitPreferencesAndSupersession": true,
+    "conversationDerivedDeletionAndEditedRetention": true,
+    "stagedDocumentAttachment": true,
+    "workspaceColumnPrivacy": true,
+    "protectedColumnPolicy": true,
+    "authorisedFolderIndexing": true,
+    "packedFolderSearchAndRead": true,
+    "watcherRevocation": true,
+    "verifiedBackupInspection": true,
+    "durableInferenceAccounting": true,
+    "currentSourceBrowser": true,
+    "reviewedTranscriptForgetting": true,
+    "scopedUsageTotals": true,
+    "diagnosticRetentionControl": true,
+    "freshSourceDiscoveryWithoutKeyring": true,
+    "unreadablePolicyFailsClosed": true,
+    "screenshots": [
+      "/tmp/ourgeo-context-forget-copies.png",
+      "/tmp/ourgeo-context-folders.png",
+      "/tmp/ourgeo-context-backups.png",
+      "/tmp/ourgeo-context-column-privacy.png",
+      "/tmp/ourgeo-context-attachments.png",
+      "/tmp/ourgeo-context-conversation.png",
+      "/tmp/ourgeo-context-settings.png",
+      "/tmp/ourgeo-context-learning.png",
+      "/tmp/ourgeo-context-project.png",
+      "/tmp/ourgeo-context-exclusions.png",
+      "/tmp/ourgeo-context-retention.png",
+      "/tmp/ourgeo-context-connections.png",
+      "/tmp/ourgeo-context-maintenance.png"
+    ]
+  }
+}

@@ -19,7 +19,7 @@ export default defineConfig({
     }],
     build: {
       lib: {
-        entry: { index: resolve('electron/main/index.ts'), 'context-worker': resolve('electron/main/context/worker.ts') }
+        entry: { index: resolve('electron/main/index.ts'), 'context-worker': resolve('electron/main/context/worker.ts'), 'context-backup-inspection': resolve('electron/main/context/backup-inspection-worker.ts') }
       }
     }
   },

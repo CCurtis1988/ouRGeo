@@ -1,4 +1,5 @@
 import { DataChecksPanel } from '@/components/toolbox/DataChecksPanel'
+import { VectorExportDialog } from './VectorExportDialog'
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -59,6 +60,7 @@ export function DataFrameView({
   cls: string
 }): React.ReactElement {
   const [showDataChecks, setShowDataChecks] = useState(false)
+  const [showVectorExport, setShowVectorExport] = useState(false)
   const [columns, setColumns] = useState<ColumnInfo[]>([])
   const [rows, setRows] = useState<Map<number, string[]>>(new Map())
   const [totalRows, setTotalRows] = useState(0)
@@ -1068,6 +1070,7 @@ export function DataFrameView({
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
           <Button variant="ghost" size="sm" className="h-6 text-xs" data-ourgeo-id="dataViewer.dataChecks" aria-expanded={showDataChecks} onClick={() => setShowDataChecks(v => !v)}>Data checks</Button>
+          {isSpatialDataset && <Button variant="ghost" size="sm" className="h-6 text-xs" data-ourgeo-id="dataViewer.exportVector" onClick={() => setShowVectorExport(true)}>Export layer…</Button>}
           {hasSelection && (
             <span className="text-xs text-geo-accent flex items-center gap-1 mr-1">
               {selectedIndices.length} selected
@@ -1169,6 +1172,7 @@ export function DataFrameView({
       </div>
 
       {showDataChecks && <div className="max-h-[55%] overflow-auto p-2 flex-shrink-0"><DataChecksPanel request={{ operationType: 'inspect', inputs: [{ name, envName, accessPath, ...(selectedIndices.length ? { rows: selectedIndices } : {}) }], parameters: {} }} /></div>}
+      {showVectorExport && <VectorExportDialog name={name} envName={envName} accessPath={accessPath} fields={columns.filter(c => c.name !== geomCol?.name).map(c => c.name)} onClose={() => setShowVectorExport(false)} />}
 
       {/* Table */}
       <div className="flex-1 min-h-0 overflow-hidden">

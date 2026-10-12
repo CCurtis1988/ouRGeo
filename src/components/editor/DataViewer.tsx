@@ -14,7 +14,7 @@ export function DataViewer({ tab }: { tab: TabState }): React.ReactElement {
   const cls = objectClass || ''
 
   const isMatrix = cls === 'matrix'
-  const isVector = ['numeric', 'character', 'integer', 'logical', 'factor', 'complex'].includes(cls)
+  const isVector = ['numeric', 'character', 'integer', 'logical', 'factor', 'complex', 'units'].includes(cls)
   const isDataFrame = !isMatrix && !isVector
 
   if (isDataFrame) return <DataFrameView name={name} envName={env} accessPath={path} cls={cls} />

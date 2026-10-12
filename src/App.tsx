@@ -343,11 +343,9 @@ function MainApp(): React.ReactElement {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <ErrorBoundary>
-      <EditorLayout />
-      <UnsavedChangesDialog />
-      <HealthCheckDialog />
-    </ErrorBoundary>
-  )
+  return <>
+    <ErrorBoundary><EditorLayout /><UnsavedChangesDialog /></ErrorBoundary>
+    {/* A map/compositor render failure must not unmount an active repair. */}
+    <ErrorBoundary><HealthCheckDialog /></ErrorBoundary>
+  </>
 }

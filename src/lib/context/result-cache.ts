@@ -3,6 +3,7 @@ import type { ContextIdentity, ContextSource } from './types'
 interface Entry { identity: ContextIdentity; ref: string; source: ContextSource; bytes: number; expires: number }
 const entries = new Map<string, Entry>()
 let bytes = 0
+let expiryTimer: ReturnType<typeof setTimeout> | undefined
 const ceiling = 8 * 1024 * 1024
 
 function sameScope(a: ContextIdentity, b: ContextIdentity): boolean {
@@ -14,6 +15,15 @@ function remove(ref: string): void {
   entries.delete(ref)
 }
 function expire(): void { for (const [ref, entry] of entries) if (entry.expires <= Date.now()) remove(ref) }
+function scheduleExpiry(): void {
+  clearTimeout(expiryTimer)
+  expiryTimer = undefined
+  if (!entries.size) return
+  const next = Math.min(...[...entries.values()].map(entry => entry.expires))
+  // Expiry must release the read closure even when the user never asks another
+  // question. Read-side filtering alone kept idle raw results in memory.
+  expiryTimer = setTimeout(() => { expire(); scheduleExpiry() }, Math.max(1, next - Date.now()))
+}
 
 /** Recoverable raw results are transient conversation resources, never memory
  * or bundle payloads. Opaque references survive subsequent turns in this chat
@@ -22,9 +32,11 @@ export function cacheResult(identity: ContextIdentity, ref: string, source: Cont
   expire()
   const size = text.length * 2
   if (size > ceiling) throw new Error('BUDGET_LIMIT: result exceeds the scoped cache limit.')
+  remove(ref)
   while (entries.size >= 256 || bytes + size > ceiling) remove(entries.keys().next().value!)
   entries.set(ref, { identity: { ...identity }, ref, source, bytes: size, expires: Date.now() + 60 * 60_000 })
   bytes += size
+  scheduleExpiry()
 }
 export function resultSources(identity: ContextIdentity): ContextSource[] {
   expire()
@@ -37,4 +49,5 @@ export function resolveResult(identity: ContextIdentity, ref: string): ContextSo
 }
 export function clearResultCache(chatId?: string): void {
   for (const [ref, entry] of entries) if (!chatId || entry.identity.chatId === chatId) remove(ref)
+  scheduleExpiry()
 }

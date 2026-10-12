@@ -1,5 +1,5 @@
 import { DataChecksPanel } from './DataChecksPanel'
-import { CHECKED_TOOLS, toolPreflightRequest, requestPreview, inspectRequest, executeChecked } from '@/lib/data-preflight'
+import { CHECKED_TOOLS, toolPreflightRequest, requestPreview, inspectRequest, executeChecked, checkedOutputViewClass } from '@/lib/data-preflight'
 import type { PreflightReport } from '@/lib/data-preflight-types'
 // ── Toolbox: tool form & condition builders ──────────────────────────────────
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent } from 'react'
@@ -631,6 +631,7 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
   const [copied, setCopied] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [runSuccess, setRunSuccess] = useState(false)
+  const [resultOpened, setResultOpened] = useState(true)
   const [useViewBbox, setUseViewBbox] = useState(false)
   // Per-dataset-field "use selected rows" opt-out; absent = true (default on)
   const [useSelectedRows, setUseSelectedRows] = useState<Record<string, boolean>>({})
@@ -773,7 +774,7 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
   }, [requestKey, cancelRunCheck])
 
   const code = (() => {
-    if (controlled) return checkedCode ?? requestPreview(request)
+    if (controlled) return checkedCode ?? currentValidation?.executionCode ?? requestPreview(request)
 
     if (!rawCode) return ''
     const prelude = preludes.length > 0 ? preludes.join('\n') + '\n' : ''
@@ -810,12 +811,14 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
         const result = await executeChecked(report, () => latestRequestKey.current === capturedKey)
         if (!result.success) { setRunError(result.error ?? 'Execution was blocked'); return }
         setCheckedCode(result.code ?? null); setRunSuccess(true); setValidation(null)
-        if (values.out) useEditorStore.getState().addObjectTab(values.out, request.outputEnv ?? '.GlobalEnv', 'data.frame', values.out, 'data-viewer')
+        const viewClass = checkedOutputViewClass(result.outputClass)
+        setResultOpened(viewClass !== null)
+        if (values.out && viewClass) useEditorStore.getState().addObjectTab(values.out, request.outputEnv ?? '.GlobalEnv', viewClass, values.out, 'data-viewer')
       } catch (e) { setRunError(e instanceof Error ? e.message : String(e)) }
       finally { setRunning(false) }
       return
     }
-    setRunning(true)
+    setRunning(true); setResultOpened(true)
     setRunError(null)
     setRunSuccess(false)
     try {
@@ -1067,7 +1070,7 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
 
         {/* Code preview */}
         <div className="mt-2">
-          <label className="block text-xs text-[#8b949e] mb-1">Code Preview</label>
+          <label className="block text-xs text-geo-muted mb-1">{controlled && !checkedCode && !currentValidation?.executionCode ? 'Data Check Code' : 'Code Preview'}</label>
           <pre className="bg-[#0f1117] border border-[#21262d] rounded p-2 text-xs text-[#e6edf3] font-mono whitespace-pre-wrap break-all min-h-[60px] max-h-[160px] overflow-y-auto">
             {code || <span className="text-[#8b949e]"># Fill in the fields above</span>}
           </pre>
@@ -1094,7 +1097,7 @@ export function ToolForm({ tool, environments, pipelineDs, pipeline, pipelineCol
           {runError && <span className="text-[#f85149]">{runError}</span>}
           {runSuccess && (
             <span className="text-[#3fb950]">
-              {pipeline ? 'Pipeline done — opened in Data Viewer' : 'Done — opened in Data Viewer'}
+              {pipeline ? 'Pipeline done — opened in Data Viewer' : resultOpened ? 'Done — opened in Data Viewer' : 'Done — result available in Environment'}
             </span>
           )}
         </div>

@@ -23,7 +23,7 @@ export function buildWorkingState(messages: ChatMessage[], limit = 800): Working
   const state: WorkingState = { version: 2, requests: [], constraints: [], objectives: [], decisions: [], questions: [], entities: [], failedAttempts: [], overflow: [], authority: 'derived-from-original-messages' }
   const users = messages.filter(message => message.role === 'user').map(message => ({ ...message, content: redactContext(message.content) }))
   const candidates = users.flatMap(message => {
-    const spans = message.content.split(/(?<=[.!?])\s+(?=[\p{Lu}])|\n+/u)
+    const spans = message.content.split(/(?<=[!?])\s+(?=[\p{Lu}])|(?<=[.])(?<!\d[.])\s+(?=[\p{Lu}])|\n+/u)
     return spans.filter(span => /\b(?:must|never|always|do not|don't|exactly|only|keep|without)\b/i.test(span)).map(text => ({ messageId: message.id, text: text.trim() }))
   })
   type Field = 'requests' | 'constraints' | 'objectives' | 'decisions' | 'questions' | 'entities' | 'failedAttempts'
@@ -32,14 +32,21 @@ export function buildWorkingState(messages: ChatMessage[], limit = 800): Working
     if (estimateTokens({ ...state, [field]: [...state[field], span], overflow: [] }) <= ceiling) state[field].push(span)
     else if (!state.overflow.includes(span.messageId)) state.overflow.push(span.messageId)
   }
-  for (const span of candidates) add('constraints', span, limit - 250)
+  // An early essential instruction and a recent correction both need space.
+  // Chronological filling previously consumed the card before later changes.
+  const prioritised: WorkingSpan[] = []
+  for (let first = 0, last = candidates.length - 1; first <= last; first++, last--) {
+    prioritised.push(candidates[first])
+    if (last !== first) prioritised.push(candidates[last])
+  }
+  for (const span of prioritised) add('constraints', span, limit - 250)
   // Exact user spans, not model-inferred intentions. Corrections and conflicting
   // decisions retain their own sources; the card does not silently resolve them.
   for (const message of [users[0], ...users.slice(-2)]) if (message) add('objectives', { messageId: message.id, text: message.content })
   for (const message of [...users].reverse()) {
-    for (const text of message.content.split(/\n+|(?<=[.!?])\s+(?=[\p{Lu}])/u)) {
+    for (const text of message.content.split(/\n+|(?<=[!?])\s+(?=[\p{Lu}])|(?<=[.])(?<!\d[.])\s+(?=[\p{Lu}])/u)) {
       const span = { messageId: message.id, text: text.trim() }
-      if (/\b(?:we (?:decided|agreed|chose)|I (?:decided|chose)|the decision is|use (?:metres|meters|miles|feet|metric|imperial|EPSG)|CRS (?:is|should be))\b/i.test(text)) add('decisions', span)
+      if (!text.trim().endsWith('?') && /\b(?:correction|actually|instead|we (?:decided|agreed|chose)|I (?:decided|chose)|the decision is|use (?:metres|meters|miles|feet|metric|imperial|EPSG)|CRS (?:is|should be))\b/i.test(text)) add('decisions', span)
       // These are questions to check against the originals, not a claim that
       // the assistant never answered them or that a previous answer was true.
       if (text.trim().endsWith('?')) add('questions', span)
@@ -47,7 +54,7 @@ export function buildWorkingState(messages: ChatMessage[], limit = 800): Working
     for (const match of message.content.matchAll(/\[[^\]\n]{1,100}\]|\bEPSG\s*:\s*\d{3,6}\b|`[^`\n]{1,100}`/gi)) add('entities', { messageId: message.id, text: match[0] })
   }
   for (const message of [...messages].reverse()) {
-    if (message.role !== 'assistant') continue
+    if (message.role !== 'assistant' || message.id === 'context-compaction') continue
     for (const text of redactContext(message.content).split(/\n+/)) {
       if (/\b(?:failed|could not|cannot|timed out|error:)\b/i.test(text)) add('failedAttempts', { messageId: message.id, text: text.trim() })
     }

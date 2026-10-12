@@ -17,6 +17,20 @@ beforeEach(() => { state.children = []; rBridge.onUnexpectedExit = vi.fn(); vi.s
 afterEach(() => { const child = state.children.at(-1); rBridge.stop(); child?.emit('exit', 0); vi.restoreAllMocks() })
 
 describe('R recovery after health-check repairs', () => {
+  it('distinguishes startup and deliberate repair stops from an unexpected exit on wake', async () => {
+    const started = rBridge.start()
+    expect(rBridge.isReady).toBe(false)
+    expect(rBridge.shouldRestart).toBe(false)
+    ready(); await started
+    state.children.at(-1)!.emit('exit', 1)
+    expect(rBridge.isReady).toBe(false)
+    expect(rBridge.shouldRestart).toBe(true)
+    rBridge.stop()
+    expect(rBridge.shouldRestart).toBe(false)
+    const connected = rBridge.start(); ready(); await connected
+    rBridge.stop()
+    expect(rBridge.shouldRestart).toBe(false)
+  })
   it('accepts readiness markers split across stdout chunks', async () => {
     const started = rBridge.start()
     const child = state.children.at(-1)!

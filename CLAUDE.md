@@ -1282,8 +1282,9 @@ it across would show the new model's bar filled by the old one's conversation.
 
 The maintainer moved managed plugin services to **1.16.0**, ChatGPT plan usage
 to **1.16.1**, subscription stream corrections to **1.16.2**, and the guided
-installation health check to **1.16.3**. The current coherent data-preflight
-patch is **1.16.4**, without a new maintainer release-history entry.
+installation health check to **1.16.3**, followed by data preflight in **1.16.4**.
+The current settings and memory usability patch is **1.16.15**, without a new
+maintainer release-history entry.
 These announced patches have explicit entries in `versionHistory.ts`;
 `currentRelease()` prefers an exact entry before falling back to the older
 `a.b` histories. The running version still comes from `package.json`.
@@ -1307,6 +1308,24 @@ Repairs use the selected R's user library and stop the backend to release DLL
 locks on Windows. Offer to save the project first, then recheck and reconnect;
 register backend subscriptions before initial startup so recovery also works
 when the first launch failed. An offline recheck retains known update targets.
+
+`r/lib/health-s2.R` probes spherical distance plus three 100-metre buffers,
+validity and containment without sf. A namespace load alone missed native
+geometry failures; sf can also load while S2 cannot. The `s2` diagnostic row
+retains the loader/engine error, OS repair and target library. An engine failure
+adds a package reason even when the namespace loaded, so the existing approved
+repair path selects it. Windows/macOS repairs use compatible CRAN binaries
+without falling back to source; source-only R installations get an explicit
+manual recovery route. Linux forces bundled Abseil, checks CMake/make/pkg-config
+and restores the build environment afterwards. Compilation reports missing
+C++17/OpenSSL prerequisites. No system package manager runs automatically.
+S2 resolves its active writable library before repair changes `.libPaths()`;
+a custom profile can otherwise leave a broken higher-priority copy in place.
+Protected copies can be overridden only in an earlier writable library, or
+the user must configure one in Packages. The independent post-repair probe
+uses a fresh Rscript and the normal startup profile, never a cached namespace.
+`scripts/check-s2-repair.R` exercises a real CRAN source rebuild in a disposable
+Linux library and confirms the user's S2 binary stayed unchanged.
 
 Local recommendations use measured free RAM, usable GPU memory and free model
 storage with reserves for R and the operating system. Multiple GPUs and unified
@@ -1505,6 +1524,70 @@ workspace switch prevents attachment. Missing fields remain unknown, with no
 invoice or zero-cost claim. Local recovery validates counters; portable chats
 omit delivery traces.
 
+Composer attachments hold source ID/revision/epoch and a selected line range,
+never a hidden body copy. The broker reads them before optional prefetch and caps
+all serialized envelopes within the attachment allocation. Conversation selection
+reserves this space before older assistant prose; original user instructions stay.
+Document adapters locate selected line boundaries in the current buffer before
+copying/redacting the bounded span; cursors preserve the original range. Private
+key blocks remain redacted when their BEGIN marker precedes the selected lines.
+Previously delivered environment evidence receives a host historical annotation
+before inference budgeting after R changes its revision. First delivery of changed
+evidence is refused. Only plaintext channels change; executable arguments, tool
+pairs, signed reasoning and schemas remain intact.
+Column exclusions use encrypted project-local policy with revision checks; scratch
+choices remain transient. Save As forks the policy independently and first save
+transfers scratch choices. Hydration/write failure blocks private reads until
+policy recovery. They filter cached and current schemas, reset retained
+sessions/results and increment policy revision.
+Until other sources have reliable column lineage, private-source reads and generic
+assistant execution pause. Original user instructions remain. Memory queries are
+not dispatched externally when no authorised canonical memory is available.
+Usage aggregates deduplicate turn/attempt receipts and show only available scoped
+history; portable exports omit traces, so this is not an all-time spend ledger.
+Schema 16 stores content-free inference accounting in encrypted SQLite rows,
+with hashed scope/chat indexes and idempotent invocation/attempt identities.
+Before inference the host issues a numeric-accounting capability bound to the
+current lease's scope, chat, turn and provider. Renderer inputs contain only UUIDs,
+provider enum, delivery state and bounded counters. Queued and final callbacks
+keep that original scope after cancellation or a workspace switch; they cannot
+read memories or authorise project mutations. Finalisation releases authority;
+unfinished grants expire after 24 hours with at most 256 outstanding. Host restart
+ends grants; already committed pre-dispatch receipts and reservations survive,
+while unreceived provider counters remain unknown. Ledger restore does not roll
+accounting back; portable exports omit it. Protected totals load explicitly.
+`chat-budget.ts` stores an encrypted, content-free charge for each invocation in
+the same transaction as its input estimate, before transport dispatch. API/local
+tool follow-ups and context-size retries each reserve independently. The host
+captures the model with the scoped accounting authority; renderer-provided scope
+and model cannot redirect a charge. Frozen user-reviewed USD rates expire after
+30 days for new calls. Reservations use the highest input/cache rate and bounded
+output; missing counters stay pending across UTC rollover and restart. Complete
+reported counters settle a price-based estimate once, with cache/reasoning subsets
+counted once. Unpriced activity stays unknown, including subscription runs.
+Enabled daily/monthly device-wide estimated limits refuse unresolved unpriced
+reservations, missing/stale rates and opaque subscription processing. They are
+not invoice caps. Expired unchanged rates can remain in settings when disabling
+limits; changing prices requires a fresh review. Indexed charge lookups avoid
+scanning every encrypted receipt on ordinary streaming updates. There is no
+backfill for trace-free history or provider billing retrieval after a host crash.
+Authorised folder metadata uses `CompactDescriptorIndex` and streams reusable
+cards into broker ranking; only retained hits receive stable reader closures.
+Packed identity/lower-case flags are host-classified out of band, checked against
+current card fields, and cannot replace live scope/exclusion/revision checks.
+Prototype reader accessors keep scan data fields efficient. Search validates each
+matching candidate before counting or returning it, avoiding another full-corpus
+filtering generator. Refresh withdraws old folder cards immediately; pending or
+failed refreshes cannot re-authorise a previous snapshot. Old readers and paused
+scans reject after revocation, including new column privacy. The narrow packed
+benchmark now meets latency/RSS targets; whole-app and combined-console memory
+certification remain open (`docs/context-performance-linux-evidence.json`).
+Canonical retention sweeps run in bounded batches independently of search:
+30-day suggestions and explicit expiry boundaries use transactional forgetting.
+Inferred preferences get a 180-day review marker, not an automatic correction.
+Diagnostic evidence has a separate 1–7-day lifetime; accounting-only receipts
+retain counters without excerpts. Raw result-cache eviction runs even when idle.
+
 Personal records and project recovery journals use AES-GCM ciphertext in SQLite
 on a worker thread, with FTS5 in an in-memory database. The key uses OS safeStorage;
 Linux basic_text is refused. This protects the application's index/WAL/temp files,
@@ -1542,6 +1625,31 @@ names before joining namespace components; legacy IDs can only exclude a source,
 never grant access. Read limits count escaped wrappers, not just text bodies.
 Inspector delivery flags reflect excerpts found in serialized invocation payloads;
 selection after the last invocation is not a claim of delivery.
+The inspector's explicit current-source browser pages local descriptors without
+reading their bodies, R or remote providers. Available/excluded are separate from
+historical selection/delivery. Folder grants are explicit and workspace-local;
+bounded UTF-8 indexing refuses symlinks, ignored/secret files and oversized roots.
+File watcher changes revoke descriptors until explicit refresh.
+Browser discovery uses the broker's packed metadata scans, retaining only the
+ranked page. Host-only descriptor classification caches identity/control and
+redaction checks; unchanged IDs/titles/summaries are required to reuse a verdict.
+Console descriptions classify on immutable execution updates, rather than on
+every browser keystroke. Changed or provider-supplied metadata is checked again.
+The native scale fixture isolates context UI from editor/console tab rendering;
+its report must not be used to certify rendering 100,000 open editor tabs.
+Encrypted backups have host-issued IDs, bounded catalogue retention and read-only
+verification in a worker. Healthy-store restore preserves current tombstones and
+records, imports missing global records as candidates, and stages authorised
+project journals. Disk-full failures pause writes until an actual transactional
+write probe succeeds. Damaged deletion ledgers cannot safely activate an older
+backup; automatic damaged-store replacement remains unfinished.
+Reviewed transcript forgetting selects exact complete messages from loaded saved-
+project chats, or only the active scratch chat. No copies are selected by default.
+Canonical deletion and evidence suppression commit before transcript changes;
+scope and message snapshots are rechecked after the asynchronous commit. Remaining
+traces retain content-free accounting, sessions reset, working state rebuilds and
+project dirty tracking requires a save. Earlier exports/backups, unopened projects
+and external assistant retention are outside that removal.
 
 The encrypted outbox commits with canonical changes. It keeps operation IDs
 stable, cancels stale/revoked writes, quarantines uncertain paid ingestion and
@@ -1551,6 +1659,40 @@ and settles cancelled/late usage without importing returned records into canonic
 storage. Uncertain ingestion is reconciled through complete matching-revision
 reads, with six attempts before review; it never replays paid retain on a guess.
 These fixtures remain gated on certified connections; no provider is active yet.
+`maintenance-ledger.ts` reserves integer USD millionths transactionally in the
+encrypted canonical worker before paid background work. Schema 12 adds an
+encrypted budget/receipt table; migration backs up schema 11 first. Default
+consent is off. Unknown, failed, cancelled and incomplete receipts retain their
+reservation across restarts and date changes. A late complete actual receipt
+reconciles once; reported estimates cannot become zero or overwrite a conflicting
+final charge. The outbox calls durable preparation before dispatch, then rechecks
+scope/binding state; settlement distinguishes an unsent request from unknown
+delivered work. Settings expose estimated maintenance limits separately from chat
+inference. They do not activate a provider or guarantee an invoice cap.
+`providers/routing.ts` resolves one protected canonical job and binding against
+a host-reviewed deployment certificate. Connection revision, namespace,
+processing destinations, adapter version, scope, expiry and pricing must match
+before credentials or reservations are read. It checks live consent again after
+asynchronous preparation; reconciliation reads have separate reservations.
+`worker-port.ts` narrows worker access to global and the active project, checks
+leases before queued work and after replies, and repairs a late unsent claim.
+Preparation and dispatch waits are bounded independently. Only the route whose
+atomic dispatch mark succeeded can release its own marked-but-unsent charge;
+a duplicate losing that race cannot release another route's pending spend.
+An abandoned reconciliation read keeps uncertain ingestion pending, including
+at the canonical completion boundary; a retry receipt cannot replay that write.
+These helpers do not issue certificates or start production processing. A
+reviewed deployment registry, live authorisation controller, provider selection
+and reconciliation scheduling remain delivery gates.
+The published adapter SDK is in `docs/context-provider-sdk.md`. Runtime
+descriptor/response validation rejects forged receipts and unbounded or secret
+content; outbox completion applies it to both normal and late results. Invalid
+usage stays unknown rather than settling as zero. The acknowledged synthetic
+conformance harness checks isolated global/project namespaces, retries, revisions,
+deletion and declared temporal/export/scope-delete/reflection semantics. Paid
+reflection requires separate host authorisation. Its report never certifies a
+deployment: native access, derivative cleanup, processing destinations and billing
+limits still need deployment evidence.
 Connection setup stores encrypted metadata and authentication in the canonical
 worker, behind host-issued scope leases. Public setup records omit credentials
 and namespaces. Health tests are bounded and send no personal content; a successful
@@ -1595,7 +1737,7 @@ and memory revisions are rechecked throughout the operation.
 The complete product specification remains unfinished. Read
 `docs/context-implementation.md` for verified behaviour, the storage/platform
 decision, immutable upstream API pins and the pending runtime/connection/runner,
-dynamic plugin permission, monetary-budget and release-certification work.
+dynamic plugin permission and release-certification work.
 Do not describe the provider prototypes as production connections or installers.
 Experimental Linux staging is wired through owner-only, leased IPC: public
 artifacts have immutable checksums, bounded conditional-resume downloads and
@@ -2084,8 +2226,14 @@ bug class on the Source↔Visual seam. Every Milkdown import is confined to
 ## Themes
 
 Three independent axes, all in `theme.json` and all on `useThemeStore`.
+The painted app themes keep their existing ids; `legacy-<id>` variants preserve
+original interface palettes, generated SVG scenes and syntax defaults. Appearance
+and the Theme Studio keep these in a Legacy themes section collapsed by default.
+Legacy variants carry their original `basedOn` scene/basemap identity. Heaven's
+painted backdrop uses 30% opacity with slightly softened contrast/saturation so
+clouds and architecture remain visible against its light editor surface.
 
-- **App theme** (`src/lib/themes.ts`, 10 of them, one light) owns the interface:
+- **App theme** (`src/lib/themes.ts`, ten painted themes and ten legacy variants) owns the interface:
   the `--geo-*` custom properties, the basemap, the scene art, and — crucially —
   the editor's `colors` block.
 - **Code theme** and **markdown theme** (`src/lib/editor-themes.ts`, 26 and 16)
@@ -3433,12 +3581,34 @@ revision. Existing database PK order is retained only by the new opt-in
 `keep_identity` materialisation; no second catalogue exists.
 
 The GUI `ToolForm` and AI `runToolboxTool` use the same checked-operation list
-in `src/lib/data-preflight.ts`. Their preview inspects rather than executing an
-unapproved plan. `dq_commit` revalidates and assigns a derived result only after
+in `src/lib/data-preflight.ts`. Before checking, Data Check Code displays a
+readable R list passed to `dq_validate`. A complete permitted report supplies
+`executionCode` from `dq_execution_code`, the same backend-owned R recorded by
+`dq_commit`. Its literal request retains names, types, fingerprint, choices and
+output environment; approval-required previews cannot manufacture consent.
+`dq_commit` revalidates and assigns a derived result only after
 success. Full local identity/exclusion records accompany the result in
 `ourgeo_validation`; joins additionally carry `ourgeo_trace`. Recording echoes
 the backend's actual `dq_run` request, fingerprint and choices, not the form's
 legacy raw builder. Arbitrary user-authored R remains outside this boundary.
+
+The development renderer negotiates gzip with httpuv. A CORS `204` response
+must use `body = NULL`, not `""`: httpuv compresses the latter and sends forbidden
+chunks that Chromium treats as the next keep-alive response. Buffer's multiple
+checked routes exposed this as `ERR_INVALID_HTTP_RESPONSE` / Axios Network Error.
+Keep this wire-level regression in `scripts/check-toolbox.mjs`; fetch-only R
+fixtures never exercise browser OPTIONS requests. The same script executes all
+94 shipped builders and independent numeric expectations. The isolated-profile
+`scripts/check-toolbox-ui.mjs` verifies Buffer and result viewing with either the
+built renderer or `--dev`, using the normal R library. See
+`docs/toolbox-buffer-fix.md` for provenance and actual local coverage.
+
+Checked execution returns the real output class. SF tables and unit-bearing
+measurements open in their appropriate viewers; sfc/geos geometry vectors stay
+in Environment rather than being sent to the data.frame-only endpoint. Failed
+geographic validity reports include the S2 loader error and Health check repair
+route. Health check lists s2, units and openssl explicitly: sf can load while
+its suggested S2 dependency has a broken system-library link.
 
 Renderer-supplied acknowledgment strings are not authority. The main process
 fetches the immutable report from its R bridge and obtains consent through an
@@ -3459,11 +3629,118 @@ reports sfarc exact arcs versus an approved GEOS polygon approximation.
 Unsupported curved/Z/M analysis blocks instead of coercing it. Checked
 operations cannot consume an unevaluated pipe or implicit viewport subset.
 
-There is **no controlled vector-file export/publication integration** in this
-Desktop tree. `export-gpkg`/`export-geojson` expose blocked requirements and
-installed-driver availability, never a preservation badge. The map's temporary
-GeoJSON, raster exporter, image export, RData and Rgeo persistence are separate
-existing paths. Do not claim staged vector-file readback or build a Server
-bridge here. Full discovery, acceptance coverage and limits are in
-`docs/data-checks.md` and `tests/fixtures/preflight/README.md`. The shipped
+`r/lib/vector-export.R` implements controlled GeoPackage and RFC 7946 GeoJSON
+file export through the same approval authority. `dq_commit` starts an async
+write → readback → publish job. Each native stage yields before the next,
+including a cancellation boundary before publication. The renderer polls its
+actual phase; only a successful final result records `dq_export_run` in R.
+Same-directory staging, per-destination app locks, input/destination/staged-file
+hashes, and closed SQLite companion checks protect previous files. New files use
+exclusive hard links; replacement uses rename without unlinking the old file.
+An unsupported/locked filesystem fails safely. There is no cross-application
+locking promise: external writers must close the destination. Existing raster
+or unknown-content GeoPackages block updates under this vector-only profile.
+
+The Data Viewer Export layer dialog and `data:exportVector` share
+`lib/vector-export.ts`; the AI action takes an explicit path and opens no file
+picker. Field omission/text conversion, GeoJSON projection/precision/Z semantics
+and named-layer replacement require exact review. GPKG readback compares exact
+ordinates and primitive attributes, plus unrelated layers and their FIDs.
+GeoJSON compares its explicit decimal profile, ring orientation/start allowance,
+and documented 4326/4979 readback representation; Z needs declared WGS 84 3D.
+Curves/M block GeoJSON, while tested GPKG canonical curves/Z/M are retained.
+Imported vectors record `ourgeo_source_files` so controlled export cannot replace
+tracked originals. Rich fields never disappear through writer defaults.
+Complete local row records are session-scoped in `dq_state$exportRecords` (32
+records); no sidecar, second catalogue or telemetry is added. App crashes can
+leave a private staging directory/lock; do not automatically remove a lock that
+another app instance may own. Manual stale-lock removal is deliberate.
+
+The map's display GeoJSON, raster exporter, image export, RData and Rgeo persistence
+remain separate paths. No Server publication bridge exists. Full scope,
+acceptance coverage and limits are in `docs/vector-export.md`,
+`docs/vector-export-spec.md` and `tests/fixtures/preflight/export.R`. The shipped
 first-run health check retains its existing lifecycle.
+
+
+### Reviewed managed memory activation
+
+`context/providers/activation.ts` owns expiring activation previews, current
+scope/generation/revision checks and the scoped outbox runner. Main registers the
+experimental Linux Mnemosyne review only after `managed-profile.ts` matches the
+installed immutable artifacts and actual bridge hash to bundled offline/deletion
+evidence. Native approval is independent of staging. Cloud health cannot create a
+review. Future-only activation never implicitly imports existing canonical memory;
+managed snapshots contain only approved binding revisions and exclude revoked
+sources. Pause, disconnect and scope changes revoke asynchronous dispatch authority.
+The paid maintenance policy is unnecessary for certified non-billable local writes.
+
+The Mnemosyne bridge seals both old and staged SQLite indexes before atomic rename,
+then removes staging locks. Otherwise stale WAL bytes can survive snapshot deletion.
+A successful replacement removes corresponding derived indexes in older installed
+pairs too. Canonical encrypted memory remains authoritative; derived SQLite is
+readable and explicitly disclosed. Changing the bridge requires rerunning the
+private offline/deletion spike and regenerating its bundled evidence hash.
+`check-context.mjs` verifies native cancel/approve, future-only updates, deletion,
+pause and disconnect in a synthetic Electron profile. This is experimental Linux
+activation, not a stable all-platform release or an external provider certificate.
+External provider recall, cross-provider migration and complete runtime/quality certification remain work.
+
+
+`ContextBroker.searchWithMemory` adds approved ordinal provider matches to local
+ranking; synchronous discovery remains available for compatibility tools. Main
+recall currently permits only the reviewed non-billable managed-local search
+operation, with a shared startup/search deadline, cancellation and circuit breaker.
+It returns IDs/revisions only after canonical binding snapshot validation. The
+broker rereads current local memory, so provider prose is never new authority.
+Project-first routing avoids sending project queries to a separate global provider.
+
+Selected imports use the same expiring native review, but `importBinding` checks
+an existing exact active binding and queues only selected committed revisions.
+`bindingSnapshot` owns a namespace generation independent of whole-scope memory:
+importing an unchanged record changes the approved subset without changing the
+canonical scope generation. Include binding policy and selected revisions in its
+digest; validation must use `bindingSnapshotCurrent`. Initialise above old scope
+generations to avoid a stale generation when rebuilding older experimental caches.
+Forgetting purges managed copies in all installed pairs even after disconnection,
+without native execution. Those indexes are rebuildable; canonical data is retained.
+
+Schema 13 commits an encrypted content-free local purge receipt with the deletion
+tombstone. Hash namespace receipt IDs too: a plaintext SQLite primary key would
+otherwise leak the namespace even when its payload is protected. A single main
+runner resumes private-file cleanup after restart, caps automatic failures at six
+and exposes a current-scope settings retry. Keep completed generation metadata so
+a late completion cannot acknowledge a new purge that reused the same namespace.
+This does not reconnect remote stores or grant native execution. Old tombstones
+migrate to a safe derived-cache purge after the standard encrypted backup.
+
+`requestInvocation` handles explicit HTTP context-size rejection once per user
+turn on full-message transports. Rebuild the rejected inference, never replay
+already executed tools. Preserve all user originals, rules, schemas, tool pairs,
+reasoning and working-state cards; remove only optional earlier assistant prose
+with a searchable omission receipt. Recheck cancellation, scope and budgets before
+retry. Never retry a non-shrinking reconstruction, another context rejection,
+authentication/rate limiting or an accepted partial stream. Responses checks
+count the actual namespace/schema and output envelope sent to the provider.
+This is not certification of CLI-owned internal invocation occupancy.
+
+
+Context discovery caches default document/environment descriptors in compact
+indexes keyed by immutable inventories plus scope/runtime/disclosure revisions.
+Selected readers revalidate before and after asynchronous reads. Bind R-generation
+checks at the selected reader, never by closing over a reused scan card; metadata
+scans must not allocate stable wrapper objects for every environment candidate.
+The production-adapter benchmark reports manager and input-store RSS separately.
+
+Schema-16 startup may repair only recognised `inference_usage_scope` secondary
+index damage after authenticating current encrypted rows and hashing all canonical
+and privacy tables. Preserve the original database/WAL/SHM in private recovery
+copies before mutation; verify integrity and unchanged rows before committing.
+Unrecognised damage or unreadable forgetting markers fail closed. Never salvage
+canonical state from an old backup to perform automatic repair.
+
+Packaged context acceptance uses a private marked synthetic profile selected by
+`OURGEO_CONTEXT_TEST_PROFILE` before main handlers initialise. The harness refuses
+old packages lacking this guard before launch and verifies the actual user-data
+path. OS keyring overrides are confined to these validated profiles. Windows/macOS
+acceptance is deferred to native sessions; follow `docs/context-platform-acceptance.md`.

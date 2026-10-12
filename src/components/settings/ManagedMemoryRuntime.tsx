@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/store/project'
+import { useContextStore } from '@/store/context'
 import { useSessionStore } from '@/store/session'
 import type { ManagedRuntimeStatus } from '@/lib/context/providers/runtimes'
 
 const size = (bytes: number): string => `${Math.ceil(bytes / 1024 / 1024)} MB`
 export function ManagedMemoryRuntime(): React.ReactElement {
   const workspaceEpoch = useProjectStore(state => state.workspaceEpoch)
+  const projectId = useProjectStore(state => state.projectId)
   const [status, setStatus] = useState<ManagedRuntimeStatus | null>(null)
   const [acknowledged, setAcknowledged] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -37,21 +39,36 @@ export function ManagedMemoryRuntime(): React.ReactElement {
     } finally { setBusy(false) }
   }
   return <details className="text-xs border border-geo-border rounded p-2 mt-2" aria-label="Managed memory runtime">
-    <summary className="cursor-pointer">Mnemosyne on this device · experimental staging</summary>
+    <summary className="cursor-pointer">Mnemosyne on this device · experimental</summary>
     <p className="text-geo-muted mt-2">The built-in manager works without this download. Staging prepares a pinned private Python runtime and runs a synthetic health check. No system Python changes, account, embedding model or paid inference are required.</p>
-    <p className="text-geo-muted mt-1">This engine is a beta and is not certified for personal memory. Staging does not enable retrieval or ingestion. Native code runs with access to this machine. Its derived SQLite index is readable; protected canonical memory uses separate encrypted storage.</p>
-    <p className="text-geo-muted mt-1">Downloads come from GitHub release/source storage and Python package storage. The candidate disables remote embeddings, extraction and sync; offline behaviour still needs independent certification.</p>
+    <p className="text-geo-muted mt-1">This engine is a beta. The reviewed Linux lexical profile can synchronise future committed memory updates after separate activation. Staging alone grants no memory access. Native code runs with access to this machine. Its derived SQLite index is readable; protected canonical memory uses separate encrypted storage.</p>
+    <p className="text-geo-muted mt-1">Downloads come from GitHub release/source storage and Python package storage. The reviewed profile disables embeddings, extraction, reflection and sync. Linux fixtures observe no runtime network calls after installation. Your selected assistant has its own processing destination.</p>
     {status && <>
       <p className="mt-2">{status.label} · {status.version} · {status.state}</p>
       <p className="text-geo-muted">Download ceiling: {size(status.archiveLimitBytes)}. Linux fixture footprint: {size(status.measuredInstalledBytes)}. Installation and updates need additional staging space; memory use is not yet certified.</p>
       {!status.platformSupported ? <p className="text-geo-muted mt-1">Connection-only support on this platform. A managed installation is unavailable until its packaging is tested.</p> : <>
-        <label className="flex items-start gap-2 mt-2"><input aria-label="Acknowledge experimental native memory runtime" type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>I understand that this is experimental native code and does not yet enable personal memory.</span></label>
+        <label className="flex items-start gap-2 mt-2"><input aria-label="Acknowledge experimental native memory runtime" type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /><span>I understand that this is experimental native code. Staging alone does not enable personal memory.</span></label>
         <div className="flex flex-wrap gap-3 mt-2">
           <button className="text-geo-accent disabled:opacity-50" disabled={busy || status.state === 'installing' || !acknowledged} onClick={() => void run('stage')}>Stage verified runtime</button>
           {(busy || status.state === 'installing') && <button className="text-geo-accent" onClick={() => {
             void window.electronAPI.context.cancelRuntime().then(() => setStatus(status => status ? { ...status, state: 'cancelled' } : null), () => setError('Cancellation failed. Reopen Settings and check the installation before retrying.'))
           }}>Cancel installation</button>}
           {status.state === 'ready-for-certification' && status.canRollback && <button className="text-geo-accent disabled:opacity-50" disabled={busy || !acknowledged} onClick={() => void run('rollback')}>Restore previous runtime/data pair</button>}
+          {status.state === 'ready-for-certification' && (['global', ...(projectId ? ['project'] : [])] as Array<'global' | 'project'>).map(scope => <button key={scope} className="text-geo-accent disabled:opacity-50" disabled={busy || !acknowledged} onClick={() => {
+            void (async () => {
+              const epoch = useProjectStore.getState().workspaceEpoch
+              setBusy(true); setError('')
+              try {
+                const lease = await window.electronAPI.context.lease()
+                if (useProjectStore.getState().workspaceEpoch !== epoch) return
+                const preview = await window.electronAPI.context.previewManagedActivation(scope, lease.id)
+                await window.electronAPI.context.activateProvider(preview.ref)
+                useContextStore.getState().refreshProviders()
+                if (useProjectStore.getState().workspaceEpoch === epoch) useSessionStore.getState().addConsoleEntry('info', '[Context] Managed memory activation reviewed. Existing memories remain local unless explicitly selected; inspect connection settings for update status.')
+              } catch { if (useProjectStore.getState().workspaceEpoch === epoch) setError('Activation did not complete. Review this scope, the pinned runtime and protected storage, then retry.') }
+              finally { setBusy(false) }
+            })()
+          }}>Review activation for {scope === 'global' ? 'About you' : 'this project'}</button>)}
         </div>
       </>}
       {status.step && <p className="text-geo-muted mt-1">{status.step}{status.receivedBytes !== undefined ? ` · ${size(status.receivedBytes)} received${status.totalBytes ? ` of ${size(status.totalBytes)}` : ''}` : ''}</p>}

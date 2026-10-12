@@ -1,15 +1,20 @@
+import { ContextSourceBrowser } from './ContextSourceBrowser'
 import type { ContextTrace } from '@/lib/context/types'
 import { useContextStore } from '@/store/context'
+import { useProjectStore } from '@/store/project'
 import { totalUsage } from '@/lib/context/usage'
 
 export function ContextInspector({ trace }: { trace: ContextTrace }): React.ReactElement {
   const excluded = useContextStore(s => s.excluded)
   const exclude = useContextStore(s => s.exclude)
+  const projectId = useProjectStore(s => s.projectId)
+  const epoch = useProjectStore(s => s.workspaceEpoch)
+  const currentScope = trace.identity.projectId === projectId && trace.identity.workspaceEpoch === epoch
   const reported = trace.usage ?? []
   const totals = totalUsage(reported)
   return <details className="mx-2 mb-3 text-[11px] text-geo-muted border border-geo-border rounded p-2">
-    <summary className="cursor-pointer">{trace.selected.length ? `Context: ${[...new Set(trace.selected.map(s => s.title))].join(', ')}` : 'Conversation only'}</summary>
-    <p className="mt-2">Destination: {trace.target}. Delivery: {trace.state}. Prompt counts are estimated; reported usage is labelled separately. Already transmitted content cannot be recalled.</p>
+    <summary className="cursor-pointer">{trace.evidenceExpired ? 'Context evidence expired · usage retained' : trace.selected.length ? `Context: ${[...new Set(trace.selected.map(s => s.title))].join(', ')}` : 'Conversation only'}</summary>
+    <p className="mt-2">{trace.evidenceExpired ? 'Diagnostic evidence has expired; the remaining receipt contains accounting metadata only.' : `Destination: ${trace.target}. Delivery: ${trace.state}.`} Prompt counts are estimated; reported usage is labelled separately. Already transmitted content cannot be recalled.</p>
     {trace.limitations?.map((limitation, index) => <p key={index}>{limitation}</p>)}
     {trace.target.startsWith('claude-cli/') && <p>Claude retains its own transcript. Internal invocation count and retained occupancy are not confirmed by this trace.</p>}
     <p>{trace.retrievalCalls} retrieval calls; {trace.invocations.reduce((total, call) => total + call.inputTokens, 0).toLocaleString()} estimated input tokens across {trace.invocations.length} invocation(s).</p>
@@ -23,9 +28,11 @@ export function ContextInspector({ trace }: { trace: ContextTrace }): React.Reac
     {trace.selected.map((source, index) => <details key={`${source.ref}:${index}`} className="mt-2 border-t border-geo-border pt-1">
       <summary>{source.title} · {source.scope} · {source.delivery ?? 'delivery unverified'} · {source.estimatedTokens} estimated tokens · {source.completeness}</summary>
       <p>Revision {source.revision}; selected because {source.reason}.</p>
+      {!currentScope && <p>This is evidence from an earlier workspace. Change current source access through the browser below.</p>}
       <pre className="whitespace-pre-wrap break-words max-h-48 overflow-auto text-foreground">{source.content}</pre>
-      <button className="text-geo-accent" onClick={() => void exclude(source.sourceId, source.scope, trace.identity.projectId).catch(() => undefined)}>{excluded.includes(source.sourceId) ? 'Allow source again' : 'Exclude from future retrieval'}</button>
+      <button disabled={!currentScope} className="text-geo-accent" onClick={() => void exclude(source.sourceId, source.scope, trace.identity.projectId).catch(() => undefined)}>{excluded.includes(source.sourceId) ? 'Allow source again' : 'Exclude from future retrieval'}</button>
     </details>)}
-    <p className="mt-2">Other authorised sources are available through search. They were not all selected or sent. Cancelled requests can have uncertain delivery.</p>
+    <ContextSourceBrowser />
+    {!trace.evidenceExpired && <p className="mt-2">Other authorised sources are available through search. They were not all selected or sent. Cancelled requests can have uncertain delivery.</p>}
   </details>
 }

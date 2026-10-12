@@ -42,3 +42,11 @@ it('retains partial local usage and refuses failed HTTP responses before executi
   await expect(sendMessage(opts)).rejects.toThrow('HTTP 500')
   expect(onToolCall).not.toHaveBeenCalled()
 })
+it('retains billed local counters when a tool-capable model returns an empty answer', async () => {
+  fetchMock.mockResolvedValueOnce({ ...stream([]), json: async () => ({ message: { content: '' }, prompt_eval_count: 906, eval_count: 116, done: true }) })
+  const onInvocationUsage = vi.fn(), onToolCall = vi.fn()
+  await expect(sendMessage(options({ provider: 'ollama', onInvocationUsage, onToolCall, tools: [{ name: 'inspect', description: 'Inspect', inputSchema: { type: 'object', properties: {}, required: [] } }] }))).rejects.toThrow('no visible answer')
+  expect(onInvocationUsage).toHaveBeenCalledWith(expect.objectContaining({ inputTokens: 906, outputTokens: 116 }))
+  expect(onToolCall).not.toHaveBeenCalled()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})

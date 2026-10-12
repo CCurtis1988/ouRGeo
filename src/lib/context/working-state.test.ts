@@ -40,3 +40,40 @@ describe('conversation working state', () => {
     expect(buildWorkingState(messages.slice(1)).decisions).toEqual([{ messageId: 'new', text: messages[1].content }])
   })
 })
+
+it('keeps an early exact definition and recent correction when intervening constraints fill the card', () => {
+  const messages = [
+    { id: 'first', role: 'user' as const, content: 'Use exactly 12.5 US survey feet.', timestamp: 0 },
+    ...Array.from({ length: 25 }, (_, index) => ({ id: `filler-${index}`, role: 'user' as const, content: `Always label intermediate chart ${index} with a descriptive title and an accurate caption.`, timestamp: index + 1 })),
+    { id: 'correction', role: 'user' as const, content: 'Actually, use exactly 12.6 US survey feet for the revised comparison.', timestamp: 30 },
+  ]
+  const state = buildWorkingState(messages)
+  expect(state.constraints).toEqual(expect.arrayContaining([
+    { messageId: 'first', text: messages[0].content },
+    { messageId: 'correction', text: messages.at(-1)!.content },
+  ]))
+  expect(estimateTokens(state)).toBeLessThanOrEqual(800)
+})
+
+it('records explicit corrections as attributed declarations and retains decimal units as exact spans', () => {
+  const state = buildWorkingState([
+    { id: 'original', role: 'user', content: 'We chose 12. US survey feet for this example.', timestamp: 0 },
+    { id: 'correction', role: 'user', content: 'Correction: 12.5 US survey feet applies only to this comparison.', timestamp: 1 },
+    { id: 'question', role: 'user', content: 'Which layer is current?', timestamp: 2 },
+    { id: 'answered', role: 'assistant', content: 'The active layer is roads.', timestamp: 3 },
+  ])
+  expect(state.decisions).toContainEqual({ messageId: 'correction', text: 'Correction: 12.5 US survey feet applies only to this comparison.' })
+  expect(state.decisions).toContainEqual({ messageId: 'original', text: 'We chose 12. US survey feet for this example.' })
+  expect(state.questions).toContainEqual({ messageId: 'question', text: 'Which layer is current?' })
+  expect(state).not.toHaveProperty('unresolved')
+})
+
+it('does not turn correction questions or earlier generated compaction into new decisions or failures', () => {
+  const state = buildWorkingState([
+    { id: 'question', role: 'user', content: 'Actually, should we use miles instead?', timestamp: 0 },
+    { id: 'context-compaction', role: 'assistant', content: 'Derived state: the earlier buffer failed according to a historical summary.', timestamp: 1 },
+  ])
+  expect(state.decisions).toEqual([])
+  expect(state.questions).toContainEqual({ messageId: 'question', text: 'Actually, should we use miles instead?' })
+  expect(state.failedAttempts).toEqual([])
+})

@@ -1,6 +1,6 @@
 # ouRGeo
 
-Current version: **1.16.7**. Release history: **1.16.0** managed plugin services,
+Current version: **1.16.15**. Release history: **1.16.0** managed plugin services,
 **1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
 **1.16.3** guided installation health checks.
 
@@ -8,7 +8,7 @@ Current version: **1.16.7**. Release history: **1.16.0** managed plugin services
 
 ouRGeo wraps R's spatial ecosystem (`sf`, `terra`, `ggplot2`, `tmap`) in a
 full-featured GUI while keeping R at the core. It has a map canvas, a layers
-panel, an 88-tool geoprocessing toolbox and a CAD-grade digitizing environment —
+panel, a 94-tool geoprocessing toolbox and a CAD-grade digitizing environment —
 and **every GUI action emits the R code that performs it**, straight into the
 console.
 
@@ -26,13 +26,31 @@ the whole analysis.
 
 - **A guided health check.** A dismissible welcome appears on first launch;
   **Settings → Health check** runs it again whenever needed. It checks R,
-  missing or outdated packages, package builds after an R upgrade, the backend
+  missing or outdated packages, duplicate installations across R libraries,
+  package builds after an R upgrade, the backend
   connection, writable storage, available RAM/VRAM, and document-export tools.
   Repairs require approval and offer a project-save step before stopping R to
   replace loaded packages. AI setup offers local Qwen models sized for the
   computer, existing model servers, and cloud/subscription providers. A response
   test asks for approval before using credits and sends no project data.
   The final report records ready, fixed, skipped, and unresolved checks.
+  Use Back and Next to review each step. Checks may take several minutes;
+  installations and model downloads can take longer. Duplicate cleanup lets
+  you keep one or more copies or versions of each package and approve removing
+  the rest, while preserving protected and read-only installations.
+  The Packages panel loads the selected copy using its library path and marks
+  only that version as loaded. Selecting a different copy unloads the current
+  namespace first; if another package imports it, the console explains that
+  those packages must be unloaded or R restarted before switching.
+  An open health check stays active across sleep and wake. If the desktop resets
+  the renderer, ouRGeo restores the step, results, and package selections and
+  waits for any approved repair already in progress before continuing.
+  S2 has a separate engine check: spherical distance, three 100-metre buffers,
+  validity and containment. A failed check includes the native loader error
+  and the repair for your OS. Windows and macOS use compatible CRAN binaries;
+  Linux rebuilds from source with bundled Abseil. S2 repairs target the active
+  writable library, then verify in a fresh R process. See
+  [S2 checks and repairs](docs/s2-health-check.md) for prerequisites and fallbacks.
 
 - **Exact curved geometry.** Built on [`sfarc`](https://github.com/CCurtis1988/sfarc),
   a companion R package that computes length, area,
@@ -62,15 +80,22 @@ the whole analysis.
   so they can be checked. What reaches the layer is a true `CIRCULARSTRING` /
   `COMPOUNDCURVE`, so the radius survives a reprojection and a GeoPackage round
   trip, and closure measures the arc rather than the chord.
-- **88-tool geoprocessing toolbox** across seven categories (table, joins,
+- **94-tool geoprocessing toolbox** across seven categories (table, joins,
   aggregate, type/string, sf, geos, raster), each one generating clean R.
 - **Data checks and operation preflight.** Read-only vector/table inspection,
   CRS and metric-unit guards, join-cardinality previews, explicit missing-value
   policies and revision-bound approvals protect controlled operations. Sources
   stay intact; consequential choices and actual execution are recorded in R.
   Open **Data checks** in a Data Viewer or review it in the relevant toolbox
-  dialog. No account or network connection is required. See
+  dialog. **Data Check Code** shows a readable inspection request; after
+  checking, **Code Preview** shows the resolved operation and its actual method.
+  Measurements open as unit-bearing vectors; native geometry-vector results
+  remain available in Environment. Health check includes S2 and units, so a
+  broken geographic engine can be diagnosed and repaired. No account or network
+  connection is required for data checks. See
   [supported scope, limits and manual checks](docs/data-checks.md).
+  The [Buffer investigation and regression checks](docs/toolbox-buffer-fix.md)
+  cover the development-app transport fix and all 94 shipped tool builders.
 - **First-class rasters.** R-served XYZ tiles with a full symbology editor —
   singleband/RGB/categorical, stretches, colour ramps, histograms.
 - **Data Connector.** 14 web-API providers (Esri, OGC API–Features, WFS, WMS,
@@ -78,14 +103,14 @@ the whole analysis.
   visual query builder that emits reproducible import code. Every connector
   carries a Help button to the API's own documentation, because that is where
   the questions a connector cannot answer are answered.
-- **Themes you own.** Ten app themes, 26 code palettes and 16 markdown
+- **Themes you own.** Ten painted app themes plus the original looks in a collapsed **Legacy themes** section, 26 code palettes and 16 markdown
   palettes ship — and the **Theme Studio** lets you build your own on all three
   axes: every interface and editor colour, your own backdrop image behind the
   code, a card image for the picker, a default basemap, and import/export as
   portable `.ourgeotheme.json` files.
 - **In-app AI assistant** with optional Autopilot, usable with cloud providers,
   a fully local model, or **your ChatGPT or Claude subscription**. For ChatGPT,
-  choose **OpenAI subscription (ChatGPT)** in Settings → AI Assistant, press
+  choose **OpenAI subscription (ChatGPT)** in Settings → AI Assistant → Provider & model, press
   **Continue with ChatGPT**, authorise plan usage in your browser, then choose
   an eligible model. Manage the app's allowance and use of subscription credits
   through **Manage usage and credits**. Account/workspace eligibility and OpenAI's
@@ -111,11 +136,46 @@ the whole analysis.
   estimated prompt size from reported input, output, cache and reasoning usage,
   retaining available receipts for failed or cancelled turns. Expand the context
   summary under a reply to inspect selected sources, revisions, destination and
-  estimated tokens. Source exclusions persist locally for saved projects and
+  estimated tokens. **Browse current context sources** searches current descriptions
+  and available/excluded states without reading source bodies. The
+  [Linux owner acceptance pack](docs/context-owner-acceptance.md) gives exact memory
+  test prompts and a results form. Source exclusions persist locally for saved projects and
   references, with an Allow again control. While exclusions apply, earlier
   assistant answers are omitted from future prompts and assistant execution
-  that could bypass private-source filters pauses. **AI Assistant → Context & memory** controls effort and
-  learning; the Memory library separates Conversation, Project and About you.
+  that could bypass private-source filters pauses. **Settings → AI Assistant → Learning & context** controls effort and
+  learning. **Memory Library** separates About you, Project and Conversation, with
+  an **Add a memory** form that saves directly without running a model. It is
+  available in settings and below the assistant conversation. **Privacy & sources**
+  contains source exclusions, workspace column privacy and reference folders;
+  **Budgets** contains chat and maintenance limits; **Storage & recovery**
+  contains backups, cleanup and diagnostic retention. Optional memory engines
+  and connections are under **Advanced**.
+  Local cleanup receipts survive failures and restart. Settings show pending
+  private-cache removal and offer a retry after access is repaired; forgotten
+  memories remain excluded throughout. Explicit context-size rejections get
+  one smaller inference retry without replaying tools or cutting user instructions.
+  Attach context stages a layer schema, console execution or current document section
+  for retrieval when you send. Selected line ranges also work in large buffers
+  (up to 1 MB per span). Workspace column privacy can refresh workspace objects and load missing column
+  metadata on selection. It hides selected schema fields
+  and pauses assistant paths that could bypass the filter. Saved-project choices
+  persist privately on this device; scratch choices are temporary. Explicitly
+  chosen folders can supply bounded text sources and require refresh after changes.
+  Folder search streams compact descriptions; refreshing withdraws old file excerpts
+  until the current catalogue is available.
+  The inspector can browse current available and excluded source descriptions.
+  Memory backup controls verify encrypted backups and restore missing preferences
+  as reviewable candidates. Reviewed transcript forgetting removes selected
+  complete messages from currently loaded chats; save the project to commit those removals. Usage totals show available conversation/project token receipts,
+  with missing usage and monetary limitations labelled. Protected local usage
+  receipts recorded since activation survive chat deletion and restart; load these
+  totals explicitly. In-flight receipts retain their original project when you switch
+  workspaces. A protected pre-dispatch receipt keeps interrupted requests visible after restart; missing counters remain unknown. Earlier activity, background charges and exports are excluded. Optional estimated daily/monthly chat budgets use explicitly reviewed model rates, reserve input/output before each request, and reconcile reported counters. Limits cover this device across projects; they are estimates, not provider invoice caps. Rates expire after 30 days, and opaque subscription processing is refused while a chat budget is enabled. Diagnostic evidence expires after 1–7 days;
+  content-free token receipts remain. Unaccepted suggestions expire after 30 days,
+  and inferred preferences receive a review marker after 180 days.
+  Settings also include an estimated memory-maintenance budget, separate from chat inference.
+  Paid background processing starts off; saving limits does not activate a
+  provider. Cancelled or unacknowledged charges remain reserved until reconciled.
   Suggestions require acceptance, while automatic learning is an opt-in for
   narrow declared preferences/decisions. Scratch learning defaults to off.
   Project memory commits on project save; About you uses protected local
@@ -135,9 +195,13 @@ the whole analysis.
   Mnemosyne/Hindsight connection settings can store protected credentials and
   test reachability without sending chat or memory content. Their adapters remain
   prototypes. Linux x86_64 offers explicitly acknowledged experimental runtime
-  staging with synthetic health checks; this does not enable personal memory.
-  Provider retrieval/ingestion and the full specification's release gates remain
-  unfinished.
+  staging with synthetic health checks and a separate native activation review
+  for future committed memory updates. Existing memories are not imported
+  automatically. This beta profile uses a readable local derived index; you can
+  pause updates or disconnect it. Approved local recall adds canonical memory
+  matches to broker search, with local fallback. Existing committed memories can
+  be selected for a separately reviewed import. External deployment certification
+  and the full specification's release gates remain unfinished.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by
@@ -192,6 +256,15 @@ the whole analysis.
   spatial editor, and right-clicking a layer in **Contents** opens its attribute
   table. Sending something that is already on the map asks first, and offers to
   show you the layer you already have.
+- **Checked vector export.** The Data Viewer’s **Export layer…** saves GeoPackage
+  or RFC 7946 GeoJSON through revision-bound data checks, specific approval for
+  material changes, staged writes and full readback verification. GeoPackage
+  retains tested curves/Z/M; GeoJSON makes longitude/latitude, precision and
+  supported altitude explicit. Add/replace a named layer in a closed vector
+  GeoPackage while retaining unrelated layers. Unsupported fields block unless
+  deliberately omitted or converted to supported text. See the
+  [scope and verification guide](docs/vector-export.md).
+
 - **Publication export.** Generate complete `ggplot2` or `tmap` code from your
   on-screen map, including legend, north arrow, scale bar and graticules.
 - **Portable projects.** Save code, environment, layers and databases as a
@@ -344,7 +417,7 @@ a change to this repository should follow — by a person or an agent — see
   # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 
   # Spatial features — maps, geoprocessing, basemaps
-  install.packages(c("sf", "terra", "ggplot2", "tmap",
+  install.packages(c("sf", "s2", "units", "terra", "ggplot2", "tmap",
                      "ggspatial", "maptiles", "tidyterra"))
 
   # Raster map tiles (PNG encoding)
@@ -478,7 +551,7 @@ install.packages(c("httpuv", "jsonlite", "later", "httr2", "rlang"))
   # sf + units for vectors, S2 for geographic metrics, and dplyr for summaries.
 
 # Spatial — without these, map rendering and spatial operations break
-install.packages(c("sf", "terra", "ggplot2", "tmap", "ggspatial", "maptiles", "tidyterra"))
+install.packages(c("sf", "s2", "units", "terra", "ggplot2", "tmap", "ggspatial", "maptiles", "tidyterra"))
 
 # Database — without these, .Rgeo / DuckDB features break
 install.packages(c("DBI", "duckdb", "dplyr"))

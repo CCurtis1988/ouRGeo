@@ -38,12 +38,12 @@ describe('palette data', () => {
   })
 
   it('ships the ported app themes plus the extra palettes', () => {
-    for (const t of Object.values(THEMES)) {
+    for (const t of Object.values(THEMES).filter(theme => !theme.legacy)) {
       expect(CODE_THEMES).toHaveProperty(t.id)
       expect(MARKDOWN_THEMES).toHaveProperty(t.id)
     }
-    expect(CODE_THEME_LIST.length).toBeGreaterThanOrEqual(Object.keys(THEMES).length + 16)
-    expect(MARKDOWN_THEME_LIST.length).toBeGreaterThanOrEqual(Object.keys(THEMES).length + 6)
+    expect(CODE_THEME_LIST.length).toBeGreaterThanOrEqual(Object.values(THEMES).filter(theme => !theme.legacy).length + 16)
+    expect(MARKDOWN_THEME_LIST.length).toBeGreaterThanOrEqual(Object.values(THEMES).filter(theme => !theme.legacy).length + 6)
   })
 })
 

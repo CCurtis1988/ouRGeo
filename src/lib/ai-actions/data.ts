@@ -1,4 +1,5 @@
 import { transformImportedLayer } from '@/lib/data-preflight'
+import { exportVector, vectorExportRequest } from '@/lib/vector-export'
 // Getting data in: files, the Data Connector, and .Rgeo databases.
 //
 // `data:load` emits the same R the Load Data dialog emits, through the same
@@ -40,6 +41,32 @@ function dbListing(): string {
 }
 
 export const dataActions: UiAction[] = [
+  {
+    id: 'data:exportVector', group: 'data', tier: 'autopilot',
+    summary: 'Save a vector to GeoPackage or RFC 7946 GeoJSON through enforced preflight, specific native approval and complete staged readback. Takes a path; never opens a file picker.',
+    params: [
+      { name: 'name', type: 'string', required: true, description: 'Existing vector object name or safe accessor.' },
+      { name: 'env', type: 'string', description: 'Source environment; default .GlobalEnv.' },
+      { name: 'path', type: 'string', required: true, description: 'Absolute local destination; cannot replace a tracked imported source.' },
+      { name: 'format', type: 'enum', values: ['gpkg', 'geojson'], default: 'gpkg', description: 'GeoPackage preservation profile or RFC 7946 GeoJSON.' },
+      { name: 'layer', type: 'string', default: 'layer', description: 'Destination layer name; also selects exactly the GeoPackage layer to replace.' },
+      { name: 'mode', type: 'enum', values: ['new', 'add', 'replace'], default: 'new', description: 'New file, add GeoPackage layer, or replace a named layer/file; replacement needs native review.' },
+      { name: 'precision', type: 'number', default: 15, description: 'GeoJSON coordinate decimal places, 0–15. Its exact profile requires review.' },
+      { name: 'omitFields', type: 'string', description: 'Comma-separated existing attributes deliberately omitted; requires native review.' },
+      { name: 'textFields', type: 'string', description: 'Comma-separated supported scalar attributes deliberately converted to text; requires native review.' },
+    ],
+    run: async args => {
+      const name = argStr(args, 'name'), path = argStr(args, 'path')
+      if (!name || !path) return fail('Choose an existing vector and an absolute local destination.')
+      const request = vectorExportRequest({ name, accessPath: name, envName: argStr(args, 'env') || '.GlobalEnv' }, {
+        format: (argStr(args, 'format') || 'gpkg') as 'gpkg' | 'geojson', path, layer: argStr(args, 'layer') || 'layer',
+        mode: (argStr(args, 'mode') || 'new') as 'new' | 'add' | 'replace', precision: String(argNum(args, 'precision', 15)),
+        omitFields: argStr(args, 'omitFields'), textFields: argStr(args, 'textFields'),
+      })
+      const result = await exportVector(request)
+      return result.success ? ok(`Saved and verified ${result.featureCount} features to ${result.path}.`) : fail(result.error ?? 'Export was blocked or cancelled; no staged file was published.')
+    },
+  },
   {
     id: 'data:preview',
     group: 'data',

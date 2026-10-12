@@ -74,9 +74,20 @@ export function DataChecksPanel({ request, onReport, activeReport, onCancel }: P
         {checking && <button type="button" className="rounded border border-geo-border px-2 py-1" onClick={() => { controller.current?.abort(); onCancel?.() }}>Cancel check</button>}
       </div>
       <p className="mt-1 text-geo-muted">Inspection preserves source data. Permission applies to this operation, parameters and input revision.</p>
+      {report?.executionPhase && <p role="status" className="mt-1">Export: {report.executionPhase}</p>}
+      {report?.error && <p role="alert" className="mt-1">{report.error}</p>}
       {error && <p role="alert" className="mt-2"><ShieldAlert className="mr-1 inline h-4 w-4" />Check failed: {error}</p>}
       {report && <div className="mt-2" role="status">{report.status === 'ready' ? <CheckCircle2 className="mr-1 inline h-4 w-4" /> : <AlertTriangle className="mr-1 inline h-4 w-4" />}<strong>{report.status.replace(/_/g, ' ')}</strong> · {report.coverage.rowsChecked} rows checked{report.coverage.totalRows !== undefined ? ` of ${report.coverage.totalRows}` : ''}{!report.coverage.complete && ' · incomplete; execution is not permitted'}</div>}
       <div className="mt-2 max-h-72 overflow-auto space-y-3">
+        {report?.executionPlan?.exportProfileAndOptions && <div>
+          <strong>Export plan · {report.executionPlan.exportProfileAndOptions.driver}</strong>
+          <p className="break-words">{report.executionPlan.exportProfileAndOptions.mode}: {report.executionPlan.exportProfileAndOptions.path} · layer {report.executionPlan.exportProfileAndOptions.layer} · {report.executionPlan.exportProfileAndOptions.featureCount} included features.</p>
+          <p>Axis convention: {report.executionPlan.exportProfileAndOptions.axisConvention}. Types: {report.executionPlan.exportProfileAndOptions.geometryTypes.join(', ')}. Dimensions: {report.executionPlan.exportProfileAndOptions.dimensions.join(', ')}. Curves: {report.executionPlan.exportProfileAndOptions.curves}.</p>
+          <p>Coordinate decimal places: {report.executionPlan.exportProfileAndOptions.coordinatePrecision ?? 'native precision retained'}. Readback absolute tolerance: {report.executionPlan.exportProfileAndOptions.geometryTolerance} plus floating-point representation error.</p>
+          <p>Fields: {report.executionPlan.exportProfileAndOptions.fields.schema.map(f => `${f.name}: ${f.sourceType} → ${f.destinationType}`).join('; ') || 'no attributes'}. Omitted: {report.executionPlan.exportProfileAndOptions.fields.omitted.join(', ') || 'none'}.</p>
+          <details><summary className="cursor-pointer text-geo-muted">Show effective writer/readback options and CRS definitions</summary><pre className="whitespace-pre-wrap break-all">{JSON.stringify({ sourceCRS: report.executionPlan.exportProfileAndOptions.sourceCRS, destinationCRS: report.executionPlan.exportProfileAndOptions.destinationCRS, datasetOptions: report.executionPlan.exportProfileAndOptions.datasetOptions, layerOptions: report.executionPlan.exportProfileAndOptions.layerOptions, readbackOptions: report.executionPlan.exportProfileAndOptions.readbackOptions }, null, 2)}</pre></details>
+          <p className="text-geo-muted">{report.executionPlan.exportProfileAndOptions.coverage}. This check is not a scientific certification.</p>
+        </div>}
         {report?.profiles.map(profile => <details key={profile.layerId} open={request.operationType === 'inspect'}>
           <summary className="cursor-pointer font-medium">{profile.sourceName} · {profile.totalRows} total / {profile.selectedRows} selected</summary>
           <p className="text-geo-muted">Identity: {profile.identityKind}. A business identifier is a separate field.</p>

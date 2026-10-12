@@ -1284,7 +1284,7 @@ for (const category of BUILTIN_CATEGORIES) {
     })
     const checked = /^(left|right|inner|full|anti|semi)-join$/.test(tool.id) || tool.id === 'group-summarize' || ['sf-buffer','sf-intersection','sf-difference','sf-erase','sf-clip','sf-union-dissolve','sf-union-merge','sf-spatial-filter','sf-spatial-join','sf-add-area','sf-add-length','sf-transform','assign-crs','geos-buffer','geos-area','geos-distance','geos-intersection','geos-difference','geos-union'].includes(tool.id)
     if (checked) {
-      result.fields = result.fields.map(f => f.id === 'calccrs' && f.type === 'select' ? { ...f, options: f.options.map(o => o.value === 'auto' ? { value: 'native', label: 'Native CRS / supported S2 (no inferred projection)' } : o) } : f)
+      result.fields = result.fields.map(f => f.id === 'calccrs' && f.type === 'select' ? { ...f, options: f.options.filter(o => o.value !== 'auto').map(o => o.value === 'native' ? { value: 'native', label: 'Native CRS / supported S2 (no inferred projection)' } : o) } : f)
       for (const field of tool.fields.filter(f => f.type === 'dataset')) result = insertBeforeOutput(result, {
         id: `exclude_${field.id}`, label: `Explicitly exclude source rows from ${field.label} (1-based numbers, comma separated)`, type: 'text',
       })

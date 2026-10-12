@@ -10,6 +10,39 @@ const dirs: string[] = []
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
 function record(): MemoryRecord { return { id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'preference', statement: 'Prefer metric units for distances.', evidence: [], assertion: 'user-declared', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: 'active', supersedes: [] } }
 describe('encrypted canonical memory and ephemeral FTS5', () => {
+  it('bounds idle expiry work, suppresses expired evidence and never ages out explicit preferences', () => {
+    const store = new MemoryStorage(':memory:', randomBytes(32)), source = crypto.randomUUID(), now = Date.now()
+    const explicit = record()
+    store.save({ ...explicit, createdAt: new Date(now - 365 * 86400_000).toISOString() })
+    for (let index = 0; index < 105; index++) store.save({ ...record(), id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`, statement: `Suggested output style ${index}`, evidence: [source], status: 'candidate', createdAt: new Date(now).toISOString() })
+    const first = store.sweepRetention(now + 30 * 86400_000)
+    expect(first).toEqual({ scanned: 100, removed: 100, more: true })
+    expect(store.filterLearningSources([source])).toEqual([])
+    const second = store.sweepRetention(now + 30 * 86400_000)
+    expect(second).toEqual({ scanned: 6, removed: 5, more: false })
+    expect(store.list().map(memory => memory.id)).toEqual([explicit.id])
+    expect(store.search('metric').map(memory => memory.id)).toEqual([explicit.id])
+    expect(() => store.sweepRetention(now, 101)).toThrow('limit')
+    store.close()
+  })
+  it('removes expired committed content from provider snapshots and recovery journals before reads', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
+    const path = join(dir, 'canonical.sqlite'), key = randomBytes(32), projectId = crypto.randomUUID()
+    const memory = { ...record(), scope: 'project' as const, projectId, expiresAt: new Date(Date.now() - 1000).toISOString(), evidence: ['expired-source'] }
+    const context = { version: 1 as const, revision: 1, memories: [memory] }
+    const store = new MemoryStorage(path, Buffer.from(key))
+    store.commitProject(projectId, context)
+    store.stageProject(projectId, 1, { ...context, revision: 2 })
+    expect(store.scopeSnapshot(`project:${projectId}`).records).toEqual([])
+    expect(store.recoverProject(projectId, 1)?.memories).toEqual([])
+    expect(store.filterLearningSources(memory.evidence)).toEqual([])
+    store.close()
+    const reopened = new MemoryStorage(path, Buffer.from(key))
+    reopened.commitProject(projectId, context)
+    expect(reopened.scopeSnapshot(`project:${projectId}`).records).toEqual([])
+    expect(reopened.search('metric', `project:${projectId}`)).toEqual([])
+    reopened.close()
+  })
   it('allocates stable persisted generations from committed scope state and invalidates them on edit or forget', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ourgeo-context-test-')); dirs.push(dir)
     const path = join(dir, 'canonical.sqlite'), key = randomBytes(32), projectId = crypto.randomUUID()

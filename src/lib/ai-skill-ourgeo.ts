@@ -42,7 +42,7 @@ ${actionIndex()}
 - If you cannot perform an action — Autopilot is off, or the user declined — do not hand them the id. Tell them which **button** does it, and point at it with \`ui:highlight\`.
 - R code is for R: \`sf\`, \`terra\`, \`dplyr\`, \`ggplot2\`. The interface is for actions. They never mix in one block.
 
-\`toolbox_tools\` searches the 88 geoprocessing tools and \`run_toolbox_tool\` runs one (\`dryRun\` shows the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
+\`toolbox_tools\` searches the 94 geoprocessing tools and \`run_toolbox_tool\` runs one (\`dryRun\` shows the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
 
 **The terminal runs the user's own shell.** \`terminal:*\` needs the Terminal switch in the AI panel footer as well as Autopilot, and is for what is genuinely outside R — read \`ourgeo_docs({topic: "terminal"})\` first.
 
@@ -120,9 +120,9 @@ An environment the user creates lives in \`.GlobalEnv\` (its objects are \`myenv
 
 R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.GlobalEnv\` \u2014 so once \`x\` is in \`env2\`, \`x * a\` at the prompt is an error and the ways in are \`env2$x\`, \`with(env2, x * a)\` or \`eval(quote(x * a), env2)\`. **Work in this environment** (its right-click menu, or \`env:workIn\`) points the console AND every tool at it, so \`x * a\` works directly; \`.GlobalEnv\` stays visible through it because it is the environment's parent, and new objects are created there rather than in \`.GlobalEnv\`. The prompt shows the environment while it is not \`.GlobalEnv\`, and the switch echoes the R for it \u2014 \`evalq({ \u2026 }, env2)\` \u2014 which is also how to do the same thing in a script or a chunk. Objects carry **Copy To** (same name, another environment, original kept) beside **Move To**. The eye in the header decides what the panel shows *and* what it can act on: hiding non-user objects leaves \`.GlobalEnv\` and the user's own environments, and that is exactly what **Move To** offers; turning it off offers the whole session. **Export** writes an \`.RData\` file (ouRGeo's own functions are never in it); **Load** reads one back.
 
-**Which model is answering** — Settings → AI Assistant. Cloud providers (Anthropic, OpenAI, Gemini) take an API key; local servers (Ollama, LM Studio, llama.cpp and friends) take a URL. There is also **Claude subscription (Claude Code)**, which takes neither: ouRGeo runs the \`claude\` command-line tool the user installed and signed in to, so the answer comes from their Claude plan rather than an API balance and ouRGeo never sees a credential. It needs Claude Code installed and \`claude auth login\` run once; the settings row shows which binary was found and who it is signed in as. On that provider your tools arrive over MCP and are listed as \`mcp__ourgeo__\u2026\` — same tools, same switches. It is a few seconds slower to first token because a process starts per answer, and its usage counts against the user's Claude plan limits.
+**Which model is answering** — Settings → AI Assistant → Provider & model. Cloud providers (Anthropic, OpenAI, Gemini) take an API key; local servers (Ollama, LM Studio, llama.cpp and friends) take a URL. There is also **Claude subscription (Claude Code)**, which takes neither: ouRGeo runs the \`claude\` command-line tool the user installed and signed in to, so the answer comes from their Claude plan rather than an API balance and ouRGeo never sees a credential. It needs Claude Code installed and \`claude auth login\` run once; the settings row shows which binary was found and who it is signed in as. On that provider your tools arrive over MCP and are listed as \`mcp__ourgeo__\u2026\` — same tools, same switches. It is a few seconds slower to first token because a process starts per answer, and its usage counts against the user's Claude plan limits.
 
-**OpenAI subscription (ChatGPT)** is another provider in Settings → AI Assistant. Continue with ChatGPT opens browser authorisation for ouRGeo to use the user's eligible plan and subscription credits. Select an account/workspace and an eligible model; Manage usage and credits opens ChatGPT Settings → Usage. API billing stays a separately selected provider. This OpenAI flow is in preview and account/workspace eligibility applies. The existing tool switches and permission tiers still apply. Tokens remain in the main process, are saved only with a secure OS keyring, and never enter a project. Voice transcription uses its own configured service. If ChatGPT completes without a final answer or the stream ends early, the panel shows an error and keeps any partial text. Retry or select another eligible model in Settings → AI Assistant; request IDs, when supplied, help diagnose provider failures.
+**OpenAI subscription (ChatGPT)** is another provider in Settings → AI Assistant → Provider & model. Continue with ChatGPT opens browser authorisation for ouRGeo to use the user's eligible plan and subscription credits. Select an account/workspace and an eligible model; Manage usage and credits opens ChatGPT Settings → Usage. API billing stays a separately selected provider. This OpenAI flow is in preview and account/workspace eligibility applies. The existing tool switches and permission tiers still apply. Tokens remain in the main process, are saved only with a secure OS keyring, and never enter a project. Voice transcription uses its own configured service. If ChatGPT completes without a final answer or the stream ends early, the panel shows an error and keeps any partial text. Retry or select another eligible model in Settings → AI Assistant → Provider & model; request IDs, when supplied, help diagnose provider failures.
 
 **Chats belong to the project** — the AI panel keeps many conversations, not one. The header shows how many (\`ai.chatSwitcher\`); the switcher lists them with their titles, sizes and the model each was held with, and \`+\` starts another without touching the ones already there. In a saved project they are kept with it and travel inside the \`.ourgeoproj\`; in the scratch workspace they last until the user quits \u2014 so if a conversation is worth keeping, the answer is to save the session as a project. Each remembers the provider and model it was held with, and switching back restores it. **You can read them but not move between them**: \`chat:list\` and \`chat:read\` are yours; switching, renaming and deleting are the user's, from that switcher. Use \`chat:read\` when the user refers to something decided in an earlier conversation — it is in this project and nowhere else.
 
@@ -148,10 +148,10 @@ A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:mark
 
   toolbox: `# The Toolbox
 
-88 tools in seven categories:
+94 tools in seven categories:
 
 - **Table Operations** (11) — filter, select, mutate, slice, distinct, rename and friends.
-- **Joins & Combine** (2) — stacking and joining datasets.
+- **Joins & Combine** (8) — stacking and joining datasets.
 - **Aggregate & Reshape** (5) — group summaries and pivoting.
 - **Type & String** (8) — type conversion and text handling.
 - **Spatial — sf** (17) — geometry operations through the sf package.
@@ -168,15 +168,19 @@ A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:mark
 
 **Data checks.** The Data Viewer header opens read-only inspection of vector geometry, fields, identities and CRS. Controlled buffer, distance/area/length, overlay/intersection, spatial filter/join, attribute join and group-summary tools preflight in R before execution; the assistant uses the same enforced path. A blocked or incomplete check cannot be acknowledged away. Only the user's native Desktop review grants consequential consent. Do not manufacture acknowledgment values. Assignment records a known-coordinate metadata assumption on a copy; transformation changes coordinates from a known source CRS. Native geographic measurements use S2 metric units; no projection is inferred and degrees are never metres. International and US survey feet are separate units. Analytical curved/Z/M inputs may be blocked; no automatic repair or flattening occurs. Materialise a pipeline before checking its result.
 
+**Checked code and results.** Before validation, **Data Check Code** shows a read-only R list request. **Check data** resolves the actual method/CRS and supplies the backend's **Code Preview**; **Check and run** validates, obtains any required native review, and records readable \`dq_run\` R with its fingerprint and approved choices. SF tables open as sf; area/distance measurements open as unit-bearing vectors. Native sfc/geos geometry vectors remain in Environment. If geographic checks report a broken S2 loader, use **Settings → Health check** to repair s2 and restart R; do not bypass the checks or infer a replacement CRS.
+
 **Join and summary choices.** Specify the expected relationship and suffixes; exact typed join keys preserve case/whitespace/leading zeros, with blank/missing keys non-matching. Expansion needs a review. Missing/non-finite summary values default to blocking; deliberate propagate/omit policies record counts and denominators. Exclusions require explicit source rows and a reason. Source edits, changed selections or parameters invalidate permission. Actual checked R and local validation records accompany results. Requested import reprojection preserves a native copy and reviews the derived transformation.
 
-**Scope limits.** Raster validation and scientific certification are outside V1. No controlled vector-file GeoPackage/GeoJSON exporter or publication bridge exists here; their validation contracts report blocked missing integration. Driver availability does not establish preservation. User-authored R is outside the controlled-handler guarantee. The first-run installation health check remains separate. Data checks need no account, LLM or network.
+**Scope limits.** Raster validation and scientific certification are outside V1. Checked GeoPackage/GeoJSON file export is available through the Data Viewer Export layer dialog or \`data:exportVector\`. No Server publication bridge exists. Driver availability alone does not establish preservation. User-authored R is outside the controlled-handler guarantee. The first-run installation health check remains separate. Data checks need no account, LLM or network.
 
 Raster tools skip the Data Viewer, because a SpatRaster is not tabular. Zonal Statistics summarises raster values inside polygons; Export Raster to File writes GeoTIFF or COG.`,
 
   'data-import': `# Getting data in
 
 **Load Data** (toolbar) imports a file. The format is detected from the extension and the options change to match: delimited text (CSV, TSV, TXT), spreadsheets (Excel, ODS), columnar and binary (Parquet, Feather, JSON), statistical (SAS, SPSS, Stata), vector spatial (Shapefile, GeoJSON, KML, GeoPackage, any OGR format), and raster (GeoTIFF, NetCDF, JPEG2000, any GDAL format). Options cover delimiter, encoding, sheet, CRS override and reprojection. The AI action is \`data:load\`, and it emits the same code.
+
+**Export vector layer** in a spatial Data Viewer saves GeoPackage or RFC 7946 GeoJSON. The action is \`data:exportVector\` with an explicit local path, format (gpkg/geojson), layer and mode (new/add/replace); it never opens a file picker. The same R preflight, native user review and staged readback protect both paths. Do not manufacture approvals or fall back to raw R when blocked. GeoPackage preserves tested native CRS, scalar fields, curves and Z/M; add/replace modifies one named layer of a closed vector-only container. GeoJSON explicitly transforms a copy to WGS84 longitude/latitude, records decimal precision (default15, 0–15), blocks curves/M/dateline ambiguity and retains Z only from declared WGS84 ellipsoidal altitude in metres (4979). Unsupported rich fields block; omitFields/textFields select specific comma-separated fields with native approval. Imported source paths, SQLite journal/WAL companions, stale revisions and unsupported readback block publication. Readback compares all rows, fields, dimensions/ordinates and unrelated vector layers. Source objects/files remain intact; arbitrary user-authored R is outside this controlled guarantee.
 
 **Create data object** builds a data frame, matrix or vector by hand — good for lookup tables.
 
@@ -255,15 +259,22 @@ their delivery state, the assistant destination and estimated prompt size. Repor
 input/output/cache/reasoning usage is separate; missing counters and monetary
 costs remain unknown. Failed or cancelled requests retain available receipts on
 their originating turn or partial answer. CLI run totals do not establish internal
-invocation occupancy. Cached/reasoning breakdowns are provider-specific and must
+invocation occupancy. Protected numeric receipts retain the original project after
+a workspace switch; unavailable counters and host-restart gaps remain unknown. Cached/reasoning breakdowns are provider-specific and must
 not be double-counted. Conversation only means no
 auxiliary sources were selected. Cancelled delivery can be uncertain. Effort sets
 retrieval depth, not permissions. Web off disables web tools, not the configured
 assistant connection.
 
+Memory Library is available below the conversation and in Settings → AI Assistant → Memory Library. Its Add a memory form saves a personal preference or project instruction locally without running a model. Project memories require a saved project and a subsequent project save. Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced are separate settings pages. Workspace column privacy offers Refresh workspace objects and loads uncached in-memory data-frame column names when selected.
+
+Use Browse current context sources in the inspector to search current descriptions
+and filter available/excluded sources. Browsing reads metadata, without source
+bodies. Available means searchable, rather than selected or sent for this answer.
 Exclude a source in the inspector; saved-project and reference choices persist
-on this device. Context & memory lists exclusions with Allow again. Scratch
-choices are transient. Exclusions omit older assistant prose from future prompts
+on this device. Settings → AI Assistant → Privacy & sources lists exclusions with Allow again. Scratch
+choices are transient. Refreshing an authorised context folder withdraws its old
+descriptions and readers until a new catalogue is available. Exclusions omit older assistant prose from future prompts
 while preserving user messages, and pause generic assistant execution that could
 bypass a private-source filter. Direct GUI/R use remains available. A source
 excluded locally may already have been transmitted; exclusion cannot unsend it.
@@ -289,13 +300,47 @@ derives the statement and scope. context_forget requires a specific authorised
 memory; ambiguous/broad requests go to the library for review. Source text cannot
 supply memory intent. Forgetting excludes future retrieval and suppresses learning
 from the same old evidence, but cannot erase already transmitted bytes or backups.
+Local cache cleanup failures have durable receipts and bounded restart retries.
+Settings → AI Assistant → Storage & recovery shows current-scope pending/needs-attention counts. Restore private
+runtime directory access and use Retry local cleanup; this does not reconnect a
+remote service, run native code or re-enable a forgotten memory.
 Deleting a chat also forgets memories supported solely by that chat. The review
 can retain independently edited or pinned records; shared/manual memories remain.
 Storage failures keep the chat reviewable. Restore unavailable protected storage
 before deleting non-empty chats so their derived memories are not orphaned.
 
-Settings → AI Assistant → Context & memory offers remember-only, suggestions and
-opt-in automatic learning for narrow user-declared preferences/decisions. Suggestions
+The composer’s Attach context control stages up to three layer schemas, console
+executions or current document sections; current authorised content is read on send.
+Line ranges support large buffers with a 1 MB selected-span ceiling. Workspace
+column privacy hides selected schema fields and pauses other private-source reads
+and assistant execution. Saved-project column choices persist privately on this
+device; scratch choices are temporary. Choose folders explicitly for bounded text
+indexing and refresh after changes. The inspector can browse current available and
+excluded source descriptions without reading bodies. Backup controls verify encrypted
+backups; recovered preferences require review. Review transcript copies to forget
+lets users select complete messages in currently loaded chats; project removals
+commit on save. Earlier exports/backups and independent assistant retention remain.
+Usage totals show
+available scoped token receipts and price-based estimates, not provider invoices. Load
+protected usage totals explicitly for content-free receipts recorded on this device
+since activation; they survive chat deletion/restart and exclude earlier activity,
+exports and background/provider charges. Optional estimated daily/monthly chat
+budgets use user-reviewed model rates and commit input/output reservations before
+each request, tool follow-up and retry. Interrupted reservations survive restart;
+missing counters remain unknown. Rates expire after 30 days. Budgets cover this
+device across projects, block opaque subscription processing while enabled, and
+are separate from provider invoice caps and memory-maintenance budgets.
+Diagnostic evidence expires after the selected 1–7 days; token receipts remain
+without excerpts. Unaccepted suggestions expire after 30 days. Inferred preferences
+receive a review marker after 180 days; explicit preferences remain until changed.
+
+Settings → AI Assistant → Budgets includes estimated daily/monthly
+memory-maintenance budgets, separate from chat inference.
+Paid background processing is off by default. Budget settings do not activate a
+provider, widen processing permissions or guarantee an invoice cap. Unknown or
+cancelled paid charges remain reserved until their receipts are reconciled.
+Learning offers remember-only, suggestions and opt-in automatic learning for
+narrow user-declared preferences/decisions. Suggestions
 are not retrieved until accepted. Scratch learning needs a separate opt-in. No paid
 extractor or mandatory model download runs. Always apply pins have a visible recurring
 token cost and a separate 1,200-token card limit; oversized pins are never silently
@@ -307,10 +352,18 @@ without sending chat or memory content. Disconnect revokes tests and removes loc
 authentication; removing disconnected settings does not erase remote copies.
 Reachability does not certify isolation, deletion or processing destinations.
 Linux x86_64 offers explicitly acknowledged experimental managed-runtime staging
-with synthetic health checks and cancellation. It does not enable personal memory.
-Provider retrieval/ingestion remain unavailable pending certification.
-Do not promise automatic provider writes, offline runtime
-certification, precise provider-held occupancy or a hard invoice cap.
+with synthetic health checks and cancellation. Separate native approval can
+activate future committed memory updates for About you or this saved project.
+Existing memories are not imported automatically. This experimental lexical
+profile has Linux offline/deletion fixture evidence, native machine access and
+a readable derived SQLite index. Pause updates or disconnect in Settings.
+Approved managed-local recall ranks current canonical memories through context_search;
+stale or offline indexes use local fallback. Settings offers an explicit selected
+import of existing committed memories. Native review shows scope, count and cost.
+Forgetting also clears managed indexes after disconnect. External deployments
+remain unavailable pending certification.
+Do not promise stable cross-platform certification, precise provider-held
+occupancy or a hard invoice cap.
 `,
 
   projects: `# Projects and persistence
@@ -368,6 +421,8 @@ Databases connected in a project are reopened and rebound when the project loads
 
 **Health check.** Open Settings → Health check to diagnose R, packages, system resources and AI configuration. The first-launch invitation is dismissible. Installs, repairs and model downloads require approval; testing a cloud or subscription model asks before using credits or plan allowance. The check saves a summary and offers local Qwen models suited to the available memory and storage.
 
+**S2 geometry health and repair.** The package step tests spherical distance and three 100-metre point buffers, including validity and containment, independently of sf. A failed engine check shows the underlying loader/geometry error and makes s2 selectable for repair. Windows and macOS reinstall compatible CRAN binaries for the selected R/architecture; Linux rebuilds CRAN source with bundled Abseil and needs a C++17 compiler, make, CMake, pkg-config and OpenSSL headers. Missing system prerequisites have OS-specific instructions; the app does not install them automatically. Source-only macOS R and unavailable Windows/macOS binaries require the shown manual build or CRAN R route. S2 targets the active writable library so a custom R profile cannot hide the replacement behind the broken copy. Save the project before approving a repair that stops R, then reconnect; a fresh R process rechecks the engine.
+
 **"R session not ready" / no connection.** ouRGeo spawns Rscript and reads the port it prints. R or a core package (httpuv, jsonlite, later, httr2) may be missing, outdated or incompatible after an R upgrade. The health check works independently of the backend and can repair these packages and their dependencies. Save the project before approving a repair that stops R, then reconnect. Running \`Rscript r/server.R\` by hand shows the underlying error if further diagnosis is needed.
 
 **\`object '…' not found\` when knitting.** Knit is a clean session; console objects do not exist in it. The document needs a chunk that loads or builds the object.
@@ -397,6 +452,8 @@ They are independent, and the separation is the whole design.
 | **App theme** | the interface: every panel, button, border and label; the editor's background; the artwork behind the code; the map's default basemap | \`ui:theme\` |
 | **Code theme** | syntax colours only — R in .R files, and every embedded language in an .Rmd chunk | \`ui:codeTheme\` |
 | **Markdown theme** | prose colours only — headings, links, quotes, inline code, in Source and Visual mode | \`ui:markdownTheme\` |
+
+The painted app themes appear first in Settings → Appearance. Original looks remain selectable in the **Legacy themes** section, collapsed by default, using ids such as \`legacy-heaven\`.
 
 **A code or markdown theme carries token colours and NOTHING else.** It has no background of its own; the surface the text sits on belongs to the app theme. So switching a syntax palette can never move the editor background or the scene art, and a palette is only legible in combination with some app theme's surface — which is why \`theme:inspect\` reports contrast against the app theme currently in use.
 
@@ -897,7 +954,7 @@ export function registerPluginTopics(
 const TOPIC_SUMMARIES: Record<string, string> = {
     'context-memory': 'selective retrieval, context inspector, effort, scoped memory, learning controls and forgetting',
     interface: 'panels, toolbar, editor, console, viewers, settings',
-    toolbox: 'the 88 geoprocessing tools, piping, Linearize and Calculation CRS',
+    toolbox: 'the 94 geoprocessing tools, piping, Linearize and Calculation CRS',
     'data-import': 'Load Data, the Data Connector and its providers, .Rgeo',
     maps: 'layers, symbology, labels, selection, legend, export',
     drawing: 'edit mode, the ten tools, curves, distance & bearing, snapping, staged edits',
@@ -914,8 +971,22 @@ const TOPIC_SUMMARIES: Record<string, string> = {
     'plugin-code': 'when a plugin needs real code, and the rules it runs under',
     layout: 'the four zones, moving and sizing panels, the toolbar, presets',
 }
+// Discovery aliases live outside prompt bodies. The older keyword router can
+// prefetch "palette", yet lexical discovery found no theme because its summary
+// never said palette. Keep workflow vocabulary and language aliases in the same
+// metadata used by both discovery and declarative prefetch, not a larger prompt.
+const TOPIC_CONTEXT: Record<string, { triggers: string[]; exclusions: string[] }> = {
+  themes: {
+    triggers: ['theme', 'palette', 'colour scheme', 'color scheme', 'appearance', 'syntax highlighting', 'interface colours', 'interface colors', 'high contrast', 'dark background', 'darker background', 'autumnal look', 'thème', 'couleurs automnales', 'tema de colores', 'colores otoñales', 'apariencia de la aplicación'],
+    exclusions: ['general explanation of colour theory', 'explain colour theory'],
+  },
+  documents: {
+    triggers: ['knit', 'rmarkdown', 'r markdown', 'markdown', 'notebook', 'reproducible report', 'write up', 'code chunk', 'fenced r chunk', 'render to pdf', 'knitr', 'informe reproducible', 'document r markdown', 'rapport reproductible', 'compilar informe'],
+    exclusions: ['general explanation of pdf files'],
+  },
+}
 export function topicDescriptors(): { topic: string; summary: string; triggers: string[]; exclusions: string[]; version: string }[] {
-  return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin' }))
+  return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? TOPIC_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? TOPIC_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin' }))
 }
 
 /** Topic names, for when the model calls `ourgeo_docs` with nothing. */

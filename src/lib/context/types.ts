@@ -2,6 +2,7 @@ export type ContextKind = 'skill' | 'action' | 'environment' | 'console' | 'docu
 export type ContextScope = 'conversation' | 'project' | 'global' | 'application' | 'workspace'
 export type ContextEffort = 'efficient' | 'balanced' | 'thorough'
 export type ContextError = 'STALE_REFERENCE' | 'SOURCE_BUSY' | 'SOURCE_UNAVAILABLE' | 'BUDGET_LIMIT' | 'SCOPE_CHANGED' | 'PROVIDER_OFFLINE'
+export interface DocumentRange { startLine: number; endLine: number }
 
 export interface ContextIdentity {
   chatId: string
@@ -24,6 +25,8 @@ export interface ContextSource {
   resource?: { environment: string; name: string }
   group?: string
   read: (signal?: AbortSignal) => Promise<string> | string
+  /** Open buffers can slice a bounded span without copying the whole document. */
+  readRange?: (range: DocumentRange, signal?: AbortSignal) => Promise<string> | string
 }
 
 export interface ContextEvidence {
@@ -42,6 +45,8 @@ export interface ContextEvidence {
 
 export interface ContextTrace {
   turnId: string
+  recordedAt?: number
+  evidenceExpired?: true
   identity: ContextIdentity
   target: string
   state: 'prepared' | 'sent' | 'acknowledged' | 'uncertain'
@@ -70,12 +75,28 @@ export interface MemoryRecord {
   lineage?: string
   pinned?: boolean
   editedAt?: string
+  expiresAt?: string
+  candidateSince?: string
+  lastSupportedAt?: string
 }
 
 export interface ProjectContext {
   version: 1
   revision: number
   memories: MemoryRecord[]
+}
+
+export interface MemoryForgetReceipt {
+  local: 'excluded'
+  managed: 'removed' | 'pending'
+  recovery?: string
+}
+
+/** Content-free local cleanup status. Remote deletion has a separate ledger. */
+export interface MemoryCleanupStatus {
+  pending: number
+  needsReview: number
+  nextAttemptAt: string | null
 }
 
 export interface MemoryDeletion {

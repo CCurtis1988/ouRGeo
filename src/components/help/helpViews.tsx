@@ -301,7 +301,9 @@ export function OurGeoPanelView({ panel }: { panel: OurGeoPanel }) {
         <p>
           Installing puts a package on your computer, but you also need to <em>load</em> it each
           session to use it. Click <strong>Load</strong> next to a package to run{' '}
-          <code>library(packageName)</code>. A green indicator means it is currently loaded.
+          <code>library("packageName", lib.loc = "library/path")</code>. Only the selected copy
+          is marked loaded. Selecting another copy unloads the current version first. If another
+          package prevents unloading, the console explains why the switch could not complete.
         </p>
         <h4>Unloading and updating</h4>
         <ul>

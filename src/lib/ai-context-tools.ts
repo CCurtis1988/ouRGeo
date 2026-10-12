@@ -15,7 +15,7 @@ export const CONTEXT_TOOL_NAMES = new Set(CONTEXT_TOOLS.map(t => t.name))
 export async function runContextTool(broker: ContextBroker, name: string, input: Record<string, unknown>, userText: string, messageId?: string): Promise<string> {
   try {
     broker.validateSend()
-    if (name === 'context_search') return broker.search(input)
+    if (name === 'context_search') return await broker.searchWithMemory(input)
     if (name === 'context_read') return await broker.read(input)
     // Retrieved prose cannot supply intent for a write. Automatic learning is
     // not enabled here; explicit requests remain useful without an extractor.
@@ -37,8 +37,8 @@ export async function runContextTool(broker: ContextBroker, name: string, input:
       const result = JSON.parse(await broker.read(input))
       if (result.kind !== 'memory' || result.status !== 'ok') return JSON.stringify({ status: 'SOURCE_UNAVAILABLE' })
       if (result.sourceId !== `memory:${selected.id}`) return JSON.stringify({ status: 'rejected', recovery: 'This reference does not match the user’s forget request. Search for the specified memory.' })
-      await useContextStore.getState().forget(result.sourceId.replace(/^memory:/, ''))
-      return JSON.stringify({ status: 'forgotten', local: 'excluded', remote: 'not-configured', recovery: 'Already transmitted content and older exported copies cannot be recalled.' })
+      const receipt = await useContextStore.getState().forget(result.sourceId.replace(/^memory:/, ''))
+      return JSON.stringify({ status: 'forgotten', local: 'excluded', managed: receipt?.managed ?? 'unknown', recovery: receipt?.recovery ?? 'Already transmitted content and older exported copies cannot be recalled.' })
     }
     return JSON.stringify({ status: 'SOURCE_UNAVAILABLE' })
   } catch (error) {

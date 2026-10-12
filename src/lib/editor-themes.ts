@@ -401,10 +401,10 @@ const byId = <T extends { id: string }>(xs: T[]): Record<string, T> =>
   Object.fromEntries(xs.map((x) => [x.id, x]))
 
 const BUILTIN_CODE: Record<string, SyntaxPalette> = byId([
-  ...BUILTIN_THEME_LIST.map(portCode), ...EXTRA_CODE,
+  ...BUILTIN_THEME_LIST.filter(theme => !theme.legacy).map(portCode), ...EXTRA_CODE,
 ])
 const BUILTIN_MD: Record<string, MarkdownPalette> = byId([
-  ...BUILTIN_THEME_LIST.map(portMarkdown), ...EXTRA_MARKDOWN,
+  ...BUILTIN_THEME_LIST.filter(theme => !theme.legacy).map(portMarkdown), ...EXTRA_MARKDOWN,
 ])
 
 /** The palettes ouRGeo ships. Never mutated. */

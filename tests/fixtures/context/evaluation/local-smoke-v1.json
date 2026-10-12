@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "id": "ourgeo-context-local-smoke-v1",
+  "sourceFixture": "v1.json",
+  "taskIds": [
+    "t01",
+    "t05",
+    "t07",
+    "t08",
+    "t18",
+    "t19"
+  ],
+  "workspace": {
+    "activeLayer": {
+      "environment": ".GlobalEnv",
+      "name": "parcels"
+    },
+    "attachmentsByTask": {
+      "t18": [
+        "document:malicious"
+      ]
+    }
+  },
+  "purpose": "Independent synthetic model smoke tasks. Explicit active selection is workspace state, not an answer oracle. No paid model, disk/project sources, R/action execution or user stores. Mechanical checks require source reads for schema/error requests; answer quality still needs reviewer inspection."
+}

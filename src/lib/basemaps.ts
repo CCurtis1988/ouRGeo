@@ -531,7 +531,8 @@ export const THEME_DEFAULT_BASEMAPS: Record<string, string> = {
 export function themeDefaultBasemap(themeId: string): string {
   const custom = THEMES[themeId]?.defaultBasemap
   if (custom && custom in BASEMAPS_BY_ID) return custom
-  return THEME_DEFAULT_BASEMAPS[themeId] ?? 'carto-dark-matter'
+  const original = THEMES[themeId]?.legacy ? THEMES[themeId].basedOn ?? themeId : themeId
+  return THEME_DEFAULT_BASEMAPS[original] ?? 'carto-dark-matter'
 }
 
 /** Returns a MapLibre style URL string or an inline style object. */

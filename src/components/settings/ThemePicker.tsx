@@ -56,17 +56,24 @@ export function ThemePicker(): React.ReactElement {
     [themes, revision],
   )
 
-  return (
+  const cards = (items: ThemeDef[]): React.ReactElement => (
     <div className="grid grid-cols-3 gap-2">
-      {themes.map((theme) => (
-        <ThemeCard
-          key={theme.id}
-          theme={theme}
-          art={art[theme.id]}
-          selected={current === theme.id}
-          onSelect={setTheme}
-        />
+      {items.map((theme) => (
+        <ThemeCard key={theme.id} theme={theme} art={art[theme.id]}
+          selected={current === theme.id} onSelect={setTheme} />
       ))}
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      {cards(themes.filter(theme => !theme.legacy))}
+      <details className="rounded-lg border border-geo-border p-2">
+        <summary className="cursor-pointer text-xs text-geo-muted hover:text-foreground">
+          Legacy themes
+        </summary>
+        <div className="mt-2">{cards(themes.filter(theme => theme.legacy))}</div>
+      </details>
     </div>
   )
 }

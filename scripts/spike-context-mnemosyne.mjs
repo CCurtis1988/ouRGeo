@@ -14,8 +14,8 @@ if (process.platform !== 'linux' || process.arch !== 'x64') throw new Error('Thi
 const cache = join(root, '.cache', 'context-runtime')
 await mkdir(cache, { recursive: true, mode: 0o700 })
 const bundle = join(cache, 'spike-runtime.mjs')
-await build({ stdin: { contents: 'export * from "./electron/main/context/runtime-archive"; export * from "./electron/main/context/runtime-catalogue"; export * from "./electron/main/context/runtimes"; export * from "./electron/main/context/providers/managed-mnemosyne";', resolveDir: root }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: bundle })
-const { MNEMOSYNE_LOCAL_CANDIDATE: candidate, unpackRuntimeArchive, MemoryRuntime, mnemosyneEnvironment, createManagedMnemosyne } = await import(pathToFileURL(bundle).href)
+await build({ stdin: { contents: 'export * from "./electron/main/context/runtime-archive"; export * from "./electron/main/context/runtime-catalogue"; export * from "./electron/main/context/runtimes"; export * from "./electron/main/context/providers/managed-mnemosyne"; export { runProviderConformance } from "./src/lib/context/providers/conformance";', resolveDir: root }, bundle: true, platform: 'node', format: 'esm', packages: 'external', outfile: bundle })
+const { MNEMOSYNE_LOCAL_CANDIDATE: candidate, unpackRuntimeArchive, MemoryRuntime, mnemosyneEnvironment, createManagedMnemosyne, runProviderConformance } = await import(pathToFileURL(bundle).href)
 const directory = await mkdtemp(join(tmpdir(), 'ourgeo-mnemosyne-spike-'))
 // Optional OS observation runs only against the freshly unpacked private
 // runtime and synthetic records. A positive control prevents an empty/broken
@@ -63,7 +63,7 @@ const runtime = new MemoryRuntime({ executable, arguments: ['-I', '-S', join(roo
 const namespace = randomUUID(), unrelated = randomUUID(), canonicalId = randomUUID(), removedId = randomUUID()
 const host = { namespace, signal: new AbortController().signal, authorised: () => true, timeoutMs: 30000, policyRevision: 1, maxTokens: 2000, maxResults: 5, idempotencyKey: randomUUID(), paidProcessingAllowed: false }
 const entries = [canonicalId, removedId].map(id => ({ id, revision: 1, text: 'SYNTHETIC_BRIDGE_DECISION: use EPSG:27700 for parcel buffers.', updatedAt: '2026-10-07T00:00:00Z' }))
-let supervised
+let supervised, conformance, derivativeAudit
 try {
   await runtime.request({ operation: 'replace', namespace, generation: 1, records: entries }, host)
   const adapter = createManagedMnemosyne(candidate.id, runtime)
@@ -114,6 +114,32 @@ try {
   assert.equal((await provider.dispatch({ operation: 'delete', ids: [canonicalId] }, host)).status, 'ok')
   assert.deepEqual((await provider.dispatch({ operation: 'read', id: canonicalId }, host)).evidence, [])
   assert.equal((await provider.dispatch({ operation: 'read', id: removedId }, host)).evidence[0].canonicalId, removedId)
+  const snapshots = new Map()
+  const fixtureIds = new Set([canonicalId])
+  const scopedProvider = createManagedMnemosyne(candidate.id, runtime, {
+    snapshot: async namespace => { const snapshot = snapshots.get(namespace); assert(snapshot); return snapshot },
+    current: async snapshot => snapshots.get(snapshot.namespace)?.generation === snapshot.generation,
+  })
+  const fixtureScope = (projectId) => {
+    const namespace = randomUUID()
+    snapshots.set(namespace, { namespace, generation: 1, records: [] })
+    return { isolatedFixture: true, ...(projectId ? { projectId } : {}), provider: scopedProvider,
+      host: idempotencyKey => ({ ...host, namespace, idempotencyKey }),
+      commitCanonical: async records => { for (const record of records) fixtureIds.add(record.id); const previous = snapshots.get(namespace); snapshots.set(namespace, { namespace, generation: previous.generation + 1, records }) },
+    }
+  }
+  conformance = await runProviderConformance({ writesAcknowledged: true, scopes: { first: fixtureScope(), second: fixtureScope(randomUUID()) } })
+  assert.deepEqual(conformance.checks.filter(check => check.status === 'failed'), [], 'Managed adapter conformance checks failed.')
+  assert.equal(conformance.checks.filter(check => check.status === 'passed').length, 10)
+  await runtime.stop()
+  const remainingFiles = await readdir(bridgeData)
+  assert(!remainingFiles.some(name => name.startsWith('.rebuild-') || name.endsWith('-wal') || name.endsWith('-shm') || name.endsWith('-journal')), 'A derived temporary/WAL copy survived shutdown.')
+  for (const name of remainingFiles) {
+    const payload = await readFile(join(bridgeData, name))
+    for (const id of fixtureIds) assert(!payload.includes(Buffer.from(id)), 'A forgotten source ID survived in a derived store file.')
+    assert.equal((await stat(join(bridgeData, name))).mode & 0o077, 0, 'A private runtime store file has broad permissions.')
+  }
+  derivativeAudit = { mechanism: 'all remaining derived-store bytes and permissions after deletion/rebuild and fixture cleanup', removedSourceIds: fixtureIds.size, filesChecked: remainingFiles.length, residualIds: 0, temporaryCopies: 0, storage: 'readable-sqlite', physicalErasure: 'not-claimed' }
   supervised = { stdio: true, scopeIsolation: true, snapshotRetries: true, correction: true, restart: true, interruptedRebuild: true, deletionRebuild: true, canonicalAdapterWrites: true, canonicalAdapterDeletion: true, unrelatedMemoryPreserved: true }
 } finally { await runtime.stop() }
 let networkObservation
@@ -137,6 +163,6 @@ async function bytes(path) {
   for (const entry of await readdir(path, { withFileTypes: true })) total += entry.isDirectory() ? await bytes(join(path, entry.name)) : (await stat(join(path, entry.name))).size
   return total
 }
-const report = { profile: candidate.id, certification: 'pending', directory, healthMs: Math.round(performance.now() - start), materialisedBytes: await bytes(directory), supervised, ...(networkObservation ? { networkObservation } : {}), ...result }
+const report = { profile: candidate.id, certification: 'pending', directory, healthMs: Math.round(performance.now() - start), materialisedBytes: await bytes(directory), supervised, conformance, derivativeAudit, ...(networkObservation ? { networkObservation } : {}), ...result }
 await writeFile('/tmp/ourgeo-mnemosyne-spike-report.json', JSON.stringify(report, null, 2))
 console.log(JSON.stringify(report))

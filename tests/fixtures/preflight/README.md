@@ -14,12 +14,12 @@ import previews, and the first-run installation health check. Missing: a shared
 backend data preflight, enforced consent, join-cardinality previews and explicit
 summary missing-value policy. These are the integration targets.
 
-There is no controlled vector-file exporter/publication handler: the only
-`st_write` in the product is the temporary GeoJSON used by map display.
-GeoPackage/GeoJSON export requirements are exposed as a blocked missing
-integration; driver readback/staged publication tests are not advertised as
-executed. Image/R-code export, .RData, .Rgeo and forum documents are different
-workflows. No Desktop-to-Server bridge is added.
+The original 1.16.4 discovery found no controlled vector-file exporter.
+Since 1.16.5, `export.R` exercises the controlled writer, staged readback,
+preservation and failure/rollback cases through `r/lib/vector-export.R`.
+See [the implementation spec](../../../docs/vector-export-spec.md) and
+[actual export coverage and limits](../../../docs/vector-export.md).
+Server publication remains absent; display GeoJSON is a separate path.
 
 Fixtures in `acceptance.R` are synthetic and local. Independent expectations:
 - Projected EPSG:32610 points differ by 3 m and 4 m: Pythagoras gives 5 m.

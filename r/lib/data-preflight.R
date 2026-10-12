@@ -85,6 +85,7 @@ dq_geometry_row <- function(g, crs) {
     if(isTRUE(sf::st_is_longlat(s))) suppressMessages(sf::sf_use_s2(TRUE))
     on.exit(suppressMessages(sf::sf_use_s2(old_s2)),add=TRUE)
     if(isTRUE(sf::st_is_longlat(s)) && !identical(sf::st_crs(s)$units_gdal,'degree')) stop('This geographic validity path requires degree coordinates; transform a copy from its known CRS before checking geometry')
+    if(isTRUE(sf::st_is_longlat(s))) tryCatch(loadNamespace('s2'),error=function(e) stop('Geographic data checks require a working s2 package. Run Settings → Health check and repair s2, then restart R. ',conditionMessage(e),call.=FALSE))
     why <- sf::st_is_valid(s,reason=TRUE,NA_on_exception=TRUE)
     valid <- sf::st_is_valid(s,NA_on_exception=TRUE)
     list(status=if(length(valid)!=1||is.na(valid)) 'uncheckable' else if(valid) 'valid' else 'invalid',
@@ -187,7 +188,9 @@ dq_join_plan <- function(a,b,p) {
       else if(kind %in% c('left','full')) matrix(c(i,NA_integer_),nrow=1) else NULL
   }
   matched_r <- !rb & !is.na(ri) & lc[ifelse(is.na(ri),1,ri)]>0
-  if(kind %in% c('right','full')) pairs <- c(pairs,list(cbind(NA_integer_,which(!matched_r))))
+  # cbind(NA_integer_, integer()) is a one-column matrix, not an empty
+  # two-column pair table. Fully matched right/full joins must append no rows.
+  if(kind %in% c('right','full') && any(!matched_r)) pairs <- c(pairs,list(cbind(NA_integer_,which(!matched_r))))
   pair <- do.call(rbind,pairs); if(is.null(pair)) pair <- matrix(integer(),ncol=2)
   matched_l <- !lb & !is.na(li) & rc[ifelse(is.na(li),1,li)]>0
   list(joinType=kind,leftKey=p$leftkey,rightKey=p$rightkey,keyTypes=list(left=class(l),right=class(r)),leftRows=length(l),rightRows=length(r),
@@ -228,7 +231,10 @@ dq_validate <- function(request, loaded=NULL, profiles=NULL) {
         if(length(dimension_rows)) add('GEO-DIMENSIONS','This V1 analytical path validates XY geometry only. It cannot silently flatten Z/M.',rows=dimension_rows,index=k)
         for(status in c('invalid','empty','uncheckable')) {
           rows <- i$rows[vapply(profile$geometryRows[i$rows],function(g) g$status==status,logical(1))]
-          if(length(rows)) add(paste0('GEO-',toupper(status)),paste(length(rows),status,'geometries cannot enter this spatial operation. No repair or exclusion is automatic.'),rows=rows,index=k,status=if(status=='uncheckable') 'check_failed' else 'blocked')
+          if(length(rows)) {
+            reason <- if(status=='uncheckable') paste(unique(vapply(profile$geometryRows[rows],`[[`,'','reason'))[1],collapse='') else ''
+            add(paste0('GEO-',toupper(status)),paste(length(rows),status,'geometries cannot enter this spatial operation. No repair or exclusion is automatic.',reason),rows=rows,index=k,status=if(status=='uncheckable') 'check_failed' else 'blocked')
+          }
         }
       }
     }
@@ -260,10 +266,14 @@ dq_validate <- function(request, loaded=NULL, profiles=NULL) {
   }
   blocked <- function() any(vapply(issues,function(i) i$severity=='blocked',logical(1)))
   if(op %in% c('export-gpkg','export-geojson')) {
-    plan$exportProfileAndOptions <- list(driver=if(op=='export-gpkg') 'GPKG' else 'GeoJSON',
-      installed=tryCatch(any(sf::st_drivers()$name==if(op=='export-gpkg') 'GPKG' else 'GeoJSON'),error=function(e) FALSE),
-      profile=if(op=='export-geojson') list(RFC7946='YES',coordinateOrder='longitude, latitude',coordinatePrecision=p$precision %||% 7) else list(preserveCurves=TRUE),coverage='requirements only; writer integration absent')
-    add('EXP-INTEGRATION-MISSING','No controlled Desktop vector-file exporter exists for this target. Driver availability is not a preservation check.',status='not_checked',action='Use an independently reviewed R export workflow. Staged write/readback is not implemented here.')
+    if(!blocked()) tryCatch({
+      plan$exportProfileAndOptions<-dq_export_plan(input[[1]],profiles[[1]],p,op,add)
+      plan$workingCRS<-plan$exportProfileAndOptions$destinationCRS
+      plan$method<-'Staged GDAL vector write with complete readback verification'
+      plan$workingCRSDescription<-if(op=='export-geojson') 'WGS 84 longitude/latitude (RFC 7946)' else profiles[[1]]$crs$description
+      plan$inputAndOutputUnits<-list(input=lapply(profiles,function(profile) profile$crs$units),parameter=NULL,output=if(op=='export-geojson') 'degree (Z, if declared, metres)' else profiles[[1]]$crs$units)
+      dq_export_prepare(input[[1]],plan$exportProfileAndOptions)
+    },error=function(e)add('EXP-PROFILE',conditionMessage(e)))
   }
   if(op %in% dq_spatial_ops && !blocked()) {
     tryCatch({
@@ -490,10 +500,29 @@ dq_public <- function(report) {
   report$profiles <- lapply(report$profiles,function(p) {p$geometryRows<-NULL;p$rowIdentities<-NULL;p})
   report
 }
+# Use R's own literal printer: the code is the checked request, with readable
+# parameters rather than an escaped JSON transport envelope. Retain the exact
+# fingerprint and approved choices so editing a request never reuses permission.
+dq_execution_code <- function(request,report) {
+  literal <- paste(deparse(request,width.cutoff=60L,control=c('keepInteger','keepNA','niceNames','showAttributes')),collapse='\n  ')
+  ack <- vapply(report$acknowledgments,`[[`,'','issueCode')
+  call <- paste0('dq_run(\n  request = ',literal,',\n  fingerprint = ',encodeString(report$validationFingerprint,quote='"'),
+    ',\n  acknowledged = ',paste(deparse(ack),collapse=''), '\n)')
+  out <- request$parameters$out %||% 'result'; env <- request$outputEnv %||% '.GlobalEnv'
+  code <- if(env=='.GlobalEnv') paste0(out,' <- ',call) else paste0('assign(',encodeString(out,quote='"'),', ',call,', envir = resolve_env(',encodeString(env,quote='"'),'))')
+  plan <- report$executionPlan
+  if(!is.null(plan$method)) code <- paste0('# Method: ',plan$method,'\n# Working CRS: ',gsub('[\r\n]',' ',plan$workingCRSDescription %||% 'see request'),'\n',
+    if(!is.null(plan$methodSettings)) paste0('# Buffer distance: ',plan$methodSettings$bufferDistance,' ',plan$methodSettings$bufferDistanceUnit,'\n') else '',code)
+  if(request$operationType=='sf-buffer') code <- paste0('# Buffer operation: sf::st_buffer\n',code)
+  if(report$status=='needs_confirmation' && !length(ack)) code <- paste0('# Review the reported choices before execution; approval is still required.\n',code)
+  code
+}
 dq_job_report <- function(job) {
   if(is.null(job$report)) return(list(schemaVersion=1L,operationId=job$id,operationType=job$request$operationType,
     status=job$status,issues=list(),profiles=list(),coverage=list(complete=FALSE,rowsChecked=job$checked,totalRows=job$total),error=job$error))
-  r <- dq_public(job$report);r$operationId<-job$id;r$status<-job$status;r$error<-job$error;r
+  r <- dq_public(job$report);r$operationId<-job$id;r$status<-job$status;r$error<-job$error;r$executionPhase<-job$executionPhase;r$executionResult<-job$executionResult
+  if(job$status %in% c('ready','needs_confirmation') && !job$request$operationType %in% c('inspect','export-gpkg','export-geojson')) r$executionCode <- dq_execution_code(job$request,job$report)
+  r
 }
 dq_start <- function(request) {
   if(!request$operationType %in% c('inspect','export-gpkg','export-geojson') && is.null(request$parameters$out)) request$parameters$out<-'result'
@@ -569,7 +598,7 @@ dq_commit <- function(body) {
   if(j$used||!j$status %in% c('ready','needs_confirmation')) stop('This operation has no current permission to execute')
   if(!identical(body$fingerprint,j$report$validationFingerprint)) stop('Parameters or validation fingerprint changed')
   if(j$status=='needs_confirmation'&&!j$approved) stop('User review is required; caller acknowledgments are not accepted')
-  if(j$request$operationType %in% c('inspect','export-gpkg','export-geojson')) stop('This request has no controlled execution integration')
+  if(j$request$operationType=='inspect') stop('Inspection has no execution integration')
   for(ref in j$request$inputs) {
     key<-dq_key(ref)
     if(!is.null(ref$selectionVersion)) {
@@ -577,19 +606,20 @@ dq_commit <- function(body) {
       if(is.null(current)||!identical(as.numeric(current$version),as.numeric(ref$selectionVersion))) stop('Selection changed. Check again.')
     }
   }
+  if(j$request$operationType %in% c('export-gpkg','export-geojson')) {
+    ack<-vapply(j$report$acknowledgments,`[[`,'','issueCode')
+    return(tryCatch(dq_export_start(j,ack),error=function(e){j$status<-'failed';j$approved<-FALSE;j$error<-conditionMessage(e);stop(e)}))
+  }
   out<-j$request$parameters$out %||% 'result'
   if(!dq_output_name(out)) stop('Choose a simple derived output name; application internals cannot be replaced')
   ack<-vapply(j$report$acknowledgments,`[[`,'','issueCode')
   value<-tryCatch(dq_run(j$request,j$report$validationFingerprint,ack),error=function(e){j$status<-'failed';j$approved<-FALSE;j$error<-conditionMessage(e);stop(e)},interrupt=function(e){j$status<-'cancelled';j$approved<-FALSE;j$error<-'Execution interrupted; no result was assigned';stop(e)})
   # All checks and work happen on copies before the only assignment. Denial,
   # failure and cancellation preserve both the source and previous result.
-  request_json<-jsonlite::toJSON(j$request,auto_unbox=TRUE,null='null',digits=NA)
-  code<-sprintf('%s <- dq_run(jsonlite::fromJSON(%s, simplifyVector = FALSE), fingerprint = %s, acknowledged = c(%s))',
-    out,encodeString(request_json,quote='"'),encodeString(j$report$validationFingerprint,quote='"'),paste(vapply(ack,encodeString,'',quote='"'),collapse=', '))
-  if(!is.null(j$report$executionPlan$method)) code<-paste0('# Actual method: ',j$report$executionPlan$method,'; units: ',jsonlite::toJSON(j$report$executionPlan$inputAndOutputUnits,auto_unbox=TRUE,null='null'),'; settings: ',jsonlite::toJSON(j$report$executionPlan$methodSettings %||% list(),auto_unbox=TRUE,null='null'),'\n',code)
+  code<-dq_execution_code(j$request,j$report)
   assign(out,value,envir=resolve_env(j$request$outputEnv %||% '.GlobalEnv'));j$used<-TRUE
   if(exists('broadcast_env_if_changed',mode='function')) broadcast_env_if_changed()
-  list(success=TRUE,code=code,message='Preflight passed for this operation and input revision.',validation=dq_public(j$report))
+  list(success=TRUE,code=code,outputClass=class(value)[1],message='Preflight passed for this operation and input revision.',validation=dq_public(j$report))
 }
 handle_preflight <- function(action,body) {
   tryCatch({

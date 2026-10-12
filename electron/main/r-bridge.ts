@@ -17,6 +17,7 @@ class RBridge {
   private _startPromise: Promise<void> | null = null
   private _customPath: string | null = null
   private _stopping = false
+  private _shouldRun = false
 
   onUnexpectedExit?: () => void
 
@@ -26,6 +27,12 @@ class RBridge {
 
   get isReady(): boolean {
     return this._isReady
+  }
+
+  // Readiness is false both for a dead process and during an intentional repair
+  // stop/start. Wake recovery must restart only a process we still want running.
+  get shouldRestart(): boolean {
+    return this._shouldRun && this.process === null
   }
 
   get currentPath(): string {
@@ -61,6 +68,7 @@ class RBridge {
 
   start(): Promise<void> {
     if (this._startPromise) return this._startPromise
+    this._shouldRun = true
 
     this._startPromise = new Promise<void>((resolve, reject) => {
       const rscript = this.getRScriptPath()
@@ -175,6 +183,7 @@ class RBridge {
   }
 
   stop(): void {
+    this._shouldRun = false
     if (this.process) {
       this._stopping = true
       console.log('[RBridge] Stopping R process')

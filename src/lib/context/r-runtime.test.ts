@@ -24,12 +24,15 @@ it('loads the schema handler in the actual R server and distinguishes same-name 
       const response = await fetch(`http://127.0.0.1:${port}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000) })
       return response.json()
     }
-    expect(await post('/r/execute', { code: 'roads <- data.frame(income = c(12, 23)); study <- new.env(); study$roads <- data.frame(length_m = 10)' })).toMatchObject({ success: true })
+    expect(await post('/r/execute', { code: 'roads <- data.frame(income = c(912345678, 923456789)); study <- new.env(); study$roads <- data.frame(length_m = 10)' })).toMatchObject({ success: true })
     const global = await post('/context/schema', { name: 'roads', envName: '.GlobalEnv' })
     const study = await post('/context/schema', { name: 'roads', envName: 'study' })
     expect(global).toMatchObject({ success: true, columns: [{ name: 'income' }] })
     expect(study).toMatchObject({ success: true, columns: [{ name: 'length_m' }] })
-    expect(JSON.stringify(global)).not.toContain('23')
+    // Short values such as 23 also occur in the UTC observation timestamp.
+    expect(JSON.stringify(global)).not.toContain('912345678')
+    expect(JSON.stringify(global)).not.toContain('923456789')
+    expect(global.columns).toEqual([{ name: 'income', type: 'double', typeCompleteness: 'complete', units: null }])
     expect(await post('/r/execute', { code: 'makeActiveBinding("danger", function() stop("binding evaluated"), .GlobalEnv)' })).toMatchObject({ success: true })
     expect(await post('/context/schema', { name: 'danger', envName: '.GlobalEnv' })).toMatchObject({ success: false, error: expect.stringContaining('active or lazy binding') })
   } finally {

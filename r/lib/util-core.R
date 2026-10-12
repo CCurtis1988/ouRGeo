@@ -86,7 +86,11 @@ options_response <- function() {
       "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers" = "Content-Type"
     ),
-    body = ""
+    # An empty string is still a body to httpuv: with Accept-Encoding: gzip it
+    # emits a compressed chunk after this 204. Chromium leaves those forbidden
+    # bytes on the keep-alive connection and rejects the next preflight POST as
+    # ERR_INVALID_HTTP_RESPONSE (Axios reports only "Network Error").
+    body = NULL
   )
 }
 

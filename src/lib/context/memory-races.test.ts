@@ -12,6 +12,15 @@ let tracking: (() => void) | undefined
 afterEach(() => { tracking?.(); tracking = undefined })
 const now = new Date().toISOString()
 const memory = (): MemoryRecord => ({ id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'preference', statement: 'Prefer metric units', evidence: [], assertion: 'user-declared', createdAt: now, updatedAt: now, status: 'active', supersedes: [] })
+it('does not turn evidence expiry into a project edit but still detects changed user instructions', () => {
+  const chat = makeChat('ollama', 'fixture')
+  const message = { id: crypto.randomUUID(), role: 'user' as const, content: 'Keep exact units.', timestamp: Date.now() }
+  chat.messages = [message]
+  const metadata = { ...chat, messages: [{ ...message, contextTrace: undefined }] }
+  expect(chatContentChanged([metadata], [chat])).toBe(false)
+  expect(chatContentChanged([{ ...chat, messages: [{ ...message, content: 'Use feet.' }] }], [chat])).toBe(true)
+  expect(chatContentChanged([{ ...chat, messages: [{ ...message, timestamp: message.timestamp + 1 }] }], [chat])).toBe(true)
+})
 beforeEach(() => {
   vi.stubGlobal('window', { electronAPI: { context: { forget, stageProject, saveGlobal, listGlobal } } })
   forget.mockReset().mockResolvedValue(undefined)
@@ -116,4 +125,15 @@ it('rechecks an absent store instead of trusting the startup snapshot for deleti
   await expect(useContextStore.getState().deleteConversation(chat.id)).rejects.toThrow('Restore protected memory storage')
   expect(status).toHaveBeenCalledOnce()
   expect(useAiStore.getState().chats[0].id).toBe(chat.id)
+})
+
+it('excludes committed forgotten memory and resets provider history even while managed cache cleanup is pending', async () => {
+  const global = memory()
+  useContextStore.setState({ globals: [global] })
+  forget.mockResolvedValue({ local: 'excluded', managed: 'pending', recovery: 'Restore private directory access.' })
+  const receipt = await useContextStore.getState().forget(global.id)
+  expect(receipt?.managed).toBe('pending')
+  expect(useContextStore.getState().globals).toEqual([])
+  expect(useContextStore.getState().notice).toContain('Restore private directory access')
+  expect(useAiStore.getState().chats[0].claudeSessionId).toBeNull()
 })

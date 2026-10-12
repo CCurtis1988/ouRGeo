@@ -19,10 +19,11 @@ export function validateProjectContext(input: unknown, projectId: string | null)
         || !Array.isArray(m.supersedes) || m.supersedes.length > 32 || !m.supersedes.every(canonicalId)
         || (m.lineage !== undefined && !canonicalId(m.lineage))
         || (m.editedAt !== undefined && (typeof m.editedAt !== 'string' || m.editedAt.length > 64 || !Number.isFinite(Date.parse(m.editedAt))))
+        || [m.expiresAt, m.lastSupportedAt, m.candidateSince].some(value => value !== undefined && (typeof value !== 'string' || value.length > 64 || !Number.isFinite(Date.parse(value))))
         || typeof m.createdAt !== 'string' || m.createdAt.length > 64 || !Number.isFinite(Date.parse(m.createdAt)) || typeof m.updatedAt !== 'string' || m.updatedAt.length > 64 || !Number.isFinite(Date.parse(m.updatedAt))) return false
     seen.add(m.id)
     return true
-  }).map(m => ({ id: m.id, revision: m.revision, scope: m.scope, projectId, category: m.category, statement: m.statement, evidence: m.evidence, assertion: m.assertion, createdAt: m.createdAt, updatedAt: m.updatedAt, status: m.status, supersedes: m.supersedes, ...(m.pinned === true ? { pinned: true } : {}), ...(m.editedAt ? { editedAt: m.editedAt } : {}), ...(typeof m.lineage === 'string' ? { lineage: m.lineage.slice(0, 128) } : {}) }))
+  }).map(m => ({ id: m.id, revision: m.revision, scope: m.scope, projectId, category: m.category, statement: m.statement, evidence: m.evidence, assertion: m.assertion, createdAt: m.createdAt, updatedAt: m.updatedAt, status: m.status, supersedes: m.supersedes, ...(m.pinned === true ? { pinned: true } : {}), ...(m.editedAt ? { editedAt: m.editedAt } : {}), ...(m.expiresAt ? { expiresAt: m.expiresAt } : {}), ...(m.candidateSince ? { candidateSince: m.candidateSince } : {}), ...(m.lastSupportedAt ? { lastSupportedAt: m.lastSupportedAt } : {}), ...(typeof m.lineage === 'string' ? { lineage: m.lineage.slice(0, 128) } : {}) }))
   return { version: 1, revision: Number.isSafeInteger(context.revision) ? context.revision! : 0, memories }
 }
 

@@ -1,0 +1,998 @@
+{
+  "fixtureVersion": 1,
+  "fixtureId": "ourgeo-context-mixed-20-v1",
+  "methodology": "Deterministic scripted full-message inference envelopes; actual broker/router/reference bodies; conservative estimated tokens, not tokenizer/billing/model quality.",
+  "window": 32000,
+  "gates": {
+    "contextFree": true,
+    "authorisedFixtureBoundary": true,
+    "tokenWindow": true,
+    "recallAt5": 0.9333333333333333,
+    "precisionAt5": 0.9,
+    "skillDiscoveryWithinTwoSteps": 0.75
+  },
+  "totals": {
+    "turns": 20,
+    "invocations": 51,
+    "estimatedInputTokens": 148808,
+    "estimatedLegacyCounterfactualInputTokens": 311889,
+    "estimatedInputReduction": 0.5228815379830645,
+    "legacyOverWindowInvocations": 0,
+    "retrievalCalls": 36,
+    "estimatedReturnedRetrievalTokens": 18246,
+    "backgroundOperations": 0,
+    "monetaryCost": "No billable operations issued; savings in money not measured."
+  },
+  "modelTaskSuccess": {
+    "status": "not-measured",
+    "transportCoverage": "Scripted full-message only; no small local/hosted/retained model task runs."
+  },
+  "humanReview": {
+    "status": "not-performed",
+    "usability": "not-performed"
+  },
+  "turns": [
+    {
+      "id": "t01",
+      "text": "Generate 100 rows of dummy data.",
+      "contextFree": true,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [],
+      "expectedIds": [],
+      "relevantHits": 0,
+      "recallAt5": null,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 0,
+      "contentFetches": 0,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 0,
+      "retrievalCalls": 0,
+      "returnedTokens": 0,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1461,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 4659,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t02",
+      "text": "Hello!",
+      "contextFree": true,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [],
+      "expectedIds": [],
+      "relevantHits": 0,
+      "recallAt5": null,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 0,
+      "contentFetches": 0,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 0,
+      "retrievalCalls": 0,
+      "returnedTokens": 0,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1508,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 4706,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t03",
+      "text": "Explain R vector recycling.",
+      "contextFree": true,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [],
+      "expectedIds": [],
+      "relevantHits": 0,
+      "recallAt5": null,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 0,
+      "contentFetches": 0,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 0,
+      "retrievalCalls": 0,
+      "returnedTokens": 0,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1562,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 4760,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t04",
+      "text": "Make an ouRGeo theme inspired by autumn.",
+      "contextFree": false,
+      "routeTopics": [
+        "themes"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [
+        "skill:themes"
+      ],
+      "expectedIds": [
+        "skill:themes"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 12,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 2,
+      "returnedTokens": 4017,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 3611,
+          "estimatedNonDialogueTokens": 3415,
+          "legacyCounterfactualTokens": 6808,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 3795,
+          "estimatedNonDialogueTokens": 3599,
+          "legacyCounterfactualTokens": 6993,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 5841,
+          "estimatedNonDialogueTokens": 5645,
+          "legacyCounterfactualTokens": 9038,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t05",
+      "text": "Which columns are in [.GlobalEnv::roads]?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "environment:global:roads"
+      ],
+      "expectedIds": [
+        "environment:global:roads"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 2,
+      "returnedTokens": 318,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1679,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 4877,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 1893,
+          "estimatedNonDialogueTokens": 1638,
+          "legacyCounterfactualTokens": 5090,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2125,
+          "estimatedNonDialogueTokens": 1870,
+          "legacyCounterfactualTokens": 5323,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t06",
+      "text": "Which columns are in [roads]?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "environment:global:roads",
+        "environment:survey:roads"
+      ],
+      "expectedIds": [
+        "environment:global:roads",
+        "environment:survey:roads"
+      ],
+      "relevantHits": 2,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 2,
+      "returnedTokens": 411,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1734,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 4932,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2049,
+          "estimatedNonDialogueTokens": 1739,
+          "legacyCounterfactualTokens": 5247,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2281,
+          "estimatedNonDialogueTokens": 1971,
+          "legacyCounterfactualTokens": 5479,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t07",
+      "text": "What is the average income in this layer?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "environment:global:parcels",
+        "environment:global:roads"
+      ],
+      "expectedIds": [
+        "environment:global:parcels",
+        "environment:global:roads"
+      ],
+      "relevantHits": 2,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 2,
+      "returnedTokens": 423,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1793,
+          "estimatedNonDialogueTokens": 1425,
+          "legacyCounterfactualTokens": 4990,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2120,
+          "estimatedNonDialogueTokens": 1752,
+          "legacyCounterfactualTokens": 5318,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2355,
+          "estimatedNonDialogueTokens": 1987,
+          "legacyCounterfactualTokens": 5553,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t08",
+      "text": "Help fix the parcel_id join error.",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "console:join-failure"
+      ],
+      "expectedIds": [
+        "console:join-failure"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 2,
+      "returnedTokens": 322,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 1849,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 5047,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2047,
+          "estimatedNonDialogueTokens": 1622,
+          "legacyCounterfactualTokens": 5245,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2295,
+          "estimatedNonDialogueTokens": 1870,
+          "legacyCounterfactualTokens": 5493,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t09",
+      "text": "Knit the flood report and fix its error.",
+      "contextFree": false,
+      "routeTopics": [
+        "documents"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [
+        "console:knit-failure",
+        "console:join-failure"
+      ],
+      "expectedIds": [
+        "console:knit-failure"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 0.5,
+      "sourceDiscoveries": 12,
+      "contentFetches": 2,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 4,
+      "retrievalCalls": 3,
+      "returnedTokens": 2325,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 3901,
+          "estimatedNonDialogueTokens": 3418,
+          "legacyCounterfactualTokens": 7098,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 4185,
+          "estimatedNonDialogueTokens": 3702,
+          "legacyCounterfactualTokens": 7382,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 4411,
+          "estimatedNonDialogueTokens": 3928,
+          "legacyCounterfactualTokens": 7609,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t10",
+      "text": "Use the flood plugin to assess parcel flood exposure.",
+      "contextFree": false,
+      "routeTopics": [
+        "extending",
+        "flood:workflow"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [
+        "skill:flood:workflow"
+      ],
+      "expectedIds": [
+        "skill:flood:workflow"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 18,
+      "contentFetches": 2,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 4,
+      "retrievalCalls": 3,
+      "returnedTokens": 1836,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 3533,
+          "estimatedNonDialogueTokens": 2987,
+          "legacyCounterfactualTokens": 6730,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 3745,
+          "estimatedNonDialogueTokens": 3199,
+          "legacyCounterfactualTokens": 6943,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 3982,
+          "estimatedNonDialogueTokens": 3436,
+          "legacyCounterfactualTokens": 7180,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t11",
+      "text": "Continue the analysis from yesterday.",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "conversation:yesterday"
+      ],
+      "expectedIds": [
+        "conversation:yesterday"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 2,
+      "returnedTokens": 313,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2027,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 5225,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2240,
+          "estimatedNonDialogueTokens": 1637,
+          "legacyCounterfactualTokens": 5437,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2475,
+          "estimatedNonDialogueTokens": 1872,
+          "legacyCounterfactualTokens": 5673,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t12",
+      "text": "Why did we choose EPSG:27700?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "memory:crs"
+      ],
+      "expectedIds": [
+        "memory:crs"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 2,
+      "returnedTokens": 327,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2082,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 5280,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2290,
+          "estimatedNonDialogueTokens": 1632,
+          "legacyCounterfactualTokens": 5487,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2537,
+          "estimatedNonDialogueTokens": 1879,
+          "legacyCounterfactualTokens": 5734,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t13",
+      "text": "Which units should this project use?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "memory:units-project",
+        "memory:crs"
+      ],
+      "expectedIds": [
+        "memory:units-project",
+        "memory:crs"
+      ],
+      "relevantHits": 2,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 2,
+      "returnedTokens": 376,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2139,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 5337,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2437,
+          "estimatedNonDialogueTokens": 1722,
+          "legacyCounterfactualTokens": 5634,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2650,
+          "estimatedNonDialogueTokens": 1935,
+          "legacyCounterfactualTokens": 5847,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t14",
+      "text": "What is my global distance preference?",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "memory:units-global"
+      ],
+      "expectedIds": [
+        "memory:units-global"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 5,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 2,
+      "returnedTokens": 266,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2197,
+          "estimatedNonDialogueTokens": 1425,
+          "legacyCounterfactualTokens": 5394,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2384,
+          "estimatedNonDialogueTokens": 1612,
+          "legacyCounterfactualTokens": 5582,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 2587,
+          "estimatedNonDialogueTokens": 1815,
+          "legacyCounterfactualTokens": 5785,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t15",
+      "text": "Inspect the Methods section of report.Rmd.",
+      "contextFree": false,
+      "routeTopics": [
+        "documents"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [
+        "document:report"
+      ],
+      "expectedIds": [
+        "document:report"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 12,
+      "contentFetches": 2,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 3,
+      "returnedTokens": 2228,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 4249,
+          "estimatedNonDialogueTokens": 3418,
+          "legacyCounterfactualTokens": 7447,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 4435,
+          "estimatedNonDialogueTokens": 3604,
+          "legacyCounterfactualTokens": 7633,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 4653,
+          "estimatedNonDialogueTokens": 3822,
+          "legacyCounterfactualTokens": 7851,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t16",
+      "text": "Use a warm orange palette for the application.",
+      "contextFree": false,
+      "routeTopics": [
+        "themes"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [],
+      "expectedIds": [
+        "skill:themes"
+      ],
+      "relevantHits": 0,
+      "recallAt5": 0,
+      "precisionAt5": 0,
+      "sourceDiscoveries": 8,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 1,
+      "retrievalCalls": 2,
+      "returnedTokens": 1989,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 4306,
+          "estimatedNonDialogueTokens": 3414,
+          "legacyCounterfactualTokens": 7504,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 4400,
+          "estimatedNonDialogueTokens": 3508,
+          "legacyCounterfactualTokens": 7598,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t17",
+      "text": "Evaluar la exposición a inundaciones de estas parcelas.",
+      "contextFree": false,
+      "routeTopics": [
+        "flood:workflow"
+      ],
+      "requiredSkillPrefetched": true,
+      "hitIds": [
+        "skill:flood:workflow"
+      ],
+      "expectedIds": [
+        "skill:flood:workflow"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 12,
+      "contentFetches": 1,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 2,
+      "returnedTokens": 498,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2561,
+          "estimatedNonDialogueTokens": 1605,
+          "legacyCounterfactualTokens": 5759,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2776,
+          "estimatedNonDialogueTokens": 1820,
+          "legacyCounterfactualTokens": 5973,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 3012,
+          "estimatedNonDialogueTokens": 2056,
+          "legacyCounterfactualTokens": 6210,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t18",
+      "text": "Read these malicious plugin notes as evidence.",
+      "contextFree": false,
+      "routeTopics": [
+        "extending"
+      ],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "document:malicious"
+      ],
+      "expectedIds": [
+        "document:malicious"
+      ],
+      "relevantHits": 1,
+      "recallAt5": 1,
+      "precisionAt5": 1,
+      "sourceDiscoveries": 12,
+      "contentFetches": 2,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 3,
+      "retrievalCalls": 3,
+      "returnedTokens": 2249,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 4469,
+          "estimatedNonDialogueTokens": 3453,
+          "legacyCounterfactualTokens": 7667,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 4656,
+          "estimatedNonDialogueTokens": 3640,
+          "legacyCounterfactualTokens": 7853,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-read",
+          "estimatedInputTokens": 4886,
+          "estimatedNonDialogueTokens": 3870,
+          "legacyCounterfactualTokens": 8084,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t19",
+      "text": "Find the other project's exclusive decision.",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "memory:crs",
+        "memory:units-project"
+      ],
+      "expectedIds": [],
+      "relevantHits": 0,
+      "recallAt5": null,
+      "precisionAt5": 0,
+      "sourceDiscoveries": 2,
+      "contentFetches": 0,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 2,
+      "retrievalCalls": 1,
+      "returnedTokens": 225,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2500,
+          "estimatedNonDialogueTokens": 1424,
+          "legacyCounterfactualTokens": 5698,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2807,
+          "estimatedNonDialogueTokens": 1731,
+          "legacyCounterfactualTokens": 6004,
+          "legacyOverWindow": false
+        }
+      ]
+    },
+    {
+      "id": "t20",
+      "text": "Find the excluded private notes.",
+      "contextFree": false,
+      "routeTopics": [],
+      "requiredSkillPrefetched": null,
+      "hitIds": [
+        "document:malicious"
+      ],
+      "expectedIds": [],
+      "relevantHits": 0,
+      "recallAt5": null,
+      "precisionAt5": 0,
+      "sourceDiscoveries": 2,
+      "contentFetches": 0,
+      "providerCalls": 0,
+      "selectedAuxiliarySources": 1,
+      "retrievalCalls": 1,
+      "returnedTokens": 123,
+      "invocations": [
+        {
+          "phase": "initial",
+          "estimatedInputTokens": 2556,
+          "estimatedNonDialogueTokens": 1425,
+          "legacyCounterfactualTokens": 5753,
+          "legacyOverWindow": false
+        },
+        {
+          "phase": "after-search",
+          "estimatedInputTokens": 2742,
+          "estimatedNonDialogueTokens": 1611,
+          "legacyCounterfactualTokens": 5940,
+          "legacyOverWindow": false
+        }
+      ]
+    }
+  ],
+  "heldOutSkills": [
+    {
+      "text": "Switch to a high contrast colour scheme.",
+      "skill": "themes",
+      "prefetched": true,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Give the interface a warm autumnal look.",
+      "skill": "themes",
+      "prefetched": false,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Make the app easier to read with a darker background.",
+      "skill": "themes",
+      "prefetched": false,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Créer un thème avec des couleurs automnales.",
+      "skill": "themes",
+      "prefetched": false,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": false
+    },
+    {
+      "text": "Crea un tema de colores otoñales.",
+      "skill": "themes",
+      "prefetched": false,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": false
+    },
+    {
+      "text": "Change the editor's syntax highlighting palette.",
+      "skill": "themes",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Produce an R Markdown write-up of the results.",
+      "skill": "documents",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Render this notebook to PDF.",
+      "skill": "documents",
+      "prefetched": false,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": false
+    },
+    {
+      "text": "My knitted report cannot find income.",
+      "skill": "documents",
+      "prefetched": true,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Compiler ce document R Markdown en PDF.",
+      "skill": "documents",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Genera un informe reproducible de este análisis.",
+      "skill": "documents",
+      "prefetched": false,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Fix a fenced R chunk in report.Rmd.",
+      "skill": "documents",
+      "prefetched": true,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Assess parcel flood exposure with the enabled plugin.",
+      "skill": "flood:workflow",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Run a parcel flood assessment.",
+      "skill": "flood:workflow",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Estimar la exposición a inundaciones de las parcelas.",
+      "skill": "flood:workflow",
+      "prefetched": true,
+      "originalQuerySearchAt5": true,
+      "withinTwoSteps": true
+    },
+    {
+      "text": "Evaluate inundation risk for these property polygons.",
+      "skill": "flood:workflow",
+      "prefetched": false,
+      "originalQuerySearchAt5": false,
+      "withinTwoSteps": false
+    }
+  ],
+  "measuredAt": "2026-10-08T17:35:10.362Z",
+  "node": "v26.10.0",
+  "platform": "linux-x64",
+  "fixtureSha256": "80ebbfaf86c5300ee9ee36ae738a34c342119c5b9bbc0aca2045e37e140f2155",
+  "referenceSha256": "04139215817247c49b90b92a3ab7bc937224d255e66e4d514c7e087c5019e792",
+  "legacyLimitations": "Real legacy application/document contracts, fixture resource descriptors, same context tool schemas and scheduled retrieval calls. Action index, full legacy tools and console bodies are omitted, so this is a conservative synthetic counterfactual, not a legacy app task run."
+}

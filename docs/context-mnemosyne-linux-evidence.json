@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "profile": "mnemosyne-lexical-v1",
+  "observedAt": "2026-10-08T07:32:33.094Z",
+  "platform": "linux-x64",
+  "bridgeSha256": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e",
+  "conformance": {
+    "version": 1,
+    "certification": "not-issued",
+    "checks": [
+      {
+        "name": "probe and response contract",
+        "status": "passed"
+      },
+      {
+        "name": "permission revocation",
+        "status": "passed"
+      },
+      {
+        "name": "cancellation",
+        "status": "passed"
+      },
+      {
+        "name": "canonical ingestion and idempotent retry",
+        "status": "passed"
+      },
+      {
+        "name": "namespace isolation",
+        "status": "passed"
+      },
+      {
+        "name": "bounded response",
+        "status": "passed"
+      },
+      {
+        "name": "revision replacement",
+        "status": "passed"
+      },
+      {
+        "name": "temporal search",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "scoped export",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection permission",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection lineage",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "source deletion preserves unrelated records",
+        "status": "passed"
+      },
+      {
+        "name": "scope deletion and idempotent retry",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "cleanup first",
+        "status": "passed"
+      },
+      {
+        "name": "cleanup second",
+        "status": "passed"
+      }
+    ]
+  },
+  "derivativeAudit": {
+    "mechanism": "all remaining derived-store bytes and permissions after deletion/rebuild and fixture cleanup",
+    "removedSourceIds": 4,
+    "filesChecked": 7,
+    "residualIds": 0,
+    "temporaryCopies": 0,
+    "storage": "readable-sqlite",
+    "physicalErasure": "not-claimed"
+  },
+  "networkObservation": {
+    "mechanism": "strace network syscalls with child tracing",
+    "positiveControl": true,
+    "runtimeLaunches": 5,
+    "networkSyscalls": 0
+  },
+  "supervised": {
+    "stdio": true,
+    "scopeIsolation": true,
+    "snapshotRetries": true,
+    "correction": true,
+    "restart": true,
+    "interruptedRebuild": true,
+    "deletionRebuild": true,
+    "canonicalAdapterWrites": true,
+    "canonicalAdapterDeletion": true,
+    "unrelatedMemoryPreserved": true
+  },
+  "materialisedBytes": 217724739,
+  "limitations": [
+    "experimental beta engine",
+    "readable derived SQLite",
+    "no physical erasure claim",
+    "Linux x86_64 fixture only",
+    "peak resident memory not certified"
+  ]
+}

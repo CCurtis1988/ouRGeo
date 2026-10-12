@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
-  X, Eye, EyeOff, ChevronDown, HelpCircle,
+  X, Eye, EyeOff, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
   SquareTerminal, Store, HeartPulse,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
 import { APP_VERSION } from './versionHistory'
 import { ThemePicker } from './ThemePicker'
@@ -15,7 +14,6 @@ import { InitialExtentPicker } from './InitialExtentPicker'
 import { AttributePopupToggle } from './AttributePopupToggle'
 import { CrsSettings } from './CrsSettings'
 import { ContextMemorySettings } from './ContextMemorySettings'
-import { AiProviderSettings } from './AiProviderSettings'
 import { VoiceSettings } from './VoiceSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { LayoutSettings } from './LayoutSettings'
@@ -89,65 +87,6 @@ function ApiKeysPicker() {
       {API_KEY_DEFS.map(def => (
         <ApiKeyEntry key={def.id} {...def} />
       ))}
-    </div>
-  )
-}
-
-// A collapsible settings section: icon + title + description header that
-// expands to reveal its content. Uses a CSS grid-rows trick for a smooth,
-// dependency-free open/close animation. Content stays mounted (collapsed
-// panels keep their state and effects) but is hidden from tab order.
-function SettingsSection({
-  icon: Icon,
-  title,
-  description,
-  defaultOpen = false,
-  children,
-}: {
-  icon: LucideIcon
-  title: string
-  description: string
-  defaultOpen?: boolean
-  children: React.ReactNode
-}): React.ReactElement {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div className="py-1">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="group w-full flex items-center gap-3 py-2.5 text-left"
-      >
-        <div
-          className={`flex items-center justify-center w-8 h-8 rounded-md border shrink-0 transition-colors ${
-            open
-              ? 'border-geo-accent/40 text-geo-accent bg-geo-accent/10'
-              : 'border-geo-border text-geo-muted bg-geo-bg group-hover:text-foreground group-hover:border-geo-muted'
-          }`}
-        >
-          <Icon className="w-4 h-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-foreground">{title}</div>
-          <div className="text-[11px] text-geo-muted truncate">{description}</div>
-        </div>
-        <ChevronDown
-          className={`w-4 h-4 text-geo-muted shrink-0 transition-transform duration-200 ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
-      </button>
-      <div
-        className={`grid transition-[grid-template-rows] duration-200 ease-out ${
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div className="pt-2 pb-3 pl-11 pr-1" aria-hidden={!open}>
-            {children}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
@@ -242,6 +181,131 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogProps): React.ReactElement {
+  const [selected, setSelected] = useState('Appearance')
+  const sections = [
+    {
+      title: 'Health check', group: 'Application', icon: HeartPulse,
+      description: 'Check your installation, repair R packages, and set up AI',
+      content: <>
+        <p className="text-xs text-geo-muted mb-3">Run guided diagnostics whenever something needs attention, including after updating R. Installations and AI credit use require your approval.</p>
+        <button className="rounded border border-geo-border px-3 py-2 text-xs text-foreground hover:bg-geo-bg" onClick={() => useUiStore.getState().showDialog('health-check')}>Run health check…</button>
+      </>,
+    },
+    {
+      title: 'Appearance', group: 'Application', icon: Palette,
+      description: 'Theme and visual style',
+      content: <>
+        <SubLabel>App Theme</SubLabel>
+        <ThemePicker />
+        <ThemeStudioLink />
+        <SubLabel className="mt-5">Code Editor Theme</SubLabel>
+        <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
+          Syntax colours for R — in .R files and in R Markdown chunks. The
+          editor background and the artwork behind it come from the app
+          theme, and never change with this.
+        </p>
+        <CodeThemePicker />
+        <SubLabel className="mt-5">Markdown Theme</SubLabel>
+        <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
+          Prose colours for .md, .Rmd and .qmd — headings, links, quotes
+          and inline code, in both Source and Visual mode.
+        </p>
+        <MarkdownThemePicker />
+      </>,
+    },
+    {
+      title: 'Workspace', group: 'Application', icon: LayoutGrid,
+      description: 'Panel arrangement — dragging, saved layouts, and the way back',
+      content: <>
+        <LayoutSettings />
+      </>,
+    },
+    {
+      title: 'Terminal', group: 'Application', icon: SquareTerminal,
+      description: 'Which shell opens, and how it looks',
+      content: <>
+        <TerminalSettings />
+      </>,
+    },
+    {
+      title: 'R Backend', group: 'Application', icon: Cpu,
+      description: 'Which R installation powers ouRGeo',
+      content: <>
+        <p className="text-[11px] text-geo-muted mb-3 leading-relaxed">
+          ouRGeo runs its analysis on a bundled R backend. Pick which R
+          installation powers it below, or use “Browse for Rscript…” to point
+          ouRGeo at a specific Rscript executable. Your choice is saved and R
+          restarts against it.
+        </p>
+        <RVersionPicker />
+      </>,
+    },
+    {
+      title: 'Spatial Editor', group: 'Maps & data', icon: Globe,
+      description: 'Map extent, drawing, and coordinate systems',
+      content: <>
+        <SubLabel>Initial Spatial Extent</SubLabel>
+        <InitialExtentPicker />
+        <SubLabel className="mt-5">Drawing</SubLabel>
+        <AttributePopupToggle />
+        <SubLabel className="mt-5">Coordinate Reference Systems</SubLabel>
+        <CrsSettings />
+      </>,
+    },
+    {
+      title: 'Documents', group: 'Application', icon: FileText,
+      description: 'Markdown and R Markdown authoring',
+      content: <>
+        <SubLabel>Map chunk code</SubLabel>
+        <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
+          The “Chunk: current map” and “Chunk: export current plot” ribbon
+          buttons generate R from the layers currently on the map. Pick which
+          mapping package that code uses.
+        </p>
+        <MapChunkEngineSetting />
+      </>,
+    },
+    {
+      title: 'Basemaps', group: 'Maps & data', icon: Map,
+      description: 'Access tokens for basemap tile providers',
+      content: <>
+        <div className="flex flex-col gap-4">
+          {BASEMAP_API_DEFS.map(def => (
+            <ApiKeyEntry key={def.id} {...def} />
+          ))}
+        </div>
+      </>,
+    },
+    {
+      title: 'Data API Keys', group: 'Maps & data', icon: KeyRound,
+      description: 'Keys for external data sources',
+      content: <>
+        <ApiKeysPicker />
+      </>,
+    },
+    {
+      title: 'AI Assistant', group: 'Assistant', icon: Bot,
+      description: 'Memory, model, learning, privacy and budgets',
+      content: <>
+        <ContextMemorySettings />
+      </>,
+    },
+    {
+      title: 'Voice input', group: 'Assistant', icon: Mic,
+      description: 'Dictate to the assistant — microphone, and who transcribes it',
+      content: <>
+        <VoiceSettings />
+      </>,
+    },
+    {
+      title: 'Plugins', group: 'Extensions', icon: Puzzle,
+      description: 'Capabilities added to ouRGeo without rebuilding it',
+      content: <>
+        <PluginStoreLink />
+        <PluginManagerLink />
+      </>,
+    },
+  ]
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>{children}</Dialog.Trigger>
@@ -249,7 +313,7 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
         <Dialog.Content
           className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50
-            w-[520px] max-h-[85vh] flex flex-col
+            w-[880px] max-w-[95vw] h-[min(760px,85vh)] flex flex-col
             bg-geo-panel border border-geo-border rounded-lg shadow-xl
             focus:outline-none"
         >
@@ -274,146 +338,45 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
                 </VersionHistoryDialog>
               </div>
               <p className="text-[11px] text-geo-muted mt-1">
-                Configure ouRGeo — expand a section to see its options
+                Choose a category to find its settings
               </p>
             </div>
-            <Dialog.Close className="text-geo-muted hover:text-foreground transition-colors">
+            <Dialog.Close aria-label="Close settings" className="text-geo-muted hover:text-foreground transition-colors">
               <X className="w-4 h-4" />
             </Dialog.Close>
           </div>
 
-          {/* Body */}
-          <div className="px-4 py-2 overflow-y-auto divide-y divide-geo-border">
-            <SettingsSection icon={HeartPulse} title="Health check" description="Check your installation, repair R packages, and set up AI">
-              <p className="text-xs text-geo-muted mb-3">Run guided diagnostics whenever something needs attention, including after updating R. Installations and AI credit use require your approval.</p>
-              <button className="rounded border border-geo-border px-3 py-2 text-xs text-foreground hover:bg-geo-bg" onClick={() => useUiStore.getState().showDialog('health-check')}>Run health check…</button>
-            </SettingsSection>
-            <SettingsSection
-              icon={Palette}
-              title="Appearance"
-              description="Theme and visual style"
-              defaultOpen
-            >
-              <SubLabel>App Theme</SubLabel>
-              <ThemePicker />
-              <ThemeStudioLink />
-              <SubLabel className="mt-5">Code Editor Theme</SubLabel>
-              <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
-                Syntax colours for R — in .R files and in R Markdown chunks. The
-                editor background and the artwork behind it come from the app
-                theme, and never change with this.
-              </p>
-              <CodeThemePicker />
-              <SubLabel className="mt-5">Markdown Theme</SubLabel>
-              <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
-                Prose colours for .md, .Rmd and .qmd — headings, links, quotes
-                and inline code, in both Source and Visual mode.
-              </p>
-              <MarkdownThemePicker />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={LayoutGrid}
-              title="Workspace"
-              description="Panel arrangement — dragging, saved layouts, and the way back"
-            >
-              <LayoutSettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={SquareTerminal}
-              title="Terminal"
-              description="Which shell opens, and how it looks"
-            >
-              <TerminalSettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Cpu}
-              title="R Backend"
-              description="Which R installation powers ouRGeo"
-            >
-              <p className="text-[11px] text-geo-muted mb-3 leading-relaxed">
-                ouRGeo runs its analysis on a bundled R backend. Pick which R
-                installation powers it below, or use “Browse for Rscript…” to point
-                ouRGeo at a specific Rscript executable. Your choice is saved and R
-                restarts against it.
-              </p>
-              <RVersionPicker />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Globe}
-              title="Spatial Editor"
-              description="Map extent, drawing, and coordinate systems"
-            >
-              <SubLabel>Initial Spatial Extent</SubLabel>
-              <InitialExtentPicker />
-              <SubLabel className="mt-5">Drawing</SubLabel>
-              <AttributePopupToggle />
-              <SubLabel className="mt-5">Coordinate Reference Systems</SubLabel>
-              <CrsSettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={FileText}
-              title="Documents"
-              description="Markdown and R Markdown authoring"
-            >
-              <SubLabel>Map chunk code</SubLabel>
-              <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">
-                The “Chunk: current map” and “Chunk: export current plot” ribbon
-                buttons generate R from the layers currently on the map. Pick which
-                mapping package that code uses.
-              </p>
-              <MapChunkEngineSetting />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Map}
-              title="Basemaps"
-              description="Access tokens for basemap tile providers"
-            >
-              <div className="flex flex-col gap-4">
-                {BASEMAP_API_DEFS.map(def => (
-                  <ApiKeyEntry key={def.id} {...def} />
-                ))}
+          <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+            <nav aria-label="Settings categories" className="shrink-0 border-b sm:border-b-0 sm:border-r border-geo-border bg-geo-bg/40 p-3 sm:w-44 overflow-auto">
+              <label className="sm:hidden text-xs text-geo-muted">Settings category
+                <select aria-label="Settings category" className="mt-1 w-full rounded border border-geo-border bg-geo-bg p-2 text-foreground" value={selected} onChange={event => setSelected(event.target.value)}>
+                  {sections.map(section => <option key={section.title}>{section.title}</option>)}
+                </select>
+              </label>
+              <div className="hidden sm:block space-y-4">
+                {['Application', 'Maps & data', 'Assistant', 'Extensions'].map(group => <div key={group}>
+                  <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-geo-muted">{group}</p>
+                  <div className="space-y-1">
+                    {sections.filter(section => section.group === group).map(({ title, icon: Icon }) => <button
+                      key={title} type="button" aria-current={selected === title ? 'page' : undefined}
+                      onClick={() => setSelected(title)}
+                      className={`w-full flex items-center gap-2 rounded-md px-2 py-2 text-left text-xs border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-geo-accent ${selected === title ? 'border-geo-accent/40 bg-geo-accent/10 text-geo-accent font-semibold' : 'border-transparent text-geo-muted hover:bg-geo-panel hover:text-foreground'}`}
+                    ><Icon className="w-4 h-4 shrink-0" />{title}</button>)}
+                  </div>
+                </div>)}
               </div>
-            </SettingsSection>
-
-            <SettingsSection
-              icon={KeyRound}
-              title="Data API Keys"
-              description="Keys for external data sources"
-            >
-              <ApiKeysPicker />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Bot}
-              title="AI Assistant"
-              description="AI provider and model configuration"
-            >
-              <AiProviderSettings />
-              <ContextMemorySettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Mic}
-              title="Voice input"
-              description="Dictate to the assistant — microphone, and who transcribes it"
-            >
-              <VoiceSettings />
-            </SettingsSection>
-
-            <SettingsSection
-              icon={Puzzle}
-              title="Plugins"
-              description="Capabilities added to ouRGeo without rebuilding it"
-            >
-              <PluginStoreLink />
-              <PluginManagerLink />
-            </SettingsSection>
+            </nav>
+            <div className="min-w-0 min-h-0 flex-1 overflow-hidden p-5">
+              {sections.map(({ title, description, content }) => <section key={title} aria-label={`${title} settings`} hidden={selected !== title} className="h-full">
+                <div className="flex h-full min-h-0 flex-col gap-4">
+                  <div className="shrink-0 border-b border-geo-border pb-3">
+                    <h2 className="text-base font-semibold text-foreground">{title}</h2>
+                    <p className="mt-1 text-xs text-geo-muted">{description}</p>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
+                </div>
+              </section>)}
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

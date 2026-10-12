@@ -1,5 +1,5 @@
 import type { OpenAiAssistantMessage } from '@/store/ai'
-import { checkInvocation, compactInvocation, reportInvocationUsage, type SendOptions } from '@/lib/ai-client'
+import { requestInvocation, reportInvocationUsage, type SendOptions } from '@/lib/ai-client'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
 
 export function chatGptFailure(data: unknown, status?: number): string {
@@ -25,6 +25,7 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
   if (!opts.model) throw new Error('Choose a ChatGPT model in Settings → AI Assistant first.')
   const account = await window.electronAPI.chatgpt.status()
   if (!account.planEnabled || !account.activeId) throw new Error('Sign in and enable ChatGPT plan usage in Settings → AI Assistant first.')
+  const accountId = account.activeId
   const tools = opts.onToolCall ? opts.tools ?? [] : []
   const input: Record<string, unknown>[] = opts.messages.flatMap((m) => m.role === 'assistant' && m.openAiMessages?.length
     ? m.openAiMessages.map((part) => ({ role: m.role, content: part.content, ...(part.phase ? { phase: part.phase } : {}) }))
@@ -33,19 +34,18 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
   const visibleMessages: OpenAiAssistantMessage[] = []
   for (;;) {
     opts.signal?.throwIfAborted()
-    compactInvocation(opts, input, 'responses', () => ({ model: opts.model, instructions: opts.systemPrompt, input, tools }))
-    checkInvocation(opts, { model: opts.model, instructions: opts.systemPrompt, input, tools })
-    const response = await proxyFetch('https://api.openai.com/v1/responses', {
-      method: 'POST', billing: 'chatgpt', billingAccountId: account.activeId, signal: opts.signal,
-      body: JSON.stringify({
+    const payload = () => ({
         model: opts.model, instructions: opts.systemPrompt, input, store: false, stream: true,
         ...(opts.maxOutputTokens ? { max_output_tokens: opts.maxOutputTokens } : {}),
         include: ['reasoning.encrypted_content'],
         ...(tools.length ? { tools: [{ type: 'namespace', name: 'ourgeo', description: 'Tools for the live ouRGeo session.',
           tools: tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.inputSchema, strict: false })),
         }] } : {}),
-      }),
     })
+    const response = await requestInvocation(opts, input, 'responses', payload, () => proxyFetch('https://api.openai.com/v1/responses', {
+      method: 'POST', billing: 'chatgpt', billingAccountId: accountId, signal: opts.signal,
+      body: JSON.stringify(payload()),
+    }))
     const diagnostic = response.requestId ? ` [request ${response.requestId}]` : ''
     if (!response.ok) {
       const raw = await response.text()

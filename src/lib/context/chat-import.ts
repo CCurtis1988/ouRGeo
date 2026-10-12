@@ -1,5 +1,6 @@
 import type { AiChat, AiProvider, ChatMessage } from '@/store/ai'
 import { restoreUsage } from './usage'
+import { accountingOnlyTrace, traceExpired } from './retention'
 
 const providers: AiProvider[] = ['openai', 'openai-subscription', 'anthropic', 'claude-cli', 'google', 'ollama', 'lmstudio', 'llamacpp', 'jan', 'localai', 'vllm', 'sglang', 'mistralrs', 'xinference', 'openllm']
 const identity = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && [...value].every(character => character.charCodeAt(0) >= 32)
@@ -55,6 +56,7 @@ export function importChats(input: unknown, portable = false): AiChat[] {
           && Number.isFinite(trace.retrievalCalls)) {
           const limitations = Array.isArray(trace.limitations) ? trace.limitations.filter((item): item is string => typeof item === 'string' && item.length <= 200).slice(0, 5) : undefined
           restored.contextTrace = { ...trace, limitations, usage: restoreUsage(trace.usage, trace.invocations.length) } as unknown as ChatMessage['contextTrace']
+          if (traceExpired(restored.contextTrace!, message.timestamp)) restored.contextTrace = accountingOnlyTrace(restored.contextTrace!)
         }
       }
       messages.push(restored)
