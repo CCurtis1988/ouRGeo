@@ -64,7 +64,10 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // Chromium otherwise downloads Hunspell dictionaries from Google's CDN
+      // on a fresh profile, even with Web off and only local memory operations.
+      spellcheck: process.platform === 'darwin'
       // webSecurity stays enabled (the default). External AI-provider calls go
       // through the main process via the ai-proxy IPC bridge; the R server sends
       // Access-Control-Allow-Origin: * so renderer→R requests work with it on.
@@ -133,6 +136,12 @@ function createWindow(): void {
 protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES])
 
 app.whenReady().then(async () => {
+  // Session creation precedes BrowserWindow preferences. Disable its dictionary
+  // service too: window-level spellcheck=false alone still downloads Hunspell.
+  if (process.platform !== 'darwin') {
+    session.defaultSession.setSpellCheckerEnabled(false)
+    session.defaultSession.setSpellCheckerLanguages([])
+  }
   electronApp.setAppUserModelId('org.ourgeo.app')
 
   app.on('browser-window-created', (_, window) => {

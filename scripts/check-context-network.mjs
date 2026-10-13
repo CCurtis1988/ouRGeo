@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { resolve, join } from 'node:path'
+import { resolve, join, dirname } from 'node:path'
 import { createHash } from 'node:crypto'
 import { build } from 'esbuild'
 import { pathToFileURL } from 'node:url'
@@ -24,7 +24,7 @@ const run = (command, argv) => new Promise((resolve, reject) => {
 })
 const trace = (file, command, argv) => run('unshare', ['--user', '--map-current-user', '--keep-caps', '--net', 'sh', '-c',
   'ip link set lo up && ip -j address show && ip -j route show && exec "$@"', 'ourgeo-memory-offline', strace,
-  '-f', '-qq', '-tt', '-s', '0', '-e', 'trace=%network,%process,io_uring_setup,io_uring_register,io_uring_enter', '-o', file, command, ...argv])
+  '-f', '-qq', '-tt', '-yy', ...(args.includes('--stack-trace') ? ['-k'] : []), '-s', '0', '-e', 'trace=%network,%process,write,writev,io_uring_setup,io_uring_register,io_uring_enter', '-o', file, command, ...argv])
 const canaryFile = join(directory, 'canary.cjs'), canaryTrace = join(directory, 'canary.trace')
 await writeFile(canaryFile, `const net=require('node:net');const socket=net.connect({host:'198.51.100.42',port:443});socket.on('error',()=>{});setTimeout(()=>socket.destroy(),1000);`)
 const canary = await trace(canaryTrace, process.execPath, [canaryFile])
@@ -36,9 +36,11 @@ console.log(JSON.stringify({ event: 'audit-start', directory, executable, captur
 const result = await trace(capture, process.execPath, ['scripts/check-context.mjs', '--stages-0-2', '--packaged', executable])
 await writeFile(join(directory, 'acceptance.log'), result.output)
 const raw = await readFile(capture, 'utf8'), audit = auditLinuxNetworkTrace(raw)
-const report = { version: 1, measuredAt: new Date().toISOString(), platform: `${process.platform}-${process.arch}`, executable, directory,
+const acceptance = result.output.split('\n').flatMap(line => { try { const value = JSON.parse(line); return value.packaged === true ? [value] : [] } catch { return [] } }).at(-1)
+const report = { version: 2, appVersion: acceptance?.appVersion ?? null, artifactHashes: { executable: createHash('sha256').update(await readFile(executable)).digest('hex'), archive: createHash('sha256').update(await readFile(join(dirname(executable), 'resources/app.asar'))).digest('hex') }, acceptance, measuredAt: new Date().toISOString(), platform: `${process.platform}-${process.arch}`, executable, directory,
   tracer: { path: strace, sha256: createHash('sha256').update(await readFile(strace)).digest('hex') },
   scope: 'Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.',
+  captureOptions: { socketDescriptorDecoding: true, connectedWrites: true, payloadStrings: false, stackTrace: args.includes('--stack-trace') },
   canary: detection, acceptanceExitCode: result.code, traceBytes: Buffer.byteLength(raw), traceSha256: createHash('sha256').update(raw).digest('hex'),
   sourceHashes: Object.fromEntries(await Promise.all(['scripts/check-context-network.mjs', 'src/lib/context/network-audit.ts', 'scripts/check-context.mjs'].map(async file => [file, createHash('sha256').update(await readFile(file)).digest('hex')]))),
   audit, passed: result.code === 0 && audit.passed }

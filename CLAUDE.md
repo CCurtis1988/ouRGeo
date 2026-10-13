@@ -1283,7 +1283,7 @@ it across would show the new model's bar filled by the old one's conversation.
 The maintainer moved managed plugin services to **1.16.0**, ChatGPT plan usage
 to **1.16.1**, subscription stream corrections to **1.16.2**, and the guided
 installation health check to **1.16.3**, followed by data preflight in **1.16.4**.
-The current settings and memory usability patch is **1.16.15**, without a new
+The current settings and memory usability patch is **1.16.16**, without a new
 maintainer release-history entry.
 These announced patches have explicit entries in `versionHistory.ts`;
 `currentRelease()` prefers an exact entry before falling back to the older
@@ -1505,6 +1505,17 @@ prints objects or materialises a database. Computations still echo visible R.
 execution descriptors on append. It formats bodies on read, ignores metadata
 audits and invalidates on clear/replacement or workspace/R-generation changes.
 Older descriptors retain their event range; the broker rejects superseded handles.
+Recorded join failures can select their two plainly named current input schemas.
+The dependency comes from the captured command, never error prose. Ambiguous,
+dynamic or excluded objects stay unresolved. Efficient effort retains its one
+prefetch limit. Console bodies identify their execution time; the compact contract
+requires rechecking current schema before treating a past defect as current.
+An environment inventory replacement does not invalidate an unchanged selected
+object revision, but runtime, epoch and disclosure changes still do. First schema
+inspection can fill previously unknown columns and advance the object revision;
+prefetch may rebind once through the normal checked reader and lookup budget.
+Neither this retry nor inventory refresh can replay an execution or revive a
+revoked source.
 
 `budget.ts` counts serialized messages/schemas/wrappers conservatively. Every
 full-message inference, including tool-loop follow-ups, reserves output and a
@@ -1580,8 +1591,10 @@ matching candidate before counting or returning it, avoiding another full-corpus
 filtering generator. Refresh withdraws old folder cards immediately; pending or
 failed refreshes cannot re-authorise a previous snapshot. Old readers and paused
 scans reject after revocation, including new column privacy. The narrow packed
-benchmark now meets latency/RSS targets; whole-app and combined-console memory
-certification remain open (`docs/context-performance-linux-evidence.json`).
+benchmark now meets latency/RSS targets. The later normal-layout synthetic run
+also meets them after bounding tab/console DOM rendering; production ingestion,
+other panel combinations and transient peaks remain uncertified
+(`docs/context-stage02-owner-followup.md`).
 Canonical retention sweeps run in bounded batches independently of search:
 30-day suggestions and explicit expiry boundaries use transactional forgetting.
 Inferred preferences get a 180-day review marker, not an automatic correction.
@@ -1599,7 +1612,21 @@ Only successful bundle saves publish committed project records to the canonical
 store/outbox. Draft revision jumps are valid; an older conflicting snapshot is
 refused with a recovery warning. Newer edits arriving during save remain journalled.
 Explicit memory commands run locally before model dispatch, including without an
-API key. Narrow deterministic preference settings supersede within one scope in
+API key. Conversation memory has its own typed records on `AiChat`, separate
+from canonical project/global records. Local additions/corrections are scoped
+Always apply instructions by default; the user can unpin them for selective
+retrieval. Derived constraints and decisions come from original user spans.
+Corrections/tombstones override library cards without rewriting the transcript;
+removal clearly states that originals remain. Imports validate notes and retain
+tombstones; scratch has the chat lifetime and projects persist them in chat JSON.
+Only the active chat exposes these notes to the broker. Writes stop in-flight
+answers and revoke retained sessions/results; current pinned notes use the same
+1,200-token explicit-instruction ceiling and delivery receipts. Moves save the
+destination before removing the source; a failed destination preserves the source.
+Overlapping privacy hydration uses generation checks after every await. An older
+load cannot mistake a newer pending column policy for an empty Error, overwrite
+its success, or leave a stale privacy warning after recovery.
+ Narrow deterministic preference settings supersede within one scope in
 the canonical transaction. Category routing uses meaningful terms, so generic
 “this project” prose cannot displace a relevant unit convention. Suggestions and
 inferred text never silently supersede a user-declared active instruction.
@@ -1635,8 +1662,10 @@ ranked page. Host-only descriptor classification caches identity/control and
 redaction checks; unchanged IDs/titles/summaries are required to reuse a verdict.
 Console descriptions classify on immutable execution updates, rather than on
 every browser keystroke. Changed or provider-supplied metadata is checked again.
-The native scale fixture isolates context UI from editor/console tab rendering;
-its report must not be used to certify rendering 100,000 open editor tabs.
+The native scale fixture isolates context UI from editor/console tab rendering
+by default. Its separate `--whole-app` mode retains the normal layout and checks
+visible rendering and navigation across 100,000 buffers and console events.
+Neither mode certifies production ingestion or every panel combination.
 Encrypted backups have host-issued IDs, bounded catalogue retention and read-only
 verification in a worker. Healthy-store restore preserves current tombstones and
 records, imports missing global records as candidates, and stages authorised
@@ -3731,6 +3760,20 @@ Selected readers revalidate before and after asynchronous reads. Bind R-generati
 checks at the selected reader, never by closing over a reused scan card; metadata
 scans must not allocate stable wrapper objects for every environment candidate.
 The production-adapter benchmark reports manager and input-store RSS separately.
+Warm discovery uses host-owned 128-bit trigram filters on packed descriptions
+before decoding irrelevant cards. These filters index metadata only. Collisions
+retain extra candidates; they cannot confer a rank or permission. Partial-title
+matches, provider-ranked IDs, short/Unicode queries and descriptions requiring
+redaction retain the ordinary path. Changed materialised metadata invalidates its
+filter. Empty and filtered scans still check scope/privacy before and after
+iteration; candidate ranking, counts and every selected reader remain checked.
+The reference corpus also exposed ordinary UI costs. Tab strips above 200 buffers
+render a fixed-width visible window and scroll selected documents into view.
+Console histories above 2,000 entries use TanStack's measured virtual rows; store
+originals, source discovery and complete-history copying retain every entry.
+Variable-height/wrapped output is measured rather than clipped to an estimated
+height. Normal-layout checks exercise first/last tabs, older output and copying
+through a synthetic clipboard, alongside latency and resident-memory targets.
 
 Schema-16 startup may repair only recognised `inference_usage_scope` secondary
 index damage after authenticating current encrypted rows and hashing all canonical
@@ -3744,3 +3787,14 @@ Packaged context acceptance uses a private marked synthetic profile selected by
 old packages lacking this guard before launch and verifies the actual user-data
 path. OS keyring overrides are confined to these validated profiles. Windows/macOS
 acceptance is deferred to native sessions; follow `docs/context-platform-acceptance.md`.
+Linux acceptance separately checks actual FUSE mounting, the packaged desktop
+template through a private GTK registration, and dpkg install/upgrade/removal in
+an isolated Debian filesystem. A launch wrapper must preserve debugger stderr
+and share the harness's marked profile path with the guest. Host desktop/keyring
+services remain a stated boundary; these tests cannot certify their network use.
+Fresh-profile Chromium net logs exposed unsolicited Hunspell dictionary downloads.
+Window `spellcheck=false` is insufficient because the session is initialised
+earlier. On Linux/Windows, disable the session spellchecker and clear its language
+list before constructing windows; macOS keeps its native spelling behaviour.
+Cold diagnostic captures verify zero dictionary requests. IPv6 route probes and
+opaque io_uring still prevent the strict no-attempt certificate.

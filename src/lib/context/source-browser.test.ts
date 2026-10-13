@@ -74,3 +74,11 @@ it('keeps packed pages stable across reused cards and redacts changed or forged 
   expect(result.total).toBe(2)
   expect(JSON.stringify(result.cards)).not.toMatch(/must-redact|changed-value|forged-value/)
 })
+
+it('retains matches introduced by redaction when packed search skips unrelated metadata', () => {
+  const originals = [{ ...source('document:note'), title: 'password=private-value', summary: 'A protected description.' }]
+  const packed = CompactDescriptorIndex.from(originals, { read: () => { throw new Error('No bodies may be read') } })
+  for (const query of ['redacted', 'protected', 'private-value']) {
+    expect(sourceBrowserPage(query, filter => packed.scan(undefined, filter), [])).toEqual(sourceBrowserPage(query, () => originals, []))
+  }
+})

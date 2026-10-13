@@ -22,7 +22,8 @@ export function openWidgetWindow(id: string, port: number): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
+      sandbox: true,
+      spellcheck: process.platform === 'darwin'
     }
   })
 

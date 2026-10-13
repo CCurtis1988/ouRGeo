@@ -1,4 +1,4 @@
-import { descriptorIdentity, safeDescriptorId } from './descriptor-identity'
+import { descriptorIdentity, safeDescriptorId, type DescriptorQuery } from './descriptor-identity'
 import { materialiseDescriptor } from './descriptor-index'
 import type { MemoryRecallRequest, MemoryRecallResult } from './providers/recall'
 import type { ContextEvidence, ContextIdentity, ContextKind, ContextSource, ContextTrace, ContextEffort, DocumentRange } from './types'
@@ -39,7 +39,7 @@ export interface BrokerHost {
   effort: ContextEffort
   signal: AbortSignal
   current: () => boolean
-  sources: (kinds?: ContextKind[]) => Iterable<ContextSource>
+  sources: (kinds?: ContextKind[], query?: DescriptorQuery) => Iterable<ContextSource>
   recall?: (input: MemoryRecallRequest, signal: AbortSignal) => Promise<MemoryRecallResult>
   excluded: () => string[]
   changed?: (trace: ContextTrace) => void
@@ -102,7 +102,7 @@ export class ContextBroker {
     const scope = input.scope ?? 'all'
     const kinds = input.kinds
     const discoverMemory = !Array.isArray(kinds) || kinds.includes('memory')
-    if (!this.host.recall || !query.trim() || !discoverMemory || !this.eligible(['memory']).length || !['all', 'available', 'global', 'project'].includes(String(scope)) || input.group) return this.compileSearch(input)
+    if (!this.host.recall || !query.trim() || !discoverMemory || !this.eligible(['memory']).some(source => source.scope === 'global' || source.scope === 'project') || !['all', 'available', 'global', 'project'].includes(String(scope)) || input.group) return this.compileSearch(input)
     const request: MemoryRecallRequest = { query, scope: scope === 'global' || !this.host.identity.projectId && scope !== 'project' ? 'global' : 'project',
       ...(typeof input.before === 'string' ? { before: input.before } : {}), ...(typeof input.after === 'string' ? { after: input.after } : {}) }
     const key = JSON.stringify(request)
@@ -148,8 +148,8 @@ export class ContextBroker {
       && (after === null && before === null || Boolean(s.timestamp && (after === null || Date.parse(s.timestamp) >= after) && (before === null || Date.parse(s.timestamp) <= before)))
       && safeIdentifier(s)
     const resultsToSearch = !kinds || kinds.includes('result') ? this.results : []
-    const originals = (): Iterable<ContextSource> => this.host.sources(kinds)
-    const sources = resultsToSearch.length ? function* () { yield* originals(); yield* resultsToSearch } : originals
+    const originals = (query?: DescriptorQuery): Iterable<ContextSource> => this.host.sources(kinds, query)
+    const sources = resultsToSearch.length ? function* (query?: DescriptorQuery) { yield* originals(query); yield* resultsToSearch } : originals
     const { hits, total } = rankSourcePage(query, sources, start, limit, memoryRanks, 'memory provider', eligible)
     const results = hits.map(({ source: s, reason }) => {
       const resource = s.resource ? { environment: redactContext(s.resource.environment), name: redactContext(s.resource.name) } : undefined
@@ -244,7 +244,24 @@ export class ContextBroker {
     for (const id of selected) {
       const source = this.eligible([id.split(':')[0] as ContextKind], s => s.id === id)[0]
       const remaining = Math.max(0, Math.min(2400, allocation) - this.trace.selected.reduce((sum, evidence) => sum + evidence.estimatedTokens, 0))
-      if (source && remaining > 100) results.push(await this.read({ ref: this.ref(source) }, 'local task routing', Math.min(remaining, Math.floor(allocation / selected.length))))
+      if (source && remaining > 100) {
+        const limit = Math.min(remaining, Math.floor(allocation / selected.length))
+        let result: string
+        try { result = await this.read({ ref: this.ref(source) }, 'local task routing', limit) }
+        catch (error) {
+          if (source.kind !== 'environment' || !String(error).includes('STALE_REFERENCE')) throw error
+          result = JSON.stringify({ status: 'STALE_REFERENCE' })
+        }
+        if (source.kind === 'environment' && JSON.parse(result).status === 'STALE_REFERENCE') {
+          // A first schema inspection can populate previously unknown cached
+          // columns. Rebind once to that current revision; runtime/privacy
+          // checks and the normal lookup budget still apply to both reads.
+          this.check()
+          const current = this.eligible(['environment'], candidate => candidate.id === source.id)[0]
+          if (current) result = await this.read({ ref: this.ref(current) }, 'local task routing', limit)
+        }
+        results.push(result)
+      }
     }
     return results
   }
@@ -280,7 +297,7 @@ export class ContextBroker {
       cards.push({ scope: source.scope, instruction: content, ref })
       evidence.push({ ref, sourceId: source.id, kind: 'memory', scope: source.scope, title: redactContext(source.title).slice(0, 120), revision: source.revision, reason: 'user marked Always apply', content, estimatedTokens: estimateTokens(content), completeness: 'complete' })
     }
-    const card = `User-configured Always apply instructions. Current explicit user instructions take precedence; project preferences override global defaults. Application permissions still apply.\n${JSON.stringify(cards)}`
+    const card = `User-configured Always apply instructions. Current explicit user instructions take precedence; corrected conversation memories supersede earlier chat instructions, then project preferences, then global defaults. Application permissions still apply.\n${JSON.stringify(cards)}`
     if (estimateTokens(card) > 1200) throw new Error('BUDGET_LIMIT: Always apply instructions exceed 1,200 estimated tokens. Shorten them or unpin selected records in the Memory library; none were silently dropped.')
     this.trace.selected.push(...evidence)
     this.emit()

@@ -1,4 +1,4 @@
-import { descriptorLowerCase } from './descriptor-identity'
+import { descriptorLowerCase, descriptorLexicalSignature, descriptorMayMatch, type DescriptorQuery } from './descriptor-identity'
 import { materialiseDescriptor } from './descriptor-index'
 import type { ContextSource } from './types'
 import { prepareLexicalQuery, scoreLexicalQuery } from './router'
@@ -10,6 +10,7 @@ function ranking(query: string) {
   const prepared = prepareLexicalQuery(query.normalize('NFKC'))
   const normal = prepared.text
   const identifiers = new Set(normal.match(/[\p{L}\p{N}_.:$-]+/gu) ?? [])
+  const signatures = !prepared.words.length || prepared.words.some(word => word.length < 3 || /[\u0080-\uffff]/.test(word)) ? undefined : prepared.words.map(descriptorLexicalSignature)
   const recent = /\b(?:last|latest|recent|that)\b/i.test(query) && /\b(?:error|failure|failed|warning|execution|command)\b/i.test(query)
   const authority = { observed: 3, host: 2, user: 1, untrusted: 0 }
   const compare: Compare = (a, b) => Number(b.exact) - Number(a.exact) || b.score - a.score
@@ -18,7 +19,7 @@ function ranking(query: string) {
     || (recent ? Number(b.source.kind === 'console') - Number(a.source.kind === 'console')
       || (a.source.kind === 'console' ? (Date.parse(b.source.timestamp ?? '') || 0) - (Date.parse(a.source.timestamp ?? '') || 0) : 0) : 0)
     || authority[b.source.trust] - authority[a.source.trust] || a.source.id.localeCompare(b.source.id)
-  return { compare, scan(sources: Iterable<ContextSource>, semantic: Map<string, number>, eligible: (source: ContextSource) => boolean, visit: (hit: RankedSource) => void) {
+  return { compare, filter: (semantic: Map<string, number>): DescriptorQuery => ({ text: normal, words: signatures, semantic: new Set(semantic.keys()) }), scan(sources: Iterable<ContextSource>, semantic: Map<string, number>, eligible: (source: ContextSource) => boolean, visit: (hit: RankedSource) => void) {
     // Reuse the scan card. Only retained candidates need their own object.
     const hit = {} as RankedSource
     for (const source of sources) {
@@ -33,8 +34,12 @@ function ranking(query: string) {
       const name = source.resource?.name.normalize('NFKC').toLowerCase()
       const lower = descriptorLowerCase(source)
       const title = lower & 1 ? source.title : source.title.toLowerCase()
+      const named = Boolean(name && identifiers.has(name))
+      // Partial titles inside the query retain their existing lexical score,
+      // even when the descriptor lacks the rest of that query word.
+      if (!named && !(title && normal.includes(title)) && !semantic.has(source.id) && !descriptorMayMatch(source, signatures)) continue
       const exact = Boolean(normal) && (/[\u0080-\uffff]/.test(title) ? title.normalize('NFKC') : title).trim() === normal
-        || Boolean(name && identifiers.has(name))
+        || named
       const score = scoreLexicalQuery(prepared, title, lower & 2 ? source.summary : source.summary.toLowerCase())
       if (!(exact || score > 0 || semantic.has(source.id)) || !eligible(source)) continue
       hit.source = source; hit.score = exact ? Math.max(100, score) : score; hit.exact = exact
@@ -64,12 +69,13 @@ export function rankSources(query: string, sources: Iterable<ContextSource>, sem
  * Complete counts and ordinal fusion survive without allocating one ranked
  * object per document/console descriptor on broad discovery. The source factory
  * reapplies current scope filters if fusion requires its bounded second scan. */
-export function rankSourcePage(query: string, sources: () => Iterable<ContextSource>, start: number, limit: number, semanticIds: string[] = [], rankLabel = 'semantic', eligible: (source: ContextSource) => boolean = () => true): { hits: RankedSource[]; total: number } {
+export function rankSourcePage(query: string, sources: (filter?: DescriptorQuery) => Iterable<ContextSource>, start: number, limit: number, semanticIds: string[] = [], rankLabel = 'semantic', eligible: (source: ContextSource) => boolean = () => true): { hits: RankedSource[]; total: number } {
   if (!Number.isSafeInteger(start) || start < 0 || start > 10000 || !Number.isSafeInteger(limit) || limit < 1 || limit > 10) throw new Error('BUDGET_LIMIT')
   const capacity = start + limit, engine = ranking(query), semantic = semanticRanks(semanticIds)
+  const filter = engine.filter(semantic)
   const top: RankedSource[] = [], provider = new Map<string, RankedSource>()
   let total = 0
-  engine.scan(sources(), semantic, eligible, hit => {
+  engine.scan(sources(filter), semantic, eligible, hit => {
     total++
     if (semantic.has(hit.source.id)) provider.set(hit.source.id, { ...hit, source: materialiseDescriptor(hit.source) })
     if (top.length >= capacity && engine.compare(hit, top[top.length - 1]) >= 0) return
@@ -82,7 +88,7 @@ export function rankSourcePage(query: string, sources: () => Iterable<ContextSou
     const lexical = new Map(top.filter(hit => hit.score > 0).map((hit, rank) => [hit.source.id, rank + 1]))
     const beyond = [...provider.values()].filter(hit => hit.score > 0 && !lexical.has(hit.source.id))
     for (const hit of beyond) lexical.set(hit.source.id, 1)
-    if (beyond.length) engine.scan(sources(), semantic, eligible, hit => {
+    if (beyond.length) engine.scan(sources(filter), semantic, eligible, hit => {
       if (hit.score > 0) for (const candidate of beyond) if (engine.compare(hit, candidate) < 0) lexical.set(candidate.source.id, lexical.get(candidate.source.id)! + 1)
     })
     const union = new Map(top.map(hit => [hit.source.id, hit]))

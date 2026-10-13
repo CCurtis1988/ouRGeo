@@ -27,6 +27,8 @@ import { ContextBroker } from '@/lib/context/broker'
 import { attachTurnTrace } from '@/lib/context/turn-trace'
 import { workspaceSources, workspaceSourceScan } from '@/lib/context/sources/workspace'
 import { routeContext, routeSkillDescriptors } from '@/lib/context/router'
+import { environmentPrefetch } from '@/lib/context/environment-prefetch'
+import { failureSchemas } from '@/lib/context/failure-schemas'
 import { consoleFailurePrefetch } from '@/lib/context/console-prefetch'
 import { topicDescriptors } from '@/lib/ai-skill-ourgeo'
 import { redactContext } from '@/lib/context/policy'
@@ -217,9 +219,9 @@ export function AiChatPanel(): React.ReactElement {
     const broker: ContextBroker = new ContextBroker({
       identity: { chatId, projectId: project.projectId, workspaceEpoch: project.workspaceEpoch, policyRevision },
       target: `${provider}/${currentModel}`, effort, signal: ac.signal, current,
-      sources: function* (kinds) {
+      sources: function* (kinds, query) {
         if (!useContextStore.getState().exclusionsLoaded) return
-        yield* workspaceSourceScan(kinds, bindR)
+        yield* workspaceSourceScan(kinds, bindR, query)
       },
       recall: async (input, signal) => {
         signal.throwIfAborted()
@@ -243,12 +245,7 @@ export function AiChatPanel(): React.ReactElement {
     const ids = [...new Set([...routeSkillDescriptors(text, topicDescriptors()), ...route.topics])].map(topic => `skill:${topic}`)
     if (route.environment) {
       const candidates = workspaceSources(['environment'])
-      const brackets = [...text.matchAll(/\[([^\]\n]+)\]/g)].map(m => m[1])
-      for (const name of brackets) {
-        const hits = candidates.filter(source => source.resource?.name === name || source.title === name)
-        // Ambiguity stays visible to the assistant; never choose the first match.
-        if (hits.length === 1) ids.push(hits[0].id)
-      }
+      ids.push(...environmentPrefetch(candidates, text))
       if (/\b(?:this|active|selected) layer\b/i.test(text)) {
         const spatial = useSpatialStore.getState()
         const layer = spatial.layers.find(layer => layer.id === spatial.selectedLayerId)
@@ -259,7 +256,8 @@ export function AiChatPanel(): React.ReactElement {
       }
     }
     if (route.console) {
-      ids.push(...consoleFailurePrefetch(workspaceSources(['console']), text))
+      const failures = workspaceSources(['console']), selected = consoleFailurePrefetch(failures, text)
+      ids.push(...selected, ...failureSchemas(failures.filter(source => selected.includes(source.id)), workspaceSources(['environment']), useContextStore.getState().excluded))
     }
     if (route.memory) {
       const memories = workspaceSources(['memory']).filter(source => memoryRelevance(text, source.title, source.summary) > 0)
@@ -280,6 +278,8 @@ export function AiChatPanel(): React.ReactElement {
     const memory = useContextStore.getState()
     const originalHistory = disclosureDialogue(useAiStore.getState().chats.find(c => c.id === chatId)?.messages ?? [userMsg], disclosureExclusions(memory.excluded, hasColumnExclusions()), memory.exclusionsLoaded)
     const pinIds = [...memory.globals, ...memory.projectContext.memories].filter(record => record.status === 'active' && record.pinned && (record.scope === 'global' || (project.path && record.projectId === project.projectId))).map(record => `memory:${record.id}`)
+    const chatNotes = useAiStore.getState().chats.find(chat => chat.id === chatId)?.conversationMemories ?? []
+    pinIds.push(...chatNotes.filter(note => note.status === 'active' && note.pinned !== false).map(note => `memory:conversation:${chatId}:${note.id}`))
     const pins = await broker.pinnedInstructions(pinIds)
     const headroom = attachmentHeadroom(originalHistory, { system: systemPrompt, tools: compactTools, pins, scopeCard }, contextSize, outputReservation, staged.length)
     const attached: string[] = []

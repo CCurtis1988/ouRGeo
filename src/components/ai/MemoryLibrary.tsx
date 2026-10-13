@@ -7,6 +7,7 @@ import { useAiStore, selectMessages, selectActiveChat } from '@/store/ai'
 import { buildWorkingState } from '@/lib/context/working-state'
 import { memoryRetention } from '@/lib/context/retention'
 import type { MemoryRecord } from '@/lib/context/types'
+import { ConversationMemoryLibrary } from './ConversationMemoryLibrary'
 import { ForgetTranscriptReview } from './ForgetTranscriptReview'
 
 export function MemoryLibrary({ placement = 'assistant' }: { placement?: 'assistant' | 'settings' }): React.ReactElement {
@@ -49,14 +50,14 @@ export function MemoryLibrary({ placement = 'assistant' }: { placement?: 'assist
         className={`rounded-md border px-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-geo-accent ${scope === value ? 'border-geo-accent bg-geo-accent/10 text-geo-accent font-semibold' : 'border-geo-border bg-geo-panel text-geo-muted hover:text-foreground hover:border-geo-muted'}`}
       >{label}</button>)}
     </nav>
-    <p className="text-geo-muted">{scope === 'global' ? 'About you: personal preferences available across projects and chats.' : scope === 'project' ? 'Project: instructions for this saved project. Save the project to keep changes.' : 'Conversation: working context derived from the current chat.'} Selected context may be sent to your chosen assistant.</p>
+    <p className="text-geo-muted">{scope === 'global' ? 'About you: personal preferences available across projects and chats.' : scope === 'project' ? 'Project: instructions for this saved project. Save the project to keep changes.' : 'Conversation: instructions and memories for the current chat.'} Selected context may be sent to your chosen assistant.</p>
     {!ready && <p role="status">Loading local memory settings…</p>}
     {scope === 'conversation' ? <>
+      <ConversationMemoryLibrary key={activeChatId} />
+      <details><summary className="cursor-pointer text-geo-muted">Other working context from original messages</summary>
       <p className="text-geo-muted">Derived working state for this chat. Original messages remain in the chat; this is not durable project or personal memory.</p>
-      {workingState?.constraints.map((span, index) => <p key={`${span.messageId}:${index}`}>{span.text}</p>)}
       {workingState?.requests.map(span => <p key={span.messageId}>{span.text}</p>)}
       {workingState && [
-        { label: 'Declared decisions', spans: workingState.decisions },
         { label: 'Questions to check against the conversation', spans: workingState.questions },
         { label: 'Referenced objects and identifiers', spans: workingState.entities },
         { label: 'Reported failed attempts', spans: workingState.failedAttempts },
@@ -65,6 +66,7 @@ export function MemoryLibrary({ placement = 'assistant' }: { placement?: 'assist
         {group.spans.map((span, index) => <p key={`${span.messageId}:${index}`}>{span.text}</p>)}
       </details>)}
       {Boolean(workingState?.overflow.length) && <p>More original constraints and requests are available in the conversation through context search.</p>}
+      </details>
     </> : scope === 'project' && !path ? <p>Save this workspace as a project to keep project memory.</p> : <>
       <form className="space-y-2 rounded-md border border-geo-border bg-geo-panel p-3" onSubmit={event => {
         event.preventDefault()
@@ -87,7 +89,7 @@ export function MemoryLibrary({ placement = 'assistant' }: { placement?: 'assist
       {records.slice(0, visibleCount).map(record => <div key={record.id} className="border border-geo-border rounded-md bg-geo-panel p-3 space-y-2">
         {editing === record.id ? <>
           <textarea aria-label="Edit memory" value={editText} onChange={e => setEditText(e.target.value)} maxLength={4000} className="w-full bg-geo-bg border border-geo-border rounded p-1" />
-          <Button type="button" variant="outline" size="sm" onClick={() => void act(async () => { await useContextStore.getState().edit(record.id, editText); setEditing(null); setReceipt('Memory corrected.') })}>Save correction</Button>
+          <Button type="button" variant="outline" size="sm" disabled={busy || !editText.trim()} onClick={() => void act(async () => { await useContextStore.getState().edit(record.id, editText); setEditing(null); setReceipt('Memory corrected.') })}>Save correction</Button>
           <Button type="button" variant="outline" size="sm" disabled={busy} className="ml-2" onClick={() => setEditing(null)}>Cancel</Button>
         </> : <p>{record.statement}</p>}
         <p className="text-geo-muted">{record.scope} · {record.status === 'candidate' ? 'suggested, not used by assistant' : record.status === 'active' ? 'remembered' : `${record.status}, not used by assistant`} · {new Date(record.updatedAt).toLocaleDateString()} · revision {record.revision}</p>
@@ -104,6 +106,11 @@ export function MemoryLibrary({ placement = 'assistant' }: { placement?: 'assist
           await useContextStore.getState().forget(record.id)
           setReceipt(record.scope === 'global' ? 'Moved to project memory; save the project to commit it.' : 'Moved to About you; save the project to commit removal.')
         })}>{record.scope === 'global' ? 'Move to project' : 'Move to About you'}</Button>}
+        {['active', 'candidate'].includes(record.status) && <Button type="button" variant="outline" size="sm" disabled={busy || !activeChatId} className="mr-2 mb-1 h-auto min-h-7 whitespace-normal text-left" onClick={() => void act(async () => {
+          useAiStore.getState().setConversationMemory(activeChatId!, record.statement)
+          await useContextStore.getState().forget(record.id)
+          setReceipt('Moved to this conversation. Save the project to keep chat memories and project-memory removal.')
+        })}>Move to conversation</Button>}
       </div>)}
       </div>
       {records.length > visibleCount && <Button type="button" variant="outline" size="sm" disabled={busy} className="mr-2 mb-1 h-auto min-h-7 whitespace-normal text-left" onClick={() => setVisibleCount(count => count + 50)}>Show 50 more memories ({records.length - visibleCount} remaining)</Button>}

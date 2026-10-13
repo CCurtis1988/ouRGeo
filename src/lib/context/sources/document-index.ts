@@ -2,6 +2,7 @@ import type { TabState } from '@/store/editor'
 import { describeDocument } from '@/lib/ai-doc-context'
 import { languageOf } from '@/lib/markdown/doc-kind'
 import { CompactDescriptorIndex } from '../descriptor-index'
+import type { DescriptorQuery } from '../descriptor-identity'
 import { contentRevision } from '../policy'
 import { readDocumentRange } from '../document-range'
 import type { ContextSource } from '../types'
@@ -19,7 +20,7 @@ export class DocumentDescriptorIndex {
   private epoch = -1
   private packed: CompactDescriptorIndex | undefined
   constructor(private port: DocumentPort) {}
-  scan(): Iterable<ContextSource> {
+  scan(query?: DescriptorQuery): Iterable<ContextSource> {
     const tabs = this.port.tabs(), epoch = this.port.epoch()
     // Visual changes can precede the editor-store flush. Such snapshots cannot
     // inherit a cached catalogue merely because the tab array stayed the same.
@@ -52,6 +53,6 @@ export class DocumentDescriptorIndex {
       return text
     }
     const packed = this.packed.withReader({ read, readRange: (id, revision, range, signal) => readDocumentRange(read(id, revision, signal), range) })
-    return (function* () { for (const source of packed.scan()) { check(); yield source } })()
+    return (function* () { check(); for (const source of packed.scan(undefined, query)) { check(); yield source } check() })()
   }
 }

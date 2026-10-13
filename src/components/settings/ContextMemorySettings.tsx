@@ -46,7 +46,7 @@ export function ContextMemorySettings(): React.ReactElement {
   const choices = <><option value="asked">Remember only when I ask</option><option value="suggest">Suggest useful memories</option><option value="automatic">Automatically remember useful preferences</option></>
   return <section aria-label="Context and memory" className="h-full">
     <SettingsPages label="AI assistant settings" initialPage="library" pages={[
-      { id: 'library', title: 'Memory Library', headingPlacement: 'content', description: 'Add, review and organise your personal and project memories. Also available below the assistant conversation.', content: <MemoryLibrary placement="settings" /> },
+      { id: 'library', title: 'Memory Library', headingPlacement: 'content', description: 'Add, review and organise your personal, project and conversation memories. Also available below the assistant conversation.', content: <MemoryLibrary placement="settings" /> },
       { id: 'provider', title: 'Provider & model', description: 'Choose your assistant, connection and model.', content: <AiProviderSettings /> },
       { id: 'learning', title: 'Learning & context', description: 'Choose how much context the assistant retrieves and when it remembers information.', content: <div className="space-y-3 rounded-lg border border-geo-border bg-geo-bg/40 p-4">
     <label className="flex items-center justify-between text-xs">Context effort

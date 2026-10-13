@@ -18,6 +18,7 @@ import { accountingOnlyTrace, traceExpired, traceRetentionDays } from '@/lib/con
 const preferences = createJsonFileStore('context-preferences.json', 'Context')
 let initialisation: Promise<void> | undefined
 let usageWrites: Promise<void> = Promise.resolve()
+let exclusionGeneration = 0
 let lastTraceSweep = 0
 let traceTimer: ReturnType<typeof setInterval> | undefined
 let folderSubscription: (() => void) | undefined
@@ -184,21 +185,32 @@ export const useContextStore = create<ContextState>((set, get) => ({
     catch (error) { set({ error: `Learning settings could not be saved: ${String(error)}` }); throw error }
   },
   refreshExclusions: async () => {
-    const project = useProjectStore.getState()
-    const revision = get().policyRevision
+    const project = useProjectStore.getState(), attempt = ++exclusionGeneration
+    const current = (): boolean => attempt === exclusionGeneration
+      && useProjectStore.getState().workspaceEpoch === project.workspaceEpoch
+      && useProjectStore.getState().projectId === project.projectId
+    // Opening a project hydrates twice (blank scope, then recovered memory).
+    // A superseded column-policy load must not report the newer load's pending
+    // state as an empty Error, or disable all sources after it succeeds.
     try {
       const lease = await window.electronAPI.context.lease()
+      if (!current()) return
+      if (lease.projectId !== project.projectId) throw new Error('The workspace is changing. Retry source privacy settings once the project has opened.')
       const savedExclusions = await window.electronAPI.context.exclusions(lease.id)
+      if (!current()) return
       const { useColumnDisclosureStore } = await import('./column-disclosure')
+      if (!current()) return
       await useColumnDisclosureStore.getState().hydrate(lease.id)
-      if (!useColumnDisclosureStore.getState().loaded) throw new Error(useColumnDisclosureStore.getState().error)
+      if (!current()) return
+      if (!useColumnDisclosureStore.getState().loaded) throw new Error(useColumnDisclosureStore.getState().error || 'Column privacy settings are still loading. Retry source privacy settings.')
       await refreshFolderSources(window.electronAPI.context, lease.id)
-      if (useProjectStore.getState().workspaceEpoch !== project.workspaceEpoch || lease.projectId !== useProjectStore.getState().projectId || get().policyRevision !== revision) return
+      if (!current()) return
       const savedIds = new Set(get().savedExclusions.flatMap(selection => selection.ids))
       const transient = get().excluded.filter(id => !savedIds.has(id))
-      set({ scopeLease: lease.id, excluded: [...new Set([...transient, ...savedExclusions.flatMap(selection => selection.ids)])], savedExclusions, exclusionsLoaded: true })
+      set({ scopeLease: lease.id, excluded: [...new Set([...transient, ...savedExclusions.flatMap(selection => selection.ids)])], savedExclusions, exclusionsLoaded: true,
+        ...(get().error?.startsWith('Source privacy settings unavailable:') ? { error: null } : {}) })
     } catch (error) {
-      if (useProjectStore.getState().workspaceEpoch === project.workspaceEpoch) set({ error: `Source privacy settings unavailable: ${String(error)}. Retrieval stays disabled until protected storage is available.` })
+      if (current()) set({ exclusionsLoaded: false, error: `Source privacy settings unavailable: ${error instanceof Error ? error.message : String(error)}. Retry local memory to reload protected settings; retrieval stays disabled until they load.` })
     }
   },
   exclude: async (id, sourceScope, projectId) => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Copy } from 'lucide-react'
 import { Button } from '../ui/button'
-import { useSessionStore, type ConsoleEntry } from '@/store/session'
+import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
 import { actionCallInCode, actionCodeHint } from '@/lib/ai-actions/action-code-guard'
 import { cn } from '@/lib/utils'
@@ -13,23 +13,7 @@ import { setWorkingEnv } from '@/lib/working-env'
 import { ZoneTabs } from '../layout/ZoneTabs'
 import { usePanelDrawsTabs } from '@/hooks/useZoneTabs'
 import { usePanelId } from '../layout/panel-context'
-
-function EntryLine({ entry }: { entry: ConsoleEntry }): React.ReactElement {
-  const textColor = {
-    input: 'text-geo-accent',
-    output: 'text-foreground',
-    error: 'text-geo-error',
-    info: 'text-geo-muted'
-  }[entry.type]
-
-  const prefix = entry.type === 'input' ? '> ' : ''
-
-  return (
-    <div className={cn('font-mono text-xs leading-relaxed whitespace-pre-wrap break-all', textColor)}>
-      {prefix}{entry.text}
-    </div>
-  )
-}
+import { ConsoleHistory } from './ConsoleHistory'
 
 const TEN_MIN_S = 10 * 60
 
@@ -43,7 +27,6 @@ export function Console(): React.ReactElement {
   const addInputHistory = useSessionStore((s) => s.addInputHistory)
   const isExecuting = useSessionStore((s) => s.isExecuting)
   const executingStartTime = useSessionStore((s) => s.executingStartTime)
-  const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -54,6 +37,7 @@ export function Console(): React.ReactElement {
   compRef.current = comp
   const [elapsed, setElapsed] = useState(0)
   const [ctxOpen, setCtxOpen] = useState(false)
+  const [copyStatus, setCopyStatus] = useState('')
   const ctxRef = useRef<HTMLDivElement>(null)
   const panelId = usePanelId('console')
   const drawsTabs = usePanelDrawsTabs(panelId)
@@ -90,13 +74,6 @@ export function Console(): React.ReactElement {
     : elapsed >= TEN_MIN_S
       ? `Running — ${Math.floor(elapsed / 60)}m ${elapsed % 60}s (long running)`
       : `Running — ${elapsed}s`
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [history])
 
   const executeCode = useCallback(async (code: string) => {
     if (!code.trim()) return
@@ -232,6 +209,10 @@ export function Console(): React.ReactElement {
           <WorkingDirBar />
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6" disabled={!history.length} title="Copy all console output" aria-label="Copy all console output" data-ourgeo-id="console.copyOutput" onClick={() => {
+            const text = history.map(entry => `${entry.type === 'input' ? '> ' : ''}${entry.text}`).join('\n')
+            void navigator.clipboard.writeText(text).then(() => setCopyStatus('All console output copied.'), () => setCopyStatus('Copy failed. Select visible output and copy it manually.'))
+          }}><Copy className="w-3 h-3" /></Button>
           {/* Execution status dot */}
           <div className="relative" ref={ctxRef}>
             <div
@@ -271,16 +252,8 @@ export function Console(): React.ReactElement {
       </div>
 
       {/* Output area */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-auto px-3 py-2 space-y-0.5"
-      >
-        {history.length === 0 ? (
-          <div className="text-xs text-geo-muted italic">R console ready. Type code below or use the editor above.</div>
-        ) : (
-          history.map((entry) => <EntryLine key={entry.id} entry={entry} />)
-        )}
-      </div>
+      {copyStatus && <p role="status" className="px-3 text-xs text-geo-muted">{copyStatus}</p>}
+      <ConsoleHistory history={history} />
 
       {/* Input line */}
       <div className="flex items-start px-3 py-1.5 border-t border-geo-border flex-shrink-0 gap-1">

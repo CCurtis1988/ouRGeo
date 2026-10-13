@@ -1,4 +1,5 @@
 import type { AiChat, AiProvider, ChatMessage } from '@/store/ai'
+import { importConversationMemories } from './conversation-memory'
 import { restoreUsage } from './usage'
 import { accountingOnlyTrace, traceExpired } from './retention'
 
@@ -61,10 +62,14 @@ export function importChats(input: unknown, portable = false): AiChat[] {
       }
       messages.push(restored)
     }
+    let conversationMemories
+    try { conversationMemories = importConversationMemories(chat.conversationMemories) } catch { return [] }
+    characters += conversationMemories.reduce((total, record) => total + record.statement.length, 0)
+    if (characters > 50_000_000) return []
     chatIds.add(chat.id)
     const usage = object(chat.tokenUsage)
     return [{ id: chat.id, title: chat.title, renamed: chat.renamed === true, createdAt: chat.createdAt, updatedAt: chat.updatedAt,
-      messages, provider: chat.provider as AiProvider, model: chat.model,
+      messages, conversationMemories, provider: chat.provider as AiProvider, model: chat.model,
       claudeSessionId: !portable && identity(chat.claudeSessionId) ? chat.claudeSessionId : null,
       lastSessionContext: null,
       tokenUsage: { used: typeof usage?.used === 'number' && Number.isSafeInteger(usage.used) && usage.used >= 0 ? usage.used : 0,

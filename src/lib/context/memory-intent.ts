@@ -6,7 +6,7 @@ export function rememberIntent(text: string, savedProject = false): { statement:
   const command = text.trim().replace(politePrefix, '')
   const request = /^remember\s+(?:(globally|about me)\s+)?(?:that\s+)?([\s\S]+)$/i.exec(command)
   const body = request?.[2]?.trim()
-  if (!body || /^(?:this|that|it)[.!?]*$/i.test(body) || /\b(?:do not|don['’]?t|never)\s+(?:remember|save|retain|store)\b/i.test(body)) return null
+  if (!body || /\b(?:for|in) (?:this|the current) (?:chat|conversation)\b/i.test(body) || /^(?:this|that|it)[.!?]*$/i.test(body) || /\b(?:do not|don['’]?t|never)\s+(?:remember|save|retain|store)\b/i.test(body)) return null
   const secondary = /(?:[.!?]\s+(?:now |then |also |can |could |please |help |generate |calculate |explain |make |create |show |run )|\s+and (?:then |also )?(?:please )?(?:help |generate |calculate |explain |make |create |show |run ))/i.exec(body)
   const statement = (secondary ? body.slice(0, secondary.index) : body).trim()
   const followup = secondary ? { followup: true as const } : {}

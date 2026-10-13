@@ -72,17 +72,22 @@ The workspace benchmark runs actual source adapters and broker against synthetic
 times, manager memory, immutable input memory and their combined footprint.
 It does not establish full Electron UI performance at that size.
 
-The separate native context-browser fixture verifies the same corpus through
-the actual Electron UI; other panes are suppressed, so it does not establish
-whole-app rendering at that size. Run it after building:
+The native context-browser fixture verifies the same corpus through the actual
+Electron UI. Its default mode suppresses other panes. The separate normal-layout
+mode retains the active editor and console and checks first/last document
+navigation, older output, multiline height and complete-history copying. Run
+either after building:
 
 ```sh
 node scripts/check-context-scale.mjs
+node scripts/check-context-scale.mjs --whole-app
 ```
 
 Its JSON report includes warm search-handler times, resident memory after GC,
-source hashes, screenshots and explicit gates. The version 1.16.14 follow-up
-evidence retains earlier failures as well as the final result.
+source hashes, screenshots and explicit gates. Normal-layout results do not
+certify production file ingestion, other panel combinations or transient pre-GC
+peaks. The [current follow-up](context-stage02-owner-followup.md) records the
+1.16.16 results and retains earlier failures.
 
 For the Linux syscall audit, supply an installed `strace` executable:
 
@@ -108,8 +113,29 @@ node scripts/check-context-package.mjs
 This copies the current AppImage into a disposable workspace installation,
 extracts it, verifies payload hashes, runs the full synthetic packaged fixture
 and removes only that test installation. Logs and the isolated profile remain
-available. FUSE mounting, desktop integration and Debian package-manager
-installation are separate, untested boundaries. On a small RAM-backed `/tmp`,
+available. Run actual FUSE mounting and private packaged desktop launch separately:
+
+```sh
+node scripts/check-context-package.mjs --native-fuse
+node scripts/check-context-desktop.mjs
+```
+
+Both pass on the current host. Native FUSE acceptance verifies the mounted
+filesystem type, not an extracted fallback. GTK acceptance registers the actual
+package desktop template under a private XDG directory, verifies protected local
+memory without model inference, and removes that registration. This does not
+certify regular desktop menus or file associations.
+
+`scripts/check-context-deb.mjs` runs dpkg installation of 1.16.15, upgrade to the
+current package, installed archive/command/library checks, installed-binary
+acceptance and removal inside a disposable Debian filesystem. The environment
+must first contain Debian desktop libraries and the fixture's R packages. Its
+default path is `.cache/stage02/debian/rootfs-minimal`; it refuses filesystems
+outside that acceptance cache. Host X11 and keyring sockets provide the session;
+this is not a separately booted Debian desktop. Full results and setup failures
+are retained in the follow-up evidence. Host packages are untouched.
+
+On a small RAM-backed `/tmp`,
 set `TMPDIR` to a workspace cache directory when packaging; this changes temporary
 storage rather than dependency collection or package contents.
 
@@ -117,11 +143,15 @@ Model quality and human usability are platform-independent gates. Follow the
 frozen-corpus, comparable-model and independent-review protocol in
 `../tests/fixtures/context/evaluation/README.md`. Retain failed answers as well as
 passes. A separately authored corpus and blinded model-quality review are still
-missing. The owner will perform the current Linux manual acceptance personally,
-using `context-owner-acceptance.md`; collect its seven results before recording
-owner acceptance. The specification's separate ten-participant study (at least
+missing. The owner's seven Linux observations are preserved in
+`context-owner-acceptance.md`; engineering follow-up addresses items 4–7.
+The specification's separate ten-participant study (at least
 eight completing without assistance) remains unverified and cannot be inferred
-from owner results. Live paid runs require an explicit evaluation budget.
+from owner results. The owner deferred independent review and this study until
+a team is available; their requirements remain open. Use
+`context-qualification-review.md` for the prepared handoff. Local models and the
+configured ouRGeo OpenAI subscription are authorised for development comparisons;
+that authorisation does not grant other paid providers or invoice certification.
 A local smoke run or a scripted oracle retrieval cannot replace those results.
 
 Known cost boundaries: reviewed prices enforce estimated daily/monthly ceilings;

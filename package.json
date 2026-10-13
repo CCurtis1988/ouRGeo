@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.16.15",
+  "version": "1.16.16",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -39,6 +39,7 @@
     "@radix-ui/react-scroll-area": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.0",
+    "@tanstack/react-virtual": "3.14.18",
     "@turf/helpers": "^7.3.5",
     "@turf/line-offset": "^7.3.5",
     "@xterm/addon-fit": "0.11.0",
@@ -141,7 +142,7 @@
       ],
       "category": "public.app-category.developer-tools",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant\u2019s message box."
+        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant’s message box."
       }
     },
     "win": {

@@ -134,7 +134,7 @@ R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.Global
 
 **Code editor** — Monaco, the VS Code engine. R syntax highlighting with autocomplete driven by the live R session, so it completes objects that actually exist. Tabs are either documents (.R, .md, .Rmd, .qmd) or object tabs (Data Viewer, function editor). Ctrl+N new tab, Ctrl+W close, Ctrl+Space autocomplete. The toolbar has "Line" (Ctrl+Enter) and "Run All".
 
-**R console** — a real prompt below the editor. Shift+Enter for a newline, arrow keys for history, live streaming output, colour-coded errors. Plots are captured automatically into the Plots panel. The header shows the working directory; clicking it opens the menu that changes it. "Clear console" clears the display only — the session keeps its objects.
+**R console** — a real prompt below the editor. Shift+Enter for a newline, arrow keys for history, live streaming output, colour-coded errors. Plots are captured automatically into the Plots panel. The header shows the working directory; clicking it opens the menu that changes it. Long histories render the visible range while retaining every entry; scroll to older output. **Copy all console output** in the header (highlight target \`console.copyOutput\`) copies the complete history, including entries outside the viewport. "Clear console" clears the display only — the session keeps its objects.
 
 **Data Viewer** — opens as a tab, not a sidebar. Sortable grid; sf geometry columns show alongside attributes. Add Column and a per-column type dropdown edit in place. Anything carrying geometry also gets **Add to Map** in the header, which sends it to the Spatial Editor — and asks first if it is already a layer there.
 
@@ -142,7 +142,7 @@ R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.Global
 
 **Help panel** — R documentation in-app and offline: search, back/forward, package pages and vignettes. Typing \`?something\` in the console opens it here.
 
-**Settings** — one scrollable dialog: Appearance (10 app themes, plus separate code-editor and markdown editor themes, interface scale, and the **Theme Studio** — where the user builds their own themes on all three axes, with an editor backdrop image, a card image, a default basemap, and import/export as \`.ourgeotheme.json\` files), Workspace (panel dragging on/off, saved arrangements with import/export as \`.ourgeolayout.json\`, and Restore default arrangement), R Backend, Spatial Editor (initial extent, attribute popup, default and calculation CRS), Basemaps (API keys), Data API Keys, AI Assistant (provider, model, base URL, context window).
+**Settings** — grouped sections in the left navigation; on narrow windows use the section selector at the top. Appearance includes app/code/markdown themes, interface scale and **Theme Studio**. Workspace includes panel dragging, saved arrangements and Restore default arrangement. R Backend, Spatial Editor, Basemaps and Data API Keys have separate sections. **AI Assistant** has separate pages for Memory Library, Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced. Start at Memory Library to add, correct or forget memories; use Provider & model to change the assistant connection.
 
 A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`theme:list\` to find out which ones exist — the parameter enums resolve live, but a listing is cheaper than a guess.`,
 
@@ -281,7 +281,12 @@ excluded locally may already have been transmitted; exclusion cannot unsend it.
 
 The Memory library has Conversation, Project and About you tabs. Explicit memories
 can be added, corrected, moved, exported as readable JSONL and forgotten. Project
-instructions such as “Use miles for this project” await project save. Direct
+instructions such as “Use miles for this project” await project save. Conversation
+memories belong to the current chat, with local add/edit/forget/move controls and
+an Always apply toggle. Saved projects retain chat memories; scratch chat memories
+end on normal exit. Removing a conversation memory leaves original user messages
+intact, which may still contain the instruction. Chat-only instructions must not
+be promoted to project or About you memory without the user's explicit choice. Direct
 remember/forget commands are fulfilled locally without model inference. Narrow
 conflicting unit-system and English preferences supersede within their own scope;
 project instructions take precedence without changing About you.

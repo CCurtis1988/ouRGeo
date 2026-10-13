@@ -16,7 +16,7 @@ export function memoryCandidate(text: string): MemoryCandidate | null {
   const statement = text.trim().replace(/[.!]$/, '')
   if (!statement || statement.length > 500 || /[\r\n]/.test(statement) || redactContext(statement) !== statement
       || /\b(?:do not|don['’]?t|never)\s+(?:remember|save|keep this)\b/i.test(statement)
-      || /\b(?:temporarily|for now|for today|until|only this (?:task|turn|answer|analysis))\b/i.test(statement)
+      || /\b(?:temporarily|for now|for today|for this (?:chat|conversation)|in this (?:chat|conversation)|until|only this (?:task|turn|answer|analysis))\b/i.test(statement)
       || /\b(?:password|token|credential|secret|diagnosis|religion|ethnicity|political|latitude|longitude)\b/i.test(statement)) return null
   if (/^(?:for this project[, :]+(?:use|keep|always)|use .+ for this project$|we (?:have )?decided (?:to|that)\b)/i.test(statement)) {
     return { scope: 'project', category: /^we /i.test(statement) ? 'decision' : 'instruction', statement }

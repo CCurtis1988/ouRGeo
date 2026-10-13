@@ -44,3 +44,8 @@ describe('host-owned durable-memory intent', () => {
     expect(forgetIntent('Forget all preferences', [global])).toBeNull()
   })
 })
+
+it('keeps explicit chat-only retention out of project and personal memory', () => {
+  expect(rememberIntent('Remember for this chat that the buffer is exactly 100 metres.', true)).toBeNull()
+  expect(projectInstruction('For this chat, never modify source data. Buffer distance is exactly 100 metres; working CRS is EPSG:32610.')).toBeNull()
+})

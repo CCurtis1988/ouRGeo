@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { SnapshotDescriptorIndex } from './snapshot-index'
+import { descriptorLexicalSignature } from '../descriptor-identity'
 import { materialiseDescriptor } from '../descriptor-index'
 import { ContextBroker } from '../broker'
 import type { ContextSource } from '../types'
@@ -52,4 +53,39 @@ it('keeps an early selected environment bound to its own reader after the runtim
   expect(inventory[0].read).toHaveBeenCalledOnce()
   expect(inventory[1].read).not.toHaveBeenCalled()
   expect(beforeRead).toHaveBeenCalledOnce()
+})
+
+it('accepts unchanged inventory refresh during inspection while still revoking changed source or privacy', async () => {
+  let inventory = [source('environment:a:roads')], privacy = 1
+  let finish!: (value: string) => void
+  inventory[0].read = () => new Promise<string>(resolve => { finish = resolve })
+  const index = new SnapshotDescriptorIndex({ sources: () => inventory, keys: () => [inventory, privacy], freshnessKeys: () => [privacy], epoch: () => 1 })
+  let selected = Array.from(index.scan(), materialiseDescriptor)[0]
+  let reading = selected.read()
+  inventory = [source('environment:a:roads')]
+  finish('Verified current schema')
+  await expect(reading).resolves.toBe('Verified current schema')
+  inventory[0].read = () => new Promise<string>(resolve => { finish = resolve })
+  selected = Array.from(index.scan(), materialiseDescriptor)[0]
+  reading = selected.read()
+  inventory = [source('environment:a:roads', '2')]
+  finish('Old schema')
+  await expect(reading).rejects.toThrow('source changed')
+  inventory[0].read = () => new Promise<string>(resolve => { finish = resolve })
+  selected = Array.from(index.scan(), materialiseDescriptor)[0]
+  reading = selected.read(); privacy++
+  finish('Old privacy')
+  await expect(reading).rejects.toThrow('STALE_REFERENCE')
+})
+it('revokes a paused filtered scan even when no descriptors match', () => {
+  let epoch = 1
+  const inventory = [source('environment:a:roads')]
+  const index = new SnapshotDescriptorIndex({ sources: () => inventory, keys: () => [inventory, epoch], epoch: () => epoch })
+  const scan = index.scan(undefined, { text: 'unrelated', words: [descriptorLexicalSignature('unrelated')], semantic: new Set() })[Symbol.iterator]()
+  epoch++
+  expect(() => scan.next()).toThrow('SCOPE_CHANGED')
+  const partial = index.scan(undefined, { text: 'roads', words: [descriptorLexicalSignature('roads')], semantic: new Set() })[Symbol.iterator]()
+  expect(partial.next().value?.id).toBe(inventory[0].id)
+  epoch++
+  expect(() => partial.next()).toThrow('SCOPE_CHANGED')
 })

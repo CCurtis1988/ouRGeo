@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import AdmZip from 'adm-zip'
 import { build } from 'esbuild'
+import { appImageArchive } from './lib/context-appimage.mjs'
 import { pathToFileURL } from 'node:url'
 
 const root = resolve(import.meta.dirname, '..')
@@ -18,7 +19,7 @@ const userData = join(profile, 'ourgeo')
 await mkdir(userData, { mode: 0o700 })
 const packagedExecutable = process.argv.includes('--packaged') ? resolve(process.argv[process.argv.indexOf('--packaged') + 1]) : undefined
 if (packagedExecutable) {
-  const archive = await readFile(process.platform === 'darwin' ? join(packagedExecutable, '../..', 'Resources/app.asar') : join(packagedExecutable, '..', 'resources/app.asar'))
+  const archive = packagedExecutable.endsWith('.AppImage') ? await appImageArchive(packagedExecutable) : await readFile(process.platform === 'darwin' ? join(packagedExecutable, '../..', 'Resources/app.asar') : join(packagedExecutable, '..', 'resources/app.asar'))
   assert(archive.includes(Buffer.from('OURGEO_CONTEXT_TEST_PROFILE')), 'Package lacks the synthetic profile guard. Rebuild before launching; no user profile was opened.')
 }
 // Explicitly set the data directory before importing main. XDG_CONFIG_HOME
@@ -30,7 +31,7 @@ async function launchIsolated(profileRoot, extraArgs = [], unavailableKeyring = 
   await chmod(data, 0o700)
   await writeFile(join(data, '.context-acceptance'), 'synthetic-context-profile-v1\n', { mode: 0o600 })
   await writeFile(wrapper, `const {app,safeStorage}=require('electron');app.setPath('userData',${JSON.stringify(data)});${unavailableKeyring ? 'safeStorage.isEncryptionAvailable=()=>false;' : ''}require(${JSON.stringify(join(root, 'out/main/index.js'))});`)
-  const instance = await electron.launch({ executablePath: packagedExecutable ?? electronExecutable, args: ['--no-sandbox', ...extraArgs, ...(packagedExecutable ? [] : [wrapper])], cwd: root, env: { ...process.env, XDG_CONFIG_HOME: profileRoot, OURGEO_CONTEXT_TEST_PROFILE: await realpath(data), OURGEO_CONTEXT_TEST_NO_KEYRING: unavailableKeyring ? '1' : '0' }, timeout: 60000 })
+  const instance = await electron.launch({ executablePath: packagedExecutable ?? electronExecutable, args: ['--no-sandbox', ...(process.argv.includes('--diagnostic-net-log') ? [`--log-net-log=${join(profileRoot, 'chromium-netlog.json')}`, '--net-log-capture-mode=Default'] : []), ...extraArgs, ...(packagedExecutable ? [] : [wrapper])], cwd: root, env: { ...process.env, XDG_CONFIG_HOME: profileRoot, OURGEO_CONTEXT_TEST_PROFILE: await realpath(data), OURGEO_CONTEXT_TEST_NO_KEYRING: unavailableKeyring ? '1' : '0' }, timeout: 60000 })
   assert.equal(resolve(await instance.evaluate(({ app }) => app.getPath('userData'))), resolve(data))
   await instance.evaluate(({ session }) => {
     globalThis.contextAcceptanceNetwork = { loopbackRequests: 0, blockedHosts: [] }
@@ -383,6 +384,8 @@ try {
   assert.equal(suggestion.status, 'candidate')
   await settingsPage(page, 'Memory Library')
   await library.getByRole('button', { name: 'Conversation', exact: true }).click()
+  await library.getByText('Current conversation:', { exact: false }).waitFor()
+  await library.getByText('Other working context from original messages', { exact: true }).click()
   await library.getByText('Derived working state', { exact: false }).waitFor()
   await library.getByRole('button', { name: 'About you', exact: true }).click()
   // Reopen the app-owned library view to pick up a simulated completed-turn
@@ -692,7 +695,7 @@ try {
   await page.waitForFunction(() => ![...document.querySelectorAll('button')].some(button => button.textContent === 'Reload column privacy settings'))
   await page.screenshot({ path: screenshot('ourgeo-context-column-privacy.png') })
   await page.keyboard.press('Escape')
-  await input.fill('Which columns are in [context_privacy_fixture]?')
+  await input.fill('Describe the schema of context_privacy_fixture without executing R.')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
   assert.equal(requests.length, 10)
@@ -811,6 +814,97 @@ try {
     const status = await window.electronAPI.context.chatBudgetStatus()
     return status.summary.dailyMicros === 3090 && status.summary.pendingReceipts === 0
   })
+  // Owner items 4–7: ordinary named schema requests and local chat-memory
+  // controls must work through the actual renderer, broker and project bundle.
+  await input.fill('Describe the schema of context_privacy_fixture without executing R.')
+  const unblockedStart = requests.length
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  // Preparing current schema is asynchronous; Stop can still be hidden before
+  // dispatch starts. Observe the fixture request before waiting for completion.
+  for (let attempt = 0; requests.length === unblockedStart && attempt < 200; attempt++) await new Promise(resolveDelay => setTimeout(resolveDelay, 50))
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, unblockedStart + 1)
+  assert(JSON.stringify(requests.at(-1)).includes('fixture_private_column'), 'Unblocked named object schema must reach the assistant.')
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  const chatLibrary = page.getByRole('region', { name: 'Memory library' })
+  await chatLibrary.getByRole('button', { name: 'Conversation', exact: true }).click()
+  const chatMemoryStart = requests.length
+  await chatLibrary.getByLabel('New memory', { exact: true }).fill('Acceptance chat memory: buffer distance is exactly 100 metres.')
+  await chatLibrary.getByRole('button', { name: 'Remember for this conversation', exact: true }).click()
+  await chatLibrary.getByText('Memory added to this conversation without running a model.', { exact: true }).waitFor()
+  const noteCard = chatLibrary.getByText('Acceptance chat memory: buffer distance is exactly 100 metres.', { exact: true }).locator('..')
+  await noteCard.getByRole('button', { name: 'Edit', exact: true }).click()
+  await chatLibrary.getByLabel('Edit memory', { exact: true }).fill('Acceptance chat memory: buffer distance is exactly 150 metres.')
+  await chatLibrary.getByRole('button', { name: 'Save correction', exact: true }).click()
+  await chatLibrary.getByText('Conversation memory corrected. Original messages remain in the chat.', { exact: true }).waitFor()
+  assert.equal(requests.length, chatMemoryStart, 'Adding and correcting chat memory must not dispatch a model.')
+  await page.screenshot({ path: screenshot('ourgeo-context-chat-memory.png') })
+  await page.keyboard.press('Escape')
+  await input.fill('Give a synthetic example using the chat buffer distance.')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  const chatDelivery = JSON.stringify(requests.at(-1))
+  assert(chatDelivery.includes('Acceptance chat memory: buffer distance is exactly 150 metres.'))
+  assert(!chatDelivery.includes('Acceptance chat memory: buffer distance is exactly 100 metres.'))
+  await projectAction('Save')
+  await readyProject('Context duplicate')
+  const savedChatBundle = await bundle(duplicatePath)
+  assert(savedChatBundle.manifest.ui.chats.chats.some(chat => chat.conversationMemories?.some(note => note.statement === 'Acceptance chat memory: buffer distance is exactly 150 metres.' && note.status === 'active')), 'Conversation memory must be written into its project chat.')
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Memory Library')
+  const updatedLibrary = page.getByRole('region', { name: 'Memory library' })
+  await updatedLibrary.getByRole('button', { name: 'Conversation', exact: true }).click()
+  const updatedNote = updatedLibrary.getByText('Acceptance chat memory: buffer distance is exactly 150 metres.', { exact: true }).locator('..')
+  await updatedNote.getByRole('button', { name: 'Move to About you', exact: true }).click()
+  await updatedLibrary.getByText('Moved to About you.', { exact: true }).waitFor()
+  assert.equal(requests.length, chatMemoryStart + 1, 'Moving chat memory must not run a model.')
+  await updatedLibrary.getByRole('button', { name: 'About you', exact: true }).click()
+  const movedNote = updatedLibrary.getByText('Acceptance chat memory: buffer distance is exactly 150 metres.', { exact: true }).locator('..')
+  await movedNote.getByRole('button', { name: 'Move to conversation', exact: true }).click()
+  await updatedLibrary.getByText('Moved to this conversation.', { exact: false }).waitFor()
+  await updatedLibrary.getByRole('button', { name: 'Conversation', exact: true }).click()
+  await updatedLibrary.getByText('Acceptance chat memory: buffer distance is exactly 150 metres.', { exact: true }).locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
+  await updatedLibrary.getByText('Removed from conversation memory.', { exact: false }).waitFor()
+  assert.equal(await updatedLibrary.getByText('Acceptance chat memory: buffer distance is exactly 150 metres.', { exact: true }).count(), 0)
+  await page.keyboard.press('Escape')
+  const chatOnlyInstruction = 'For this chat, never modify source data. Buffer distance is exactly 100 metres; working CRS is EPSG:32610.'
+  const chatInstructionStart = requests.length
+  await input.fill(chatOnlyInstruction)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  assert.equal(requests.length, chatInstructionStart + 1, 'An ordinary chat-only instruction must receive a model response rather than being intercepted as a durable command.')
+  assert(!(await page.evaluate(() => window.electronAPI.context.listGlobal())).some(memory => memory.statement.includes('For this chat')))
+  await projectAction('Save')
+  await readyProject('Context duplicate')
+  assert(!(await bundle(duplicatePath)).memories.some(memory => memory.statement.includes('For this chat')), 'Chat-only instructions must not become project memories.')
+  const consoleCommand = async (code, success) => {
+    const reply = page.waitForResponse(response => response.url().endsWith('/r/execute'))
+    await consoleInput.fill(code); await consoleInput.press('Enter')
+    const response = await reply
+    assert.equal((await response.json()).success, success)
+    await page.getByTitle('Idle', { exact: true }).first().waitFor()
+  }
+  await consoleCommand('owner_review_parcels <- data.frame(other_id = 1L); owner_review_owners <- data.frame(parcel_id = 1L)', true)
+  await consoleCommand('dplyr::left_join(owner_review_parcels, owner_review_owners, by = "parcel_id")', false)
+  await page.getByText('Join columns in', { exact: false }).first().waitFor()
+  await consoleCommand('owner_review_parcels <- data.frame(parcel_id = 1L)', true)
+  await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(el => el.click())
+  await settingsPage(page, 'Privacy & sources')
+  await page.getByText('Workspace column privacy', { exact: true }).click()
+  await page.getByRole('button', { name: 'Refresh workspace objects', exact: true }).click()
+  await page.getByRole('option', { name: '.GlobalEnv::owner_review_parcels', exact: true }).waitFor({ state: 'attached' })
+  await page.keyboard.press('Escape')
+  // Efficient intentionally prefetches one source; Balanced allows the failure
+  // plus both current schemas, without bypassing the user's retrieval depth.
+  await page.getByLabel('Context effort', { exact: true }).selectOption('balanced')
+  await input.fill('Explain the parcel_id join failure without changing data.')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  const failureDelivery = JSON.stringify(requests.at(-1))
+  assert(failureDelivery.includes('Historical console execution'))
+  assert(failureDelivery.includes('current schema only'))
+  assert(failureDelivery.includes('owner_review_parcels') && failureDelivery.includes('owner_review_owners'))
   const repairProfile = join(profile, 'index-repair-fixture'), repairData = join(repairProfile, 'ourgeo')
   await mkdir(repairData, { recursive: true })
   await writeFile(join(repairData, 'ai-preferences.json'), JSON.stringify({ provider: 'ollama', modelByProvider: { ollama: 'context-fixture' }, autopilotWarningDismissed: true }))
@@ -871,14 +965,16 @@ try {
   await panelLibrary.getByText(panelMemory, { exact: true }).locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
   await page.waitForFunction(async statement => !(await window.electronAPI.context.listGlobal()).some(record => record.statement === statement), panelMemory)
   await page.getByRole('button', { name: 'Memory Library', exact: true }).click()
+  const nativeApp = await app.evaluate(({ app }) => { const fs = process.getBuiltinModule('fs'), path = process.getBuiltinModule('path'); return { appVersion: app.getVersion(), appPath: app.getAppPath(), filesystemType: process.platform === 'linux' ? fs.statfsSync(path.dirname(app.getAppPath())).type : null } })
   const runtime = await app.evaluate(({ safeStorage }) => ({ encryptedStorage: safeStorage.isEncryptionAvailable(), backend: process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform }))
   const network = await app.evaluate(() => globalThis.contextAcceptanceNetwork)
   assert.deepEqual(network.blockedHosts, [], 'Local memory fixtures must not attempt external Electron HTTP(S) requests.')
   assert.deepEqual(errors, [])
-  console.log(JSON.stringify({ profile, mockRequests: requests.length, simpleRequestCount: 2, auxiliaryContext: false, electronSqliteWorker: runtime, electronHttpAfterLaunch: { ...network, boundary: 'Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified.' }, packaged: Boolean(packagedExecutable), settingsCategoryNavigation: true, narrowSettingsLayout: true, directMemoryWithoutInferenceInBothLocations: true, memoryEditsAndTombstone: true, estimatedMaintenanceSettingsWithoutPaidDispatch: true, protectedConnectionSetupAndHealthOnly: true, ...(managedRuntimeFixture ? { experimentalRuntimeStagingAndCancellation: true, managedFutureOnlyActivationAndNativeReview: true, managedDeletionAcrossRuntimePairs: true, managedRecallAndPauseRevocation: true, selectedCommittedMemoryImport: true, disconnectedManagedCacheDeletion: true, durableLocalCleanupFailureAndRepair: true } : {}), suggestionsPinsAndSuppression: true, projectSaveForkAndDiscard: true, responsiveDuringRLoadWithoutScopeLeak: true, scopedPersistentExclusions: true, duplicateProjectFork: true, hostMemoryCommandsWithoutInference: true, relevantUnitPreferencesAndSupersession: true, conversationDerivedDeletionAndEditedRetention: true, stagedDocumentAttachment: true, workspaceColumnPrivacy: true, protectedColumnPolicy: true, authorisedFolderIndexing: true, packedFolderSearchAndRead: true, watcherRevocation: true, verifiedBackupInspection: true, nativeSecondaryIndexDamageAndPreservedRecovery: true, durableInferenceAccounting: true, estimatedChatBudgetPreDispatchAndToolReconciliation: true, currentSourceBrowser: true, reviewedTranscriptForgetting: true, scopedUsageTotals: true, diagnosticRetentionControl: true, freshSourceDiscoveryWithoutKeyring: true, unreadablePolicyFailsClosed: true, screenshots: [screenshot('ourgeo-settings-memory-library.png'), screenshot('ourgeo-settings-memory-narrow.png'), screenshot('ourgeo-settings-panel-memory.png'), screenshot('ourgeo-context-index-repair.png'), screenshot('ourgeo-context-chat-budget.png'), screenshot('ourgeo-context-forget-copies.png'), screenshot('ourgeo-context-folders.png'), screenshot('ourgeo-context-backups.png'), screenshot('ourgeo-context-column-privacy.png'), screenshot('ourgeo-context-attachments.png'), screenshot('ourgeo-context-conversation.png'), screenshot('ourgeo-context-settings.png'), screenshot('ourgeo-context-learning.png'), screenshot('ourgeo-context-project.png'), screenshot('ourgeo-context-exclusions.png'), screenshot('ourgeo-context-retention.png'), screenshot('ourgeo-context-connections.png'), screenshot('ourgeo-context-maintenance.png'), ...(managedRuntimeFixture ? [screenshot('ourgeo-context-runtime.png'), screenshot('ourgeo-context-activation.png'), screenshot('ourgeo-context-import.png'), screenshot('ourgeo-context-cleanup.png')] : [])] }))
+  console.log(JSON.stringify({ ...nativeApp, profile, mockRequests: requests.length, simpleRequestCount: 2, auxiliaryContext: false, electronSqliteWorker: runtime, electronHttpAfterLaunch: { ...network, boundary: 'Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified.' }, packaged: Boolean(packagedExecutable), settingsCategoryNavigation: true, narrowSettingsLayout: true, directMemoryWithoutInferenceInBothLocations: true, memoryEditsAndTombstone: true, estimatedMaintenanceSettingsWithoutPaidDispatch: true, protectedConnectionSetupAndHealthOnly: true, ...(managedRuntimeFixture ? { experimentalRuntimeStagingAndCancellation: true, managedFutureOnlyActivationAndNativeReview: true, managedDeletionAcrossRuntimePairs: true, managedRecallAndPauseRevocation: true, selectedCommittedMemoryImport: true, disconnectedManagedCacheDeletion: true, durableLocalCleanupFailureAndRepair: true } : {}), suggestionsPinsAndSuppression: true, projectSaveForkAndDiscard: true, responsiveDuringRLoadWithoutScopeLeak: true, scopedPersistentExclusions: true, duplicateProjectFork: true, hostMemoryCommandsWithoutInference: true, relevantUnitPreferencesAndSupersession: true, conversationDerivedDeletionAndEditedRetention: true, stagedDocumentAttachment: true, workspaceColumnPrivacy: true, unbracketedNamedSchemaBlockedAndAllowed: true, localConversationMemoryAddEditMoveForgetSaveAndDelivery: true, chatOnlyInstructionReceivesResponseWithoutDurablePromotion: true, historicalJoinFailurePairedWithCurrentSchemas: true, protectedColumnPolicy: true, authorisedFolderIndexing: true, packedFolderSearchAndRead: true, watcherRevocation: true, verifiedBackupInspection: true, nativeSecondaryIndexDamageAndPreservedRecovery: true, durableInferenceAccounting: true, estimatedChatBudgetPreDispatchAndToolReconciliation: true, currentSourceBrowser: true, reviewedTranscriptForgetting: true, scopedUsageTotals: true, diagnosticRetentionControl: true, freshSourceDiscoveryWithoutKeyring: true, unreadablePolicyFailsClosed: true, screenshots: [screenshot('ourgeo-context-chat-memory.png'), screenshot('ourgeo-settings-memory-library.png'), screenshot('ourgeo-settings-memory-narrow.png'), screenshot('ourgeo-settings-panel-memory.png'), screenshot('ourgeo-context-index-repair.png'), screenshot('ourgeo-context-chat-budget.png'), screenshot('ourgeo-context-forget-copies.png'), screenshot('ourgeo-context-folders.png'), screenshot('ourgeo-context-backups.png'), screenshot('ourgeo-context-column-privacy.png'), screenshot('ourgeo-context-attachments.png'), screenshot('ourgeo-context-conversation.png'), screenshot('ourgeo-context-settings.png'), screenshot('ourgeo-context-learning.png'), screenshot('ourgeo-context-project.png'), screenshot('ourgeo-context-exclusions.png'), screenshot('ourgeo-context-retention.png'), screenshot('ourgeo-context-connections.png'), screenshot('ourgeo-context-maintenance.png'), ...(managedRuntimeFixture ? [screenshot('ourgeo-context-runtime.png'), screenshot('ourgeo-context-activation.png'), screenshot('ourgeo-context-import.png'), screenshot('ourgeo-context-cleanup.png')] : [])] }))
 } catch (error) {
+  console.error(error)
   console.log(JSON.stringify({ requests: requests.length, visible: await page?.locator('body').innerText() }))
-  await page?.screenshot({ path: screenshot('ourgeo-context-ui-failure.png') })
+  try { await page?.screenshot({ path: screenshot('ourgeo-context-ui-failure.png'), timeout: 5000 }) } catch { /* Preserve the original failure when native capture is unavailable. */ }
   throw error
 } finally {
   if (repairApp) await repairApp.close()

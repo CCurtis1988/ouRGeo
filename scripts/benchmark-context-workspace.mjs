@@ -43,7 +43,7 @@ for (let index = 0; index < 200; index++) OURGEO_TOPICS[`synthetic-${index}`] = 
 globalThis.window = { electronAPI: { context: {} } }
 global.gc?.()
 const beforeManager = memory('immutable-store-inputs-before-manager')
-const broker = () => new ContextBroker({ identity: { chatId: 'synthetic', projectId: null, workspaceEpoch: 1, policyRevision: 0 }, target: 'benchmark/no-model', effort: 'balanced', signal: new AbortController().signal, current: () => true, sources: kinds => workspaceSourceScan(kinds, () => { throw new Error('No R reads are authorised.') }), excluded: () => [] })
+const broker = () => new ContextBroker({ identity: { chatId: 'synthetic', projectId: null, workspaceEpoch: 1, policyRevision: 0 }, target: 'benchmark/no-model', effort: 'balanced', signal: new AbortController().signal, current: () => true, sources: (kinds, query) => workspaceSourceScan(kinds, () => { throw new Error('No R reads are authorised.') }, query), excluded: () => [] })
 const coldStart = performance.now()
 const first = JSON.parse(broker().search({ query: 'flood parcel exposure', kinds: ['document'] }))
 const coldMs = performance.now() - coldStart

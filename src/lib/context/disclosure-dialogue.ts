@@ -13,7 +13,7 @@ export function chatContentChanged(chats: AiChat[], previous: AiChat[]): boolean
   if (chats.length !== previous.length) return true
   return chats.some((chat, index) => {
     const prior = previous[index]
-    const keys: (keyof AiChat)[] = ['id', 'title', 'renamed', 'createdAt', 'updatedAt', 'messages', 'workingState', 'provider', 'model', 'tokenUsage']
+    const keys: (keyof AiChat)[] = ['id', 'title', 'renamed', 'createdAt', 'updatedAt', 'messages', 'workingState', 'conversationMemories', 'provider', 'model', 'tokenUsage']
     return keys.some(key => {
       if (key !== 'messages') return chat[key] !== prior[key]
       if (chat.messages === prior.messages) return false

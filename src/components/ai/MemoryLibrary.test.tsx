@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   project: { path: null as string | null, projectId: null, workspaceEpoch: 1 },
   ai: { chats: [], messages: [], activeChatId: null },
 }))
+vi.mock('./ConversationMemoryLibrary', () => ({ ConversationMemoryLibrary: () => <p>Conversation controls</p> }))
 vi.mock('@/store/context', () => ({ useContextStore: Object.assign((select: (s: typeof mocks.context) => unknown) => select(mocks.context), { getState: () => mocks.context }) }))
 vi.mock('@/store/project', () => ({ useProjectStore: (select: (s: typeof mocks.project) => unknown) => select(mocks.project) }))
 vi.mock('@/store/ai', () => ({ useAiStore: (select: (s: typeof mocks.ai) => unknown) => select(mocks.ai), selectMessages: (s: typeof mocks.ai) => s.messages, selectActiveChat: () => null }))

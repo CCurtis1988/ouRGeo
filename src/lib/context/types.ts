@@ -24,6 +24,8 @@ export interface ContextSource {
   legacyIds?: string[]
   resource?: { environment: string; name: string }
   group?: string
+  /** Original recorded console input, used only for narrow local dependency routing. */
+  command?: string
   read: (signal?: AbortSignal) => Promise<string> | string
   /** Open buffers can slice a bounded span without copying the whole document. */
   readRange?: (range: DocumentRange, signal?: AbortSignal) => Promise<string> | string

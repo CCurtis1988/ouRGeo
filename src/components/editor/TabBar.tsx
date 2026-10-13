@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, ChevronDown, Table2, Braces, FileCode, FileText } from 'lucide-react'
 import {
@@ -14,6 +14,7 @@ import { useLayoutStore } from '@/store/layout'
 import { ContextMenu, type ContextMenuItem } from '../ui/context-menu'
 import { cn } from '@/lib/utils'
 import { CreateDataDialog, type CreateDataType } from './CreateDataDialog'
+import { editorTabWindow, EDITOR_TAB_WIDTH } from '@/lib/editor-tab-window'
 
 function TabIcon({ tab }: { tab: TabState }): React.ReactElement | null {
   const type: TabType | undefined = tab.type
@@ -32,7 +33,7 @@ function TabIcon({ tab }: { tab: TabState }): React.ReactElement | null {
 export function TabBar(): React.ReactElement {
   const panelId = usePanelId(PRIMARY_EDITOR)
   const allTabs = useEditorStore((s) => s.tabs)
-  const tabs = tabsForPanel(allTabs, panelId)
+  const tabs = useMemo(() => tabsForPanel(allTabs, panelId), [allTabs, panelId])
   const activeTabId = useEditorStore((s) => s.activeByPanel[panelId] ?? null)
   const setActiveTab = useEditorStore((s) => s.setActiveTab)
   const closeTab = useEditorStore((s) => s.closeTab)
@@ -47,6 +48,11 @@ export function TabBar(): React.ReactElement {
   const layout = useLayoutStore((s) => s.layout)
   const others = editorPanels(layout).filter((p) => p !== panelId)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const virtualized = tabs.length > 200
+  const [viewport, setViewport] = useState({ offset: 0, width: 600 })
+  const activeIndex = useMemo(() => tabs.findIndex(tab => tab.id === activeTabId), [tabs, activeTabId])
+  const range = virtualized ? editorTabWindow(tabs.length, viewport.offset, viewport.width) : { start: 0, end: tabs.length }
+  const visibleTabs = virtualized ? tabs.slice(range.start, range.end) : tabs
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; tab: TabState } | null>(null)
 
   /** Anything that opens a document opens it HERE, not in whichever editor
@@ -65,9 +71,29 @@ export function TabBar(): React.ReactElement {
   // Scroll active tab into view
   useEffect(() => {
     if (!scrollRef.current) return
+    if (virtualized && activeIndex >= 0) {
+      const node = scrollRef.current, left = activeIndex * EDITOR_TAB_WIDTH, right = left + EDITOR_TAB_WIDTH
+      if (left < node.scrollLeft) node.scrollLeft = left
+      else if (right > node.scrollLeft + node.clientWidth) node.scrollLeft = Math.max(0, right - node.clientWidth)
+      const offset = node.scrollLeft, width = node.clientWidth
+      setViewport(previous => previous.offset === offset && previous.width === width ? previous : { offset, width })
+      return
+    }
     const active = scrollRef.current.querySelector('[data-active="true"]')
     if (active) active.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTabId])
+  }, [activeTabId, activeIndex, virtualized, viewport.width])
+
+  useEffect(() => {
+    const node = scrollRef.current
+    if (!node || !virtualized) return
+    const measure = (): void => {
+      const offset = node.scrollLeft, width = node.clientWidth
+      setViewport(previous => previous.offset === offset && previous.width === width ? previous : { offset, width })
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(node); node.addEventListener('scroll', measure, { passive: true }); measure()
+    return () => { observer.disconnect(); node.removeEventListener('scroll', measure) }
+  }, [virtualized])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -93,11 +119,13 @@ export function TabBar(): React.ReactElement {
 
   return (
     <div className="flex items-center bg-geo-bg border-b border-geo-border flex-shrink-0">
-      <div ref={scrollRef} className="flex overflow-x-auto flex-1 min-w-0 scrollbar-none">
-        {tabs.map((tab) => (
+      <div ref={scrollRef} role="region" aria-label="Open document tabs" className="flex overflow-x-auto flex-1 min-w-0 scrollbar-none">
+        {virtualized && <div aria-hidden="true" style={{ width: range.start * EDITOR_TAB_WIDTH, flexShrink: 0 }} />}
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             data-active={tab.id === activeTabId}
+            style={virtualized ? { width: EDITOR_TAB_WIDTH, minWidth: EDITOR_TAB_WIDTH, flexShrink: 0 } : undefined}
             className={cn(
               'group flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap border-r border-geo-border min-w-0 max-w-[180px]',
               tab.id === activeTabId
@@ -139,6 +167,7 @@ export function TabBar(): React.ReactElement {
             </span>
           </button>
         ))}
+        {virtualized && <div aria-hidden="true" style={{ width: (tabs.length - range.end) * EDITOR_TAB_WIDTH, flexShrink: 0 }} />}
       </div>
 
       {/* Split button: Plus + Chevron */}

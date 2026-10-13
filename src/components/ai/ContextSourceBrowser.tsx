@@ -5,11 +5,12 @@ import { useColumnDisclosureStore } from '@/store/column-disclosure'
 import { workspaceSourceScan } from '@/lib/context/sources/workspace'
 import { sourceBrowserPage, type SourceBrowserCard } from '@/lib/context/source-browser'
 import type { ContextSource } from '@/lib/context/types'
+import type { DescriptorQuery } from '@/lib/context/descriptor-identity'
 import { useAiStore } from '@/store/ai'
 import { conversationSourceId } from '@/lib/context/source-identity'
 
-function* discoverySources(): Iterable<ContextSource> {
-  yield* workspaceSourceScan(['environment', 'console', 'document', 'skill', 'action', 'memory'])
+function* discoverySources(query?: DescriptorQuery): Iterable<ContextSource> {
+  yield* workspaceSourceScan(['environment', 'console', 'document', 'skill', 'action', 'memory'], undefined, query)
   const project = useProjectStore.getState(), ai = useAiStore.getState()
   for (const chat of ai.chats) {
     if (!project.path && chat.id !== ai.activeChatId) continue

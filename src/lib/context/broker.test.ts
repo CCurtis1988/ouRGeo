@@ -315,3 +315,30 @@ describe('provider-assisted memory discovery', () => {
     expect(vi.mocked(host.recall!).mock.calls[0][0].scope).toBe('project')
   })
 })
+
+it('searches conversation-only memories locally without dispatching their query to a provider', async () => {
+  const { host } = fixture([source({ id: 'memory:conversation:chat:note', kind: 'memory', scope: 'conversation', title: 'Exactly 100 metres', summary: 'buffer distance', read: () => JSON.stringify({ statement: 'Exactly 100 metres', status: 'active', pinned: true }) })])
+  host.recall = vi.fn<NonNullable<BrokerHost['recall']>>()
+  const broker = new ContextBroker(host)
+  expect(JSON.parse(await broker.searchWithMemory({ query: 'buffer distance', kinds: ['memory'] })).results).toHaveLength(1)
+  expect(host.recall).not.toHaveBeenCalled()
+})
+
+it('prefetches an unpinned conversation memory through the ordinary memory-kind path', async () => {
+  const id = 'memory:conversation:chat:note'
+  const { broker } = fixture([source({ id, kind: 'memory', scope: 'conversation', title: 'Exactly 100 metres', summary: 'buffer distance', read: () => 'Current chat instruction: exactly 100 metres.' })])
+  const evidence = await broker.prefetch([id])
+  expect(evidence).toHaveLength(1)
+  expect(broker.trace.selected[0]).toMatchObject({ sourceId: id, scope: 'conversation', completeness: 'complete' })
+})
+
+it('rebinds a schema once when its first inspection fills cached columns, counting both reads', async () => {
+  const { state, broker } = fixture()
+  const current = source({ id: 'environment:a:parcels', kind: 'environment', scope: 'workspace', revision: 'observed', read: vi.fn(() => 'Current parcel_id schema') })
+  state.sources = [source({ id: current.id, kind: 'environment', scope: 'workspace', revision: 'uncached', read: vi.fn(() => { state.sources = [current]; throw new Error('STALE_REFERENCE: schema cache populated') }) })]
+  const result = await broker.prefetch([current.id])
+  expect(result[0]).toContain('Current parcel_id schema')
+  expect(broker.trace.selected[0].revision).toBe('observed')
+  expect(broker.trace.retrievalCalls).toBe(2)
+  expect(current.read).toHaveBeenCalledOnce()
+})

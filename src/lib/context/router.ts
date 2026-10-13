@@ -10,7 +10,7 @@ export function routeContext(text: string): ContextRoute {
   if (/\bplugin\b/i.test(text)) topics.push('extending')
   return {
     topics,
-    environment: /\[[^\]\n]+\]|\b(?:this|active|selected) (?:layer|dataset|object)\b|\b(?:columns|schema|crs)\b/i.test(text),
+    environment: /\[[^\]\n]+\]|\b(?:this|active|selected) (?:layer|dataset|object)\b|\b(?:columns|schema|crs|workspace|environment)\b/i.test(text),
     console: /\b(?:error|failed|failure|warning|debug|console)\b/i.test(text),
     documents,
     memory: /\b(?:remember|yesterday|previous|earlier|decid|prefer|units|distance|length|area|buffer|CRS|projection|format|style)\w*\b/i.test(text),

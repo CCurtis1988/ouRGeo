@@ -114,6 +114,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'console.workingDir', label: 'Working directory', where: 'console header' },
   { id: 'console.workingEnv', label: 'Working environment', where: 'console prompt, shown only while working inside an environment' },
   { id: 'console.clear', label: 'Clear console', where: 'console header, right' },
+  { id: 'console.copyOutput', label: 'Copy all console output', where: 'console header, right; copies complete history including output outside the viewport' },
 
   { id: 'ai.terminalSwitch', label: 'Terminal switch', where: 'AI panel footer, beside Autopilot' },
   // Pointable, never pressable — the same rule the microphone follows. An

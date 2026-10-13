@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { conversationMemories, validateConversationMemory, type ConversationMemory } from '@/lib/context/conversation-memory'
 import { loadAiPreferences, saveAiPreferences } from '@/lib/ai-preferences-persistence'
 import {
   setTierOverrides, setTierOverride, clearTierOverrides, type TierOverrides,
@@ -68,6 +69,7 @@ export interface AiChat {
   updatedAt: number
   messages: ChatMessage[]
   workingState?: WorkingState
+  conversationMemories?: ConversationMemory[]
   /**
    * The provider and model this conversation was actually held with, restored
    * when you switch back to it.
@@ -213,6 +215,7 @@ interface AiState {
   /** Show an existing conversation, restoring the provider and model it was
    *  held with. Stops a running turn first, keeping its partial answer. */
   switchChat: (id: string) => void
+  setConversationMemory: (chatId: string, statement: string, id?: string, change?: { kind: 'forget' } | { kind: 'pin'; pinned: boolean }) => void
   renameChat: (id: string, title: string) => void
   deleteChat: (id: string) => void
   /** Replace the whole set — a project load, or a restored session file. */
@@ -432,6 +435,22 @@ export const useAiStore = create<AiState>((set, get) => ({
         ? { ...get().modelByProvider, [target.provider]: target.model }
         : get().modelByProvider,
     })
+  },
+
+  setConversationMemory: (chatId, statement, id, change) => {
+    const chat = get().chats.find(chat => chat.id === chatId)
+    if (!chat || get().activeChatId !== chatId) throw new Error('The conversation changed. Reopen its Memory Library and try again.')
+    const clean = validateConversationMemory(statement)
+    const previous = conversationMemories(chat).find(record => id ? record.id === id : record.statement.toLocaleLowerCase() === clean.toLocaleLowerCase())
+    if (id && !previous) throw new Error('The conversation memory changed. Refresh the library and try again.')
+    if (!chat.conversationMemories?.some(record => record.id === previous?.id) && (chat.conversationMemories?.length ?? 0) >= 1000) throw new Error('This chat has reached 1,000 memory changes. Start a new chat for additional memories.')
+    get().cancelStream()
+    const now = new Date().toISOString()
+    const record: ConversationMemory = { ...previous, id: previous?.id ?? crypto.randomUUID(), statement: clean,
+      status: change?.kind === 'forget' ? 'forgotten' : 'active', pinned: change?.kind === 'pin' ? change.pinned : previous?.pinned ?? true, createdAt: previous?.createdAt ?? now, updatedAt: now, revision: (previous?.revision ?? 0) + 1 }
+    set(s => ({ chats: s.chats.map(current => current.id === chatId ? { ...current,
+      conversationMemories: [...(current.conversationMemories ?? []).filter(item => item.id !== record.id), record],
+      claudeSessionId: null, lastSessionContext: null, updatedAt: Date.now() } : current) }))
   },
 
   renameChat: (id, title) => set((s) => {

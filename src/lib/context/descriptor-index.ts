@@ -1,4 +1,4 @@
-import { classifyDescriptor, descriptorIdentity, descriptorLowerCase, descriptorRedactionSafe, safeDescriptorId } from './descriptor-identity'
+import { classifyDescriptor, descriptorIdentity, descriptorLowerCase, descriptorRedactionSafe, descriptorLexicalSignature, descriptorSignatureMatches, safeDescriptorId, type DescriptorQuery } from './descriptor-identity'
 import { redactContext } from './policy'
 import type { ContextKind, ContextScope, ContextSource, DocumentRange } from './types'
 
@@ -9,7 +9,7 @@ const FIELDS = 7
 const SAFE_ID = 1 << 10
 const SAFE_METADATA = 1 << 14
 const field = (segment: Segment, base: number, index: number): string => segment.text.slice(segment.offsets[base + index], segment.offsets[base + index + 1])
-interface Segment { text: string; offsets: Uint32Array; codes: Uint16Array }
+interface Segment { text: string; offsets: Uint32Array; codes: Uint16Array; lexical: Uint32Array }
 export interface DescriptorReader {
   read: (id: string, revision: string, signal?: AbortSignal) => Promise<string> | string
   readRange?: (id: string, revision: string, range: DocumentRange, signal?: AbortSignal) => Promise<string> | string
@@ -41,7 +41,7 @@ export function materialiseDescriptor(source: ContextSource): ContextSource {
   const { id, kind, scope, trust, title, summary, revision, timestamp, prerequisites, resource, group, legacyIds, read, readRange } = source
   const result = { id, kind, scope, trust, title, summary, revision, ...(timestamp ? { timestamp } : {}), ...(prerequisites ? { prerequisites } : {}), ...(resource ? { resource } : {}), ...(group ? { group } : {}), ...(legacyIds ? { legacyIds } : {}), read, ...(readRange ? { readRange } : {}) }
   const safe = descriptorIdentity(source)
-  if (safe !== undefined) classifyDescriptor(result, safe, descriptorLowerCase(source), descriptorRedactionSafe(source))
+  if (safe !== undefined) classifyDescriptor(result, safe, descriptorLowerCase(source), descriptorRedactionSafe(source), descriptorLexicalSignature(`${result.title}\n${result.summary}\n${result.resource?.name ?? ''}`))
   return result
 }
 /** Immutable metadata snapshots use packed text/offsets rather than one retained
@@ -55,13 +55,13 @@ export class CompactDescriptorIndex {
   private constructor(private segments: Segment[], private reader: DescriptorReader, count: number, bytes: number) { this.count = count; this.estimatedBytes = bytes }
   static from(sources: Iterable<ContextSource>, reader: DescriptorReader, maxBytes = 250 * 1024 * 1024): CompactDescriptorIndex {
     const segments: Segment[] = []
-    let texts: string[] = [], offsets: number[] = [0], codes: number[] = [], chars = 0, count = 0, bytes = 0
+    let texts: string[] = [], offsets: number[] = [0], codes: number[] = [], lexical: number[] = [], chars = 0, count = 0, bytes = 0
     const flush = (): void => {
       if (!codes.length) return
-      const segment = { text: texts.join(''), offsets: Uint32Array.from(offsets), codes: Uint16Array.from(codes) }
-      bytes += segment.text.length * 2 + segment.offsets.byteLength + segment.codes.byteLength
+      const segment = { text: texts.join(''), offsets: Uint32Array.from(offsets), codes: Uint16Array.from(codes), lexical: Uint32Array.from(lexical) }
+      bytes += segment.text.length * 2 + segment.offsets.byteLength + segment.codes.byteLength + segment.lexical.byteLength
       if (bytes > maxBytes) throw new Error('BUDGET_LIMIT: descriptor index exceeds the derived-cache limit. Select fewer sources or increase the local cache setting.')
-      segments.push(segment); texts = []; offsets = [0]; codes = []; chars = 0
+      segments.push(segment); texts = []; offsets = [0]; codes = []; lexical = []; chars = 0
     }
     for (const source of sources) {
       const kind = KINDS.indexOf(source.kind), scope = SCOPES.indexOf(source.scope), trust = TRUST.indexOf(source.trust)
@@ -70,6 +70,7 @@ export class CompactDescriptorIndex {
       if (extra.length > 16384) throw new Error('BUDGET_LIMIT: source identity metadata exceeds the local index bound.')
       for (const text of [source.id, source.title, source.summary, source.revision, source.timestamp ?? '', source.prerequisites ?? '', extra]) { texts.push(text); chars += text.length; offsets.push(chars) }
       codes.push(kind | scope << 4 | trust << 8 | (safeDescriptorId(source.id) ? SAFE_ID : 0) | (source.title.toLowerCase() === source.title ? 1 << 11 : 0) | (source.summary.toLowerCase() === source.summary ? 1 << 12 : 0) | (source.readRange ? 1 << 13 : 0) | (redactContext(source.title) === source.title && redactContext(source.summary) === source.summary ? SAFE_METADATA : 0)); count++
+      lexical.push(...descriptorLexicalSignature(`${source.title}\n${source.summary}\n${source.resource?.name ?? ''}`))
       if (count > 1_000_000) throw new Error('BUDGET_LIMIT: the descriptor index contains too many sources.')
       if (codes.length >= 1024 || chars >= 262144) flush()
     }
@@ -79,7 +80,7 @@ export class CompactDescriptorIndex {
   withReader(reader: DescriptorReader): CompactDescriptorIndex { return new CompactDescriptorIndex(this.segments, reader, this.count, this.estimatedBytes) }
   *sources(kinds?: ContextKind[]): Generator<ContextSource> { for (const source of this.scan(kinds)) yield materialiseDescriptor(source) }
   /** Internal scans reuse one card. Rank/broker snapshots every retained match. */
-  *scan(kinds?: ContextKind[]): Generator<ContextSource> {
+  *scan(kinds?: ContextKind[], query?: DescriptorQuery): Generator<ContextSource> {
     const card = new ScanCard(this.reader)
     const allowed = kinds ? new Set(kinds) : null
     for (const segment of this.segments) {
@@ -87,13 +88,19 @@ export class CompactDescriptorIndex {
         const code = segment.codes[row], kind = KINDS[code & 15]
         if (allowed && !allowed.has(kind)) continue
         const base = row * FIELDS
+        // Skip impossible metadata before decoding the whole scan card. Partial
+        // titles and provider-ranked IDs still take the ordinary ranking path.
+        if (query?.words && (code & SAFE_METADATA) && !descriptorSignatureMatches(segment.lexical, row * 4, query.words) && !query.semantic.has(field(segment, base, 0))) {
+          const title = field(segment, base, 1).toLowerCase()
+          if (!title || !query.text.includes(title)) continue
+        }
         const id = field(segment, base, 0), revision = field(segment, base, 3), timestamp = field(segment, base, 4), prerequisites = field(segment, base, 5), extraText = field(segment, base, 6)
         const extra = extraText ? JSON.parse(extraText) as Pick<ContextSource, 'resource' | 'group' | 'legacyIds'> : {}
         card.id = id; card.kind = kind; card.scope = SCOPES[code >> 4 & 15]; card.trust = TRUST[code >> 8 & 3]
         card.title = field(segment, base, 1); card.summary = field(segment, base, 2); card.revision = revision
         card.timestamp = timestamp || undefined; card.prerequisites = prerequisites || undefined
         card.resource = extra.resource; card.group = extra.group; card.legacyIds = extra.legacyIds; card.ranged = !!(code & 1 << 13)
-        classifyDescriptor(card, !!(code & SAFE_ID), code >> 11 & 3, !!(code & SAFE_METADATA))
+        classifyDescriptor(card, !!(code & SAFE_ID), code >> 11 & 3, !!(code & SAFE_METADATA), segment.lexical, row * 4)
         yield card
       }
     }

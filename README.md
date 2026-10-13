@@ -1,6 +1,6 @@
 # ouRGeo
 
-Current version: **1.16.15**. Release history: **1.16.0** managed plugin services,
+Current version: **1.16.16**. Release history: **1.16.0** managed plugin services,
 **1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
 **1.16.3** guided installation health checks.
 
@@ -130,6 +130,10 @@ the whole analysis.
   Save the session as a project and its conversations are kept with it and
   travel inside the `.ourgeoproj`; in the scratch workspace they last until you
   quit, like everything else there.
+- **Large-session navigation.** Long document tab strips and console histories
+  render the visible range while keeping every document and output entry.
+  Scroll back to earlier output, or use **Copy all console output** in the console
+  header to copy the complete history, including entries outside the viewport.
 - **Selective AI context and local memory.** The assistant searches skills,
   action definitions, current schemas, console executions and documents when
   needed. Unrelated requests do not wait for R inspection. The inspector separates
@@ -144,7 +148,11 @@ the whole analysis.
   assistant answers are omitted from future prompts and assistant execution
   that could bypass private-source filters pauses. **Settings → AI Assistant → Learning & context** controls effort and
   learning. **Memory Library** separates About you, Project and Conversation, with
-  an **Add a memory** form that saves directly without running a model. It is
+  an **Add a memory** form that saves directly without running a model. Conversation
+  memories can also be corrected, forgotten or moved between scopes. They stay
+  with their chat; saved projects keep them, while scratch memories end on normal
+  app exit. Removing a memory keeps original chat messages; use transcript review
+  when those copies also need removal. It is
   available in settings and below the assistant conversation. **Privacy & sources**
   contains source exclusions, workspace column privacy and reference folders;
   **Budgets** contains chat and maintenance limits; **Storage & recovery**

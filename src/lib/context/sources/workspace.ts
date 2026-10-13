@@ -20,6 +20,8 @@ import { preferenceCategories } from '../preferences'
 import { ConsoleIndex } from './console-index'
 import { DocumentDescriptorIndex } from './document-index'
 import { SnapshotDescriptorIndex } from './snapshot-index'
+import type { DescriptorQuery } from '../descriptor-identity'
+import { conversationMemories } from '../conversation-memory'
 import { memoryRetention } from '../retention'
 import { readDocumentRange } from '../document-range'
 import { columnExclusions, hasColumnExclusions, useColumnDisclosureStore } from '@/store/column-disclosure'
@@ -29,14 +31,16 @@ import { folderSources, folderSourceScan } from '../folder-sources'
 
 const consoleIndex = new ConsoleIndex()
 const documentIndex = new DocumentDescriptorIndex({ tabs: () => useEditorStore.getState().tabs, epoch: () => useProjectStore.getState().workspaceEpoch, snapshot: snapshotDocument, available: () => !hasColumnExclusions() })
-const environmentIndex = new SnapshotDescriptorIndex({
-  epoch: () => useProjectStore.getState().workspaceEpoch,
-  keys: () => {
+const environmentKeys = (): readonly unknown[] => {
     const session = useSessionStore.getState(), columns = useColumnDisclosureStore.getState()
     let latestInput = ''
     for (let index = session.consoleHistory.length - 1; index >= 0; index--) if (session.consoleHistory[index].type === 'input') { latestInput = session.consoleHistory[index].id; break }
     return [useEnvironmentStore.getState().environments, useProjectStore.getState().workspaceEpoch, session.rGeneration, session.rPort, session.rStatus, latestInput, columns.selections, columns.revision, columns.loaded, columns.workspaceEpoch]
-  },
+}
+const environmentIndex = new SnapshotDescriptorIndex({
+  epoch: () => useProjectStore.getState().workspaceEpoch,
+  keys: environmentKeys,
+  freshnessKeys: () => environmentKeys().slice(1),
   sources: () => workspaceSources(['environment'], false),
 })
 
@@ -120,6 +124,13 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
   }
   if (wants('memory')) {
     const context = useContextStore.getState()
+    const ai = useAiStore.getState(), chat = ai.chats.find(chat => chat.id === ai.activeChatId)
+    if (chat) for (const record of conversationMemories(chat)) {
+      const manual = chat.conversationMemories?.some(note => note.id === record.id)
+      sources.push({ id: `memory:conversation:${chat.id}:${record.id}`, kind: 'memory', scope: 'conversation',
+        title: record.statement.slice(0, 120), summary: record.statement, revision: String(record.revision), timestamp: record.updatedAt, trust: 'user',
+        read: () => JSON.stringify({ ...record, scope: 'conversation', pinned: manual === true && record.pinned !== false, assertion: 'user-declared' }) })
+    }
     for (const record of [...context.projectContext.memories, ...context.globals]) {
       if (record.status !== 'active' || memoryRetention(record).expired) continue
       if (record.scope === 'project' && (!useProjectStore.getState().path || record.projectId !== useProjectStore.getState().projectId)) continue
@@ -131,12 +142,12 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
 
 /** Broker discovery streams the potentially large authorised folder catalogue.
  * UI pickers retain their ordinary stable array API. */
-export function* workspaceSourceScan(kinds?: ContextKind[], beforeEnvironmentRead?: () => void): Generator<ContextSource> {
+export function* workspaceSourceScan(kinds?: ContextKind[], beforeEnvironmentRead?: () => void, query?: DescriptorQuery): Generator<ContextSource> {
   const localKinds = (kinds ?? ['skill', 'action', 'environment', 'console', 'document', 'conversation', 'memory', 'result']).filter(kind => kind !== 'document' && kind !== 'environment') as ContextKind[]
   yield* workspaceSources(localKinds, false)
-  if (!kinds || kinds.includes('environment')) yield* environmentIndex.scan(beforeEnvironmentRead)
+  if (!kinds || kinds.includes('environment')) yield* environmentIndex.scan(beforeEnvironmentRead, query)
   if ((!kinds || kinds.includes('document')) && !hasColumnExclusions()) {
-    yield* documentIndex.scan()
+    yield* documentIndex.scan(query)
     yield* folderSourceScan(window.electronAPI.context)
   }
 }

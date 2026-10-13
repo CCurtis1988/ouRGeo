@@ -68,3 +68,24 @@ measurement runs separately through `scripts/benchmark-context.mjs`.
    from synthetic automation and do not manufacture completed participant data.
 6. Report passing and failed targets together. Synthetic scores cannot close
    model quality, supported-platform packaging/protection or human usability gates.
+
+## Live development comparisons
+
+`scripts/evaluate-context-models.mjs` completes model-selected search/read loops
+through production Ollama or ouRGeo OpenAI subscription transports. It compares
+current legacy-contract builders plus authorised eager fixture resource bodies
+with broker selection. All data is synthetic; actions, R execution, memory writes
+and arbitrary proxy destinations are unavailable. The subscription helper keeps
+OAuth credentials native and uses the already configured account/model. Local
+evaluation uses an already installed idle model, CPU-only, without downloads.
+It records failures and reported counters separately; missing usage is unknown.
+Use `--dry-run` for a no-dispatch harness check, `--suite smoke`, `mixed20` or
+`long`, and `--ids` for a bounded regression subset. The long probe deliberately
+uses a 4,000-token conversation-selection budget to exercise real compaction
+inside the configured model window. This is a tuned development comparison,
+not a historical app run, independent held-out quality score or billed saving.
+
+`scripts/prepare-context-review.mjs` creates a blind paired packet and pending
+human ratings from saved real reports; it refuses to overwrite existing reviews.
+See `docs/context-stage02-owner-followup.md` for current results, including
+generated-code failures and unresolved quality/provenance gates.

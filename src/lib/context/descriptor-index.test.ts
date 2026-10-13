@@ -31,7 +31,7 @@ it('retains exact and broad lexical page order and provider rank fusion', () => 
   const index = CompactDescriptorIndex.from(sources, { read: () => '' })
   for (const query of ['', 'flood parcel', '[object-987]', 'not-found']) for (const start of [0, 10, 100]) {
     const expected = rankSourcePage(query, () => sources, start, 10, [sources[2048].id, sources[7].id])
-    const actual = rankSourcePage(query, () => index.scan(), start, 10, [sources[2048].id, sources[7].id])
+    const actual = rankSourcePage(query, filter => index.scan(undefined, filter), start, 10, [sources[2048].id, sources[7].id])
     expect(actual.total).toBe(expected.total)
     expect(actual.hits.map(hit => [hit.source.id, hit.reason])).toEqual(expected.hits.map(hit => [hit.source.id, hit.reason]))
   }
@@ -92,5 +92,32 @@ it('keeps case-insensitive ranking and trust order when classified metadata is l
     const expected = rankSourcePage(query, () => cards.map(card => ({ ...card })), 0, 8)
     const actual = rankSourcePage(query, () => cards, 0, 8)
     expect(actual.hits.map(hit => [hit.source.id, hit.score])).toEqual(expected.hits.map(hit => [hit.source.id, hit.score]))
+  }
+})
+
+it('preserves substring, short-name, Unicode, renamed-resource and semantic results with the metadata filter', () => {
+  const originals = [
+    { ...source(1), title: 'operty', summary: '' },
+    { ...source(2), title: 'ＭＥＴＲＥＳ', summary: '' },
+    { ...source(3), title: 'Ｋ', summary: '' },
+    { ...source(4), title: '  parcel  ', summary: 'Property polygons' },
+    { ...source(5), title: 'Unrelated label', summary: '', resource: { environment: '.GlobalEnv', name: 'hidden_name' } },
+    { ...source(6), title: 'Different', summary: 'An entirely separate topic' },
+  ]
+  const packed = CompactDescriptorIndex.from(originals, { read: () => { throw new Error('Metadata ranking must not read bodies') } })
+  const cards = [...packed.sources()]
+  cards[4].resource = { environment: '.GlobalEnv', name: 'renamed_resource' }
+  cards[5].summary = 'Newly edited flood exposure'
+  for (const query of ['property', 'metres', 'k', 'parcel', 'hidden_name', 'renamed_resource', 'flood', 'id', '????', '道路']) {
+    for (const semantic of [[], [cards[5].id]]) {
+      const plain = rankSourcePage(query, () => originals, 0, 10, semantic)
+      const filtered = rankSourcePage(query, filter => packed.scan(undefined, filter), 0, 10, semantic)
+      expect(filtered.total).toBe(plain.total)
+      expect(filtered.hits.map(hit => [hit.source.id, hit.score, hit.reason])).toEqual(plain.hits.map(hit => [hit.source.id, hit.score, hit.reason]))
+      const expected = rankSourcePage(query, () => cards.map(card => ({ ...card })), 0, 10, semantic)
+      const actual = rankSourcePage(query, () => cards, 0, 10, semantic)
+      expect(actual.total).toBe(expected.total)
+      expect(actual.hits.map(hit => [hit.source.id, hit.score, hit.reason])).toEqual(expected.hits.map(hit => [hit.source.id, hit.score, hit.reason]))
+    }
   }
 })
