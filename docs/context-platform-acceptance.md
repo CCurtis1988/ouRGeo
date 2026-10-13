@@ -86,8 +86,9 @@ node scripts/check-context-scale.mjs --whole-app
 Its JSON report includes warm search-handler times, resident memory after GC,
 source hashes, screenshots and explicit gates. Normal-layout results do not
 certify production file ingestion, other panel combinations or transient pre-GC
-peaks. The [current follow-up](context-stage02-owner-followup.md) records the
-1.16.16 results and retains earlier failures.
+peaks. The [owner follow-up](context-stage02-owner-followup.md) records the
+1.16.16 results; the [local-runtime fixes](context-stage02-offline-fix.md) record
+the later 1.16.17 verification. Earlier failures remain preserved.
 
 For the Linux syscall audit, supply an installed `strace` executable:
 
@@ -98,11 +99,20 @@ node scripts/check-context-network.mjs --strace /usr/bin/strace
 The collector begins before application launch, follows descendants inside the
 loopback-only namespace, suppresses payload strings and verifies detection with
 an intentionally blocked outbound canary. External connect attempts are retained,
-including failures. Successful or unfinished `io_uring` submissions prevent
-certification because this capture cannot decode their operations. Unix IPC to
+including failures. Ordinary strace leaves I/O-ring submissions opaque, so that
+capture cannot certify them. Build the pinned opcode observer for that evidence:
+
+```sh
+node scripts/build-context-network-tracer.mjs --source /path/to/strace-7.2
+node scripts/check-context-network.mjs --strace /printed/path/to/strace
+```
+
+The collector verifies observer/tracer hashes and two additional ring canaries.
+Only complete observations of readiness-registration SQEs qualify; network or
+unknown queue operations still fail. The final 1.16.17 packaged audit passes with
+zero external attempts, 837 decoded readiness-only ring calls and zero opaque
+operations. Earlier failed captures are retained. Unix IPC to shared
 desktop/keyring services outside the traced process tree remains outside scope.
-The current audit **fails** the strict network gate; offline operation passing
-must not be substituted for this result.
 
 For portable Linux installation acceptance without FUSE:
 

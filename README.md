@@ -153,7 +153,11 @@ the whole analysis.
   with their chat; saved projects keep them, while scratch memories end on normal
   app exit. Removing a memory keeps original chat messages; use transcript review
   when those copies also need removal. It is
-  available in settings and below the assistant conversation. **Privacy & sources**
+  available in settings and below the assistant conversation. Built-in memory
+  editing works offline. HTTP assistant connections on this computer preserve streaming and
+  user cancellation without a five-minute response deadline or background public
+  DNS/IPv6 probes. Remote assistants use the separately selected connection.
+  **Privacy & sources**
   contains source exclusions, workspace column privacy and reference folders;
   **Budgets** contains chat and maintenance limits; **Storage & recovery**
   contains backups, cleanup and diagnostic retention. Optional memory engines

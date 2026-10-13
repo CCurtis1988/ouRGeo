@@ -8,6 +8,8 @@ const TRUST: ContextSource['trust'][] = ['host', 'user', 'observed', 'untrusted'
 const FIELDS = 7
 const SAFE_ID = 1 << 10
 const SAFE_METADATA = 1 << 14
+const ASCII_SUMMARY = 1 << 15
+const EMPTY_EXTRA = Object.freeze({ resource: undefined, group: undefined, legacyIds: undefined })
 const field = (segment: Segment, base: number, index: number): string => segment.text.slice(segment.offsets[base + index], segment.offsets[base + index + 1])
 interface Segment { text: string; offsets: Uint32Array; codes: Uint16Array; lexical: Uint32Array }
 export interface DescriptorReader {
@@ -69,7 +71,7 @@ export class CompactDescriptorIndex {
       const extra = source.resource || source.group || source.legacyIds?.length ? JSON.stringify({ ...(source.resource ? { resource: source.resource } : {}), ...(source.group ? { group: source.group } : {}), ...(source.legacyIds?.length ? { legacyIds: source.legacyIds } : {}) }) : ''
       if (extra.length > 16384) throw new Error('BUDGET_LIMIT: source identity metadata exceeds the local index bound.')
       for (const text of [source.id, source.title, source.summary, source.revision, source.timestamp ?? '', source.prerequisites ?? '', extra]) { texts.push(text); chars += text.length; offsets.push(chars) }
-      codes.push(kind | scope << 4 | trust << 8 | (safeDescriptorId(source.id) ? SAFE_ID : 0) | (source.title.toLowerCase() === source.title ? 1 << 11 : 0) | (source.summary.toLowerCase() === source.summary ? 1 << 12 : 0) | (source.readRange ? 1 << 13 : 0) | (redactContext(source.title) === source.title && redactContext(source.summary) === source.summary ? SAFE_METADATA : 0)); count++
+      codes.push(kind | scope << 4 | trust << 8 | (safeDescriptorId(source.id) ? SAFE_ID : 0) | (source.title.toLowerCase() === source.title ? 1 << 11 : 0) | (source.summary.toLowerCase() === source.summary ? 1 << 12 : 0) | (source.readRange ? 1 << 13 : 0) | (redactContext(source.title) === source.title && redactContext(source.summary) === source.summary ? SAFE_METADATA : 0) | (!/[\u0080-\uffff]/.test(source.summary) ? ASCII_SUMMARY : 0)); count++
       lexical.push(...descriptorLexicalSignature(`${source.title}\n${source.summary}\n${source.resource?.name ?? ''}`))
       if (count > 1_000_000) throw new Error('BUDGET_LIMIT: the descriptor index contains too many sources.')
       if (codes.length >= 1024 || chars >= 262144) flush()
@@ -95,12 +97,12 @@ export class CompactDescriptorIndex {
           if (!title || !query.text.includes(title)) continue
         }
         const id = field(segment, base, 0), revision = field(segment, base, 3), timestamp = field(segment, base, 4), prerequisites = field(segment, base, 5), extraText = field(segment, base, 6)
-        const extra = extraText ? JSON.parse(extraText) as Pick<ContextSource, 'resource' | 'group' | 'legacyIds'> : {}
+        const extra = extraText ? JSON.parse(extraText) as Pick<ContextSource, 'resource' | 'group' | 'legacyIds'> : EMPTY_EXTRA
         card.id = id; card.kind = kind; card.scope = SCOPES[code >> 4 & 15]; card.trust = TRUST[code >> 8 & 3]
         card.title = field(segment, base, 1); card.summary = field(segment, base, 2); card.revision = revision
         card.timestamp = timestamp || undefined; card.prerequisites = prerequisites || undefined
         card.resource = extra.resource; card.group = extra.group; card.legacyIds = extra.legacyIds; card.ranged = !!(code & 1 << 13)
-        classifyDescriptor(card, !!(code & SAFE_ID), code >> 11 & 3, !!(code & SAFE_METADATA), segment.lexical, row * 4)
+        classifyDescriptor(card, !!(code & SAFE_ID), (code >> 11 & 3) | (code & ASCII_SUMMARY ? 4 : 0), !!(code & SAFE_METADATA), segment.lexical, row * 4)
         yield card
       }
     }

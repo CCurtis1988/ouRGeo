@@ -475,22 +475,45 @@ try {
     await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
   }
   await send('My scratch-only marker is CTX_PRIVATE_SCRATCH.', 2)
-  let releaseReset
-  let resetStarted
-  const resetReady = new Promise(resolve => { resetStarted = resolve })
-  const holdReset = new Promise(resolve => { releaseReset = resolve })
-  await page.route('**/session/reset', async route => { resetStarted(); await holdReset; await route.continue() })
+  // Local HTTP is now a custom protocol backed by Node, so CDP page.route
+  // cannot hold it. Delay the actual main-process request in this private
+  // synthetic instance, preserving the same pre-R-transition race.
+  await app.evaluate(() => {
+    const http = process.getBuiltinModule('node:http'), { Writable } = process.getBuiltinModule('node:stream')
+    const original = http.request
+    globalThis.contextAcceptanceResetStarted = false
+    let release
+    const hold = new Promise(resolve => { release = resolve })
+    globalThis.contextAcceptanceReleaseReset = () => { http.request = original; release() }
+    http.request = function (url, options, response) {
+      if (new URL(url).pathname !== '/session/reset') return original.call(this, url, options, response)
+      const chunks = []
+      const pending = new Writable({ write(chunk, _encoding, callback) { chunks.push(chunk); callback() },
+        final(callback) {
+          globalThis.contextAcceptanceResetStarted = true
+          hold.then(() => {
+            const request = original.call(http, url, options, response)
+            request.on('error', error => pending.destroy(error))
+            request.end(Buffer.concat(chunks)); callback()
+          }).catch(callback)
+        } })
+      return pending
+    }
+  })
   await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }) }, forkPath)
   await projectAction('Load…')
-  await Promise.race([resetReady, new Promise((_, reject) => setTimeout(() => reject(new Error('Project reset did not start')), 15000))])
+  const resetDeadline = Date.now() + 15000
+  while (!await app.evaluate(() => globalThis.contextAcceptanceResetStarted)) {
+    if (Date.now() > resetDeadline) throw new Error('Project reset did not start')
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
   // The R transition is deliberately held. A context-free question can answer
   // in the incoming project's chat without leaking scratch or waiting for R.
   await send('Generate 100 rows of dummy data.', 3)
   assert(!JSON.stringify(requests[2]).includes('CTX_PRIVATE_SCRATCH'))
   assert(!JSON.stringify(requests[2]).includes('Retrieved evidence'))
-  releaseReset()
+  await app.evaluate(() => globalThis.contextAcceptanceReleaseReset())
   await readyProject('Context copy')
-  await page.unroute('**/session/reset')
   const previousQuestions = fork.manifest.ui.chats.chats.find(chat => chat.id === fork.manifest.ui.chats.activeChatId)?.messages.filter(message => message.role === 'user' && message.content === 'Generate 100 rows of dummy data.').length ?? 0
   assert.equal(await page.getByText('Generate 100 rows of dummy data.', { exact: true }).count(), previousQuestions + 1)
   assert.equal(await page.getByTitle('Unsaved changes', { exact: true }).count(), 1)
@@ -898,9 +921,7 @@ try {
   // Efficient intentionally prefetches one source; Balanced allows the failure
   // plus both current schemas, without bypassing the user's retrieval depth.
   await page.getByLabel('Context effort', { exact: true }).selectOption('balanced')
-  await input.fill('Explain the parcel_id join failure without changing data.')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await page.getByRole('button', { name: 'Stop', exact: true }).waitFor({ state: 'hidden' })
+  await send('Explain the parcel_id join failure without changing data.', requests.length + 1)
   const failureDelivery = JSON.stringify(requests.at(-1))
   assert(failureDelivery.includes('Historical console execution'))
   assert(failureDelivery.includes('current schema only'))

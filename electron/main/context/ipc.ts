@@ -1,4 +1,5 @@
-import { app, dialog, net, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { app, dialog, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { fetchWithoutLocalProbes } from '../local-network'
 import { Worker } from 'node:worker_threads'
 import { randomUUID } from 'node:crypto'
 import { mkdir, chmod } from 'node:fs/promises'
@@ -194,14 +195,14 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
   retentionTimer.unref()
   const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS)
   providerActivation = new ProviderActivation({ dispatch, lease: contextLease, registry,
-    fetcher: net.fetch as typeof fetch,
+    fetcher: fetchWithoutLocalProbes,
     prepareManaged: async connections => {
       for (const connection of connections.filter(item => item.location === 'managed-local' && item.state === 'reachable')) {
         registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
       }
     },
     provider: async (connection, token, certificate) => {
-      if (connection.location !== 'managed-local') return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, net.fetch as typeof fetch))
+      if (connection.location !== 'managed-local') return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, fetchWithoutLocalProbes))
       await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)
       const lease = contextLease()
       const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }

@@ -82,10 +82,11 @@ Copy this table for actual observations; blanks are unknown, not failures or pas
 
 ## Other release evidence
 
-The strict offline audit still fails; blocked connections and opaque kernel I/O
-are preserved in `context-stage02-followup-evidence.json`. Complete a valid
-attempted-network certificate covering the applicable runtime and dependencies,
-including shared desktop services, before changing that status.
+The earlier strict offline failure is preserved in
+`context-stage02-followup-evidence.json`. The later 1.16.17 packaged process-tree
+capture passes after eliminating route probes and observing ring submissions;
+see [the runtime follow-up](context-stage02-offline-fix.md). Shared desktop services
+outside the traced tree still need separately scoped native-platform evidence.
 
 Opaque retained-provider internal occupancy and invoice reconciliation remain
 unknown. Subscription token reports and estimated-price limits cannot certify

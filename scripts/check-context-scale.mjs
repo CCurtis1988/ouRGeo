@@ -47,10 +47,16 @@ const watchdog = setTimeout(() => {
 try {
   app = await electron.launch({ executablePath, args: ['--no-sandbox', '--js-flags=--expose-gc', wrapper], cwd: root,
     env: { ...process.env, OURGEO_CONTEXT_TEST_PROFILE: data, ELECTRON_RENDERER_URL: `http://127.0.0.1:${server.httpServer.address().port}` }, timeout: 60000 })
+  app.process().stderr?.on('data', data => process.stderr.write(data))
   const page = await app.firstWindow(); page.setDefaultTimeout(30000)
+  // Desktop tiling changed the native window from half-screen to full-screen
+  // between captures. Use the acceptance pack's declared viewport so rendering
+  // and search measurements are comparable, rather than inheriting desktop state.
+  await page.setViewportSize({ width: 1120, height: 900 })
   const bodyReads = [], errors = []
-  page.on('request', req => { if (req.url().includes('/context/schema')) bodyReads.push(req.url()) })
+  page.on('request', req => { if (new URL(req.url()).pathname === '/context/schema') bodyReads.push(req.url()) })
   page.on('pageerror', error => errors.push(String(error)))
+  page.on('console', message => { if (message.type() === 'error') console.error(message.text()) })
   await app.evaluate(({ BrowserWindow }) => { const w = BrowserWindow.getAllWindows()[0]; w.show(); w.focus() })
   await page.waitForFunction(() => document.body.innerText.includes('R session ready.'))
   // These imports resolve to the same Vite modules used by the actual app.
@@ -133,6 +139,8 @@ try {
   await page.getByLabel('Search current context sources', { exact: true }).waitFor()
   const coldMs = performance.now() - coldStart
   mark('warm-search')
+  const profiler = process.argv.includes('--profile') ? await page.context().newCDPSession(page) : null
+  if (profiler) { await profiler.send('Profiler.enable'); await profiler.send('Profiler.start') }
   snapshots.push(await metrics('cold-browser'))
   const timings = []
   for (const query of ['flood parcel exposure', '', 'scale', '.GlobalEnv::object_9876']) {
@@ -154,6 +162,7 @@ try {
     timings.push({ query, warmP95Ms: [...samples.slice(2)].sort((a, b) => a - b).at(-1), samples })
   }
   await send()
+  if (profiler) { const { profile: samples } = await profiler.send('Profiler.stop'); await writeFile(join(profile, 'search.cpuprofile'), JSON.stringify(samples)) }
   mark('capture-report')
   assert.deepEqual(bodyReads, [])
   assert.deepEqual(errors, [])
@@ -163,8 +172,8 @@ try {
   const screenshot = join(profile, 'native-context-scale.png')
   const captured = await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0].webContents.capturePage()).toPNG().toString('base64'))
   await writeFile(screenshot, Buffer.from(captured, 'base64'))
-  const sourceHashes = Object.fromEntries(await Promise.all(['scripts/check-context-scale.mjs', 'package-lock.json', 'src/components/editor/TabBar.tsx', 'src/lib/editor-tab-window.ts', 'src/components/console/Console.tsx', 'src/components/console/ConsoleHistory.tsx', 'src/components/ai/ContextSourceBrowser.tsx', 'src/lib/context/source-browser.ts', 'src/lib/context/descriptor-index.ts', 'src/lib/context/descriptor-identity.ts', 'src/lib/context/sources/workspace.ts', 'src/lib/context/sources/console-index.ts'].map(async file => [file, createHash('sha256').update(await readFile(file)).digest('hex')])))
-  const report = { version: 1, measuredAt: new Date().toISOString(), appVersion: version, profile, screenshot, platform: `${process.platform}-${process.arch}`, cpu: cpus()[0]?.model, corpus, coldMs, timings, snapshots,
+  const sourceHashes = Object.fromEntries(await Promise.all(['scripts/check-context-scale.mjs', 'package-lock.json', 'src/components/editor/TabBar.tsx', 'src/lib/editor-tab-window.ts', 'src/components/console/Console.tsx', 'src/components/console/ConsoleHistory.tsx', 'src/components/ai/ContextSourceBrowser.tsx', 'src/lib/context/source-browser.ts', 'src/lib/context/rank.ts', 'src/lib/context/schema-revision.ts', 'src/lib/context/descriptor-index.ts', 'src/lib/context/descriptor-identity.ts', 'src/lib/context/sources/workspace.ts', 'src/lib/context/sources/console-index.ts'].map(async file => [file, createHash('sha256').update(await readFile(file)).digest('hex')])))
+  const report = { version: 1, measuredAt: new Date().toISOString(), appVersion: version, profile, screenshot, viewport: page.viewportSize(), platform: `${process.platform}-${process.arch}`, cpu: cpus()[0]?.model, corpus, coldMs, timings, snapshots,
     managerPeakAdditionalResidentBytes: Math.max(...snapshots.slice(2).map(item => item.residentBytes)) - snapshots[1].residentBytes,
     inputAndManagerAdditionalResidentBytes: snapshots.at(-1).residentBytes - snapshots[0].residentBytes, sourceHashes, bodyReads: bodyReads.length,
     contextFreeTurns: requests.map(payload => ({ hasAuxiliaryEvidence: JSON.stringify(payload).includes('Retrieved evidence'), bytes: Buffer.byteLength(JSON.stringify(payload)) })),
@@ -178,6 +187,7 @@ try {
   report.passed = Object.values(report.gates).every(Boolean)
   report.wholeApp = wholeApp
   report.normalLayoutAccessChecks = wholeApp ? { firstAndLastDocumentReachable: true, consoleScrollsToOldestEntry: true, multilineOutputMeasured: true, completeHistoryCopyVerifiedWithoutSystemClipboardWrite: true } : null
+  if (profiler) report.methodology += ' CPU sampling enabled; diagnostic timings, not the release scale certificate.'
   if (wholeApp) report.methodology = report.methodology
     .replace('editor/console/environment panes closed, normal AI/context UI rendered.', 'normal layout retained, with the first of 100,000 document buffers active; no pane-suppression override. Input DOM allocations precede the manager baseline.')
     .replace('transient pre-GC peaks and whole-app pane rendering are not certified.', 'production file ingestion, other panel/view combinations and transient pre-GC peaks are not certified.')

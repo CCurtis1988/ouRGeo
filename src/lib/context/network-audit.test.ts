@@ -1,6 +1,20 @@
 import { expect, it } from 'vitest'
 import { auditLinuxNetworkTrace } from './network-audit'
 
+it('accepts fully observed readiness registration while retaining undecoded and network queue operations', () => {
+  const setup = '101 io_uring_setup(256, {flags=IORING_SETUP_NO_SQARRAY /* ourgeo-ring:v1 setup=observed */}) = 4'
+  const control = '101 io_uring_enter( /* ourgeo-ring:v1 entries=2 opcodes=[29:0,29:0] */4<anon_inode:[io_uring]>, 2, 2, IORING_ENTER_GETEVENTS, NULL, 0) = 2'
+  const result = auditLinuxNetworkTrace(setup + '\n' + control, { ringObserver: true })
+  expect(auditLinuxNetworkTrace(setup + '\n' + control).passed).toBe(false)
+  expect(result.passed).toBe(true)
+  expect(result.decodedIoUringCalls).toBe(2)
+  expect(result.opaqueIoUringCalls).toBe(0)
+  expect(result.ioUringOpcodes).toEqual([29])
+  for (const altered of [control.replace('29:0,29:0', '29:0,16:0'), control.replace('29:0,29:0', '29:0'), control.replace('entries=2', 'entries=3'), control.replace('29:0,29:0', '29:0,29:4'), '101 io_uring_enter(4, 2, 2, 0, NULL, 0) = -1 EINTR']) {
+    expect(auditLinuxNetworkTrace(setup + '\n' + altered, { ringObserver: true }).passed).toBe(false)
+  }
+})
+
 it('captures failed outbound attempts and child PIDs while allowing only literal loopback destinations', () => {
   const result = auditLinuxNetworkTrace(`101 12:00:00 connect(3, {sa_family=AF_INET, sin_addr=inet_addr("127.0.0.1")}, 16) = 0
 102 12:00:00 connect(4, {sa_family=AF_INET6, sin6_addr=inet_pton(AF_INET6, "::1")}, 28) = 0

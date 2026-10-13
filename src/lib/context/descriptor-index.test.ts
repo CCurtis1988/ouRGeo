@@ -5,6 +5,20 @@ import type { ContextSource } from './types'
 import { ContextBroker } from './broker'
 
 const source = (index: number): ContextSource => ({ id: `environment:workspace:object-${index}`, title: `object-${index}`, summary: index % 7 ? 'unrelated metadata' : 'flood parcel exposure', revision: 'revision:1', kind: 'environment', scope: 'workspace', trust: 'observed', resource: { environment: 'workspace', name: `object-${index}` }, read: vi.fn(() => 'original body') })
+it('keeps mixed ASCII, literal punctuation and Unicode scoring identical without retaining lower-case copies', () => {
+  const originals = ['Method SCALE A.B USD$ Mixed', 'Method Scale AXB USDX', 'İstanbul Straße Σ CAFÉ', 'Plain ASCII summary'].map((summary, index) => ({ ...source(index), summary }))
+  const packed = CompactDescriptorIndex.from(originals, { read: () => { throw new Error('No body read is authorised.') } })
+  for (const query of ['scale', 'method', 'a.b', 'usd$', 'mixed', 'straße', 'σ', 'café', 'i\u0307stanbul']) {
+    const plain = rankSourcePage(query, () => originals, 0, 10)
+    const compact = rankSourcePage(query, filter => packed.scan(undefined, filter), 0, 10)
+    expect(compact.total).toBe(plain.total)
+    expect(compact.hits.map(hit => [hit.source.id, hit.score])).toEqual(plain.hits.map(hit => [hit.source.id, hit.score]))
+  }
+  const copied = [...packed.sources()]
+  copied[0].summary = 'Changed CAFÉ Unicode summary'
+  expect(rankSourcePage('café', () => copied, 0, 10).hits.map(hit => [hit.source.id, hit.score]))
+    .toEqual(rankSourcePage('café', () => copied.map(card => ({ ...card })), 0, 10).hits.map(hit => [hit.source.id, hit.score]))
+})
 it('preserves scoped descriptor fields across packed segment boundaries without reading bodies', () => {
   const originals = Array.from({ length: 2100 }, (_, index) => source(index)), read = vi.fn(() => 'resolved current body')
   originals[1024] = { ...originals[1024], title: '測定😀', timestamp: '2026-10-08T00:00:00Z', prerequisites: 'load prerequisites', legacyIds: ['environment:old:測定'], group: 'spatial', readRange: () => 'range' }

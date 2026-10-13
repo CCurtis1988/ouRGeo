@@ -1,4 +1,4 @@
-import { net } from 'electron'
+import { fetchWithoutLocalProbes } from './local-network'
 import type { IpcMain, WebContents } from 'electron'
 import { describeFetchFailure, isLoopbackHost } from '../../src/lib/ai-fetch-error'
 import { chatGptRequestToken, onChatGptAccountChange } from './chatgpt-subscription'
@@ -48,7 +48,9 @@ export function registerAiProxy(ipcMain: IpcMain): void {
         headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${await chatGptRequestToken(req.billingAccountId)}` }
         controller.signal.throwIfAborted()
       }
-      // `net.fetch` (Chromium's stack), NOT Node's global fetch.
+      // Remote requests use net.fetch; loopback HTTP uses Node's request API
+      // to avoid Chromium's unsolicited IPv6 probes (see local-http.ts).
+      // Neither path uses Node's global fetch.
       //
       // Node's fetch is undici, whose `headersTimeout` and `bodyTimeout` are
       // both five minutes, and a local model routinely exceeds that: a large
@@ -62,7 +64,7 @@ export function registerAiProxy(ipcMain: IpcMain): void {
       // So ouRGeo no longer imposes a deadline of its own on a request the
       // user can see and stop. Streaming, custom headers and AbortSignal all
       // behave the same here — that was verified before the swap, not assumed.
-      const res = await net.fetch(req.url, {
+      const res = await fetchWithoutLocalProbes(req.url, {
         method: req.method ?? 'GET',
         headers,
         body: req.body,

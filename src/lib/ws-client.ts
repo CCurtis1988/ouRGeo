@@ -8,12 +8,17 @@ class WSClient {
   private messageHandlers: Set<MessageHandler> = new Set()
   private statusHandlers: Set<StatusHandler> = new Set()
   private shouldReconnect = true
+  private nativeConnected = false
+  private removeNativeListener: (() => void) | null = null
 
   get isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+    return this.nativeConnected || this.ws?.readyState === WebSocket.OPEN
   }
 
   connect(port: number): void {
+    this.removeNativeListener?.(); this.removeNativeListener = null
+    if (typeof window !== 'undefined') window.electronAPI?.r?.consoleClose?.()
+    this.nativeConnected = false
     // Close any existing connection first
     if (this.ws) {
       this.ws.onclose = null // prevent reconnect from old close handler
@@ -32,6 +37,18 @@ class WSClient {
 
   private _connect(): void {
     if (!this._port) return
+
+    const bridge = typeof window !== 'undefined' ? window.electronAPI?.r : undefined
+    if (bridge?.onConsoleEvent) {
+      this.removeNativeListener?.()
+      this.removeNativeListener = bridge.onConsoleEvent(event => {
+        if (event.type === 'open') { this.nativeConnected = true; this.notifyStatus(true); this.startPing() }
+        else if (event.type === 'close') { this.nativeConnected = false; this.notifyStatus(false); this.scheduleReconnect() }
+        else if (event.text !== undefined) this.receive(event.text)
+      })
+      bridge.consoleConnect(this._port)
+      return
+    }
 
     const url = `ws://127.0.0.1:${this._port}/console`
 
@@ -82,7 +99,9 @@ class WSClient {
   private pingTimer: ReturnType<typeof setInterval> | null = null
 
   private startPing(): void {
+    if (this.pingTimer) clearInterval(this.pingTimer)
     this.pingTimer = setInterval(() => {
+      if (this.nativeConnected) window.electronAPI.r.consoleSend('ping')
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send('ping')
       }
@@ -105,6 +124,9 @@ class WSClient {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.ws?.close()
     this.ws = null
+    this.removeNativeListener?.(); this.removeNativeListener = null
+    if (typeof window !== 'undefined') window.electronAPI?.r?.consoleClose?.()
+    this.nativeConnected = false
     this.messageHandlers.clear()
     this.statusHandlers.clear()
   }
@@ -121,6 +143,13 @@ class WSClient {
 
   private notifyStatus(connected: boolean): void {
     this.statusHandlers.forEach((h) => h(connected))
+  }
+
+  private receive(text: string): void {
+    try {
+      const message = JSON.parse(text) as { type: string; text?: string; data?: unknown }
+      this.messageHandlers.forEach(handler => handler(message.type, message.text ?? '', message.data))
+    } catch { this.messageHandlers.forEach(handler => handler('stdout', text)) }
   }
 }
 

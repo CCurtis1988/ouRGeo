@@ -14,6 +14,16 @@ const directory = await mkdtemp(join(tmpdir(), 'ourgeo-context-network-'))
 const module = join(directory, 'network-audit.mjs')
 await build({ entryPoints: ['src/lib/context/network-audit.ts'], outfile: module, platform: 'node', format: 'esm' })
 const { auditLinuxNetworkTrace } = await import(pathToFileURL(module).href)
+let ringObserver = null
+try {
+  const metadata = JSON.parse(await readFile(resolve(dirname(strace), '../../build.json'), 'utf8'))
+  assert.equal(metadata.executable, strace)
+  assert.equal(metadata.sha256, createHash('sha256').update(await readFile(strace)).digest('hex'))
+  assert.equal(metadata.observerSha256, createHash('sha256').update(await readFile('scripts/native/strace-ring-observer.h')).digest('hex'))
+  assert.equal(metadata.sourceSha256, 'edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6')
+  ringObserver = metadata
+} catch (error) { if (error.code !== 'ENOENT') throw error }
+const classify = raw => auditLinuxNetworkTrace(raw, { ringObserver: Boolean(ringObserver) })
 const run = (command, argv) => new Promise((resolve, reject) => {
   const child = spawn(command, argv, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
@@ -29,18 +39,30 @@ const canaryFile = join(directory, 'canary.cjs'), canaryTrace = join(directory, 
 await writeFile(canaryFile, `const net=require('node:net');const socket=net.connect({host:'198.51.100.42',port:443});socket.on('error',()=>{});setTimeout(()=>socket.destroy(),1000);`)
 const canary = await trace(canaryTrace, process.execPath, [canaryFile])
 assert.equal(canary.code, 0)
-const detection = auditLinuxNetworkTrace(await readFile(canaryTrace, 'utf8'))
+const detection = classify(await readFile(canaryTrace, 'utf8'))
 assert(detection.externalAttempts.some(item => item.address === '198.51.100.42'), 'The tracer failed to detect the intentional offline canary.')
+let ringCanaries = null
+if (ringObserver) {
+  const program = join(directory, 'ring-canary')
+  assert.equal((await run('cc', ['scripts/native/context-ring-canary.c', '-o', program])).code, 0)
+  const controlPath = join(directory, 'ring-control.trace'), networkPath = join(directory, 'ring-network.trace')
+  assert.equal((await trace(controlPath, program, [])).code, 0)
+  assert.equal((await trace(networkPath, program, ['network'])).code, 0)
+  const control = classify(await readFile(controlPath, 'utf8')), network = classify(await readFile(networkPath, 'utf8'))
+  assert(control.passed && control.decodedIoUringCalls === 2 && control.ioUringOpcodes.includes(29), 'Readiness-only ring was not completely observed.')
+  assert(!network.passed && network.opaqueIoUringCalls > 0 && network.ioUringOpcodes.includes(16), 'The tracer failed to reject a hidden ring CONNECT operation.')
+  ringCanaries = { control, network, executableSha256: createHash('sha256').update(await readFile(program)).digest('hex') }
+}
 const capture = join(directory, 'packaged.trace')
 console.log(JSON.stringify({ event: 'audit-start', directory, executable, capture }))
 const result = await trace(capture, process.execPath, ['scripts/check-context.mjs', '--stages-0-2', '--packaged', executable])
 await writeFile(join(directory, 'acceptance.log'), result.output)
-const raw = await readFile(capture, 'utf8'), audit = auditLinuxNetworkTrace(raw)
+const raw = await readFile(capture, 'utf8'), audit = classify(raw)
 const acceptance = result.output.split('\n').flatMap(line => { try { const value = JSON.parse(line); return value.packaged === true ? [value] : [] } catch { return [] } }).at(-1)
 const report = { version: 2, appVersion: acceptance?.appVersion ?? null, artifactHashes: { executable: createHash('sha256').update(await readFile(executable)).digest('hex'), archive: createHash('sha256').update(await readFile(join(dirname(executable), 'resources/app.asar'))).digest('hex') }, acceptance, measuredAt: new Date().toISOString(), platform: `${process.platform}-${process.arch}`, executable, directory,
-  tracer: { path: strace, sha256: createHash('sha256').update(await readFile(strace)).digest('hex') },
+  tracer: { path: strace, sha256: createHash('sha256').update(await readFile(strace)).digest('hex'), ringObserver }, ringCanaries,
   scope: 'Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.',
-  captureOptions: { socketDescriptorDecoding: true, connectedWrites: true, payloadStrings: false, stackTrace: args.includes('--stack-trace') },
+  captureOptions: { socketDescriptorDecoding: true, connectedWrites: true, payloadStrings: false, stackTrace: args.includes('--stack-trace'), ringObservation: Boolean(ringObserver) },
   canary: detection, acceptanceExitCode: result.code, traceBytes: Buffer.byteLength(raw), traceSha256: createHash('sha256').update(raw).digest('hex'),
   sourceHashes: Object.fromEntries(await Promise.all(['scripts/check-context-network.mjs', 'src/lib/context/network-audit.ts', 'scripts/check-context.mjs'].map(async file => [file, createHash('sha256').update(await readFile(file)).digest('hex')]))),
   audit, passed: result.code === 0 && audit.passed }

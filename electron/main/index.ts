@@ -16,6 +16,7 @@ import { registerHealthHandlers } from './health-check'
 import { registerDataPreflightHandlers } from './data-preflight'
 import { setupIpcHandlers } from './ipc'
 import { registerAiProxy } from './ai-proxy'
+import { registerLocalNetwork } from './local-network'
 import { registerClaudeCliHandlers } from './claude-cli'
 import { registerChatGptHandlers } from './chatgpt-subscription'
 import { registerKnitHandlers } from './knit'
@@ -136,6 +137,7 @@ function createWindow(): void {
 protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES])
 
 app.whenReady().then(async () => {
+  registerLocalNetwork(ipcMain, () => rBridge.port)
   // Session creation precedes BrowserWindow preferences. Disable its dictionary
   // service too: window-level spellcheck=false alone still downloads Hunspell.
   if (process.platform !== 'darwin') {

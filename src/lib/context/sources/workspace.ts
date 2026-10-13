@@ -28,6 +28,7 @@ import { columnExclusions, hasColumnExclusions, useColumnDisclosureStore } from 
 import { disclosedColumns, disclosedSchema, schemaColumns } from '../column-disclosure'
 
 import { folderSources, folderSourceScan } from '../folder-sources'
+import { schemaRevision } from '../schema-revision'
 
 const consoleIndex = new ConsoleIndex()
 const documentIndex = new DocumentDescriptorIndex({ tabs: () => useEditorStore.getState().tabs, epoch: () => useProjectStore.getState().workspaceEpoch, snapshot: snapshotDocument, available: () => !hasColumnExclusions() })
@@ -79,7 +80,7 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
         const sourceId = environmentSourceId(env.name, object.name)
         const denied = columnExclusions(sourceId)
         const summary = JSON.stringify({ class: object.class, dim: object.dim, columns: disclosedColumns(schemaColumns(object.columns), denied), ...(denied.length ? { disclosure: 'Some column metadata is excluded.' } : {}) })
-        sources.push({ id: sourceId, legacyIds: [`environment:${env.name}:${object.name}`], resource: { environment: env.name, name: object.name }, kind: 'environment', scope: 'workspace', title: `${env.name}::${object.name}`, summary: `${object.name} ${summary} (cached descriptor; verify schema before answering)`, revision: contentRevision(`${generation}:${summary}`), trust: 'observed', read: async (signal) => {
+        sources.push({ id: sourceId, legacyIds: [`environment:${env.name}:${object.name}`], resource: { environment: env.name, name: object.name }, kind: 'environment', scope: 'workspace', title: `${env.name}::${object.name}`, summary: `${object.name} ${summary} (cached descriptor; verify schema before answering)`, revision: schemaRevision(generation, object, denied), trust: 'observed', read: async (signal) => {
           signal?.throwIfAborted()
           if (useProjectStore.getState().phase === 'loading' || useSessionStore.getState().isExecuting) throw new Error('SOURCE_BUSY: R is executing or loading. Wait or cancel and try again.')
           const result = await rClient.contextSchema(object.name, env.name)

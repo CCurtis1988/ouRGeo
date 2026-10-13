@@ -27,10 +27,13 @@ export function prepareLexicalQuery(query: string): LexicalQuery {
   return { text, words: [...new Set(text.match(/[\p{L}\p{N}_.:$-]+/gu) ?? [])].filter(word => word.length > 1) }
 }
 /** Prepared once per search; names and summaries are already lower case. */
-export function scoreLexicalQuery(query: LexicalQuery, name: string, summary: string): number {
+export function scoreLexicalQuery(query: LexicalQuery, name: string, summary: string, asciiSummaryPatterns?: readonly RegExp[]): number {
   if (!query.text) return 1
   let score = name === query.text ? 100 : name && query.text.includes(name) ? 40 : 0
-  for (const word of query.words) score += name.includes(word) ? 8 : summary.includes(word) ? 2 : 0
+  for (let index = 0; index < query.words.length; index++) {
+    const word = query.words[index]
+    score += name.includes(word) ? 8 : (asciiSummaryPatterns ? asciiSummaryPatterns[index].test(summary) : summary.includes(word)) ? 2 : 0
+  }
   return score
 }
 

@@ -1181,7 +1181,7 @@ a model spends no turn discovering it and points at the switcher instead.
 Two bugs lived here, and both presented as the same four words in the chat
 panel: **"Error: fetch failed"**.
 
-- **`net.fetch`, not Node's `fetch`.** Node's is undici, whose `headersTimeout`
+- **Remote `net.fetch`; local HTTP uses Node's request API.** Node's global fetch is undici, whose `headersTimeout`
   and `bodyTimeout` are both **five minutes** — a deadline ouRGeo never chose
   and never mentioned. A local model given a large prompt on a busy GPU
   routinely exceeds it, and a request queued behind another waits for the whole
@@ -1190,7 +1190,15 @@ panel: **"Error: fetch failed"**.
   `net.fetch` returned the answer. Chromium's stack imposes no such deadline,
   and streaming, custom headers and `AbortSignal` were each verified against a
   local server before the swap rather than assumed. The user can already see a
-  slow request and stop it; ouRGeo does not need a timer of its own.
+  slow request and stop it; ouRGeo does not need a timer of its own. Later native
+  auditing found Chromium's external IPv6 route probes on literal loopback URLs.
+  `local-http.ts` now uses `node:http.request` for loopback HTTP, with literal
+  destinations and same-origin local redirects. That API has no fetch-style
+  five-minute header/body deadline. Compression, cancellation and severed streams
+  are checked separately; cancelling decoded output closes its underlying socket.
+  `local-network.ts` intercepts local renderer/R assets before Chromium resolves
+  them and bridges the R console through a main-process WebSocket bound to the
+  running R port. Remote requests retain Chromium's session behaviour.
 - **A dropped stream is an ERROR, not an end.** `proxyFetch`'s `onError` called
   `finish()` once the response had been handed over, which resolves the pending
   read as a clean end-of-stream — so a connection that died mid-sentence was
@@ -1512,7 +1520,8 @@ prefetch limit. Console bodies identify their execution time; the compact contra
 requires rechecking current schema before treating a past defect as current.
 An environment inventory replacement does not invalidate an unchanged selected
 object revision, but runtime, epoch and disclosure changes still do. First schema
-inspection can fill previously unknown columns and advance the object revision;
+inspection can fill previously unknown cached columns without changing the
+execution-bound source revision. If an adapter's initial reference becomes stale,
 prefetch may rebind once through the normal checked reader and lookup budget.
 Neither this retry nor inventory refresh can replay an execution or revive a
 revoked source.
@@ -3767,6 +3776,12 @@ matches, provider-ranked IDs, short/Unicode queries and descriptions requiring
 redaction retain the ordinary path. Changed materialised metadata invalidates its
 filter. Empty and filtered scans still check scope/privacy before and after
 iteration; candidate ranking, counts and every selected reader remain checked.
+Ranking does not repeat the packed producer's signature filter. Native profiling
+showed temporary lower-case summary copies dominating broad-search allocation.
+A spare packed bit certifies ASCII summaries; escaped case-insensitive literal
+patterns then preserve scoring without those copies or another retained text
+index. Unicode and edited metadata keep the normal lower-case path. Empty identity
+metadata reuses one frozen object instead of allocating one per scanned document.
 The reference corpus also exposed ordinary UI costs. Tab strips above 200 buffers
 render a fixed-width visible window and scroll selected documents into view.
 Console histories above 2,000 entries use TanStack's measured virtual rows; store
@@ -3796,5 +3811,16 @@ Fresh-profile Chromium net logs exposed unsolicited Hunspell dictionary download
 Window `spellcheck=false` is insufficient because the session is initialised
 earlier. On Linux/Windows, disable the session spellchecker and clear its language
 list before constructing windows; macOS keeps its native spelling behaviour.
-Cold diagnostic captures verify zero dictionary requests. IPv6 route probes and
-opaque io_uring still prevent the strict no-attempt certificate.
+Cold diagnostic captures verify zero dictionary requests. The subsequent local
+HTTP/console transport fix removes Chromium route probes from the local profile.
+`scripts/native/strace-ring-observer.h` extends pinned strace 7.2 with payload-free
+SQE opcode/flag observation at syscall entry. It matches kernel ring identity and
+mapped queue offsets, validates all submitted entries, and accepts only observed
+epoll-control operations. Unknown operations/layouts, SQPOLL and registrations
+remain opaque; a ring CONNECT canary must fail. No runtime syscall is blocked or
+exempted to obtain a passing audit. The collector verifies its observer and tracer
+hashes before trusting annotations; ordinary strace cannot grant that verdict.
+Schema revisions bind scope/runtime/execution, shape and column disclosure.
+Learning cached column names or receiving a late inventory replacement is not an
+R mutation; including those cache fields in the revision caused a false stale
+failure during the new transport's actual historical-join acceptance scenario.

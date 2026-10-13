@@ -2,6 +2,9 @@
 
 Version 1.16.16 addresses the owner’s acceptance feedback for items 4–7. The
 original observations remain in [the acceptance pack](context-owner-acceptance.md).
+The later [1.16.17 local-runtime follow-up](context-stage02-offline-fix.md) fixes
+the route probes and decodes the I/O rings; its complete packaged audit passes.
+The figures below retain the 1.16.16 historical snapshot.
 The [machine-readable evidence](context-stage02-followup-evidence.json) preserves
 measurements, implementation hashes, model answers and failures. Stages 0–2 are
 **not fully certified**.

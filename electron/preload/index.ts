@@ -128,6 +128,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
   r: {
+    consoleConnect: (port: number): void => ipcRenderer.send('r:consoleConnect', port),
+    consoleSend: (text: string): void => ipcRenderer.send('r:consoleSend', text),
+    consoleClose: (): void => ipcRenderer.send('r:consoleClose'),
+    onConsoleEvent: (callback: (event: { type: 'open' | 'close' | 'message'; text?: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, value: { type: 'open' | 'close' | 'message'; text?: string }): void => callback(value)
+      ipcRenderer.on('r:consoleEvent', listener)
+      return () => ipcRenderer.removeListener('r:consoleEvent', listener)
+    },
     getPort: (): Promise<number | null> => ipcRenderer.invoke('r:getPort'),
     isReady: (): Promise<boolean> => ipcRenderer.invoke('r:isReady'),
     detectInstallations: (): Promise<{ path: string; version: string }[]> =>

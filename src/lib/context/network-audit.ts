@@ -1,16 +1,20 @@
 /** Classify payload-suppressed strace output, including connected socket writes.
  * The collector must use -yy and trace write/writev as well as %network. Shared
- * desktop services outside this process tree and opaque io_uring stay separate. */
-export function auditLinuxNetworkTrace(trace: string): {
+ * desktop services outside this process tree and opaque io_uring stay separate.
+ * A pinned payload-free tracer extension may prove individual submissions contain
+ * only epoll-control operations. Unobserved or unsupported queues still fail. */
+export function auditLinuxNetworkTrace(trace: string, options: { ringObserver?: boolean } = {}): {
   outboundCalls: number; loopbackCalls: number; unixCalls: number
   externalAttempts: { pid: number; call: string; address: string; result: string }[]
   successfulExternalCalls: number; blockedExternalCalls: number; unresolvedExternalCalls: number
   unclassifiedInternetCalls: string[]; ioUringCalls: number
+  decodedIoUringCalls: number; opaqueIoUringCalls: number; ioUringOpcodes: number[]
   tracedTasks: number; passed: boolean
 } {
   const externalAttempts: { pid: number; call: string; address: string; result: string }[] = []
   const unclassifiedInternetCalls: string[] = []
-  let outboundCalls = 0, loopbackCalls = 0, unixCalls = 0, ioUringCalls = 0
+  let outboundCalls = 0, loopbackCalls = 0, unixCalls = 0, ioUringCalls = 0, decodedIoUringCalls = 0
+  const ioUringOpcodes = new Set<number>()
   const tasks = new Set<number>(), pending = new Map<number, string>()
   const lines: { pid: number; text: string }[] = []
   const loopback = (address: string): boolean => {
@@ -39,7 +43,22 @@ export function auditLinuxNetworkTrace(trace: string): {
   for (const [pid, text] of pending) lines.push({ pid, text })
   for (const { pid, text } of lines) {
     const result = text.match(/ = (.*)$/)?.[1] ?? 'unfinished; outcome unknown'
-    if (/\bio_uring_(?:setup|register|enter)\(/.test(text) && !result.startsWith('-1 ')) ioUringCalls++
+    const ringCall = text.match(/\bio_uring_(setup|register|enter)\(/)?.[1]
+    if (ringCall && (ringCall === 'enter' || !result.startsWith('-1 '))) {
+      ioUringCalls++
+      if (options.ringObserver && ringCall === 'setup' && text.includes('/* ourgeo-ring:v1 setup=observed */')) decodedIoUringCalls++
+      else if (options.ringObserver && ringCall === 'enter') {
+        const observed = text.match(/\/\* ourgeo-ring:v1 entries=(\d+) opcodes=\[([\d:,]*)\] \*\//)
+        const submitted = text.match(/io_uring_enter\((?:\s*\/\*[^*]*\*\/)?\s*\d+(?:<[^>]*>)?,\s*(\d+),/)?.[1]
+        const ops = observed?.[2] ? observed[2].split(',') : []
+        for (const op of ops) if (/^\d+:\d+$/.test(op)) ioUringOpcodes.add(Number(op.split(':')[0]))
+        // IORING_OP_EPOLL_CTL (29) changes readiness registration, never sends
+        // bytes. No SQE flags, extra operations, missing entries or guessed
+        // runtime/version exemptions can turn an unknown queue into a pass.
+        if (observed && submitted !== undefined && Number(observed[1]) === Number(submitted)
+          && ops.length === Number(submitted) && ops.every(op => op === '29:0')) decodedIoUringCalls++
+      }
+    }
     const call = text.match(/\b(connect|sendto|sendmsg|sendmmsg|send|write|writev)\(/)?.[1]
     if (!call) continue
     if (/AF_UNIX|AF_LOCAL|UNIX(?:-STREAM|-DGRAM)?:\[/.test(text)) unixCalls++
@@ -60,6 +79,6 @@ export function auditLinuxNetworkTrace(trace: string): {
   const blockedExternalCalls = externalAttempts.filter(item => item.result.startsWith('-1 ') && !/EINPROGRESS|EALREADY/.test(item.result)).length
   return { outboundCalls, loopbackCalls, unixCalls, externalAttempts, successfulExternalCalls, blockedExternalCalls,
     unresolvedExternalCalls: externalAttempts.length - successfulExternalCalls - blockedExternalCalls,
-    unclassifiedInternetCalls, ioUringCalls, tracedTasks: tasks.size,
-    passed: externalAttempts.length === 0 && unclassifiedInternetCalls.length === 0 && ioUringCalls === 0 && tasks.size > 0 }
+    unclassifiedInternetCalls, ioUringCalls, decodedIoUringCalls, opaqueIoUringCalls: ioUringCalls - decodedIoUringCalls, ioUringOpcodes: [...ioUringOpcodes], tracedTasks: tasks.size,
+    passed: externalAttempts.length === 0 && unclassifiedInternetCalls.length === 0 && ioUringCalls === decodedIoUringCalls && tasks.size > 0 }
 }

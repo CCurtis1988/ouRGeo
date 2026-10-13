@@ -13,7 +13,8 @@ const filesystem = await realpath(resolve(option('--rootfs', '.cache/stage02/deb
 assert(filesystem.startsWith(join(await realpath(join(root, '.cache')), 'stage02/debian/')), 'Use a disposable Debian filesystem inside the acceptance cache.')
 assert.match(await readFile(join(filesystem, 'etc/os-release'), 'utf8'), /^ID=debian$/m)
 const directory = await mkdtemp(join(root, '.cache/context-deb-'))
-const artifact = join(root, 'dist', `ouRGeo-${version}.deb`), previous = join(root, 'dist', 'ouRGeo-1.16.15.deb')
+const previousVersion = version.replace(/\d+$/, patch => String(Number(patch) - 1))
+const artifact = join(root, 'dist', `ouRGeo-${version}.deb`), previous = join(root, 'dist', `ouRGeo-${previousVersion}.deb`)
 const run = (program, argv, log, env = process.env) => new Promise((resolveRun, reject) => {
   const child = spawn(program, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
@@ -27,7 +28,7 @@ const guest = async (argv, log) => {
   assert.equal(result.code, 0, result.output.slice(-4000)); return result.output
 }
 await guest(['dpkg', '-i', `/artifacts/${previous.split('/').at(-1)}`], 'install.log')
-assert.equal((await guest(['dpkg-query', '-W', '-f=${Status} ${Version}\n', 'ourgeo'], 'installed-status.log')).trim(), 'install ok installed 1.16.15')
+assert.equal((await guest(['dpkg-query', '-W', '-f=${Status} ${Version}\n', 'ourgeo'], 'installed-status.log')).trim(), `install ok installed ${previousVersion}`)
 await guest(['dpkg', '-i', `/artifacts/${artifact.split('/').at(-1)}`], 'upgrade.log')
 assert.equal((await guest(['dpkg-query', '-W', '-f=${Status} ${Version}\n', 'ourgeo'], 'upgraded-status.log')).trim(), `install ok installed ${version}`)
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex')

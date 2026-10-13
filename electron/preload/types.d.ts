@@ -255,6 +255,10 @@ declare global {
       preflight: { interrupt: (operationId: string) => Promise<void>; review: (operationId: string) => Promise<boolean> }
     health: import('../../src/lib/health-types').HealthAPI
       r: {
+        consoleConnect(port: number): void
+        consoleSend(text: string): void
+        consoleClose(): void
+        onConsoleEvent(callback: (event: { type: 'open' | 'close' | 'message'; text?: string }) => void): () => void
         getPort(): Promise<number | null>
         isReady(): Promise<boolean>
         detectInstallations(): Promise<{ path: string; version: string }[]>

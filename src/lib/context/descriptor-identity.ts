@@ -28,6 +28,8 @@ export function descriptorIdentity(source: ContextSource): boolean | undefined {
 }
 
 export function descriptorLowerCase(source: ContextSource): number {
+  // Bits 1/2 describe lower-case title/summary; bit 4 certifies an ASCII summary.
+  // Every optimisation is revoked when the classified metadata changes.
   const result = classified.get(source)
   return result?.title === source.title && result.summary === source.summary ? result.lower : 0
 }

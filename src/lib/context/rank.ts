@@ -1,4 +1,4 @@
-import { descriptorLowerCase, descriptorLexicalSignature, descriptorMayMatch, type DescriptorQuery } from './descriptor-identity'
+import { descriptorLowerCase, descriptorLexicalSignature, type DescriptorQuery } from './descriptor-identity'
 import { materialiseDescriptor } from './descriptor-index'
 import type { ContextSource } from './types'
 import { prepareLexicalQuery, scoreLexicalQuery } from './router'
@@ -10,6 +10,7 @@ function ranking(query: string) {
   const prepared = prepareLexicalQuery(query.normalize('NFKC'))
   const normal = prepared.text
   const identifiers = new Set(normal.match(/[\p{L}\p{N}_.:$-]+/gu) ?? [])
+  const summaryPatterns = prepared.words.map(word => new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'))
   const signatures = !prepared.words.length || prepared.words.some(word => word.length < 3 || /[\u0080-\uffff]/.test(word)) ? undefined : prepared.words.map(descriptorLexicalSignature)
   const recent = /\b(?:last|latest|recent|that)\b/i.test(query) && /\b(?:error|failure|failed|warning|execution|command)\b/i.test(query)
   const authority = { observed: 3, host: 2, user: 1, untrusted: 0 }
@@ -35,12 +36,20 @@ function ranking(query: string) {
       const lower = descriptorLowerCase(source)
       const title = lower & 1 ? source.title : source.title.toLowerCase()
       const named = Boolean(name && identifiers.has(name))
-      // Partial titles inside the query retain their existing lexical score,
-      // even when the descriptor lacks the rest of that query word.
-      if (!named && !(title && normal.includes(title)) && !semantic.has(source.id) && !descriptorMayMatch(source, signatures)) continue
+      // Packed producers already apply the conservative metadata filter before
+      // decoding cards. Repeating its signature/identity checks here costs a
+      // second pass over every broad match. Actual lexical scoring remains the
+      // authority for all returned cards, including unfiltered ordinary sources,
+      // partial-title matches, edits and provider-ranked candidates.
       const exact = Boolean(normal) && (/[\u0080-\uffff]/.test(title) ? title.normalize('NFKC') : title).trim() === normal
         || named
-      const score = scoreLexicalQuery(prepared, title, lower & 2 ? source.summary : source.summary.toLowerCase())
+      // Native profiling found temporary lower-case copies of every mixed-case
+      // summary dominated GC on broad searches. Host-classified ASCII summaries
+      // can use escaped literal case-insensitive patterns without those copies.
+      // Unicode or changed metadata keeps the original normalisation path.
+      const score = lower & 2 ? scoreLexicalQuery(prepared, title, source.summary)
+        : lower & 4 ? scoreLexicalQuery(prepared, title, source.summary, summaryPatterns)
+          : scoreLexicalQuery(prepared, title, source.summary.toLowerCase())
       if (!(exact || score > 0 || semantic.has(source.id)) || !eligible(source)) continue
       hit.source = source; hit.score = exact ? Math.max(100, score) : score; hit.exact = exact
       hit.reason = exact ? 'exact identifier' : 'lexical relevance'

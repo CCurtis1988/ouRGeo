@@ -266,7 +266,7 @@ auxiliary sources were selected. Cancelled delivery can be uncertain. Effort set
 retrieval depth, not permissions. Web off disables web tools, not the configured
 assistant connection.
 
-Memory Library is available below the conversation and in Settings → AI Assistant → Memory Library. Its Add a memory form saves a personal preference or project instruction locally without running a model. Project memories require a saved project and a subsequent project save. Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced are separate settings pages. Workspace column privacy offers Refresh workspace objects and loads uncached in-memory data-frame column names when selected.
+Memory Library is available below the conversation and in Settings → AI Assistant → Memory Library. Its Add a memory form saves a personal preference or project instruction locally without running a model. Adding or editing built-in memories works offline; assistant inference uses the configured provider. Project memories require a saved project and a subsequent project save. Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced are separate settings pages. Workspace column privacy offers Refresh workspace objects and loads uncached in-memory data-frame column names when selected.
 
 Use Browse current context sources in the inspector to search current descriptions
 and filter available/excluded sources. Browsing reads metadata, without source

@@ -1,0 +1,3111 @@
+{
+  "version": 1,
+  "appVersion": "1.16.17",
+  "recordedAt": "2026-10-13T21:08:01.130618+00:00",
+  "implementationComplete": true,
+  "releaseCertification": false,
+  "decision": "Built-in Linux phases 0\u20132 implementation complete at its documented boundaries; existing qualification requirements retained, independent review and participant/native-platform testing deferred as recorded.",
+  "verification": {
+    "testsPassed": 2479,
+    "testFilesPassed": 246,
+    "typecheck": "passed",
+    "lintErrors": 0,
+    "existingLintWarnings": 37,
+    "linuxPackages": "AppImage and Debian built; artifact-matched FUSE/full acceptance, GTK launch and isolated dpkg upgrade/removal passed.",
+    "compiledArchiveSha256": "61f8f9ac7c4a87e4d9852ebcd95022a3e68599eebb173ca0232a4ae1c82b1b13"
+  },
+  "rawReportSha256": {
+    "strictNetwork": "54280d84c69518a91fa7b03e6ef1f6aba1095c40ca791a4a19bede9590ba8b7e",
+    "nativeAppImage": "19aefdf4690d36886bc7eeb71b3c095bbf8ca80d96f8ec8fbe29640800aba37d",
+    "desktop": "59a41b7674e3b6d3d10f24c7b088539d420e1c9895002e47d1b2592c3a910f07",
+    "debian": "ee9fa0fef68f7638d547972c6a823b83a7e2180bb9933752686b476075e18aa2",
+    "normalLayoutScale": "3a631a10981a3ba0239f572f161358a26b242dcfdaeba3824d1c9850f0289eba",
+    "defaultAdapters": "8bd641e0a9a77c5a4c171e1815aae1fe8fb9e998863271d18eb773fc8cab23b1",
+    "scriptedRegression": "2a7db3351434bb40862592cbfba70dbe450549770496618bbbb87ee34c74aacc",
+    "longHeaders": "d8e666c7ce4ecd98da3527d079da4e8a054cd3a0d80fc54e456dd38243bf8b30",
+    "failedWideViewportScale": "3a66fe05a9fda6f739392230cd81a79d578144c768f7250f3472e55ec81c21a9",
+    "failedReferenceScale": "4db62b7558be38fc905a5e93a90b25676df30ee5b5265977cbf6113eb93bc22a"
+  },
+  "reports": {
+    "strictNetwork": {
+      "version": 2,
+      "appVersion": "1.16.17",
+      "artifactHashes": {
+        "executable": "b0d127772d2983a93771055a93b673d5fdd1726d6e47db8e269b204e665972d6",
+        "archive": "61f8f9ac7c4a87e4d9852ebcd95022a3e68599eebb173ca0232a4ae1c82b1b13"
+      },
+      "acceptance": {
+        "appVersion": "1.16.17",
+        "appPath": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/resources/app.asar",
+        "filesystemType": 2435016766,
+        "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-fHOTt1",
+        "mockRequests": 17,
+        "simpleRequestCount": 2,
+        "auxiliaryContext": false,
+        "electronSqliteWorker": {
+          "encryptedStorage": true,
+          "backend": "kwallet6"
+        },
+        "electronHttpAfterLaunch": {
+          "loopbackRequests": 0,
+          "blockedHosts": [],
+          "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+        },
+        "packaged": true,
+        "settingsCategoryNavigation": true,
+        "narrowSettingsLayout": true,
+        "directMemoryWithoutInferenceInBothLocations": true,
+        "memoryEditsAndTombstone": true,
+        "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+        "protectedConnectionSetupAndHealthOnly": true,
+        "suggestionsPinsAndSuppression": true,
+        "projectSaveForkAndDiscard": true,
+        "responsiveDuringRLoadWithoutScopeLeak": true,
+        "scopedPersistentExclusions": true,
+        "duplicateProjectFork": true,
+        "hostMemoryCommandsWithoutInference": true,
+        "relevantUnitPreferencesAndSupersession": true,
+        "conversationDerivedDeletionAndEditedRetention": true,
+        "stagedDocumentAttachment": true,
+        "workspaceColumnPrivacy": true,
+        "unbracketedNamedSchemaBlockedAndAllowed": true,
+        "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+        "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+        "historicalJoinFailurePairedWithCurrentSchemas": true,
+        "protectedColumnPolicy": true,
+        "authorisedFolderIndexing": true,
+        "packedFolderSearchAndRead": true,
+        "watcherRevocation": true,
+        "verifiedBackupInspection": true,
+        "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+        "durableInferenceAccounting": true,
+        "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+        "currentSourceBrowser": true,
+        "reviewedTranscriptForgetting": true,
+        "scopedUsageTotals": true,
+        "diagnosticRetentionControl": true,
+        "freshSourceDiscoveryWithoutKeyring": true,
+        "unreadablePolicyFailsClosed": true,
+        "screenshots": [
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+        ]
+      },
+      "measuredAt": "2026-10-13T21:05:22.661Z",
+      "platform": "linux-x64",
+      "executable": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/ourgeo",
+      "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-SUem1v",
+      "tracer": {
+        "path": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+        "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+        "ringObserver": {
+          "version": 1,
+          "upstream": "strace 7.2",
+          "sourceSha256": "edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6",
+          "observerPath": "scripts/native/strace-ring-observer.h",
+          "observerSha256": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+          "executable": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+          "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+          "scope": "Payload-free SQE opcode/flag observation for ordinary mmap-backed non-SQPOLL rings; unsupported layouts and operations remain opaque."
+        }
+      },
+      "ringCanaries": {
+        "control": {
+          "outboundCalls": 0,
+          "loopbackCalls": 0,
+          "unixCalls": 1,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 2,
+          "decodedIoUringCalls": 2,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 1,
+          "passed": true
+        },
+        "network": {
+          "outboundCalls": 0,
+          "loopbackCalls": 0,
+          "unixCalls": 1,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 2,
+          "decodedIoUringCalls": 1,
+          "opaqueIoUringCalls": 1,
+          "ioUringOpcodes": [
+            16
+          ],
+          "tracedTasks": 1,
+          "passed": false
+        },
+        "executableSha256": "43bfa50aee5995a0b4792f75300da2877cb41fb1d55dbb2937b8b821edbbebe4"
+      },
+      "scope": "Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.",
+      "captureOptions": {
+        "socketDescriptorDecoding": true,
+        "connectedWrites": true,
+        "payloadStrings": false,
+        "stackTrace": false,
+        "ringObservation": true
+      },
+      "canary": {
+        "outboundCalls": 1,
+        "loopbackCalls": 0,
+        "unixCalls": 0,
+        "externalAttempts": [
+          {
+            "pid": 1378432,
+            "call": "connect",
+            "address": "198.51.100.42",
+            "result": "-1 ENETUNREACH (Network is unreachable)"
+          }
+        ],
+        "successfulExternalCalls": 0,
+        "blockedExternalCalls": 1,
+        "unresolvedExternalCalls": 0,
+        "unclassifiedInternetCalls": [],
+        "ioUringCalls": 6,
+        "decodedIoUringCalls": 6,
+        "opaqueIoUringCalls": 0,
+        "ioUringOpcodes": [
+          29
+        ],
+        "tracedTasks": 6,
+        "passed": false
+      },
+      "acceptanceExitCode": 0,
+      "traceBytes": 35232935,
+      "traceSha256": "0f40bca537473f9e48effbe1ef829f4c14e862df712123bae0639b58e1b3f1e3",
+      "sourceHashes": {
+        "scripts/check-context-network.mjs": "9aa414fb7168d3d8110b414ba319991c2a424da2ad43c6dfe8a7659043ecadcd",
+        "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+        "scripts/check-context.mjs": "416ca0b08020eefb7136df089bcea200690d695317192029144e415b5a22317d"
+      },
+      "audit": {
+        "outboundCalls": 14205,
+        "loopbackCalls": 14205,
+        "unixCalls": 58489,
+        "externalAttempts": [],
+        "successfulExternalCalls": 0,
+        "blockedExternalCalls": 0,
+        "unresolvedExternalCalls": 0,
+        "unclassifiedInternetCalls": [],
+        "ioUringCalls": 837,
+        "decodedIoUringCalls": 837,
+        "opaqueIoUringCalls": 0,
+        "ioUringOpcodes": [
+          29
+        ],
+        "tracedTasks": 514,
+        "passed": true
+      },
+      "passed": true
+    },
+    "nativeAppImage": {
+      "version": 1,
+      "measuredAt": "2026-10-13T21:05:15.861Z",
+      "appVersion": "1.16.17",
+      "platform": "linux-x64",
+      "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-install-P1BXtu",
+      "artifact": "/home/roosteyr/Documents/Projects/ourgeo/dist/ouRGeo-1.16.17.AppImage",
+      "artifactSha256": "d47cb173155839b3d17aeba1dfde616a777ac8e1aacf005de02e3dfa1b3679be",
+      "archiveSha256": "61f8f9ac7c4a87e4d9852ebcd95022a3e68599eebb173ca0232a4ae1c82b1b13",
+      "extraction": true,
+      "installedPayloadMatchesUnpacked": true,
+      "nativeFuseMountVerified": true,
+      "acceptanceExitCode": 0,
+      "fixture": {
+        "appVersion": "1.16.17",
+        "appPath": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/.mount_ouRGeo8hofXM/resources/app.asar",
+        "filesystemType": 1702057286,
+        "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-tSij4x",
+        "mockRequests": 17,
+        "simpleRequestCount": 2,
+        "auxiliaryContext": false,
+        "electronSqliteWorker": {
+          "encryptedStorage": true,
+          "backend": "kwallet6"
+        },
+        "electronHttpAfterLaunch": {
+          "loopbackRequests": 0,
+          "blockedHosts": [],
+          "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+        },
+        "packaged": true,
+        "settingsCategoryNavigation": true,
+        "narrowSettingsLayout": true,
+        "directMemoryWithoutInferenceInBothLocations": true,
+        "memoryEditsAndTombstone": true,
+        "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+        "protectedConnectionSetupAndHealthOnly": true,
+        "suggestionsPinsAndSuppression": true,
+        "projectSaveForkAndDiscard": true,
+        "responsiveDuringRLoadWithoutScopeLeak": true,
+        "scopedPersistentExclusions": true,
+        "duplicateProjectFork": true,
+        "hostMemoryCommandsWithoutInference": true,
+        "relevantUnitPreferencesAndSupersession": true,
+        "conversationDerivedDeletionAndEditedRetention": true,
+        "stagedDocumentAttachment": true,
+        "workspaceColumnPrivacy": true,
+        "unbracketedNamedSchemaBlockedAndAllowed": true,
+        "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+        "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+        "historicalJoinFailurePairedWithCurrentSchemas": true,
+        "protectedColumnPolicy": true,
+        "authorisedFolderIndexing": true,
+        "packedFolderSearchAndRead": true,
+        "watcherRevocation": true,
+        "verifiedBackupInspection": true,
+        "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+        "durableInferenceAccounting": true,
+        "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+        "currentSourceBrowser": true,
+        "reviewedTranscriptForgetting": true,
+        "scopedUsageTotals": true,
+        "diagnosticRetentionControl": true,
+        "freshSourceDiscoveryWithoutKeyring": true,
+        "unreadablePolicyFailsClosed": true,
+        "screenshots": [
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+        ]
+      },
+      "uninstallRemovedDisposableInstallation": true,
+      "passed": true,
+      "scope": "Actual FUSE-mounted AppImage launch verified. Copy, extract, launch and remove a portable AppImage installation under the workspace cache. No native desktop integration, Debian package-manager installation or removal of user data is certified."
+    },
+    "desktop": {
+      "version": 1,
+      "appVersion": "1.16.17",
+      "measuredAt": "2026-10-13T21:03:42.371Z",
+      "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-desktop-xHskzA",
+      "artifactSha256": "d47cb173155839b3d17aeba1dfde616a777ac8e1aacf005de02e3dfa1b3679be",
+      "desktopPackageSha256": "57007bc135e9c43e6f797666e5f4e4f9f2584654744b44f712a2e819ec1b02aa",
+      "templateSha256": "0e52d3bcb51fc9508b845bba87830e684e89d80290b4e8a3e1da90152b355d0e",
+      "privateXdgRegistration": true,
+      "gtkDesktopLaunch": true,
+      "privateProfileVerified": true,
+      "localMemoryAddAndForget": true,
+      "modelDispatches": 0,
+      "registeredEntryRemoved": true,
+      "passed": true,
+      "scope": "Actual packaged desktop template, private XDG applications directory and GTK launch of the AppImage. Regular menus, associations and user profiles are untouched. Debian installation and offline certification are separate."
+    },
+    "debian": {
+      "version": 1,
+      "appVersion": "1.16.17",
+      "measuredAt": "2026-10-13T21:04:56.444Z",
+      "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-deb-m4fH3E",
+      "filesystem": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/debian/rootfs-minimal",
+      "artifactSha256": "57007bc135e9c43e6f797666e5f4e4f9f2584654744b44f712a2e819ec1b02aa",
+      "previousArtifactSha256": "d3aef05daf69eac23feb27bfd1296403237cc63e3571cdf56f017f7b4de83308",
+      "archiveSha256": "61f8f9ac7c4a87e4d9852ebcd95022a3e68599eebb173ca0232a4ae1c82b1b13",
+      "installVersion": "1.16.15",
+      "upgradeVersion": "1.16.17",
+      "packageManagerInstallAndUpgrade": true,
+      "installedPayloadMatchesUnpacked": true,
+      "installedBinaryAcceptance": {
+        "appVersion": "1.16.17",
+        "appPath": "/opt/ouRGeo/resources/app.asar",
+        "filesystemType": 2435016766,
+        "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-eaLZc5",
+        "mockRequests": 17,
+        "simpleRequestCount": 2,
+        "auxiliaryContext": false,
+        "electronSqliteWorker": {
+          "encryptedStorage": true,
+          "backend": "kwallet6"
+        },
+        "electronHttpAfterLaunch": {
+          "loopbackRequests": 0,
+          "blockedHosts": [],
+          "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+        },
+        "packaged": true,
+        "settingsCategoryNavigation": true,
+        "narrowSettingsLayout": true,
+        "directMemoryWithoutInferenceInBothLocations": true,
+        "memoryEditsAndTombstone": true,
+        "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+        "protectedConnectionSetupAndHealthOnly": true,
+        "suggestionsPinsAndSuppression": true,
+        "projectSaveForkAndDiscard": true,
+        "responsiveDuringRLoadWithoutScopeLeak": true,
+        "scopedPersistentExclusions": true,
+        "duplicateProjectFork": true,
+        "hostMemoryCommandsWithoutInference": true,
+        "relevantUnitPreferencesAndSupersession": true,
+        "conversationDerivedDeletionAndEditedRetention": true,
+        "stagedDocumentAttachment": true,
+        "workspaceColumnPrivacy": true,
+        "unbracketedNamedSchemaBlockedAndAllowed": true,
+        "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+        "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+        "historicalJoinFailurePairedWithCurrentSchemas": true,
+        "protectedColumnPolicy": true,
+        "authorisedFolderIndexing": true,
+        "packedFolderSearchAndRead": true,
+        "watcherRevocation": true,
+        "verifiedBackupInspection": true,
+        "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+        "durableInferenceAccounting": true,
+        "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+        "currentSourceBrowser": true,
+        "reviewedTranscriptForgetting": true,
+        "scopedUsageTotals": true,
+        "diagnosticRetentionControl": true,
+        "freshSourceDiscoveryWithoutKeyring": true,
+        "unreadablePolicyFailsClosed": true,
+        "screenshots": [
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+        ]
+      },
+      "packageRemovalVerified": true,
+      "profilePreservedOnRemoval": true,
+      "passed": true,
+      "scope": "Actual dpkg install, upgrade, installed Debian binary/protected-memory acceptance and removal in a disposable Debian filesystem on the host Linux kernel. Host X11 and keyring services supply the desktop session; this is not a separately booted Debian desktop, association or strict-offline certificate."
+    },
+    "normalLayoutScale": {
+      "version": 1,
+      "measuredAt": "2026-10-13T20:58:17.571Z",
+      "appVersion": "1.16.17",
+      "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-VMuIFR",
+      "screenshot": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-VMuIFR/native-context-scale.png",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "platform": "linux-x64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+      "corpus": {
+        "objects": 10000,
+        "consoleEvents": 100000,
+        "documents": 100000,
+        "plugins": 200
+      },
+      "coldMs": 1431.2207850000013,
+      "timings": [
+        {
+          "query": "flood parcel exposure",
+          "warmP95Ms": 156,
+          "samples": [
+            146.69999998807907,
+            120,
+            116,
+            156,
+            117.90000003576279,
+            118.60000002384186,
+            115.30000001192093,
+            125.69999998807907,
+            122.19999998807907,
+            112.80000001192093
+          ]
+        },
+        {
+          "query": "",
+          "warmP95Ms": 140.10000002384186,
+          "samples": [
+            138.30000001192093,
+            138.30000001192093,
+            135.19999998807907,
+            134,
+            133.20000004768372,
+            131.0999999642372,
+            131.5,
+            135.80000001192093,
+            134.60000002384186,
+            140.10000002384186
+          ]
+        },
+        {
+          "query": "scale",
+          "warmP95Ms": 186.10000002384186,
+          "samples": [
+            157.19999998807907,
+            166.69999998807907,
+            164.29999995231628,
+            186.10000002384186,
+            169.5,
+            168,
+            173.89999997615814,
+            174.9000000357628,
+            163.19999998807907,
+            160.19999998807907
+          ]
+        },
+        {
+          "query": ".GlobalEnv::object_9876",
+          "warmP95Ms": 88,
+          "samples": [
+            90.10000002384186,
+            83.5,
+            77.80000001192093,
+            88,
+            79.69999998807907,
+            78.39999997615814,
+            81.10000002384186,
+            81.10000002384186,
+            82.69999998807907,
+            80.39999997615814
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "label": "before-inputs",
+          "pid": 1374840,
+          "residentBytes": 363642880,
+          "peakResidentBytes": 367665152
+        },
+        {
+          "label": "inputs-before-discovery",
+          "pid": 1374840,
+          "residentBytes": 464236544,
+          "peakResidentBytes": 505503744
+        },
+        {
+          "label": "cold-browser",
+          "pid": 1374840,
+          "residentBytes": 527482880,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-0",
+          "pid": 1374840,
+          "residentBytes": 527818752,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-1",
+          "pid": 1374840,
+          "residentBytes": 528064512,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-2",
+          "pid": 1374840,
+          "residentBytes": 528203776,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-3",
+          "pid": 1374840,
+          "residentBytes": 528039936,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-4",
+          "pid": 1374840,
+          "residentBytes": 527835136,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-5",
+          "pid": 1374840,
+          "residentBytes": 527491072,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-6",
+          "pid": 1374840,
+          "residentBytes": 527540224,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-7",
+          "pid": 1374840,
+          "residentBytes": 527716352,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-8",
+          "pid": 1374840,
+          "residentBytes": 527769600,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-flood parcel exposure-9",
+          "pid": 1374840,
+          "residentBytes": 527835136,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--0",
+          "pid": 1374840,
+          "residentBytes": 528011264,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--1",
+          "pid": 1374840,
+          "residentBytes": 527953920,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--2",
+          "pid": 1374840,
+          "residentBytes": 528035840,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--3",
+          "pid": 1374840,
+          "residentBytes": 528158720,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--4",
+          "pid": 1374840,
+          "residentBytes": 528326656,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--5",
+          "pid": 1374840,
+          "residentBytes": 521465856,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--6",
+          "pid": 1374840,
+          "residentBytes": 521695232,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--7",
+          "pid": 1374840,
+          "residentBytes": 520851456,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--8",
+          "pid": 1374840,
+          "residentBytes": 520790016,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser--9",
+          "pid": 1374840,
+          "residentBytes": 520806400,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-0",
+          "pid": 1374840,
+          "residentBytes": 491999232,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-1",
+          "pid": 1374840,
+          "residentBytes": 492163072,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-2",
+          "pid": 1374840,
+          "residentBytes": 491646976,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-3",
+          "pid": 1374840,
+          "residentBytes": 491888640,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-4",
+          "pid": 1374840,
+          "residentBytes": 491872256,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-5",
+          "pid": 1374840,
+          "residentBytes": 491634688,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-6",
+          "pid": 1374840,
+          "residentBytes": 491458560,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-7",
+          "pid": 1374840,
+          "residentBytes": 491704320,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-8",
+          "pid": 1374840,
+          "residentBytes": 491274240,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-scale-9",
+          "pid": 1374840,
+          "residentBytes": 491323392,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-0",
+          "pid": 1374840,
+          "residentBytes": 491155456,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-1",
+          "pid": 1374840,
+          "residentBytes": 491225088,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-2",
+          "pid": 1374840,
+          "residentBytes": 490921984,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-3",
+          "pid": 1374840,
+          "residentBytes": 491155456,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-4",
+          "pid": 1374840,
+          "residentBytes": 491184128,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-5",
+          "pid": 1374840,
+          "residentBytes": 491180032,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-6",
+          "pid": 1374840,
+          "residentBytes": 491102208,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-7",
+          "pid": 1374840,
+          "residentBytes": 491335680,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-8",
+          "pid": 1374840,
+          "residentBytes": 491032576,
+          "peakResidentBytes": 533938176
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-9",
+          "pid": 1374840,
+          "residentBytes": 491323392,
+          "peakResidentBytes": 533938176
+        }
+      ],
+      "managerPeakAdditionalResidentBytes": 64090112,
+      "inputAndManagerAdditionalResidentBytes": 127680512,
+      "sourceHashes": {
+        "scripts/check-context-scale.mjs": "8a57e04d1b7bd3f7ca407a9c8a650384e03d466172013c41251afae080154939",
+        "package-lock.json": "ea8689e235ebbdffecabdc7c8395682df59284db28636002d67f0f16f71acc56",
+        "src/components/editor/TabBar.tsx": "dc4a88987055da6694f30780b308a4104749831790357104ee42620bf0fdbea1",
+        "src/lib/editor-tab-window.ts": "439d1c00be0c737c0cae4959513b9bcbec97e8b933f853f4af4f1e7d610a8207",
+        "src/components/console/Console.tsx": "9386b7a0a7beebe4f517ad7248fc1ddd4c168b107cc47d59dfa8b8bc367e4a5e",
+        "src/components/console/ConsoleHistory.tsx": "2f462696a738e3dc013498ca2a8afc53a6d3637fe84fb7979e4379190fad29f8",
+        "src/components/ai/ContextSourceBrowser.tsx": "5b25a807da9f5dc24841aee1122c7bf3b47215c5d0e9a1422bd0a0ca74af3106",
+        "src/lib/context/source-browser.ts": "6358d3e76612a06498eaf9c29772db9913c3e0d598d871af8f7d667393e01130",
+        "src/lib/context/rank.ts": "9994a3c14e6a9209ea85664e29a83e73e595a1284f165a5f05977a317761f90d",
+        "src/lib/context/schema-revision.ts": "25e83d2ad99443fe7e2b433db948b00ba04bf5a8161c52434149115b47ab216e",
+        "src/lib/context/descriptor-index.ts": "cad4092d8dd4e09eb9602abb8b37432c3a69e2d0141af62efce086029aa9db16",
+        "src/lib/context/descriptor-identity.ts": "9ead19707c9ef14914a97b365040501847f639a788cd5f0f89bd63d17adaec2d",
+        "src/lib/context/sources/workspace.ts": "b47d4a5ace3a7e19dc6e4c503db37cdc3bd787a7ad49d2feee11a38f6647e96b",
+        "src/lib/context/sources/console-index.ts": "0f5e947b430d40ec3ae546bfcbb66badfcedc6bf9ec90b2bdfbde891527ab919"
+      },
+      "bodyReads": 0,
+      "contextFreeTurns": [
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7319
+        },
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7445
+        }
+      ],
+      "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; normal layout retained, with the first of 100,000 document buffers active; no pane-suppression override. Input DOM allocations precede the manager baseline. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; production file ingestion, other panel/view combinations and transient pre-GC peaks are not certified. Loopback mock model, no real inference or R source reads.",
+      "gates": {
+        "warmSearchBelow200Ms": true,
+        "additionalManagerBelow150MiB": true,
+        "contextFreeNoAuxiliarySources": true,
+        "noSchemaReads": true
+      },
+      "passed": true,
+      "wholeApp": true,
+      "normalLayoutAccessChecks": {
+        "firstAndLastDocumentReachable": true,
+        "consoleScrollsToOldestEntry": true,
+        "multilineOutputMeasured": true,
+        "completeHistoryCopyVerifiedWithoutSystemClipboardWrite": true
+      }
+    },
+    "defaultAdapters": {
+      "version": 1,
+      "measuredAt": "2026-10-13T20:58:44.769Z",
+      "platform": "linux-x64",
+      "node": "v26.10.0",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+      "corpus": {
+        "objects": 10000,
+        "consoleEvents": 100000,
+        "consoleExecutions": 25000,
+        "documents": 100000,
+        "plugins": 200,
+        "actions": 200
+      },
+      "sourceHashes": {
+        "src/lib/context/sources/workspace.ts": "b47d4a5ace3a7e19dc6e4c503db37cdc3bd787a7ad49d2feee11a38f6647e96b",
+        "src/lib/context/sources/document-index.ts": "de58786fbe04a13f5c5e427a6b2e7176c7bec19866ef022f80cd4eede5dd3c5f",
+        "src/lib/context/sources/snapshot-index.ts": "af3922bd5d13c27edd20f888bd13a08b55ae1ebbeed547f827900cb462d0f7f5",
+        "src/lib/context/descriptor-index.ts": "cad4092d8dd4e09eb9602abb8b37432c3a69e2d0141af62efce086029aa9db16",
+        "src/lib/context/sources/console-index.ts": "0f5e947b430d40ec3ae546bfcbb66badfcedc6bf9ec90b2bdfbde891527ab919",
+        "src/lib/context/broker.ts": "47f84146b652941d352613e49846d19bbd94377a85df2b99b5df444b5b9b3148",
+        "src/lib/context/rank.ts": "9994a3c14e6a9209ea85664e29a83e73e595a1284f165a5f05977a317761f90d",
+        "scripts/benchmark-context-workspace.mjs": "d89f528b5a925c1e00719ed28eb260aae04909e6d76d813393a47e5a505191f9"
+      },
+      "coldDocumentMs": 1085.519192,
+      "timings": [
+        {
+          "query": "flood parcel exposure",
+          "warmP95Ms": 175.40011499999991
+        },
+        {
+          "query": "",
+          "warmP95Ms": 150.2049860000002
+        },
+        {
+          "query": "synthetic",
+          "warmP95Ms": 109.11910200000057
+        },
+        {
+          "query": "[object_9876]",
+          "warmP95Ms": 102.74537899999996
+        }
+      ],
+      "snapshots": [
+        {
+          "label": "before-synthetic-store-allocation",
+          "rss": 63590400,
+          "heapTotal": 9228288,
+          "heapUsed": 6246104,
+          "external": 2961100,
+          "arrayBuffers": 225728,
+          "peakRss": 63590400
+        },
+        {
+          "label": "immutable-store-inputs-before-manager",
+          "rss": 141373440,
+          "heapTotal": 77680640,
+          "heapUsed": 59741792,
+          "external": 2656379,
+          "arrayBuffers": 225728,
+          "peakRss": 141373440
+        },
+        {
+          "label": "document-index-cold",
+          "rss": 229924864,
+          "heapTotal": 152391680,
+          "heapUsed": 88450288,
+          "external": 7321834,
+          "arrayBuffers": 4826120,
+          "peakRss": 229924864
+        },
+        {
+          "label": "query-flood parcel exposure-0",
+          "rss": 276742144,
+          "heapTotal": 195059712,
+          "heapUsed": 147287072,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 278044672
+        },
+        {
+          "label": "query-flood parcel exposure-1",
+          "rss": 279498752,
+          "heapTotal": 197156864,
+          "heapUsed": 140680304,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 280543232
+        },
+        {
+          "label": "query-flood parcel exposure-2",
+          "rss": 279498752,
+          "heapTotal": 197156864,
+          "heapUsed": 132160784,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 280543232
+        },
+        {
+          "label": "query-flood parcel exposure-3",
+          "rss": 279822336,
+          "heapTotal": 197615616,
+          "heapUsed": 156975376,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query-flood parcel exposure-4",
+          "rss": 280346624,
+          "heapTotal": 197681152,
+          "heapUsed": 146728568,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query-flood parcel exposure-5",
+          "rss": 280477696,
+          "heapTotal": 197943296,
+          "heapUsed": 137400600,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query-flood parcel exposure-6",
+          "rss": 280477696,
+          "heapTotal": 198402048,
+          "heapUsed": 161722824,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query-flood parcel exposure-7",
+          "rss": 280739840,
+          "heapTotal": 198742016,
+          "heapUsed": 152081976,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--0",
+          "rss": 280485888,
+          "heapTotal": 199266304,
+          "heapUsed": 149064488,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--1",
+          "rss": 280748032,
+          "heapTotal": 199790592,
+          "heapUsed": 145810512,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--2",
+          "rss": 280879104,
+          "heapTotal": 199790592,
+          "heapUsed": 142053952,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--3",
+          "rss": 281010176,
+          "heapTotal": 199790592,
+          "heapUsed": 138291608,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--4",
+          "rss": 281272320,
+          "heapTotal": 199790592,
+          "heapUsed": 134471224,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--5",
+          "rss": 281272320,
+          "heapTotal": 200249344,
+          "heapUsed": 164439896,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--6",
+          "rss": 281534464,
+          "heapTotal": 200646656,
+          "heapUsed": 161062008,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 281726976
+        },
+        {
+          "label": "query--7",
+          "rss": 282058752,
+          "heapTotal": 200712192,
+          "heapUsed": 156816024,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 282058752
+        },
+        {
+          "label": "query-synthetic-0",
+          "rss": 282468352,
+          "heapTotal": 200974336,
+          "heapUsed": 140938176,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284418048
+        },
+        {
+          "label": "query-synthetic-1",
+          "rss": 282648576,
+          "heapTotal": 201433088,
+          "heapUsed": 158772304,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284418048
+        },
+        {
+          "label": "query-synthetic-2",
+          "rss": 282775552,
+          "heapTotal": 201498624,
+          "heapUsed": 142507328,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-synthetic-3",
+          "rss": 282775552,
+          "heapTotal": 201957376,
+          "heapUsed": 160311568,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-synthetic-4",
+          "rss": 283037696,
+          "heapTotal": 201498624,
+          "heapUsed": 144032600,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-synthetic-5",
+          "rss": 283037696,
+          "heapTotal": 201957376,
+          "heapUsed": 161945968,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-synthetic-6",
+          "rss": 283430912,
+          "heapTotal": 201773056,
+          "heapUsed": 145976904,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-synthetic-7",
+          "rss": 283561984,
+          "heapTotal": 202231808,
+          "heapUsed": 163778912,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-[object_9876]-0",
+          "rss": 283955200,
+          "heapTotal": 202833920,
+          "heapUsed": 147808384,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 284745728
+        },
+        {
+          "label": "query-[object_9876]-1",
+          "rss": 283828224,
+          "heapTotal": 203292672,
+          "heapUsed": 165640640,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 286183424
+        },
+        {
+          "label": "query-[object_9876]-2",
+          "rss": 284352512,
+          "heapTotal": 203370496,
+          "heapUsed": 149662928,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 286183424
+        },
+        {
+          "label": "query-[object_9876]-3",
+          "rss": 284483584,
+          "heapTotal": 203829248,
+          "heapUsed": 167452144,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 286183424
+        },
+        {
+          "label": "query-[object_9876]-4",
+          "rss": 284893184,
+          "heapTotal": 203829248,
+          "heapUsed": 151864168,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 287105024
+        },
+        {
+          "label": "query-[object_9876]-5",
+          "rss": 285286400,
+          "heapTotal": 203894784,
+          "heapUsed": 135510856,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 287105024
+        },
+        {
+          "label": "query-[object_9876]-6",
+          "rss": 285417472,
+          "heapTotal": 204353536,
+          "heapUsed": 153377800,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 287105024
+        },
+        {
+          "label": "query-[object_9876]-7",
+          "rss": 285679616,
+          "heapTotal": 203894784,
+          "heapUsed": 136967352,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 287105024
+        },
+        {
+          "label": "after-warm-discovery-and-gc",
+          "rss": 281702400,
+          "heapTotal": 195014656,
+          "heapUsed": 99379616,
+          "external": 7781890,
+          "arrayBuffers": 5286176,
+          "peakRss": 287105024
+        }
+      ],
+      "managerAdditionalResidentBytes": 140328960,
+      "managerPeakAdditionalResidentBytes": 144306176,
+      "totalFixtureAndManagerResidentBytes": 218112000,
+      "methodology": "Actual default workspace/document/console adapters and broker. All manager construction and query allocations counted from immutable input snapshots. Input-store allocations and combined total also reported separately; no R/model/read dispatch. Node synthetic adapter evidence, not native UI/platform or task-quality certification."
+    },
+    "scriptedRegression": {
+      "fixtureVersion": 1,
+      "fixtureId": "ourgeo-context-mixed-20-v1",
+      "methodology": "Deterministic scripted OpenAI-shaped full-message inference envelopes; actual broker/router/reference bodies; conservative estimated tokens, not tokenizer/billing/model quality.",
+      "window": 32000,
+      "gates": {
+        "contextFree": true,
+        "authorisedFixtureBoundary": true,
+        "tokenWindow": true,
+        "recallAt5": 1,
+        "precisionAt5": 0.9666666666666667,
+        "skillDiscoveryWithinTwoSteps": 0.9375
+      },
+      "totals": {
+        "turns": 20,
+        "invocations": 52,
+        "estimatedInputTokens": 160464,
+        "estimatedLegacyCounterfactualInputTokens": 324940,
+        "estimatedInputReduction": 0.5061734474056749,
+        "legacyOverWindowInvocations": 0,
+        "retrievalCalls": 36,
+        "estimatedReturnedRetrievalTokens": 19926,
+        "backgroundOperations": 0,
+        "monetaryCost": "No billable operations issued; savings in money not measured."
+      },
+      "sourceRetrievalByKind": {
+        "skill": {
+          "questions": 4,
+          "recallAt5": 1,
+          "precisionAt5": 1
+        },
+        "environment": {
+          "questions": 3,
+          "recallAt5": 1,
+          "precisionAt5": 1
+        },
+        "console": {
+          "questions": 2,
+          "recallAt5": 1,
+          "precisionAt5": 0.75
+        },
+        "conversation": {
+          "questions": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1
+        },
+        "memory": {
+          "questions": 3,
+          "recallAt5": 1,
+          "precisionAt5": 1
+        },
+        "document": {
+          "questions": 2,
+          "recallAt5": 1,
+          "precisionAt5": 1
+        }
+      },
+      "simpleTurnAccounting": [
+        {
+          "id": "t01",
+          "estimatedInputTokens": 1557,
+          "estimatedNonDialogueTokens": 1520,
+          "estimatedLegacyCounterfactualTokens": 4720,
+          "auxiliarySources": 0
+        },
+        {
+          "id": "t02",
+          "estimatedInputTokens": 1604,
+          "estimatedNonDialogueTokens": 1520,
+          "estimatedLegacyCounterfactualTokens": 4767,
+          "auxiliarySources": 0
+        },
+        {
+          "id": "t03",
+          "estimatedInputTokens": 1658,
+          "estimatedNonDialogueTokens": 1520,
+          "estimatedLegacyCounterfactualTokens": 4821,
+          "auxiliarySources": 0
+        }
+      ],
+      "staleHitRate": {
+        "status": "Static revisions only; mutation/race freshness covered by separate tests."
+      },
+      "modelTaskSuccess": {
+        "status": "not-measured",
+        "transportCoverage": "Scripted full-message only; no small local/hosted/retained model task runs."
+      },
+      "humanReview": {
+        "status": "not-performed",
+        "usability": "not-performed"
+      },
+      "turns": [
+        {
+          "id": "t01",
+          "text": "Generate 100 rows of dummy data.",
+          "contextFree": true,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [],
+          "expectedIds": [],
+          "relevantHits": 0,
+          "recallAt5": null,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 0,
+          "contentFetches": 0,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 0,
+          "retrievalCalls": 0,
+          "returnedTokens": 0,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1557,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 4720,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t02",
+          "text": "Hello!",
+          "contextFree": true,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [],
+          "expectedIds": [],
+          "relevantHits": 0,
+          "recallAt5": null,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 0,
+          "contentFetches": 0,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 0,
+          "retrievalCalls": 0,
+          "returnedTokens": 0,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1604,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 4767,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t03",
+          "text": "Explain R vector recycling.",
+          "contextFree": true,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [],
+          "expectedIds": [],
+          "relevantHits": 0,
+          "recallAt5": null,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 0,
+          "contentFetches": 0,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 0,
+          "retrievalCalls": 0,
+          "returnedTokens": 0,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1658,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 4821,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t04",
+          "text": "Make an ouRGeo theme inspired by autumn.",
+          "contextFree": false,
+          "routeTopics": [
+            "themes"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "skill:themes"
+          ],
+          "expectedIds": [
+            "skill:themes"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 15,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 3912,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 3707,
+              "estimatedNonDialogueTokens": 3511,
+              "legacyCounterfactualTokens": 6870,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 3946,
+              "estimatedNonDialogueTokens": 3750,
+              "legacyCounterfactualTokens": 7109,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 5856,
+              "estimatedNonDialogueTokens": 5660,
+              "legacyCounterfactualTokens": 9019,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t05",
+          "text": "Which columns are in [.GlobalEnv::roads]?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "environment:global:roads"
+          ],
+          "expectedIds": [
+            "environment:global:roads"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 9,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 2,
+          "returnedTokens": 318,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1775,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 4938,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2002,
+              "estimatedNonDialogueTokens": 1747,
+              "legacyCounterfactualTokens": 5165,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2247,
+              "estimatedNonDialogueTokens": 1992,
+              "legacyCounterfactualTokens": 5410,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t06",
+          "text": "Which columns are in [roads]?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "environment:global:roads",
+            "environment:survey:roads"
+          ],
+          "expectedIds": [
+            "environment:global:roads",
+            "environment:survey:roads"
+          ],
+          "relevantHits": 2,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 9,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 411,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1830,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 4993,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2159,
+              "estimatedNonDialogueTokens": 1849,
+              "legacyCounterfactualTokens": 5322,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2403,
+              "estimatedNonDialogueTokens": 2093,
+              "legacyCounterfactualTokens": 5566,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t07",
+          "text": "What is the average income in this layer?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "environment:global:parcels",
+            "environment:global:roads"
+          ],
+          "expectedIds": [
+            "environment:global:parcels",
+            "environment:global:roads"
+          ],
+          "relevantHits": 2,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 9,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 423,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1889,
+              "estimatedNonDialogueTokens": 1521,
+              "legacyCounterfactualTokens": 5052,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2230,
+              "estimatedNonDialogueTokens": 1862,
+              "legacyCounterfactualTokens": 5393,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2477,
+              "estimatedNonDialogueTokens": 2109,
+              "legacyCounterfactualTokens": 5640,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t08",
+          "text": "Help fix the parcel_id join error.",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "console:join-failure"
+          ],
+          "expectedIds": [
+            "console:join-failure"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 7,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 2,
+          "returnedTokens": 322,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 1945,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 5108,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2157,
+              "estimatedNonDialogueTokens": 1732,
+              "legacyCounterfactualTokens": 5320,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2417,
+              "estimatedNonDialogueTokens": 1992,
+              "legacyCounterfactualTokens": 5580,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t09",
+          "text": "Knit the flood report and fix its error.",
+          "contextFree": false,
+          "routeTopics": [
+            "documents"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "console:knit-failure",
+            "console:join-failure"
+          ],
+          "expectedIds": [
+            "console:knit-failure"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 0.5,
+          "sourceDiscoveries": 15,
+          "contentFetches": 2,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 4,
+          "retrievalCalls": 3,
+          "returnedTokens": 2325,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 3997,
+              "estimatedNonDialogueTokens": 3514,
+              "legacyCounterfactualTokens": 7160,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 4294,
+              "estimatedNonDialogueTokens": 3811,
+              "legacyCounterfactualTokens": 7457,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 4533,
+              "estimatedNonDialogueTokens": 4050,
+              "legacyCounterfactualTokens": 7696,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t10",
+          "text": "Use the flood plugin to assess parcel flood exposure.",
+          "contextFree": false,
+          "routeTopics": [
+            "extending",
+            "flood:workflow"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "skill:flood:workflow"
+          ],
+          "expectedIds": [
+            "skill:flood:workflow"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 21,
+          "contentFetches": 2,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 4,
+          "retrievalCalls": 3,
+          "returnedTokens": 1698,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 3473,
+              "estimatedNonDialogueTokens": 2927,
+              "legacyCounterfactualTokens": 6636,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 3700,
+              "estimatedNonDialogueTokens": 3154,
+              "legacyCounterfactualTokens": 6863,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 3949,
+              "estimatedNonDialogueTokens": 3403,
+              "legacyCounterfactualTokens": 7112,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t11",
+          "text": "Continue the analysis from yesterday.",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "conversation:yesterday"
+          ],
+          "expectedIds": [
+            "conversation:yesterday"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 7,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 2,
+          "returnedTokens": 313,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2123,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 5286,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2351,
+              "estimatedNonDialogueTokens": 1748,
+              "legacyCounterfactualTokens": 5514,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2598,
+              "estimatedNonDialogueTokens": 1995,
+              "legacyCounterfactualTokens": 5761,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t12",
+          "text": "Why did we choose EPSG:27700?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "memory:crs"
+          ],
+          "expectedIds": [
+            "memory:crs"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 7,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 2,
+          "returnedTokens": 327,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2178,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 5341,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2401,
+              "estimatedNonDialogueTokens": 1743,
+              "legacyCounterfactualTokens": 5564,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2660,
+              "estimatedNonDialogueTokens": 2002,
+              "legacyCounterfactualTokens": 5823,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t13",
+          "text": "Which units should this project use?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "memory:units-project",
+            "memory:crs"
+          ],
+          "expectedIds": [
+            "memory:units-project",
+            "memory:crs"
+          ],
+          "relevantHits": 2,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 7,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 376,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2235,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 5398,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2548,
+              "estimatedNonDialogueTokens": 1833,
+              "legacyCounterfactualTokens": 5711,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2773,
+              "estimatedNonDialogueTokens": 2058,
+              "legacyCounterfactualTokens": 5936,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t14",
+          "text": "What is my global distance preference?",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "memory:units-global"
+          ],
+          "expectedIds": [
+            "memory:units-global"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 7,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 2,
+          "returnedTokens": 266,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2293,
+              "estimatedNonDialogueTokens": 1521,
+              "legacyCounterfactualTokens": 5456,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2495,
+              "estimatedNonDialogueTokens": 1723,
+              "legacyCounterfactualTokens": 5658,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 2711,
+              "estimatedNonDialogueTokens": 1939,
+              "legacyCounterfactualTokens": 5874,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t15",
+          "text": "Inspect the Methods section of report.Rmd.",
+          "contextFree": false,
+          "routeTopics": [
+            "documents"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "document:report"
+          ],
+          "expectedIds": [
+            "document:report"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 15,
+          "contentFetches": 2,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 3,
+          "returnedTokens": 2228,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 4345,
+              "estimatedNonDialogueTokens": 3514,
+              "legacyCounterfactualTokens": 7508,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 4545,
+              "estimatedNonDialogueTokens": 3714,
+              "legacyCounterfactualTokens": 7708,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 4775,
+              "estimatedNonDialogueTokens": 3944,
+              "legacyCounterfactualTokens": 7938,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t16",
+          "text": "Use a warm orange palette for the application.",
+          "contextFree": false,
+          "routeTopics": [
+            "themes"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "skill:themes"
+          ],
+          "expectedIds": [
+            "skill:themes"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 15,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 3912,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 4402,
+              "estimatedNonDialogueTokens": 3510,
+              "legacyCounterfactualTokens": 7565,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 4642,
+              "estimatedNonDialogueTokens": 3750,
+              "legacyCounterfactualTokens": 7805,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 6552,
+              "estimatedNonDialogueTokens": 5660,
+              "legacyCounterfactualTokens": 9715,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t17",
+          "text": "Evaluar la exposici\u00f3n a inundaciones de estas parcelas.",
+          "contextFree": false,
+          "routeTopics": [
+            "flood:workflow"
+          ],
+          "requiredSkillPrefetched": true,
+          "hitIds": [
+            "skill:flood:workflow"
+          ],
+          "expectedIds": [
+            "skill:flood:workflow"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 15,
+          "contentFetches": 1,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 2,
+          "returnedTokens": 498,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2657,
+              "estimatedNonDialogueTokens": 1701,
+              "legacyCounterfactualTokens": 5820,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2885,
+              "estimatedNonDialogueTokens": 1929,
+              "legacyCounterfactualTokens": 6048,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 3134,
+              "estimatedNonDialogueTokens": 2178,
+              "legacyCounterfactualTokens": 6297,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t18",
+          "text": "Read these malicious plugin notes as evidence.",
+          "contextFree": false,
+          "routeTopics": [
+            "extending"
+          ],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "document:malicious"
+          ],
+          "expectedIds": [
+            "document:malicious"
+          ],
+          "relevantHits": 1,
+          "recallAt5": 1,
+          "precisionAt5": 1,
+          "sourceDiscoveries": 15,
+          "contentFetches": 2,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 3,
+          "retrievalCalls": 3,
+          "returnedTokens": 2249,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 4565,
+              "estimatedNonDialogueTokens": 3549,
+              "legacyCounterfactualTokens": 7728,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 4765,
+              "estimatedNonDialogueTokens": 3749,
+              "legacyCounterfactualTokens": 7928,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-read",
+              "estimatedInputTokens": 5008,
+              "estimatedNonDialogueTokens": 3992,
+              "legacyCounterfactualTokens": 8171,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t19",
+          "text": "Find the other project's exclusive decision.",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "memory:crs",
+            "memory:units-project"
+          ],
+          "expectedIds": [],
+          "relevantHits": 0,
+          "recallAt5": null,
+          "precisionAt5": 0,
+          "sourceDiscoveries": 3,
+          "contentFetches": 0,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 2,
+          "retrievalCalls": 1,
+          "returnedTokens": 225,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2596,
+              "estimatedNonDialogueTokens": 1520,
+              "legacyCounterfactualTokens": 5759,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2918,
+              "estimatedNonDialogueTokens": 1842,
+              "legacyCounterfactualTokens": 6081,
+              "legacyOverWindow": false
+            }
+          ]
+        },
+        {
+          "id": "t20",
+          "text": "Find the excluded private notes.",
+          "contextFree": false,
+          "routeTopics": [],
+          "requiredSkillPrefetched": null,
+          "hitIds": [
+            "document:malicious"
+          ],
+          "expectedIds": [],
+          "relevantHits": 0,
+          "recallAt5": null,
+          "precisionAt5": 0,
+          "sourceDiscoveries": 3,
+          "contentFetches": 0,
+          "providerCalls": 0,
+          "selectedAuxiliarySources": 1,
+          "retrievalCalls": 1,
+          "returnedTokens": 123,
+          "invocations": [
+            {
+              "phase": "initial",
+              "estimatedInputTokens": 2652,
+              "estimatedNonDialogueTokens": 1521,
+              "legacyCounterfactualTokens": 5815,
+              "legacyOverWindow": false
+            },
+            {
+              "phase": "after-search",
+              "estimatedInputTokens": 2852,
+              "estimatedNonDialogueTokens": 1721,
+              "legacyCounterfactualTokens": 6015,
+              "legacyOverWindow": false
+            }
+          ]
+        }
+      ],
+      "heldOutSkills": [
+        {
+          "text": "Switch to a high contrast colour scheme.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Give the interface a warm autumnal look.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Make the app easier to read with a darker background.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Cr\u00e9er un th\u00e8me avec des couleurs automnales.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Crea un tema de colores oto\u00f1ales.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Change the editor's syntax highlighting palette.",
+          "skill": "themes",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Produce an R Markdown write-up of the results.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Render this notebook to PDF.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "My knitted report cannot find income.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Compiler ce document R Markdown en PDF.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Genera un informe reproducible de este an\u00e1lisis.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Fix a fenced R chunk in report.Rmd.",
+          "skill": "documents",
+          "prefetched": true,
+          "originalQuerySearchAt5": false,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Assess parcel flood exposure with the enabled plugin.",
+          "skill": "flood:workflow",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Run a parcel flood assessment.",
+          "skill": "flood:workflow",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Estimar la exposici\u00f3n a inundaciones de las parcelas.",
+          "skill": "flood:workflow",
+          "prefetched": true,
+          "originalQuerySearchAt5": true,
+          "withinTwoSteps": true
+        },
+        {
+          "text": "Evaluate inundation risk for these property polygons.",
+          "skill": "flood:workflow",
+          "prefetched": false,
+          "originalQuerySearchAt5": false,
+          "withinTwoSteps": false
+        }
+      ],
+      "sourceHashes": {
+        "src/lib/context/evaluation.ts": "ad75f481cc6a2411fc52f5413e9cd7c6dab7960e1338740d03b789602ee3657d",
+        "src/lib/context/broker.ts": "47f84146b652941d352613e49846d19bbd94377a85df2b99b5df444b5b9b3148",
+        "src/lib/context/router.ts": "bf43d99f06c55a146b67836e8e2f37e12b2c48a4ef074681ccc7fc9b330a7c4d",
+        "src/lib/context/rank.ts": "9994a3c14e6a9209ea85664e29a83e73e595a1284f165a5f05977a317761f90d",
+        "src/lib/context/budget.ts": "d5f2ca6bdfe3244afb0d051ac12b6e9b6c77903d884fe4930c3c56689c4f0e1b",
+        "src/lib/context/compiler.ts": "aab1a6750970163f4c18b2030514788478df2007ad62d9ed32f494d6a80ef908",
+        "src/lib/ai-context-tools.ts": "b2dd31cbb1efdf295dad83c72f9ba334e5488754f024bbb94742954ec20d9752",
+        "src/lib/ai-skill-ourgeo.ts": "ed94b8627dafedd26a4ef9b25189fd301873101612d7dd1bcfe95418748171c5",
+        "src/lib/ai-skill-documents.ts": "7d80d0e44f3a554c8fc8295a224378ce1b223a3eceb55c7579ac3cc54b5b8229"
+      },
+      "measuredAt": "2026-10-13T20:58:40.424Z",
+      "node": "v26.10.0",
+      "platform": "linux-x64",
+      "skillCorpusStatus": "Development regression corpus after disclosed alias tuning; independent release hold-out still required.",
+      "fixtureSha256": "80ebbfaf86c5300ee9ee36ae738a34c342119c5b9bbc0aca2045e37e140f2155",
+      "referenceSha256": "86460a7cf72180a0ffd87e88ed3333ff26cecfc9ca827bf5151a895b4d4e2885",
+      "legacyLimitations": "Real legacy application/document contracts, fixture resource descriptors, same context tool schemas and scheduled retrieval calls. Action index, full legacy tools and console bodies are omitted, so this is a conservative synthetic counterfactual, not a legacy app task run."
+    },
+    "longHeaders": {
+      "passed": true,
+      "delayedHeadersSeconds": 320,
+      "elapsedMs": 320031.669644,
+      "node": "v26.10.0",
+      "scope": "Actual local HTTP helper and streamed response; synthetic loopback, no model inference."
+    },
+    "failedWideViewportScale": {
+      "version": 1,
+      "measuredAt": "2026-10-13T20:25:07.936Z",
+      "appVersion": "1.16.17",
+      "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-hHZ8AN",
+      "screenshot": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-hHZ8AN/native-context-scale.png",
+      "platform": "linux-x64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+      "corpus": {
+        "objects": 10000,
+        "consoleEvents": 100000,
+        "documents": 100000,
+        "plugins": 200
+      },
+      "coldMs": 1337.2469779999992,
+      "timings": [
+        {
+          "query": "flood parcel exposure",
+          "warmP95Ms": 122.90000003576279,
+          "samples": [
+            120.70000004768372,
+            128,
+            116.80000001192093,
+            111.80000001192093,
+            110.80000001192093,
+            122.90000003576279,
+            113.39999997615814,
+            122,
+            116.40000003576279,
+            109.89999997615814
+          ]
+        },
+        {
+          "query": "",
+          "warmP95Ms": 147.69999998807907,
+          "samples": [
+            128.70000004768372,
+            137.69999998807907,
+            147.69999998807907,
+            144.19999998807907,
+            133.80000001192093,
+            134.5999999642372,
+            139.69999998807907,
+            138.89999997615814,
+            128.80000001192093,
+            131.69999998807907
+          ]
+        },
+        {
+          "query": "scale",
+          "warmP95Ms": 222.80000001192093,
+          "samples": [
+            190.10000002384186,
+            209.29999995231628,
+            212.89999997615814,
+            188.0999999642372,
+            222.80000001192093,
+            191.19999998807907,
+            202.9000000357628,
+            199.80000001192093,
+            198.20000004768372,
+            190.89999997615814
+          ]
+        },
+        {
+          "query": ".GlobalEnv::object_9876",
+          "warmP95Ms": 93.19999998807907,
+          "samples": [
+            95.39999997615814,
+            82.10000002384186,
+            90.90000003576279,
+            90.60000002384186,
+            82,
+            87.09999996423721,
+            93.19999998807907,
+            85.40000003576279,
+            77.19999998807907,
+            93.10000002384186
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "label": "before-inputs",
+          "pid": 1363660,
+          "residentBytes": 365641728,
+          "peakResidentBytes": 371183616
+        },
+        {
+          "label": "inputs-before-discovery",
+          "pid": 1363660,
+          "residentBytes": 469745664,
+          "peakResidentBytes": 507932672
+        },
+        {
+          "label": "cold-browser",
+          "pid": 1363660,
+          "residentBytes": 532508672,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-0",
+          "pid": 1363660,
+          "residentBytes": 531783680,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-1",
+          "pid": 1363660,
+          "residentBytes": 531853312,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-2",
+          "pid": 1363660,
+          "residentBytes": 531984384,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-3",
+          "pid": 1363660,
+          "residentBytes": 531845120,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-4",
+          "pid": 1363660,
+          "residentBytes": 531857408,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-5",
+          "pid": 1363660,
+          "residentBytes": 532025344,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-6",
+          "pid": 1363660,
+          "residentBytes": 531824640,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-7",
+          "pid": 1363660,
+          "residentBytes": 531705856,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-8",
+          "pid": 1363660,
+          "residentBytes": 531881984,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-flood parcel exposure-9",
+          "pid": 1363660,
+          "residentBytes": 532115456,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--0",
+          "pid": 1363660,
+          "residentBytes": 532234240,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--1",
+          "pid": 1363660,
+          "residentBytes": 532049920,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--2",
+          "pid": 1363660,
+          "residentBytes": 531865600,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--3",
+          "pid": 1363660,
+          "residentBytes": 531857408,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--4",
+          "pid": 1363660,
+          "residentBytes": 531668992,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--5",
+          "pid": 1363660,
+          "residentBytes": 525180928,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--6",
+          "pid": 1363660,
+          "residentBytes": 525635584,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--7",
+          "pid": 1363660,
+          "residentBytes": 525475840,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--8",
+          "pid": 1363660,
+          "residentBytes": 525750272,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser--9",
+          "pid": 1363660,
+          "residentBytes": 525852672,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-0",
+          "pid": 1363660,
+          "residentBytes": 526237696,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-1",
+          "pid": 1363660,
+          "residentBytes": 495656960,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-2",
+          "pid": 1363660,
+          "residentBytes": 495640576,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-3",
+          "pid": 1363660,
+          "residentBytes": 495673344,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-4",
+          "pid": 1363660,
+          "residentBytes": 495431680,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-5",
+          "pid": 1363660,
+          "residentBytes": 495517696,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-6",
+          "pid": 1363660,
+          "residentBytes": 495550464,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-7",
+          "pid": 1363660,
+          "residentBytes": 495792128,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-8",
+          "pid": 1363660,
+          "residentBytes": 495538176,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-scale-9",
+          "pid": 1363660,
+          "residentBytes": 495693824,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-0",
+          "pid": 1363660,
+          "residentBytes": 495255552,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-1",
+          "pid": 1363660,
+          "residentBytes": 495304704,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-2",
+          "pid": 1363660,
+          "residentBytes": 495276032,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-3",
+          "pid": 1363660,
+          "residentBytes": 495509504,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-4",
+          "pid": 1363660,
+          "residentBytes": 495570944,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-5",
+          "pid": 1363660,
+          "residentBytes": 495357952,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-6",
+          "pid": 1363660,
+          "residentBytes": 495620096,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-7",
+          "pid": 1363660,
+          "residentBytes": 495636480,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-8",
+          "pid": 1363660,
+          "residentBytes": 495706112,
+          "peakResidentBytes": 537903104
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-9",
+          "pid": 1363660,
+          "residentBytes": 495443968,
+          "peakResidentBytes": 537903104
+        }
+      ],
+      "managerPeakAdditionalResidentBytes": 62763008,
+      "inputAndManagerAdditionalResidentBytes": 129802240,
+      "sourceHashes": {
+        "scripts/check-context-scale.mjs": "b3eebb39e0207c5f9b1a554a560440ec152f6030ad26909dac8eb2a0f846fdee",
+        "package-lock.json": "ea8689e235ebbdffecabdc7c8395682df59284db28636002d67f0f16f71acc56",
+        "src/components/editor/TabBar.tsx": "dc4a88987055da6694f30780b308a4104749831790357104ee42620bf0fdbea1",
+        "src/lib/editor-tab-window.ts": "439d1c00be0c737c0cae4959513b9bcbec97e8b933f853f4af4f1e7d610a8207",
+        "src/components/console/Console.tsx": "9386b7a0a7beebe4f517ad7248fc1ddd4c168b107cc47d59dfa8b8bc367e4a5e",
+        "src/components/console/ConsoleHistory.tsx": "2f462696a738e3dc013498ca2a8afc53a6d3637fe84fb7979e4379190fad29f8",
+        "src/components/ai/ContextSourceBrowser.tsx": "5b25a807da9f5dc24841aee1122c7bf3b47215c5d0e9a1422bd0a0ca74af3106",
+        "src/lib/context/source-browser.ts": "6358d3e76612a06498eaf9c29772db9913c3e0d598d871af8f7d667393e01130",
+        "src/lib/context/descriptor-index.ts": "ad18e13c677fd1d8290565d0b24037dde0c7efc2a85358e36e77f4052dd2a3ce",
+        "src/lib/context/descriptor-identity.ts": "d02c933413e126318d6ebfcc844330ad19c91eba0dfa73a0e84cbbb95893004b",
+        "src/lib/context/sources/workspace.ts": "b47d4a5ace3a7e19dc6e4c503db37cdc3bd787a7ad49d2feee11a38f6647e96b",
+        "src/lib/context/sources/console-index.ts": "0f5e947b430d40ec3ae546bfcbb66badfcedc6bf9ec90b2bdfbde891527ab919"
+      },
+      "bodyReads": 0,
+      "contextFreeTurns": [
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7319
+        },
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7445
+        }
+      ],
+      "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; normal layout retained, with the first of 100,000 document buffers active; no pane-suppression override. Input DOM allocations precede the manager baseline. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; production file ingestion, other panel/view combinations and transient pre-GC peaks are not certified. Loopback mock model, no real inference or R source reads.",
+      "gates": {
+        "warmSearchBelow200Ms": false,
+        "additionalManagerBelow150MiB": true,
+        "contextFreeNoAuxiliarySources": true,
+        "noSchemaReads": true
+      },
+      "passed": false,
+      "wholeApp": true,
+      "normalLayoutAccessChecks": {
+        "firstAndLastDocumentReachable": true,
+        "consoleScrollsToOldestEntry": true,
+        "multilineOutputMeasured": true,
+        "completeHistoryCopyVerifiedWithoutSystemClipboardWrite": true
+      }
+    },
+    "failedReferenceScale": {
+      "version": 1,
+      "measuredAt": "2026-10-13T20:28:16.396Z",
+      "appVersion": "1.16.17",
+      "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-PsBqr3",
+      "screenshot": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-scale-PsBqr3/native-context-scale.png",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "platform": "linux-x64",
+      "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+      "corpus": {
+        "objects": 10000,
+        "consoleEvents": 100000,
+        "documents": 100000,
+        "plugins": 200
+      },
+      "coldMs": 1431.7795840000017,
+      "timings": [
+        {
+          "query": "flood parcel exposure",
+          "warmP95Ms": 139.30000001192093,
+          "samples": [
+            139.9000000357628,
+            145.29999995231628,
+            139.30000001192093,
+            116.5,
+            133.4000000357628,
+            117.90000003576279,
+            127.20000004768372,
+            136.20000004768372,
+            115.69999998807907,
+            123.10000002384186
+          ]
+        },
+        {
+          "query": "",
+          "warmP95Ms": 152.19999998807907,
+          "samples": [
+            158.80000001192093,
+            145,
+            152.19999998807907,
+            132.70000004768372,
+            147.80000001192093,
+            143.30000001192093,
+            135.30000001192093,
+            138.0999999642372,
+            131.60000002384186,
+            130.89999997615814
+          ]
+        },
+        {
+          "query": "scale",
+          "warmP95Ms": 210.5,
+          "samples": [
+            196.5,
+            192.89999997615814,
+            190,
+            208.10000002384186,
+            189.19999998807907,
+            210.5,
+            191.5,
+            194.39999997615814,
+            192.30000001192093,
+            205.20000004768372
+          ]
+        },
+        {
+          "query": ".GlobalEnv::object_9876",
+          "warmP95Ms": 94.19999998807907,
+          "samples": [
+            85.89999997615814,
+            77.90000003576279,
+            84.19999998807907,
+            82.59999996423721,
+            85.70000004768372,
+            80.69999998807907,
+            94.19999998807907,
+            93.10000002384186,
+            87.19999998807907,
+            89.80000001192093
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "label": "before-inputs",
+          "pid": 1364350,
+          "residentBytes": 363659264,
+          "peakResidentBytes": 367054848
+        },
+        {
+          "label": "inputs-before-discovery",
+          "pid": 1364350,
+          "residentBytes": 465719296,
+          "peakResidentBytes": 506904576
+        },
+        {
+          "label": "cold-browser",
+          "pid": 1364350,
+          "residentBytes": 528908288,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-0",
+          "pid": 1364350,
+          "residentBytes": 528306176,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-1",
+          "pid": 1364350,
+          "residentBytes": 528412672,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-2",
+          "pid": 1364350,
+          "residentBytes": 528084992,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-3",
+          "pid": 1364350,
+          "residentBytes": 527970304,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-4",
+          "pid": 1364350,
+          "residentBytes": 528183296,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-5",
+          "pid": 1364350,
+          "residentBytes": 528420864,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-6",
+          "pid": 1364350,
+          "residentBytes": 527425536,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-7",
+          "pid": 1364350,
+          "residentBytes": 528203776,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-8",
+          "pid": 1364350,
+          "residentBytes": 528146432,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-flood parcel exposure-9",
+          "pid": 1364350,
+          "residentBytes": 528326656,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--0",
+          "pid": 1364350,
+          "residentBytes": 528388096,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--1",
+          "pid": 1364350,
+          "residentBytes": 528535552,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--2",
+          "pid": 1364350,
+          "residentBytes": 528449536,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--3",
+          "pid": 1364350,
+          "residentBytes": 528605184,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--4",
+          "pid": 1364350,
+          "residentBytes": 528441344,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--5",
+          "pid": 1364350,
+          "residentBytes": 522096640,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--6",
+          "pid": 1364350,
+          "residentBytes": 522121216,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--7",
+          "pid": 1364350,
+          "residentBytes": 522203136,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--8",
+          "pid": 1364350,
+          "residentBytes": 522133504,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser--9",
+          "pid": 1364350,
+          "residentBytes": 493297664,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-0",
+          "pid": 1364350,
+          "residentBytes": 493604864,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-1",
+          "pid": 1364350,
+          "residentBytes": 494022656,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-2",
+          "pid": 1364350,
+          "residentBytes": 494198784,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-3",
+          "pid": 1364350,
+          "residentBytes": 494297088,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-4",
+          "pid": 1364350,
+          "residentBytes": 494415872,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-5",
+          "pid": 1364350,
+          "residentBytes": 494444544,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-6",
+          "pid": 1364350,
+          "residentBytes": 494698496,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-7",
+          "pid": 1364350,
+          "residentBytes": 494174208,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-8",
+          "pid": 1364350,
+          "residentBytes": 494424064,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-scale-9",
+          "pid": 1364350,
+          "residentBytes": 494301184,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-0",
+          "pid": 1364350,
+          "residentBytes": 494743552,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-1",
+          "pid": 1364350,
+          "residentBytes": 494690304,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-2",
+          "pid": 1364350,
+          "residentBytes": 494526464,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-3",
+          "pid": 1364350,
+          "residentBytes": 493969408,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-4",
+          "pid": 1364350,
+          "residentBytes": 493887488,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-5",
+          "pid": 1364350,
+          "residentBytes": 494399488,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-6",
+          "pid": 1364350,
+          "residentBytes": 494342144,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-7",
+          "pid": 1364350,
+          "residentBytes": 494100480,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-8",
+          "pid": 1364350,
+          "residentBytes": 494321664,
+          "peakResidentBytes": 533889024
+        },
+        {
+          "label": "browser-.GlobalEnv::object_9876-9",
+          "pid": 1364350,
+          "residentBytes": 494358528,
+          "peakResidentBytes": 533889024
+        }
+      ],
+      "managerPeakAdditionalResidentBytes": 63188992,
+      "inputAndManagerAdditionalResidentBytes": 130699264,
+      "sourceHashes": {
+        "scripts/check-context-scale.mjs": "e23a0d9f4aaeb15bd2c2964ec73a1de75a94194c3c6456fb10e3ec5b92f3f299",
+        "package-lock.json": "ea8689e235ebbdffecabdc7c8395682df59284db28636002d67f0f16f71acc56",
+        "src/components/editor/TabBar.tsx": "dc4a88987055da6694f30780b308a4104749831790357104ee42620bf0fdbea1",
+        "src/lib/editor-tab-window.ts": "439d1c00be0c737c0cae4959513b9bcbec97e8b933f853f4af4f1e7d610a8207",
+        "src/components/console/Console.tsx": "9386b7a0a7beebe4f517ad7248fc1ddd4c168b107cc47d59dfa8b8bc367e4a5e",
+        "src/components/console/ConsoleHistory.tsx": "2f462696a738e3dc013498ca2a8afc53a6d3637fe84fb7979e4379190fad29f8",
+        "src/components/ai/ContextSourceBrowser.tsx": "5b25a807da9f5dc24841aee1122c7bf3b47215c5d0e9a1422bd0a0ca74af3106",
+        "src/lib/context/source-browser.ts": "6358d3e76612a06498eaf9c29772db9913c3e0d598d871af8f7d667393e01130",
+        "src/lib/context/descriptor-index.ts": "ad18e13c677fd1d8290565d0b24037dde0c7efc2a85358e36e77f4052dd2a3ce",
+        "src/lib/context/descriptor-identity.ts": "d02c933413e126318d6ebfcc844330ad19c91eba0dfa73a0e84cbbb95893004b",
+        "src/lib/context/sources/workspace.ts": "b47d4a5ace3a7e19dc6e4c503db37cdc3bd787a7ad49d2feee11a38f6647e96b",
+        "src/lib/context/sources/console-index.ts": "0f5e947b430d40ec3ae546bfcbb66badfcedc6bf9ec90b2bdfbde891527ab919"
+      },
+      "bodyReads": 0,
+      "contextFreeTurns": [
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7319
+        },
+        {
+          "hasAuxiliaryEvidence": false,
+          "bytes": 7445
+        }
+      ],
+      "methodology": "Actual native Electron dev renderer, production UI and stores, packed default adapters and source browser. Synthetic metadata; normal layout retained, with the first of 100,000 document buffers active; no pane-suppression override. Input DOM allocations precede the manager baseline. Timings include synchronous React search handlers; cold time includes Playwright and UI mount. Resident memory measured with Electron process metrics after forced GC; production file ingestion, other panel/view combinations and transient pre-GC peaks are not certified. Loopback mock model, no real inference or R source reads.",
+      "gates": {
+        "warmSearchBelow200Ms": false,
+        "additionalManagerBelow150MiB": true,
+        "contextFreeNoAuxiliarySources": true,
+        "noSchemaReads": true
+      },
+      "passed": false,
+      "wholeApp": true,
+      "normalLayoutAccessChecks": {
+        "firstAndLastDocumentReachable": true,
+        "consoleScrollsToOldestEntry": true,
+        "multilineOutputMeasured": true,
+        "completeHistoryCopyVerifiedWithoutSystemClipboardWrite": true
+      }
+    }
+  },
+  "currentSourceHashes": {
+    "electron/main/ai-proxy.ts": "64cf757b886073d2b2ee73d964cddaa8a5e65d6ae654ccc2308053e1ca60b2c8",
+    "electron/main/context/ipc.ts": "297df16a65243bd79451a03c6c3a2d922687d5fbfd540e0dcd83c0a247fa8931",
+    "electron/main/index.ts": "43e8837039c1e185c3159431708c7ed9bcc05d5209d72214fbb0d4480b5cb3f9",
+    "electron/main/local-http.test.ts": "ae15b98ccdfa0800f37ca2220f80b5312efe0d1554e58f5774c8e7d5b5eae4db",
+    "electron/main/local-http.ts": "a0ee324ad2f2f849283c2c8e19c0608e3b0bcde64042714b9dfcd2c8c7795319",
+    "electron/main/local-network.ts": "1c3c1e904251c52bd8232cd19fcef3a2019989aad442221d5e4c15013dc24d23",
+    "electron/preload/index.ts": "f0539cd8e9107d94795163faf4b0be61e4e726d9688af6592f46c864eec91669",
+    "electron/preload/types.d.ts": "3efa94790cc6a16e05cc9acd2e8c76e7472d34dfeb6318c09a0c0515731153c4",
+    "package-lock.json": "ea8689e235ebbdffecabdc7c8395682df59284db28636002d67f0f16f71acc56",
+    "package.json": "f295f3dc18aa5637e321c1504aae29fba61abc05c63f7144744bf03de2bf429f",
+    "scripts/build-context-network-tracer.mjs": "fa3d51fca541659781b0c4133e723a877f9d310675a7bb83446bf4ad2fd0fbe8",
+    "scripts/check-context-deb.mjs": "c8535d329f3c6886ec2f5c7caaac1146b8135b3e34c40e710012b4d20f780cd3",
+    "scripts/check-context-network.mjs": "9aa414fb7168d3d8110b414ba319991c2a424da2ad43c6dfe8a7659043ecadcd",
+    "scripts/check-context-scale.mjs": "8a57e04d1b7bd3f7ca407a9c8a650384e03d466172013c41251afae080154939",
+    "scripts/check-context.mjs": "416ca0b08020eefb7136df089bcea200690d695317192029144e415b5a22317d",
+    "scripts/check-local-transport.mjs": "ba376c2795e3f4a28e66eacb10a6ce9d5b5960ad56d3ea2f1143fb2938c22b5e",
+    "scripts/native/context-ring-canary.c": "63dc661666e810506036caab22b6c8690c6133479a675ab35e50e1f0d4b4ecb6",
+    "scripts/native/strace-ring-observer.h": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+    "src/lib/ai-skill-ourgeo.ts": "ed94b8627dafedd26a4ef9b25189fd301873101612d7dd1bcfe95418748171c5",
+    "src/lib/context/descriptor-identity.ts": "9ead19707c9ef14914a97b365040501847f639a788cd5f0f89bd63d17adaec2d",
+    "src/lib/context/descriptor-index.test.ts": "9a48b36e483cba0f305581cb8aa8321136f25b725be1503d240d12053101d501",
+    "src/lib/context/descriptor-index.ts": "cad4092d8dd4e09eb9602abb8b37432c3a69e2d0141af62efce086029aa9db16",
+    "src/lib/context/network-audit.test.ts": "9e072858c8be3ac1c2da2b84de72dcd7e62aa9619e793051707f32952ddd20f5",
+    "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+    "src/lib/context/rank.ts": "9994a3c14e6a9209ea85664e29a83e73e595a1284f165a5f05977a317761f90d",
+    "src/lib/context/router.ts": "bf43d99f06c55a146b67836e8e2f37e12b2c48a4ef074681ccc7fc9b330a7c4d",
+    "src/lib/context/schema-revision.test.ts": "c0a818a03df9770af0abac953954b264465032955da6a56d122259552b3adf39",
+    "src/lib/context/schema-revision.ts": "25e83d2ad99443fe7e2b433db948b00ba04bf5a8161c52434149115b47ab216e",
+    "src/lib/context/sources/workspace.ts": "b47d4a5ace3a7e19dc6e4c503db37cdc3bd787a7ad49d2feee11a38f6647e96b",
+    "src/lib/ws-client.ts": "872e04ba60430f11af9127b116ad2b69ba4d3ef6ceeff591e542dd2d0de2fb44"
+  },
+  "sourceSnapshotNote": "Final native FUSE, Debian and syscall captures match the compiled archive above. Native scale is the actual development renderer at the declared viewport; every report retains its own scope and date. The 320-second transport probe predates a later compressed-cancellation fix, which has a separate passing regression test. Earlier model-quality reports remain historical development evidence in the previous follow-up; no new model or human quality certification is claimed.",
+  "qualificationRemaining": [
+    "Independent held-out discovery/provenance/non-inferiority review: deferred by owner pending a team; known model-answer failures retained",
+    "Representative participant study: deferred by owner pending a team",
+    "Windows/macOS native sessions: deferred by owner",
+    "Shared desktop/keyring services outside the captured process tree, separately booted Debian/associations, production ingestion/other panel combinations/transient memory peaks: unverified scope boundaries",
+    "Provider internal occupancy and invoice/usage evidence unavailable from the configured subscription; estimates and conservative refusal remain the implemented contract"
+  ],
+  "previousEvidence": "docs/context-stage02-followup-evidence.json",
+  "failedAttempts": {
+    "retainedLogs": [
+      ".cache/stage02/network-fix/acceptance-local.log",
+      ".cache/stage02/network-fix/acceptance-local-retry.log",
+      ".cache/stage02/network-fix/build-tracer.log",
+      ".cache/stage02/network-fix/audit-first.log",
+      ".cache/stage02/network-fix/audit-final.log",
+      ".cache/stage02/network-fix/fuse-final.log",
+      ".cache/stage02/network-fix/deb-final.log",
+      ".cache/stage02/network-fix/transport-unit.log",
+      ".cache/stage02/network-fix/tests-full.log",
+      ".cache/stage02/network-fix/scale-verified.log",
+      ".cache/stage02/network-fix/scale-final.log",
+      ".cache/stage02/network-fix/scale-reference.log",
+      ".cache/stage02/network-fix/scale-ranked.log",
+      ".cache/stage02/network-fix/scale-release.log",
+      ".cache/stage02/network-fix/scale-cpu.log"
+    ],
+    "interpretation": "Initial native runs exposed and then verified fixes for schema hydration, compressed HEAD/cancellation and the protocol-aware race harness. One full-suite folder fixture timed out under load; isolated and bounded-concurrency full retries passed. A development module URL falsely matched the old schema-read detector; exact endpoint detection fixes that harness issue. Wide/reference viewport latency failures and a startup timeout remain preserved. Actual broad-search ranking was improved; the fixed viewport and all unchanged performance limits are recorded in the final scale report."
+  }
+}
