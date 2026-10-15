@@ -24,6 +24,9 @@ export interface MemoryConnection {
   runtimeId?: string
   /** Set only by the native host for its authenticated, owned loopback bridge. */
   localServer?: true
+  /** Only the native deployment verifier may attach this operator profile. */
+  localProfile?: 'hindsight-local-chunks-v1'
+  profileDirectory?: string
   contribution?: import('./contributions').ProviderContributionRef
   scope: 'global' | `project:${string}`
   namespaceRef: string
@@ -35,9 +38,9 @@ export interface MemoryConnection {
   certification: 'pending'
   createdAt: string
 }
-export type PublicMemoryConnection = Omit<MemoryConnection, 'namespaceRef' | 'credentialRef'> & { authenticated: boolean }
+export type PublicMemoryConnection = Omit<MemoryConnection, 'namespaceRef' | 'credentialRef' | 'profileDirectory'> & { authenticated: boolean }
 
 export function publicConnection(connection: MemoryConnection): PublicMemoryConnection {
-  const { namespaceRef: _namespace, credentialRef, ...metadata } = connection
+  const { namespaceRef: _namespace, credentialRef, profileDirectory: _directory, ...metadata } = connection
   return { ...metadata, authenticated: credentialRef !== null && connection.state !== 'disconnected' }
 }

@@ -60,6 +60,10 @@ parentPort!.on('message', (message: { id: number; op: string; value?: unknown })
         const input = message.value as { bindingId: string; scope: string; generation: number }
         result = store.bindingSnapshotCurrent(input.bindingId, input.scope, input.generation); break
       }
+      case 'repairBindingSnapshot': {
+        const input = message.value as { bindingId: string; scope: string; generation: number }
+        result = store.repairBindingSnapshot(input.bindingId, input.scope, input.generation); break
+      }
       case 'bindingSnapshot': {
         const input = message.value as { bindingId: string; scope: string }
         result = store.bindingSnapshot(input.bindingId, input.scope); break
@@ -138,6 +142,14 @@ parentPort!.on('message', (message: { id: number; op: string; value?: unknown })
       case 'saveConnection': {
         const value = message.value as { connection: Parameters<MemoryStorage['saveConnection']>[0]; token?: string }
         result = store.saveConnection(value.connection, value.token); break
+      }
+      case 'renewLocalServer': {
+        const value = message.value as { connection: Parameters<MemoryStorage['renewLocalServer']>[0]; token: string }
+        result = store.renewLocalServer(value.connection, value.token); break
+      }
+      case 'renewHindsightServer': {
+        const value = message.value as { connection: Parameters<MemoryStorage['renewHindsightServer']>[0]; token: string }
+        result = store.renewHindsightServer(value.connection, value.token); break
       }
       case 'save': result = store.save(message.value as Parameters<MemoryStorage['save']>[0]); break
       case 'forget': {

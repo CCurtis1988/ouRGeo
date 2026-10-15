@@ -5,7 +5,7 @@ import type { ProjectContext, AuthorisedFileLink } from '../../../src/lib/contex
 import type { ProviderBinding, OutboxOperation, OutboxJob, OutboxReceipt } from '../../../src/lib/context/providers/outbox'
 import type { ProviderMigration, ProviderMigrationStatus } from '../../../src/lib/context/providers/migration'
 import { randomUUID } from 'node:crypto'
-import { applyMemoryRevision } from '../../../src/lib/context/preferences'
+import { applyMemoryRevision, preferenceSetting } from '../../../src/lib/context/preferences'
 import type { MemoryConnection } from '../../../src/lib/context/providers/connections'
 import { backupMemoryDatabase } from './storage-backup'
 import type { CanonicalScopeSnapshot } from '../../../src/lib/context/providers/types'
@@ -204,6 +204,33 @@ export class MemoryStorage {
     return createHash('sha256').update(JSON.stringify([connection.adapter, endpoint.href, connection.namespaceRef])).digest('hex')
   }
   saveConnection(connection: MemoryConnection, token?: string): void {
+    this.writeConnection(connection, token, false)
+  }
+  /** Native owned-listener renewal only. The public settings boundary cannot
+   * rotate credentials or turn an arbitrary endpoint into a reviewed server. */
+  renewLocalServer(connection: MemoryConnection, token: string): void {
+    const previous = this.connection(connection.id), endpoint = new URL(connection.endpoint)
+    if (!previous?.localServer || !connection.localServer || previous.adapter !== 'mnemosyne' || connection.adapter !== 'mnemosyne'
+      || previous.location !== 'loopback' || connection.location !== 'loopback' || connection.state !== 'reachable'
+      || previous.state === 'disconnected' || connection.runtimeId !== previous.runtimeId || !connection.credentialRef
+      || endpoint.protocol !== 'http:' || endpoint.hostname !== '127.0.0.1' || !endpoint.port || !['/', '/mcp'].includes(endpoint.pathname) || endpoint.search || endpoint.hash || endpoint.username || endpoint.password
+      || !/^[a-zA-Z0-9_-]{43}$/.test(token) || connection.destinations.length !== 7
+      || connection.destinations.some(item => item.destination !== (item.purpose === 'storage' ? connection.endpoint : 'disabled'))
+      || this.bindings().some(binding => binding.connectionRef === connection.id && binding.enabled)) throw new Error('Pause the owned local-server bindings before renewing its private listener.')
+    this.writeConnection(connection, token, true)
+  }
+  renewHindsightServer(connection: MemoryConnection, token: string): void {
+    const previous = this.connection(connection.id), endpoint = new URL(connection.endpoint)
+    if (!previous || previous.localProfile !== 'hindsight-local-chunks-v1' || connection.localProfile !== previous.localProfile
+      || previous.adapter !== 'hindsight' || connection.adapter !== 'hindsight' || previous.profileDirectory !== connection.profileDirectory
+      || previous.location !== 'loopback' || connection.location !== 'loopback' || connection.state !== 'reachable'
+      || !connection.credentialRef || token.length !== 101 || !token.startsWith(connection.namespaceRef + '.') || !/^[a-f0-9.-]+$/.test(token)
+      || endpoint.protocol !== 'http:' || endpoint.hostname !== '127.0.0.1' || !endpoint.port || endpoint.pathname !== '/' || endpoint.search || endpoint.hash || endpoint.username || endpoint.password
+      || connection.destinations.length !== 7 || connection.destinations.some(item => item.destination !== (['storage', 'embeddings', 'reranking'].includes(item.purpose) ? connection.endpoint : 'disabled'))
+      || this.bindings().some(binding => binding.connectionRef === connection.id && binding.enabled)) throw new Error('Pause the reviewed Hindsight bindings before renewing its private credentials.')
+    this.writeConnection(connection, token, true)
+  }
+  private writeConnection(connection: MemoryConnection, token: string | undefined, rotate: boolean): void {
     if (connection.certification !== 'pending') throw new Error('Only the host certification registry can grant provider capabilities.')
     const previous = this.connection(connection.id)
     if (previous && (connection.revision !== previous.revision + 1 || connection.scope !== previous.scope || connection.namespaceRef !== previous.namespaceRef || connection.credentialRef !== previous.credentialRef)) throw new Error('The connection changed. Refresh its settings before updating it.')
@@ -215,8 +242,8 @@ export class MemoryStorage {
     try {
       this.db.prepare('INSERT OR IGNORE INTO remote_namespaces VALUES (?, ?)').run(namespaceIdentity, connection.scope)
       if (token !== undefined) {
-        if (!connection.credentialRef || previous) throw new Error('Create a new connection to replace its credentials.')
-        this.db.prepare('INSERT INTO memory_credentials VALUES (?, ?)').run(connection.credentialRef, this.seal(connection.credentialRef, token))
+        if (!connection.credentialRef || previous && !rotate) throw new Error('Create a new connection to replace its credentials.')
+        this.db.prepare(rotate ? 'INSERT INTO memory_credentials VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload' : 'INSERT INTO memory_credentials VALUES (?, ?)').run(connection.credentialRef, this.seal(connection.credentialRef, token))
       }
       if (connection.state === 'disconnected' && connection.credentialRef) this.db.prepare('DELETE FROM memory_credentials WHERE id=?').run(connection.credentialRef)
       this.db.prepare('INSERT INTO memory_connections VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(connection.id, this.seal(connection.id, connection))
@@ -346,6 +373,29 @@ export class MemoryStorage {
   bindingSnapshotCurrent(bindingId: string, scope: string, generation: number): boolean {
     return this.bindingSnapshot(bindingId, scope).generation === generation
   }
+  /** Restored/updated immutable runtime pairs may lack the last approved index.
+   * Queue one representative canonical write: the snapshot adapter rebuilds the
+   * entire approved subset. Never bypass the outbox or replay uncertain writes. */
+  repairBindingSnapshot(bindingId: string, scope: string, generation: number): boolean {
+    const binding = this.binding(bindingId), connection = binding ? this.connection(binding.connectionRef) : undefined
+    if (!binding || binding.cleanupOnly || binding.adapter !== 'mnemosyne' || connection?.runtimeId !== 'mnemosyne-lexical-v1'
+      || connection.state !== 'reachable' || connection.location !== 'managed-local' && !connection.localServer) throw new Error('POLICY_REFUSED')
+    const snapshot = this.bindingSnapshot(bindingId, scope)
+    if (snapshot.generation !== generation) throw new Error('STALE_SELECTION')
+    const record = snapshot.records[0]
+    if (!record) return false
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      const related = new Set(this.bindings().filter(item => item.connectionRef === binding.connectionRef && item.namespaceRef === binding.namespaceRef && item.scope === scope).map(item => item.id))
+      const jobs = this.outbox().filter(job => related.has(job.bindingId))
+      if (jobs.some(job => ['running', 'pending'].includes(job.status)) || jobs.some(job => job.bindingId === bindingId && job.canonicalId === record.id && job.revision === record.revision && job.status === 'queued')) {
+        this.db.exec('COMMIT'); return false
+      }
+      for (const job of jobs.filter(job => job.bindingId === bindingId && job.canonicalId === record.id && job.revision === record.revision && job.operation === 'upsert' && job.status === 'confirmed')) this.putJob({ ...job, status: 'cancelled', reason: 'superseded' })
+      this.queueRecord(record)
+      this.db.exec('COMMIT'); return true
+    } catch (error) { this.rollback(error) }
+  }
   save(record: MemoryRecord): MemoryRecord {
     if (this.db.prepare('SELECT id FROM tombstones WHERE id=?').get(record.id)) throw new Error('This memory was forgotten. Create a new explicit memory instead.')
     const changedIds: string[] = []
@@ -360,7 +410,10 @@ export class MemoryStorage {
       }
       if (previous && (this.decode(previous).scope !== record.scope || this.decode(previous).projectId !== record.projectId)) throw new Error('Memory identity belongs to another scope. Import this record as a copy.')
       const scope = record.scope === 'global' ? 'global' : `project:${record.projectId}`
-      const records = this.db.prepare('SELECT memories.* FROM memories JOIN record_scopes ON memories.id=record_scopes.id WHERE scope=? AND memories.id NOT IN (SELECT id FROM tombstones)').all(scope).map(row => this.decode(row))
+      // Only a recognised setting can supersede another preference. Plain
+      // memories need no full-scope decrypt/scan on every addition.
+      const compare = record.status === 'active' && record.assertion === 'user-declared' && preferenceSetting(record.statement) !== null
+      const records = compare ? this.db.prepare('SELECT memories.* FROM memories JOIN record_scopes ON memories.id=record_scopes.id WHERE scope=? AND memories.id NOT IN (SELECT id FROM tombstones)').all(scope).map(row => this.decode(row)) : []
       const update = applyMemoryRevision(records, record)
       record = update.record
       for (const changed of update.changed) {
@@ -561,6 +614,14 @@ export class MemoryStorage {
     try {
       this.writeBinding(binding)
       for (const record of snapshot.records) if (ids.includes(record.id)) this.queueRecord(record)
+      if (connection.localProfile === 'hindsight-local-chunks-v1') {
+        // A native reconnection can restore a bank whose old authorisation was
+        // paused/disconnected when the user forgot a source. Carry its durable
+        // tombstone into the newly approved binding; never replay old ingestion.
+        const related = new Set(this.bindings().filter(item => item.id !== binding.id && item.scope === binding.scope && item.connectionRef === binding.connectionRef && item.namespaceRef === binding.namespaceRef).map(item => item.id))
+        const forgotten = this.outbox().filter(job => related.has(job.bindingId) && job.operation === 'upsert' && this.db.prepare('SELECT id FROM tombstones WHERE id=?').get(job.canonicalId))
+        for (const job of forgotten) this.queueDeletion(job.canonicalId, job.revision + 1, binding)
+      }
       this.db.exec('COMMIT')
     } catch (error) { this.rollback(error) }
   }

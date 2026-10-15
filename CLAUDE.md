@@ -1719,9 +1719,10 @@ atomic dispatch mark succeeded can release its own marked-but-unsent charge;
 a duplicate losing that race cannot release another route's pending spend.
 An abandoned reconciliation read keeps uncertain ingestion pending, including
 at the canonical completion boundary; a retry receipt cannot replay that write.
-These helpers do not issue certificates or start production processing. A
-reviewed deployment registry, live authorisation controller, provider selection
-and reconciliation scheduling remain delivery gates.
+These helpers do not issue certificates or start processing on their own. The
+reviewed deployment registry, live authorisation controller, scoped selection
+and reconciliation scheduler own those permissions; endpoint health cannot
+add a review.
 The published adapter SDK is in `docs/context-provider-sdk.md`. Runtime
 descriptor/response validation rejects forged receipts and unbounded or secret
 content; outbox completion applies it to both normal and late results. Invalid
@@ -1738,7 +1739,8 @@ probe records reachability, never isolation/deletion certification. Disconnect
 aborts tests before awaiting storage, destroys the credential, revokes bindings
 and cancels their outbox. Late responses cannot reactivate it. Removing disconnected
 settings preserves revocation/deletion receipts rather than claiming remote erasure.
-Provider retrieval/ingestion is still gated; these settings do not activate a bank.
+Generic connection setup remains gated; only named host-reviewed profiles have
+separate native activation flows.
 Mnemosyne's pinned recall computes embeddings independently of vector scoring
 weights, so an unverified connection cannot become local-only by passing zero.
 The managed candidate now has bounded, supervised stdio and a private bridge:
@@ -1748,7 +1750,8 @@ next launch removes incomplete staged rebuilds. Upstream YAML overrides env flag
 so this profile writes its fixed local settings before loading the engine. The
 engine at the v0.7.4 Hermes tag is 4.0.0b4; catalogue version fields distinguish
 those releases and keep the beta out of the default profile. This remains a
-packaging/conformance candidate, not a registered managed provider.
+beta upstream; its named Linux lexical profile has a separate host review and
+scoped activation, rather than inheriting trust from installation.
 
 Learning starts with suggestions, with scratch off. Narrow local cues recognise
 user-declared preferences and project decisions after successful turns; no paid
@@ -3726,20 +3729,76 @@ The named authenticated Linux local-server profile now supports protected-token
 recall through the external adapter contract. Native writes require a current
 outbox job and its exact canonical snapshot; workspace/policy changes invalidate
 server authority. Its reviewed evidence is in
-`docs/context-mnemosyne-local-server-evidence.json`. Arbitrary remote MCP
-deployments and complete runtime/quality certification remain unqualified.
+`docs/context-mnemosyne-local-server-evidence.json`. Its external endpoint now
+uses authenticated Streamable HTTP MCP, with initialisation, bounded tool calls,
+Host/Origin/version validation and isolated bank tokens. Arbitrary remote MCP
+deployments still require separate review.
 Scoped migration uses encrypted schema-17 journals, includes previous bindings
 in the same bank and separately reviews old-copy retention/deletion. Snapshot
 profiles reconcile uncertain old writes by bounded read barriers; other adapters
 require terminal receipts. Keep unresolved writes blocked rather than replaying
-them. Hindsight's real API/restart/network checks pass, but its PostgreSQL/WAL
-plaintext deletion audit fails; do not enable personal writes on that evidence.
+them. Reconciliation uses an explicit host-only read purpose: the proposed
+cleanup binding does not exist yet and cannot supply a canonical snapshot.
+The read-only serial barrier can resolve a cancelled old write, but cannot
+repair or ingest anything. Actual cleanup still uses its separately approved
+delete-only binding and current protected snapshot.
+
+The raw Hindsight API still fails physical retention; that failure remains
+recorded. `hindsight-local-server.py` is a separate operator-started Linux
+profile, with a pinned private environment and PostgreSQL distribution. Native
+folder review checks actual interpreter/dependency/library/source fingerprints,
+the owning process and its listening socket, private credentials and authenticated
+health before the registry can register this exact local deployment. A generic
+URL, plugin manifest or server self-report cannot do so. PostgreSQL is accessed
+only through a private Unix socket; the public API has per-launch, per-bank
+authentication. In-process lexical features implement the upstream public
+embedding interface; there is no embedding HTTP listener, model download or
+paid processing. The ASGI retention boundary serialises operations, fsyncs a
+dirty journal before mutation, drains all API/worker pools and runs quiescent
+maintenance before returning an acknowledgement. Rewriting only public tables
+was insufficient: ANALYZE's pg_statistic copies and WAL also need cleanup.
+Failed cleanup blocks reads; restart recovers before reopening the API. A
+surviving database is adopted only after exact owned-process/argument checks.
+Database fsync, synchronous commit and full-page writes are on. Explicit
+reconnection preserves the bank and carries forgetting tombstones to the new
+approved binding, without replaying cancelled ingestion. See
+`docs/context-hindsight-local-profile.md` for the operator boundary and evidence.
 Runtime pointer recovery now matches the immutable installation record in the
 same provider/data pair before current-state reporting or rollback health. A
 crossed, incomplete or foreign-profile restore cannot launch a binary or replace
 the surviving pointer. JSON field order is not identity; validated metadata is
-normalised for comparison. This checks pair consistency, not a full installed-file
-integrity audit or provider-database migration certificate.
+normalised for comparison. Installed artifact inventories now hash actual files,
+paths and executable bits, reject links and are checked before native launch.
+Eight bounded file readers preserve the original digest order while avoiding
+the serial verifier's cold-start deadlock: its ~3.3 s verification exceeded the
+unchanged 3 s recall deadline and was cancelled before readiness on every retry.
+The direct verified cold probe now takes ~2.1 s on the reference machine.
+Older installations without that inventory need restaging; a failed optional
+review must withdraw its certificate without hiding canonical memory/settings.
+Activation has a fsynced pointer journal, a canonical encrypted checkpoint and a
+post-switch health check. Failure/cancel restores the prior compatible pair;
+startup recovers a crashed pointer transaction. Real ENOSPC and SIGKILL fixtures
+verify the old runtime, readable snapshot and canonical records survive. Linux
+parent-death supervision and the exclusive Python store lock prevent abandoned
+writers from outliving the host; recovery reaps only an exact private legacy
+runtime layout and rechecks process start time before signalling.
+
+Ordinary canonical saves no longer decrypt an entire scope unless a recognised
+user preference needs supersession checks. The Mnemosyne bridge uses pinned
+upstream remember_batch plus a canonical-ID mapping, rather than repeated
+single-row inserts. Staged databases use in-memory journalling, then seal/fsync
+before rename; the committed store retains its durability boundary. Missing or
+stale approved snapshots queue repair through the protected outbox. No read
+directly rebuilds or imports unapproved/paused edited revisions. The 10,000-record
+reference comparison and strict network/retention fixtures are distinct runs:
+ptrace timings do not establish capacity latency. Native acceptance waits use
+`waitForAsync`: Playwright's synchronous waitForFunction treats even a Promise
+resolving false as truthy, which previously allowed tests to race activation.
+Provider reload may invalidate an in-flight status read without changing the
+workspace. The SDK fixture retries that explicit refresh error only while the
+original workspace lease still matches; other errors and real scope changes
+remain failures. Packaged plaintext scans recurse into encrypted migration
+backups instead of assuming the canonical directory contains only files.
 
 ### Plugin context SDK
 

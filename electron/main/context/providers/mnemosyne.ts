@@ -8,7 +8,7 @@ export const MNEMOSYNE_PROFILE = {
   automaticWritesCertified: false,
 } as const
 
-export type McpCall = (name: 'mnemosyne_stats' | 'mnemosyne_recall' | 'mnemosyne_get', arguments_: Record<string, unknown>, host: ProviderHost) => Promise<unknown>
+export type McpCall = (name: 'mnemosyne_stats' | 'mnemosyne_recall' | 'mnemosyne_get' | 'ourgeo_mnemosyne_snapshot', arguments_: Record<string, unknown>, host: ProviderHost) => Promise<unknown>
 export type MnemosyneProcessing = 'unverified' | 'verified-local' | 'approved-external'
 
 /** Read-only until stable canonical-ID mappings, retry behaviour and derivative
@@ -59,14 +59,14 @@ export function createMnemosyneProvider(connectionId: string, call: McpCall, pro
 
 /** Streamable HTTP only. Host-owned sessions negotiate the protocol and expose
  * no roots, sampling or elicitation; server instructions never become prompts. */
-export function createMnemosyneMcpCall(request: JsonTransport): McpCall {
+export function createMnemosyneMcpCall(request: JsonTransport, ownedSnapshots = false): McpCall {
   let counter = 0
   let session: string | undefined
   let version = '2025-11-25'
   let initialising: Promise<void> | undefined
   let binding = ''
   return async (name, arguments_, host) => {
-    if (!['mnemosyne_stats', 'mnemosyne_recall', 'mnemosyne_get'].includes(name) || arguments_.bank !== host.namespace) throw new Error('POLICY_REFUSED')
+    if (!['mnemosyne_stats', 'mnemosyne_recall', 'mnemosyne_get', ...(ownedSnapshots ? ['ourgeo_mnemosyne_snapshot'] : [])].includes(name) || arguments_.bank !== host.namespace) throw new Error('POLICY_REFUSED')
     const key = `${bank(host)}:${host.policyRevision}`
     if (binding !== key) { session = undefined; initialising = undefined; binding = key }
     if (!initialising) initialising = (async () => {

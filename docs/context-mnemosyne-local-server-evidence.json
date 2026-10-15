@@ -1,14 +1,20 @@
 {
   "version": 1,
   "profile": "mnemosyne-local-server-v1",
-  "observedAt": "2026-10-14T05:14:16.040Z",
-  "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-server-PlfJ59",
+  "observedAt": "2026-10-15T20:35:10.402Z",
+  "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-server-o3Ved9",
   "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
-  "bridgeSha256": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e",
+  "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
   "sourceHashes": {
-    "electron/main/context/providers/local-server.ts": "2f43e36692c828f8def4806e487a8e350d8760961dd42ac9b6ff79a5e389dd0c",
-    "electron/main/context/providers/local-server-mnemosyne.ts": "e2f9f0b0e3f199b487b23c8413294e2b29784320b022065c9de02e855f18d7f4",
-    "electron/main/context/mnemosyne-sidecar.py": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e"
+    "scripts/check-context-mnemosyne-server.mjs": "5dc40acf6df43437b8a30212f6fe0d9a35e31392e429dca7471c9976b0e6e70c",
+    "electron/main/context/storage.ts": "10179c88d01472bb5fc42f36de0e9da3548c4b55a0563038e22e3bc7fbb94a1f",
+    "src/lib/context/preferences.ts": "b02a0edae39afbf1af03cf6e20d4d2f9433d58a2f47d0d8bb09892ac4c0fdd47",
+    "electron/main/context/providers/local-server.ts": "fdb2e07d90486b345f69abbe208026fe554976b5c94cfce6aebea043e728f4da",
+    "electron/main/context/providers/local-server-mcp.ts": "9420f94505c09bccce541085e9424855b92b27a4ebfc31512c6ad2b666398bb5",
+    "electron/main/context/providers/mnemosyne.ts": "f12432c2bf86f8949e04508efc1b00aa05bde519a50c2695a70bd4a52cef93f2",
+    "electron/main/context/providers/local-server-mnemosyne.ts": "fb648148108aac77b7471751bd24ca35809bf0c9a46df673aca36b313355d77b",
+    "electron/main/context/providers/managed-mnemosyne.ts": "6965b5c3a25b682e0985240f2c06b5cc1bb900d81461d006011cc67741685726",
+    "electron/main/context/mnemosyne-sidecar.py": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18"
   },
   "conformance": {
     "version": 1,
@@ -92,7 +98,7 @@
     "removedSourceIds": 515,
     "residualIds": 0,
     "temporaryCopies": 0,
-    "inspectedFiles": 5
+    "inspectedFiles": 6
   },
   "comparison": {
     "corpusRecords": 512,
@@ -101,39 +107,42 @@
         "label": "built-in",
         "correct": 25,
         "queries": 25,
-        "medianMs": 0.100761000001512,
-        "p95Ms": 0.1598039999989851
+        "medianMs": 0.14467200000217417,
+        "p95Ms": 0.36165500000061
       },
       {
         "label": "managed lexical",
         "correct": 25,
         "queries": 25,
-        "medianMs": 35.1019329999981,
-        "p95Ms": 41.20710699999836
+        "medianMs": 63.50789799999984,
+        "p95Ms": 74.55935599999793
       },
       {
         "label": "authenticated local server",
         "correct": 25,
         "queries": 25,
-        "medianMs": 36.36544800000047,
-        "p95Ms": 43.42864700000064
+        "medianMs": 73.93483299999934,
+        "p95Ms": 85.57148900000175
       }
     ],
-    "nodePeakResidentBytes": 205144064,
+    "coldStartProbeMs": 669.9299069999997,
+    "peakProviderResidentBytes": 52903936,
+    "nodePeakResidentBytes": 168296448,
     "hardware": {
       "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
       "memoryBytes": 16471642112
     },
-    "boundary": "Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Not semantic quality, complete desktop RSS, human usability or model inference.",
+    "boundary": "Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Cold probe measured separately; optional Python process RSS sampled every 20 ms. Not complete desktop RSS, semantic quality, human usability or model inference.",
     "decision": "Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark."
   },
   "qualification": "Named owned experimental Linux x64 loopback lexical profile; arbitrary external MCP endpoints, semantic retrieval and other platforms are not qualified.",
   "networkObservation": {
     "positiveControl": true,
-    "scope": "Whole Node fixture, listener, HTTP client and pinned Python descendants from startup through shutdown",
-    "loopbackConnectAttempts": 3,
     "externalConnectAttempts": 0,
-    "trace": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage34/mnemosyne-server/audit-8PrABL/whole-process.network.trace",
-    "observationOnly": true
+    "loopbackConnectAttempts": 2176,
+    "decodedIoUringCalls": 15,
+    "opaqueIoUringCalls": 0,
+    "trace": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-jQY60v",
+    "scope": "Launch through shutdown of the isolated Node/Python/PostgreSQL provider fixture in a loopback-only namespace. Connected writes and io_uring observed; payload strings suppressed; no user profile, model inference, dependency provisioning or ambient credentials."
   }
 }

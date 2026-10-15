@@ -1,4 +1,5 @@
 /* global document, window */ // Functions passed to Playwright execute in the renderer.
+import { waitForAsync } from './lib/wait-async.mjs'
 import { _electron as electron } from 'playwright-core'
 import electronExecutable from 'electron'
 import { createServer } from 'node:http'
@@ -170,7 +171,9 @@ try {
   await library.getByRole('heading', { name: 'Memory Library', exact: true }).scrollIntoViewIfNeeded()
   await page.screenshot({ path: screenshot('ourgeo-settings-memory-narrow.png') })
   await page.setViewportSize({ width: 1120, height: 900 })
-  for (const file of await readdir(join(userData, 'context'))) assert(!(await readFile(join(userData, 'context', file))).includes(Buffer.from(statement)))
+  for (const file of await readdir(join(userData, 'context'), { recursive: true, withFileTypes: true })) {
+    if (file.isFile()) assert(!(await readFile(join(file.parentPath, file.name))).includes(Buffer.from(statement)))
+  }
   await settingsPage(page, 'Budgets')
   const maintenance = page.getByLabel('Memory maintenance budget', { exact: true })
   await maintenance.locator(':scope > summary').click()
@@ -198,7 +201,7 @@ try {
   await page.screenshot({ path: screenshot('ourgeo-context-maintenance.png') })
   await maintenance.getByLabel('Allow budgeted paid memory maintenance', { exact: true }).uncheck()
   await maintenance.getByRole('button', { name: 'Save maintenance budget', exact: true }).click()
-  await page.waitForFunction(async () => !(await window.electronAPI.context.maintenanceStatus()).policy.enabled)
+  await waitForAsync(page, async () => !(await window.electronAPI.context.maintenanceStatus()).policy.enabled)
   await maintenance.locator(':scope > summary').click()
   // The real settings flow stores a protected host-owned connection and sends
   // only a health request, never a transcript or a memory ingestion request.
@@ -230,11 +233,11 @@ try {
       dialog.showMessageBox = async options => options.title === 'Activate memory processing' ? { response: 0, checkboxChecked: false } : globalThis.__contextOriginalDialog(options)
     })
     await runtimeView.getByRole('button', { name: 'Review activation for About you', exact: true }).click()
-    await page.waitForFunction(async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'ready'))
+    await waitForAsync(page, async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'ready'))
     assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.state === 'active'))
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = async options => ['Activate memory processing', 'Import selected memories'].includes(options.title) ? { response: 1, checkboxChecked: false } : globalThis.__contextOriginalDialog(options) })
     await runtimeView.getByRole('button', { name: 'Review activation for About you', exact: true }).click()
-    await page.waitForFunction(async () => { try { return (await window.electronAPI.context.activationStatus()).some(item => item.state === 'active') } catch { return false } })
+    await waitForAsync(page, async () => { try { return (await window.electronAPI.context.activationStatus()).some(item => item.state === 'active') } catch { return false } })
     await page.getByRole('button', { name: 'Pause memory updates', exact: true }).waitFor({ state: 'attached' })
     assert.equal((await page.evaluate(() => window.electronAPI.context.maintenanceStatus())).policy.enabled, false)
     const existing = await page.evaluate(() => window.electronAPI.context.listGlobal())
@@ -305,7 +308,7 @@ try {
     const canonicalBeforeMigration = await page.evaluate(() => window.electronAPI.context.listGlobal())
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = async options => options.title === 'Migrate memory provider' ? { response: 0, checkboxChecked: false } : globalThis.__contextOriginalDialog(options) })
     await connections.getByRole('button', { name: 'Use built-in memory instead', exact: true }).click()
-    await page.waitForFunction(async () => (await window.electronAPI.context.memoryMigrations()).length === 0)
+    await waitForAsync(page, async () => (await window.electronAPI.context.memoryMigrations()).length === 0)
     assert((await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.state === 'active'))
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = async options => options.title === 'Migrate memory provider' ? { response: 1, checkboxChecked: false } : globalThis.__contextOriginalDialog(options) })
     await connections.getByRole('button', { name: 'Use built-in memory instead', exact: true }).click()
@@ -313,7 +316,7 @@ try {
     await migrations.getByRole('button', { name: 'Keep old-provider copies', exact: true }).waitFor()
     await page.screenshot({ path: screenshot('ourgeo-context-migration.png') })
     await migrations.getByRole('button', { name: 'Keep old-provider copies', exact: true }).click()
-    await page.waitForFunction(async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'retained'))
+    await waitForAsync(page, async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'retained'))
     assert.deepEqual(await page.evaluate(() => window.electronAPI.context.listGlobal()), canonicalBeforeMigration)
     await connections.getByText('Memory updates: paused', { exact: true }).waitFor()
     assert.equal((await page.evaluate(async () => {
@@ -322,13 +325,13 @@ try {
     })).status, 'unavailable')
     await connections.getByRole('button', { name: 'Disconnect', exact: true }).click()
     await connections.getByRole('button', { name: 'Remove these settings', exact: true }).click()
-    await page.waitForFunction(async () => !(await window.electronAPI.context.connections()).some(item => item.location === 'managed-local'))
+    await waitForAsync(page, async () => !(await window.electronAPI.context.connections()).some(item => item.location === 'managed-local'))
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = globalThis.__contextOriginalDialog; delete globalThis.__contextOriginalDialog })
     // Cancellation stops staging an update while preserving the original pair.
     await runtimeView.getByRole('button', { name: 'Stage verified runtime', exact: true }).click()
-    await page.waitForFunction(async () => (await window.electronAPI.context.runtimeStatus()).state === 'installing')
+    await waitForAsync(page, async () => (await window.electronAPI.context.runtimeStatus()).state === 'installing')
     await runtimeView.getByRole('button', { name: 'Cancel installation', exact: true }).click()
-    await page.waitForFunction(async () => (await window.electronAPI.context.runtimeStatus()).state === 'cancelled')
+    await waitForAsync(page, async () => (await window.electronAPI.context.runtimeStatus()).state === 'cancelled')
     await runtimeView.getByRole('button', { name: 'Stage verified runtime', exact: true }).waitFor()
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Stage verified runtime' && !button.disabled))
     assert.deepEqual(JSON.parse(await readFile(activePath, 'utf8')), installed)
@@ -347,8 +350,11 @@ try {
   assert.equal(storedConnections[0].certification, 'pending')
   assert(!Object.hasOwn(storedConnections[0], 'credentialRef'))
   assert(!Object.hasOwn(storedConnections[0], 'namespaceRef'))
-  for (const file of await readdir(join(userData, 'context'))) {
-    const bytes = await readFile(join(userData, 'context', file))
+  // Runtime activation now creates encrypted migration-backup directories.
+  // Inspect their files too, rather than assuming the canonical root is flat.
+  for (const file of await readdir(join(userData, 'context'), { recursive: true, withFileTypes: true })) {
+    if (!file.isFile()) continue
+    const bytes = await readFile(join(file.parentPath, file.name))
     assert(!bytes.includes(Buffer.from('SYNTHETIC_CONNECTION_TOKEN')))
     assert(!bytes.includes(Buffer.from(`${url}/memory`)))
   }
@@ -366,7 +372,7 @@ try {
   await connections.getByText('Authentication removed.', { exact: false }).waitFor()
   assert.equal((await page.evaluate(() => window.electronAPI.context.connections()))[0].authenticated, false)
   await connections.getByRole('button', { name: 'Remove these settings', exact: true }).click()
-  await page.waitForFunction(async () => (await window.electronAPI.context.connections()).length === 0)
+  await waitForAsync(page, async () => (await window.electronAPI.context.connections()).length === 0)
   await connections.locator(':scope > summary').click()
   await settingsPage(page, 'Memory Library')
   await library.getByRole('button', { name: 'Edit', exact: true }).evaluate(el => el.click())
@@ -391,7 +397,7 @@ try {
   assert.equal(await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId }), null)
   await settingsPage(page, 'Learning & context')
   await page.getByRole('switch', { name: 'Allow preference learning from scratch conversations', exact: true }).click()
-  await page.waitForFunction(async () => (await window.electronAPI.context.learningSettings()).scratchLearning)
+  await waitForAsync(page, async () => (await window.electronAPI.context.learningSettings()).scratchLearning)
   const suggestion = await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId })
   assert.equal(suggestion.status, 'candidate')
   await settingsPage(page, 'Memory Library')
@@ -414,13 +420,13 @@ try {
   // Personal pins commit asynchronously in main. Click once, then wait for
   // the protected transaction instead of assuming a synchronous DOM update.
   await recoveredLibrary.getByLabel('Always apply', { exact: false }).click()
-  await page.waitForFunction(async () => (await window.electronAPI.context.listGlobal())[0]?.pinned === true)
+  await waitForAsync(page, async () => (await window.electronAPI.context.listGlobal())[0]?.pinned === true)
   assert.equal(await recoveredLibrary.getByLabel('Always apply', { exact: false }).isChecked(), true)
   const accepted = await page.evaluate(() => window.electronAPI.context.listGlobal())
   assert.equal(accepted[0].status, 'active')
   assert.equal(accepted[0].revision, 3)
   await recoveredLibrary.getByRole('button', { name: 'Forget', exact: true }).click()
-  await page.waitForFunction(async () => (await window.electronAPI.context.listGlobal()).length === 0)
+  await waitForAsync(page, async () => (await window.electronAPI.context.listGlobal()).length === 0)
   assert.equal(await page.evaluate(({ sourceId }) => window.electronAPI.context.learnGlobal(sourceId, 'I prefer metric units.'), { sourceId }), null)
   await page.screenshot({ path: screenshot('ourgeo-context-learning.png') })
   // Exercise save/fork/discard through the real UI. Native pickers are supplied
@@ -541,7 +547,7 @@ try {
   await page.getByText(`Context: ${projectDecision}`, { exact: true }).locator('..').locator('details > summary').first().evaluate(el => el.click())
   await page.getByRole('button', { name: 'Exclude from future retrieval', exact: true }).click()
   const excludedId = `memory:${fork.memories[0].id}`
-  await page.waitForFunction(async id => {
+  await waitForAsync(page, async id => {
     const lease = await window.electronAPI.context.lease()
     return (await window.electronAPI.context.exclusions(lease.id)).some(selection => selection.ids.includes(id))
   }, excludedId)
@@ -562,7 +568,7 @@ try {
   await page.getByLabel(`Allow source Memory: ${projectDecision}`, { exact: true }).waitFor()
   await page.screenshot({ path: screenshot('ourgeo-context-exclusions.png') })
   await page.getByLabel(`Allow source Memory: ${projectDecision}`, { exact: true }).click()
-  await page.waitForFunction(async () => (await window.electronAPI.context.exclusions((await window.electronAPI.context.lease()).id)).every(selection => selection.ids.length === 0))
+  await waitForAsync(page, async () => (await window.electronAPI.context.exclusions((await window.electronAPI.context.lease()).id)).every(selection => selection.ids.length === 0))
   await page.keyboard.press('Escape')
   await send(decisionQuery, 6)
   assert(JSON.stringify(requests[5]).includes(projectDecision))
@@ -845,7 +851,7 @@ try {
   const folderDelivery = JSON.stringify(requests.at(-1))
   assert(folderDelivery.includes('Changed evidence.'))
   assert(!folderDelivery.includes('SECRET_FIXTURE'))
-  await page.waitForFunction(async () => {
+  await waitForAsync(page, async () => {
     const status = await window.electronAPI.context.chatBudgetStatus()
     return status.summary.dailyMicros === 3090 && status.summary.pendingReceipts === 0
   })
@@ -992,11 +998,12 @@ try {
   const panelMemory = 'SYNTHETIC_DIRECT_PANEL_NOTE'
   await panelLibrary.getByLabel('New memory').fill(panelMemory)
   await panelLibrary.getByRole('button', { name: 'Remember about you', exact: true }).click()
-  await panelLibrary.getByText(panelMemory, { exact: true }).waitFor()
+  const panelRecord = panelLibrary.locator('p').filter({ hasText: panelMemory })
+  await panelRecord.waitFor()
   assert.equal(requests.length, panelRequestCount, 'Direct entry below the conversation must not invoke the model.')
   await page.screenshot({ path: screenshot('ourgeo-settings-panel-memory.png') })
-  await panelLibrary.getByText(panelMemory, { exact: true }).locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
-  await page.waitForFunction(async statement => !(await window.electronAPI.context.listGlobal()).some(record => record.statement === statement), panelMemory)
+  await panelRecord.locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
+  await waitForAsync(page, async statement => !(await window.electronAPI.context.listGlobal()).some(record => record.statement === statement), panelMemory)
   await page.getByRole('button', { name: 'Memory Library', exact: true }).click()
   const nativeApp = await app.evaluate(({ app }) => { const fs = process.getBuiltinModule('fs'), path = process.getBuiltinModule('path'); return { appVersion: app.getVersion(), appPath: app.getAppPath(), filesystemType: process.platform === 'linux' ? fs.statfsSync(path.dirname(app.getAppPath())).type : null } })
   const runtime = await app.evaluate(({ safeStorage }) => ({ encryptedStorage: safeStorage.isEncryptionAvailable(), backend: process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform }))

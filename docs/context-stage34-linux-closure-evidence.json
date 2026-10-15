@@ -1,0 +1,1796 @@
+{
+  "version": 1,
+  "appVersion": "1.16.21",
+  "recordedAt": "2026-10-15T22:04:26.272Z",
+  "status": "Linux engineering stages 3–4 closed for the named profiles; full release qualification retains owner-deferred human/platform requirements.",
+  "baselineCommit": "c7db9043c085dc0386997ca5bafed4aa059cb9dc",
+  "scope": {
+    "platform": "Linux x64 on the recorded host; synthetic isolated profiles only",
+    "profiles": [
+      "Built-in canonical manager",
+      "Managed Mnemosyne lexical v1",
+      "Authenticated owned Mnemosyne MCP loopback",
+      "Dedicated operator-started Hindsight local chunks v1"
+    ],
+    "noPaidInferenceOrRealAccounts": true,
+    "certificationBoundary": "Conformance results retain unsupported capabilities; named native profiles are reviewed separately from fixture self-reports. No arbitrary remote or hosted deployment inherits their qualification.",
+    "evidenceBoundary": "Each raw report retains its own time, source hashes and exact test scope. Final native and packaged tests verify the current build. The inventory reader let-to-const lint correction follows the strict lifecycle run; final disk-full/native/packaged checks use the corrected build."
+  },
+  "artifacts": {
+    "dist/ouRGeo-1.16.21.AppImage": {
+      "sha256": "51e4638dd9c6d8a2d09080153291820db72d20e9c6344baa6f1ca1031c52950d",
+      "bytes": 203869711
+    },
+    "dist/ouRGeo-1.16.21.deb": {
+      "sha256": "9ec5ee5c9c20a7196ce5151bfa2dbefaf38a97362a1f9d6bd79d63d800f4725b",
+      "bytes": 157123700
+    },
+    "dist/linux-unpacked/resources/app.asar": {
+      "sha256": "539b1e8c696fed3252832de93d4ca80af3ad0af1fb8be5f2c7753010de748f32",
+      "bytes": 359585308
+    },
+    "dist/linux-unpacked/ourgeo": {
+      "sha256": "b0d127772d2983a93771055a93b673d5fdd1726d6e47db8e269b204e665972d6",
+      "bytes": 206036184
+    },
+    "out/main/index.js": {
+      "sha256": "df1a997b9ce2f61b1064836f03b86873696341be4dc1b997bde01bc0782817ef",
+      "bytes": 498595
+    },
+    "out/renderer/index.html": {
+      "sha256": "6d17a4774f4f691b218220f7cab431d121f370577f7bcc82bbc993300ab0a679",
+      "bytes": 887
+    }
+  },
+  "sourceHashes": {
+    ".gitignore": "8bff80576342a420c46f79f6e0bef7ebab2a374c9044e3119b00df1a53e1b1e0",
+    "CLAUDE.md": "39a6083d8471904698842aa324649c601472dd395438cbce2c305b0c39ed7a8a",
+    "README.md": "89cfd0bb13e0cc4cc9f4e563b06bc74fa6134a6733ec13286ce3fe0ff4fd9805",
+    "docs/context-hindsight-local-evidence.json": "5dc3d34d71f688045ebebf9412928019d1629e8d7ae3eba6263f67982b1470dd",
+    "docs/context-hindsight-local-profile.md": "81b5008ca34587930986d6ac9e1a7056b0f90cf946b1b78cf1e76bb8f2b8ed76",
+    "docs/context-hindsight-requirements.txt": "759ff5078f66334b7682659cc76f56026175b3ee5f1b0a7ecf49c9d1230e8aba",
+    "docs/context-implementation.md": "9df847f0eeaf52d3f26c75eccc87de9bd97947811ab513d487bbc991a226cd3a",
+    "docs/context-mnemosyne-linux-evidence.json": "3dd6a4c3c08e364badd207cac3c3c29cc84ef9e5ecc097ed7b5fe829bf4a7026",
+    "docs/context-mnemosyne-local-server-evidence.json": "05a921da8fa52aac9f0199b1ba6f7cc75de7bad82a1d20202294c838108e20b0",
+    "docs/context-platform-acceptance.md": "dae5c3680dedaa93462d4a381f1e9f0d2c4678cc120cce8f2b59b5b1f7422693",
+    "docs/context-plugin-sdk.md": "5e9df4e3dd0e61cf87ed55393be430e4452e6ac2af7bea5764bb6e448ebd72f8",
+    "docs/context-provider-sdk.md": "37bff311507a962191a84d83e75979ec45739051aad13904126324540f8ebff5",
+    "docs/context-stages-3-4.md": "26258373ea503068ad99ae88504eeaf446c3c12da132030b8c016307d5676431",
+    "electron.vite.config.ts": "9c5636e297973277bc097fb3815382fc0a7754cd17fada5ff96871a67572508e",
+    "electron/main/context/hindsight-gateway.py": "55505d3b7e31f2917c2b385bd962a82e4f14aee62981085713bc10fad54cb669",
+    "electron/main/context/hindsight-local-server.py": "e5dfd337310866c892c2c0348fc31df44986c3842ec1f8a2a0022e7a03c93a40",
+    "electron/main/context/hindsight-profile.test.ts": "408ac10dd5343a3d8c41967c5fdfa504fd159acbbf0172b2ece1a15f42b1bb91",
+    "electron/main/context/hindsight-profile.ts": "c61962abe66daeb760bfb7cc9eb9adbbdd4888a3a653935e49b1cf01a40bb297",
+    "electron/main/context/hindsight-retention.py": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437",
+    "electron/main/context/ipc.ts": "0f0fcd0f1eb2debb95c42e00f2a723e901b2bb2e79b61a3d0418daafaf7ee1d2",
+    "electron/main/context/managed-runtime.ts": "b0d8e6f2f3a29a2f02350382c0a153e556a5221f22ef57cb029e5ac8e10002f5",
+    "electron/main/context/mnemosyne-sidecar.py": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
+    "electron/main/context/providers/activation.test.ts": "a2b2c7dc0a8e1cc30023045c41cc741312e4ba3bc61b2b7e91e12c39c6ff4791",
+    "electron/main/context/providers/activation.ts": "e4dda1dcb61ef84f49606b57973b25b83ab2361a4ab4a542ae33f33e8fc1e437",
+    "electron/main/context/providers/certification.ts": "9d909dc1d9b489fd253f75142363711a362bed5b02a1e10f6acdefc76ffc453e",
+    "electron/main/context/providers/connections.test.ts": "f392c38db4c224df80ed947bd33f4e68e77e5332e4f82eb82c44383a0fc95316",
+    "electron/main/context/providers/hindsight.ts": "5b8e981e963496076822b926d34bd889110e9afb434ed72ddd9825fc55e39583",
+    "electron/main/context/providers/local-server-mcp.test.ts": "54c5426af69ef7bb7ef02291311303d03eda1fbb3c2f2a57a7452ab953c7164b",
+    "electron/main/context/providers/local-server-mcp.ts": "9420f94505c09bccce541085e9424855b92b27a4ebfc31512c6ad2b666398bb5",
+    "electron/main/context/providers/local-server-mnemosyne.ts": "fb648148108aac77b7471751bd24ca35809bf0c9a46df673aca36b313355d77b",
+    "electron/main/context/providers/local-server.test.ts": "f5bcc13d5752569812d8e3f9b23891d9f568207a99ca58b9d0556dec23881ca0",
+    "electron/main/context/providers/local-server.ts": "fdb2e07d90486b345f69abbe208026fe554976b5c94cfce6aebea043e728f4da",
+    "electron/main/context/providers/managed-mnemosyne.test.ts": "d25981dcbeeb4b310d6410a04ba79e8df2d211d776f45a9e04b14012c51e068a",
+    "electron/main/context/providers/managed-mnemosyne.ts": "6965b5c3a25b682e0985240f2c06b5cc1bb900d81461d006011cc67741685726",
+    "electron/main/context/providers/mnemosyne.ts": "f12432c2bf86f8949e04508efc1b00aa05bde519a50c2695a70bd4a52cef93f2",
+    "electron/main/context/providers/routing.ts": "7ec33c93ebe164b9ab51fadabf78d5b00c3d54fac2e488041a458c5936512834",
+    "electron/main/context/providers/snapshot-repair.test.ts": "4fad2404e7907dc14272dc1834dd09b999f0ccd59933db4c164b1e03a3c1d8c2",
+    "electron/main/context/runtime-archive.ts": "c19449c4ddf913a61219a0714b0c878e7efc866c216212e63f734ad0bd7bc4e7",
+    "electron/main/context/runtime-installer.test.ts": "f61aec4cea0fcd5320820f89449b5bbf199cd30223270801cfb2d46b3e4c05ec",
+    "electron/main/context/runtime-installer.ts": "aee32bccb174cbb1b58cfbe13aaf7909d63d4a5012c1086b7cbf872df5107084",
+    "electron/main/context/runtime-integrity.test.ts": "7c27ac8ade4904a40e95d05727e378a5812f9a092278a68631ed7eb84ac5b835",
+    "electron/main/context/runtime-integrity.ts": "91bc7506c3c362fbdbd70bafb99010accb7b0f4188379bdca61f1d86b083e00e",
+    "electron/main/context/runtime-orphans.test.ts": "ef6c9b36b95f284435459f7fc4cdb51b6c0f57bcc497088f9ab6a7fe200b82d9",
+    "electron/main/context/runtime-orphans.ts": "ff185e53edbfa36e9d97584fb937d937441f0f77740a712da5e0305868ab9f0b",
+    "electron/main/context/runtimes.test.ts": "4b90858bf42ca4e87d7459aef2f39b8973d2945bf6be51be4019e8abff60214c",
+    "electron/main/context/runtimes.ts": "f2875c5bc921b7fa13f9db7c99bbde3993bb71acf0417c7a31152f5dea7cf0b8",
+    "electron/main/context/storage.ts": "10179c88d01472bb5fc42f36de0e9da3548c4b55a0563038e22e3bc7fbb94a1f",
+    "electron/main/context/worker.ts": "a0fe14226e495332d5f6d0e7db351eb439fff2e17859fa16d99bac7840e71cbe",
+    "electron/preload/index.ts": "0a346e6681d18b3c27298b92e97a32d9d29013f8e787c108cf305048a2c68fda",
+    "electron/preload/types.d.ts": "a4a082917bc2f663e736ab9239c72c2ee7cace61ef96e3cfd32315cfa7399e36",
+    "package-lock.json": "a7b302f104fdc326bd9cb5f9ecb84ef9164990ae9ad89417555e18b29af0e127",
+    "package.json": "f67567925613ede820409763cc44e75f06d0a61ca7bfd7661c9dddfc9abeda63",
+    "scripts/check-context-deb.mjs": "fca631b675cca5a151021f182776a1c48d02e02140b8d253cd4a4251c2d63714",
+    "scripts/check-context-desktop.mjs": "18c0b40836d9b52c464b818ab959de46538f5d705b75be4619cdb1fdf5e24e98",
+    "scripts/check-context-hindsight-gateway.py": "a9eb8b86447f59c41c06406819f6358bb9b3e11ca1f4b9677f0d9b5d06e5fbce",
+    "scripts/check-context-hindsight-isolated.mjs": "c58b375d1d002007278d0e58ca12f75da8d295f9fb882e2e73efa6fd9012c57c",
+    "scripts/check-context-mnemosyne-server.mjs": "5dc40acf6df43437b8a30212f6fe0d9a35e31392e429dca7471c9976b0e6e70c",
+    "scripts/check-context-network.mjs": "aca4f9e1360b414d3ec3955d1ba53a2a7a21788bebbcba5d49c7bcae70a69af0",
+    "scripts/check-context-plugin-sdk.mjs": "a8f0fe4f37c1605b93c2277da8977c09b70758f6ecebd3459276a2ff19843f6a",
+    "scripts/check-context-runtime-lifecycle.mjs": "8d2cedda088e0f8ef8a665acb54ac8825dc8181e26dd05c3011caf5ddfea9699",
+    "scripts/check-context.mjs": "0551d206af3ed0cf9882a551fb4debc9d0126f729b1a86b8562ce95daab5ed42",
+    "scripts/check-data-preflight.mjs": "5219781ca98552580f01b89c4cee1b7fa476ed853c0ca6e414627954e79f6d51",
+    "scripts/check-vector-export.mjs": "1c4f4e33d5d7410371db2fbce49364596a9d89ece61e924290735737096253dc",
+    "scripts/fixtures/context-hindsight-audit.py": "41d67b3b39d134c8ce409681bf9e561613905719bcd5c92c68c897d2b901a2f3",
+    "scripts/fixtures/context-hindsight-server.py": "f69074ebf4f2b05705a7fa7f4726b18446d31f586ec8ebb5d318227422c753fa",
+    "scripts/fixtures/stop-hindsight-fixture.py": "dd80140ef8d4e93c18c99a50c612654efa6fda2c0b47fa33a8e04b000436833d",
+    "scripts/lib/wait-async.mjs": "e08cd92d4182cb7502fc4808b7c21410f11b198b49f54f5a8ff92bf2c744c76f",
+    "scripts/lib/wait-async.test.ts": "465221b8425eb4c990417945c98c60c78dbfbdf9904cccb3f1db734a21eb65fb",
+    "scripts/spike-context-mnemosyne.mjs": "a685c07955d5a131016c605ee8d30c2fdf9eace0b34d3a5e9d95e07e2c2cc06b",
+    "src/components/settings/MemoryConnections.tsx": "14e1d360c2fe66a3967009e141ecb619a655864f46a75109477d0d193cbface7",
+    "src/lib/ai-actions/targets.ts": "82d16b9dde76174ed575f3803c8a5d6d896ef1b65f0b1cb8d04e633ba90c642b",
+    "src/lib/ai-skill-ourgeo.ts": "3b73866c6586dd6f085f1b7495be37a3394edc1db02138442bd610be04d210fa",
+    "src/lib/context/providers/connections.ts": "3feaa4dc56ba80e2eeb1954052331257132a81bd656d6226c5c6a3fa0796bf99",
+    "vitest.config.ts": "5f7398500e900ce56bfbdd116919e9422a5b82191109693eeee43f24de444648"
+  },
+  "profileEvidence": {
+    "docs/context-mnemosyne-linux-evidence.json": {
+      "sha256": "3dd6a4c3c08e364badd207cac3c3c29cc84ef9e5ecc097ed7b5fe829bf4a7026"
+    },
+    "docs/context-mnemosyne-local-server-evidence.json": {
+      "sha256": "05a921da8fa52aac9f0199b1ba6f7cc75de7bad82a1d20202294c838108e20b0"
+    },
+    "docs/context-hindsight-local-evidence.json": {
+      "sha256": "5dc3d34d71f688045ebebf9412928019d1629e8d7ae3eba6263f67982b1470dd"
+    }
+  },
+  "verification": {
+    "unitTests": {
+      "passed": 2577,
+      "files": 258,
+      "log": ".cache/stage34/closure-tests-final.log",
+      "logSha256": "09d471f1ad67d25d06ae99fd0918cacab7a41ef452ffe66b44b4d3ef02cad255"
+    },
+    "gatewayUnitTests": {
+      "passed": 3,
+      "log": ".cache/stage34/gateway-unit-final.log",
+      "logSha256": "58976e1ebef02b28fad1bcf93e82831c9ac8cc4bf93fac3ea64e4eed88432c50"
+    },
+    "typecheck": {
+      "passed": true,
+      "log": ".cache/stage34/typecheck-closure.log",
+      "logSha256": "886a4bf1054019334e33615aff04316d32fcb26fab10c12fe5c02e45b4dcf029"
+    },
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 37,
+      "log": ".cache/stage34/lint-closure-final.log",
+      "logSha256": "e2883db75406cdcb3a98e5d6ab9369ad1461831396aa67ae68e7b965b098a834"
+    },
+    "linuxBuildAndPackage": {
+      "passed": true,
+      "log": ".cache/stage34/package-final-artifacts.log",
+      "logSha256": "36758a24ad0935449483cedd27b4e8b903f55b3f6786ec33aa1008aebf136195"
+    },
+    "nativeSdk": {
+      "log": ".cache/stage34/native-exact-final.log",
+      "logSha256": "b66bc2e8361cea5b1646ae16e0a98f82ca76484451dd729e4af97e3ec9a92cb2",
+      "result": {
+        "version": 1,
+        "appVersion": "1.16.21",
+        "measuredAt": "2026-10-15T21:51:33.204Z",
+        "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-plugin-sdk-ucGRAB",
+        "builtMainSha256": "df1a997b9ce2f61b1064836f03b86873696341be4dc1b997bde01bc0782817ef",
+        "builtRendererIndexSha256": "6d17a4774f4f691b218220f7cab431d121f370577f7bcc82bbc993300ab0a679",
+        "checks": [
+          "Legacy enablement does not grant context sharing",
+          "Separate provider grants expose only host-reviewed implementations; enablement grants no memory access and absent runtime blocks activation",
+          "Addressable skill Markdown sections reach the actual broker and model tool transport",
+          "Declarative Markdown and compiled dynamic sources reach broker evidence",
+          "Callbacks receive cancellation only; no chat, query, memory or unrelated permissions",
+          "Source exclusion prevents later retrieval",
+          "Contributed profile stages a pinned private runtime, cancels native approval and synchronises only after explicit scoped approval",
+          "Owned local-server health uses its MCP snapshot tool and preserves unchanged scoped activation",
+          "Native migration to authenticated local-server transport acknowledges canonical IDs, recalls through protected credentials and deletes approved old copies without deleting canonical memory",
+          "Disabling a provider plugin withdraws its native registration",
+          "Disable pauses contributed bindings durably; re-enable requires fresh scoped approval and disabled updates stay canonical only",
+          "Disable withdraws dynamic context and prevents callback invocation",
+          "Added update permissions require explicit renewed enablement",
+          "Cold app restart rotates protected server credentials, requires renewed scoped approval and recalls only previously approved current memories",
+          "Native Hindsight folder verification, protected bank credentials, scoped migration, future writes, canonical recall, pause and physical plaintext deletion pass on the real pinned server"
+        ],
+        "modelRequests": 14,
+        "rendererErrors": [],
+        "passed": true,
+        "qualification": "Synthetic Linux SDK integration; not a provider deployment or hostile-code sandbox certificate"
+      }
+    },
+    "packagedManagedAcceptance": {
+      "log": ".cache/stage34/packaged-managed-checked.log",
+      "logSha256": "7459b877e003e3c8bcc6531c9050df4978e9998745ddbf0f47242c26379fe8ea",
+      "result": {
+        "appVersion": "1.16.21",
+        "appPath": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/resources/app.asar",
+        "filesystemType": 2435016766,
+        "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-4MjLQN",
+        "mockRequests": 17,
+        "simpleRequestCount": 2,
+        "auxiliaryContext": false,
+        "electronSqliteWorker": {
+          "encryptedStorage": true,
+          "backend": "kwallet6"
+        },
+        "electronHttpAfterLaunch": {
+          "loopbackRequests": 0,
+          "blockedHosts": [],
+          "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+        },
+        "packaged": true,
+        "settingsCategoryNavigation": true,
+        "narrowSettingsLayout": true,
+        "directMemoryWithoutInferenceInBothLocations": true,
+        "memoryEditsAndTombstone": true,
+        "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+        "protectedConnectionSetupAndHealthOnly": true,
+        "experimentalRuntimeStagingAndCancellation": true,
+        "managedFutureOnlyActivationAndNativeReview": true,
+        "managedDeletionAcrossRuntimePairs": true,
+        "managedRecallAndPauseRevocation": true,
+        "selectedCommittedMemoryImport": true,
+        "disconnectedManagedCacheDeletion": true,
+        "durableLocalCleanupFailureAndRepair": true,
+        "suggestionsPinsAndSuppression": true,
+        "projectSaveForkAndDiscard": true,
+        "responsiveDuringRLoadWithoutScopeLeak": true,
+        "scopedPersistentExclusions": true,
+        "duplicateProjectFork": true,
+        "hostMemoryCommandsWithoutInference": true,
+        "relevantUnitPreferencesAndSupersession": true,
+        "conversationDerivedDeletionAndEditedRetention": true,
+        "stagedDocumentAttachment": true,
+        "workspaceColumnPrivacy": true,
+        "unbracketedNamedSchemaBlockedAndAllowed": true,
+        "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+        "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+        "historicalJoinFailurePairedWithCurrentSchemas": true,
+        "protectedColumnPolicy": true,
+        "authorisedFolderIndexing": true,
+        "packedFolderSearchAndRead": true,
+        "watcherRevocation": true,
+        "verifiedBackupInspection": true,
+        "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+        "durableInferenceAccounting": true,
+        "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+        "currentSourceBrowser": true,
+        "reviewedTranscriptForgetting": true,
+        "scopedUsageTotals": true,
+        "diagnosticRetentionControl": true,
+        "freshSourceDiscoveryWithoutKeyring": true,
+        "unreadablePolicyFailsClosed": true,
+        "screenshots": [
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-runtime.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-activation.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-import.png",
+          "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-cleanup.png"
+        ]
+      }
+    },
+    "strictPackagedOffline": {
+      "log": ".cache/stage34/offline-closure-final.log",
+      "logSha256": "9900771155df405eaed418f079a197dd3bd9ca30d53c5f4145b14d06614f6bb8",
+      "result": {
+        "version": 2,
+        "appVersion": "1.16.21",
+        "artifactHashes": {
+          "executable": "b0d127772d2983a93771055a93b673d5fdd1726d6e47db8e269b204e665972d6",
+          "archive": "539b1e8c696fed3252832de93d4ca80af3ad0af1fb8be5f2c7753010de748f32"
+        },
+        "acceptance": {
+          "appVersion": "1.16.21",
+          "appPath": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/resources/app.asar",
+          "filesystemType": 2435016766,
+          "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-B1yhXw",
+          "mockRequests": 17,
+          "simpleRequestCount": 2,
+          "auxiliaryContext": false,
+          "electronSqliteWorker": {
+            "encryptedStorage": true,
+            "backend": "kwallet6"
+          },
+          "electronHttpAfterLaunch": {
+            "loopbackRequests": 0,
+            "blockedHosts": [],
+            "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+          },
+          "packaged": true,
+          "settingsCategoryNavigation": true,
+          "narrowSettingsLayout": true,
+          "directMemoryWithoutInferenceInBothLocations": true,
+          "memoryEditsAndTombstone": true,
+          "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+          "protectedConnectionSetupAndHealthOnly": true,
+          "suggestionsPinsAndSuppression": true,
+          "projectSaveForkAndDiscard": true,
+          "responsiveDuringRLoadWithoutScopeLeak": true,
+          "scopedPersistentExclusions": true,
+          "duplicateProjectFork": true,
+          "hostMemoryCommandsWithoutInference": true,
+          "relevantUnitPreferencesAndSupersession": true,
+          "conversationDerivedDeletionAndEditedRetention": true,
+          "stagedDocumentAttachment": true,
+          "workspaceColumnPrivacy": true,
+          "unbracketedNamedSchemaBlockedAndAllowed": true,
+          "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+          "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+          "historicalJoinFailurePairedWithCurrentSchemas": true,
+          "protectedColumnPolicy": true,
+          "authorisedFolderIndexing": true,
+          "packedFolderSearchAndRead": true,
+          "watcherRevocation": true,
+          "verifiedBackupInspection": true,
+          "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+          "durableInferenceAccounting": true,
+          "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+          "currentSourceBrowser": true,
+          "reviewedTranscriptForgetting": true,
+          "scopedUsageTotals": true,
+          "diagnosticRetentionControl": true,
+          "freshSourceDiscoveryWithoutKeyring": true,
+          "unreadablePolicyFailsClosed": true,
+          "screenshots": [
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+          ]
+        },
+        "executable": "/home/roosteyr/Documents/Projects/ourgeo/dist/linux-unpacked/ourgeo",
+        "measuredAt": "2026-10-15T22:00:26.202Z",
+        "platform": "linux-x64",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-AKvo6a",
+        "tracer": {
+          "path": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+          "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+          "ringObserver": {
+            "version": 1,
+            "upstream": "strace 7.2",
+            "sourceSha256": "edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6",
+            "observerPath": "scripts/native/strace-ring-observer.h",
+            "observerSha256": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+            "executable": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+            "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+            "scope": "Payload-free SQE opcode/flag observation for ordinary mmap-backed non-SQPOLL rings; unsupported layouts and operations remain opaque."
+          }
+        },
+        "ringCanaries": {
+          "control": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 2,
+            "opaqueIoUringCalls": 0,
+            "ioUringOpcodes": [
+              29
+            ],
+            "tracedTasks": 1,
+            "passed": true
+          },
+          "network": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 1,
+            "opaqueIoUringCalls": 1,
+            "ioUringOpcodes": [
+              16
+            ],
+            "tracedTasks": 1,
+            "passed": false
+          },
+          "executableSha256": "43bfa50aee5995a0b4792f75300da2877cb41fb1d55dbb2937b8b821edbbebe4"
+        },
+        "scope": "Launch through shutdown of packaged acceptance harness, Electron/R descendants and cold-start network syscalls in a loopback-only namespace. Shared desktop/keyring services reached by Unix IPC are outside the traced tree. Payload strings suppressed; no user profile or model inference.",
+        "captureOptions": {
+          "socketDescriptorDecoding": true,
+          "connectedWrites": true,
+          "payloadStrings": false,
+          "stackTrace": false,
+          "ringObservation": true
+        },
+        "canary": {
+          "outboundCalls": 1,
+          "loopbackCalls": 0,
+          "unixCalls": 0,
+          "externalAttempts": [
+            {
+              "pid": 1570153,
+              "call": "connect",
+              "address": "198.51.100.42",
+              "result": "-1 ENETUNREACH (Network is unreachable)"
+            }
+          ],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 1,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 6,
+          "decodedIoUringCalls": 6,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 6,
+          "passed": false
+        },
+        "acceptanceExitCode": 0,
+        "traceBytes": 32498092,
+        "traceSha256": "79493855a88bbf53f8430f1db5666d8c5c30c087de9cd609587c343f0ad16e50",
+        "sourceHashes": {
+          "scripts/check-context-network.mjs": "aca4f9e1360b414d3ec3955d1ba53a2a7a21788bebbcba5d49c7bcae70a69af0",
+          "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+          "scripts/check-context.mjs": "0551d206af3ed0cf9882a551fb4debc9d0126f729b1a86b8562ce95daab5ed42"
+        },
+        "audit": {
+          "outboundCalls": 14409,
+          "loopbackCalls": 14409,
+          "unixCalls": 52129,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 831,
+          "decodedIoUringCalls": 831,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 492,
+          "passed": true
+        },
+        "passed": true
+      }
+    },
+    "strictOwnedMcp": {
+      "log": ".cache/stage34/strict-mcp-release.log",
+      "logSha256": "f14413c7a576fc374a16460093c17ed331cb53eedca1bf6c219c603f29b9c900",
+      "result": {
+        "version": 3,
+        "appVersion": "1.16.21",
+        "fixture": "mnemosyne-server",
+        "fixtureResult": {
+          "version": 1,
+          "profile": "mnemosyne-local-server-v1",
+          "observedAt": "2026-10-15T20:35:10.402Z",
+          "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-server-o3Ved9",
+          "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
+          "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
+          "sourceHashes": {
+            "scripts/check-context-mnemosyne-server.mjs": "5dc40acf6df43437b8a30212f6fe0d9a35e31392e429dca7471c9976b0e6e70c",
+            "electron/main/context/storage.ts": "10179c88d01472bb5fc42f36de0e9da3548c4b55a0563038e22e3bc7fbb94a1f",
+            "src/lib/context/preferences.ts": "b02a0edae39afbf1af03cf6e20d4d2f9433d58a2f47d0d8bb09892ac4c0fdd47",
+            "electron/main/context/providers/local-server.ts": "fdb2e07d90486b345f69abbe208026fe554976b5c94cfce6aebea043e728f4da",
+            "electron/main/context/providers/local-server-mcp.ts": "9420f94505c09bccce541085e9424855b92b27a4ebfc31512c6ad2b666398bb5",
+            "electron/main/context/providers/mnemosyne.ts": "f12432c2bf86f8949e04508efc1b00aa05bde519a50c2695a70bd4a52cef93f2",
+            "electron/main/context/providers/local-server-mnemosyne.ts": "fb648148108aac77b7471751bd24ca35809bf0c9a46df673aca36b313355d77b",
+            "electron/main/context/providers/managed-mnemosyne.ts": "6965b5c3a25b682e0985240f2c06b5cc1bb900d81461d006011cc67741685726",
+            "electron/main/context/mnemosyne-sidecar.py": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18"
+          },
+          "conformance": {
+            "version": 1,
+            "certification": "not-issued",
+            "checks": [
+              {
+                "name": "probe and response contract",
+                "status": "passed"
+              },
+              {
+                "name": "permission revocation",
+                "status": "passed"
+              },
+              {
+                "name": "cancellation",
+                "status": "passed"
+              },
+              {
+                "name": "canonical ingestion and idempotent retry",
+                "status": "passed"
+              },
+              {
+                "name": "namespace isolation",
+                "status": "passed"
+              },
+              {
+                "name": "bounded response",
+                "status": "passed"
+              },
+              {
+                "name": "revision replacement",
+                "status": "passed"
+              },
+              {
+                "name": "temporal search",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "scoped export",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "reflection permission",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "reflection lineage",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "source deletion preserves unrelated records",
+                "status": "passed"
+              },
+              {
+                "name": "scope deletion and idempotent retry",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "cleanup first",
+                "status": "passed"
+              },
+              {
+                "name": "cleanup second",
+                "status": "passed"
+              }
+            ]
+          },
+          "authentication": {
+            "invalidTokenRefused": true,
+            "crossNamespaceRefused": true,
+            "credentialsReported": false,
+            "scopeRevocationPreservesOtherScope": true
+          },
+          "recoveryVerified": true,
+          "derivativeAudit": {
+            "removedSourceIds": 515,
+            "residualIds": 0,
+            "temporaryCopies": 0,
+            "inspectedFiles": 6
+          },
+          "comparison": {
+            "corpusRecords": 512,
+            "measurements": [
+              {
+                "label": "built-in",
+                "correct": 25,
+                "queries": 25,
+                "medianMs": 0.14467200000217417,
+                "p95Ms": 0.36165500000061
+              },
+              {
+                "label": "managed lexical",
+                "correct": 25,
+                "queries": 25,
+                "medianMs": 63.50789799999984,
+                "p95Ms": 74.55935599999793
+              },
+              {
+                "label": "authenticated local server",
+                "correct": 25,
+                "queries": 25,
+                "medianMs": 73.93483299999934,
+                "p95Ms": 85.57148900000175
+              }
+            ],
+            "coldStartProbeMs": 669.9299069999997,
+            "peakProviderResidentBytes": 52903936,
+            "nodePeakResidentBytes": 168296448,
+            "hardware": {
+              "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+              "memoryBytes": 16471642112
+            },
+            "boundary": "Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Cold probe measured separately; optional Python process RSS sampled every 20 ms. Not complete desktop RSS, semantic quality, human usability or model inference.",
+            "decision": "Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark."
+          },
+          "qualification": "Named owned experimental Linux x64 loopback lexical profile; arbitrary external MCP endpoints, semantic retrieval and other platforms are not qualified."
+        },
+        "measuredAt": "2026-10-15T20:35:10.668Z",
+        "platform": "linux-x64",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-jQY60v",
+        "tracer": {
+          "path": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+          "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+          "ringObserver": {
+            "version": 1,
+            "upstream": "strace 7.2",
+            "sourceSha256": "edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6",
+            "observerPath": "scripts/native/strace-ring-observer.h",
+            "observerSha256": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+            "executable": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+            "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+            "scope": "Payload-free SQE opcode/flag observation for ordinary mmap-backed non-SQPOLL rings; unsupported layouts and operations remain opaque."
+          }
+        },
+        "ringCanaries": {
+          "control": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 2,
+            "opaqueIoUringCalls": 0,
+            "ioUringOpcodes": [
+              29
+            ],
+            "tracedTasks": 1,
+            "passed": true
+          },
+          "network": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 1,
+            "opaqueIoUringCalls": 1,
+            "ioUringOpcodes": [
+              16
+            ],
+            "tracedTasks": 1,
+            "passed": false
+          },
+          "executableSha256": "43bfa50aee5995a0b4792f75300da2877cb41fb1d55dbb2937b8b821edbbebe4"
+        },
+        "scope": "Launch through shutdown of the isolated Node/Python/PostgreSQL provider fixture in a loopback-only namespace. Connected writes and io_uring observed; payload strings suppressed; no user profile, model inference, dependency provisioning or ambient credentials.",
+        "captureOptions": {
+          "socketDescriptorDecoding": true,
+          "connectedWrites": true,
+          "payloadStrings": false,
+          "stackTrace": false,
+          "ringObservation": true
+        },
+        "canary": {
+          "outboundCalls": 1,
+          "loopbackCalls": 0,
+          "unixCalls": 0,
+          "externalAttempts": [
+            {
+              "pid": 1544199,
+              "call": "connect",
+              "address": "198.51.100.42",
+              "result": "-1 ENETUNREACH (Network is unreachable)"
+            }
+          ],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 1,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 6,
+          "decodedIoUringCalls": 6,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 6,
+          "passed": false
+        },
+        "acceptanceExitCode": 0,
+        "traceBytes": 11979352,
+        "traceSha256": "16c3edda0e475a463212610a8fef8254e67f4c8b2faf6fe2626a1ccc6224220c",
+        "sourceHashes": {
+          "scripts/check-context-network.mjs": "aca4f9e1360b414d3ec3955d1ba53a2a7a21788bebbcba5d49c7bcae70a69af0",
+          "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+          "scripts/check-context-mnemosyne-server.mjs": "5dc40acf6df43437b8a30212f6fe0d9a35e31392e429dca7471c9976b0e6e70c"
+        },
+        "audit": {
+          "outboundCalls": 2176,
+          "loopbackCalls": 2176,
+          "unixCalls": 2274,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 15,
+          "decodedIoUringCalls": 15,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 28,
+          "passed": true
+        },
+        "passed": true
+      }
+    },
+    "strictDedicatedHindsight": {
+      "log": ".cache/stage34/hindsight/strict-release.log",
+      "logSha256": "c59955e08c029e4e990dbcb19f61829ca9a421c032e5e873d1853e49e9a13635",
+      "result": {
+        "version": 3,
+        "appVersion": "1.16.21",
+        "fixture": "hindsight-local",
+        "fixtureResult": {
+          "version": 2,
+          "measuredAt": "2026-10-15T20:37:43.735Z",
+          "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage34/hindsight/fixture-XWIEdy",
+          "upstreamCommit": "5fc4ce20917b916240cef27c212c387a177f115b",
+          "qualificationSourceHashes": {
+            "scripts/check-context-hindsight-isolated.mjs": "c58b375d1d002007278d0e58ca12f75da8d295f9fb882e2e73efa6fd9012c57c",
+            "scripts/fixtures/context-hindsight-audit.py": "41d67b3b39d134c8ce409681bf9e561613905719bcd5c92c68c897d2b901a2f3",
+            "scripts/fixtures/stop-hindsight-fixture.py": "dd80140ef8d4e93c18c99a50c612654efa6fda2c0b47fa33a8e04b000436833d",
+            "electron/main/context/providers/hindsight.ts": "5b8e981e963496076822b926d34bd889110e9afb434ed72ddd9825fc55e39583",
+            "electron/main/context/providers/transport.ts": "4a4a782554fc3529e15701bdded4e54743a3611fb78f92785ede0c3f7d693df8",
+            "electron/main/context/providers/shared.ts": "ad52f90d2b6771a868d9cb6f61b0becd910dd3c6cd27d0a05e471aa6150e1175",
+            "src/lib/context/providers/conformance.ts": "95309d42d5adae6d8f158c0b1ce6ca5e1ee8366edf73112bc02e46c3aeaaf11b",
+            "electron/main/context/hindsight-local-server.py": "e5dfd337310866c892c2c0348fc31df44986c3842ec1f8a2a0022e7a03c93a40",
+            "electron/main/context/hindsight-gateway.py": "55505d3b7e31f2917c2b385bd962a82e4f14aee62981085713bc10fad54cb669",
+            "electron/main/context/hindsight-retention.py": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437"
+          },
+          "resources": {
+            "peakPythonRssBytes": 405086208,
+            "peakPostgresRssBytes": 23425024,
+            "boundary": "Separate Python/API and PostgreSQL process RSS maxima sampled every 20 ms over this small synthetic conformance/crash workload; not aggregate desktop RSS or a capacity benchmark."
+          },
+          "sourceHashes": {
+            "hindsight-local-server.py": "e5dfd337310866c892c2c0348fc31df44986c3842ec1f8a2a0022e7a03c93a40",
+            "hindsight-gateway.py": "55505d3b7e31f2917c2b385bd962a82e4f14aee62981085713bc10fad54cb669",
+            "hindsight-retention.py": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437"
+          },
+          "serverFixtureSha256": "f69074ebf4f2b05705a7fa7f4726b18446d31f586ec8ebb5d318227422c753fa",
+          "retentionHelperSha256": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437",
+          "runtime": "Upstream 0.10.2; private PostgreSQL; lexical hash vectors; LLM disabled; RRF reranker",
+          "gateway": true,
+          "authenticationVerified": true,
+          "crashRecoveryVerified": true,
+          "report": {
+            "version": 1,
+            "certification": "not-issued",
+            "checks": [
+              {
+                "name": "probe and response contract",
+                "status": "passed"
+              },
+              {
+                "name": "permission revocation",
+                "status": "passed"
+              },
+              {
+                "name": "cancellation",
+                "status": "passed"
+              },
+              {
+                "name": "canonical ingestion and idempotent retry",
+                "status": "passed"
+              },
+              {
+                "name": "namespace isolation",
+                "status": "passed"
+              },
+              {
+                "name": "bounded response",
+                "status": "passed"
+              },
+              {
+                "name": "revision replacement",
+                "status": "passed"
+              },
+              {
+                "name": "temporal search",
+                "status": "passed"
+              },
+              {
+                "name": "scoped export",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "reflection permission",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "reflection lineage",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "source deletion preserves unrelated records",
+                "status": "passed"
+              },
+              {
+                "name": "scope deletion and idempotent retry",
+                "status": "unsupported",
+                "reason": "CAPABILITY_UNAVAILABLE"
+              },
+              {
+                "name": "cleanup first",
+                "status": "passed"
+              },
+              {
+                "name": "cleanup second",
+                "status": "passed"
+              }
+            ]
+          },
+          "baselineDeletionAudit": {
+            "maintenance": null,
+            "activeClientGuardChecked": true,
+            "scannedFiles": 1150,
+            "scannedBytes": 44513633,
+            "activeDerivativeRows": {
+              "async_operations": 5,
+              "attachments": 0,
+              "audit_log": 0,
+              "bank_aliases": 0,
+              "bank_stats_cache": 0,
+              "chunks": 0,
+              "directives": 0,
+              "documents": 0,
+              "entities": 0,
+              "entity_maintenance_queue": 0,
+              "graph_maintenance_queue": 0,
+              "invalidated_memory_units": 0,
+              "knowledge_pages": 0,
+              "llm_requests": 0,
+              "memory_links": 0,
+              "memory_units": 0,
+              "mental_model_history": 0,
+              "mental_models": 0,
+              "observation_history": 0,
+              "webhooks": 0
+            },
+            "activeRowsRemaining": 5,
+            "contentRowsRemaining": 0,
+            "housekeepingOperationCount": 5,
+            "operationDiagnostics": [
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              }
+            ],
+            "physicalFilesContainingForgottenCanonicalIds": [],
+            "physicalFilesContainingForgottenPlaintext": [],
+            "physicalDeletionPassed": true,
+            "plaintextDeletionPassed": true,
+            "boundary": "Private synthetic PostgreSQL data and WAL; empty bank descriptors and content-free graph housekeeping retained; no user store inspected"
+          },
+          "deletionAudit": {
+            "maintenance": null,
+            "activeClientGuardChecked": true,
+            "scannedFiles": 1150,
+            "scannedBytes": 44513633,
+            "activeDerivativeRows": {
+              "async_operations": 5,
+              "attachments": 0,
+              "audit_log": 0,
+              "bank_aliases": 0,
+              "bank_stats_cache": 0,
+              "chunks": 0,
+              "directives": 0,
+              "documents": 0,
+              "entities": 0,
+              "entity_maintenance_queue": 0,
+              "graph_maintenance_queue": 0,
+              "invalidated_memory_units": 0,
+              "knowledge_pages": 0,
+              "llm_requests": 0,
+              "memory_links": 0,
+              "memory_units": 0,
+              "mental_model_history": 0,
+              "mental_models": 0,
+              "observation_history": 0,
+              "webhooks": 0
+            },
+            "activeRowsRemaining": 5,
+            "contentRowsRemaining": 0,
+            "housekeepingOperationCount": 5,
+            "operationDiagnostics": [
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              }
+            ],
+            "physicalFilesContainingForgottenCanonicalIds": [],
+            "physicalFilesContainingForgottenPlaintext": [],
+            "physicalDeletionPassed": true,
+            "plaintextDeletionPassed": true,
+            "boundary": "Private synthetic PostgreSQL data and WAL; empty bank descriptors and content-free graph housekeeping retained; no user store inspected"
+          },
+          "postRestartDeletionAudit": {
+            "maintenance": null,
+            "activeClientGuardChecked": false,
+            "scannedFiles": 1150,
+            "scannedBytes": 44513633,
+            "activeDerivativeRows": {
+              "async_operations": 5,
+              "attachments": 0,
+              "audit_log": 0,
+              "bank_aliases": 0,
+              "bank_stats_cache": 0,
+              "chunks": 0,
+              "directives": 0,
+              "documents": 0,
+              "entities": 0,
+              "entity_maintenance_queue": 0,
+              "graph_maintenance_queue": 0,
+              "invalidated_memory_units": 0,
+              "knowledge_pages": 0,
+              "llm_requests": 0,
+              "memory_links": 0,
+              "memory_units": 0,
+              "mental_model_history": 0,
+              "mental_models": 0,
+              "observation_history": 0,
+              "webhooks": 0
+            },
+            "activeRowsRemaining": 5,
+            "contentRowsRemaining": 0,
+            "housekeepingOperationCount": 5,
+            "operationDiagnostics": [
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              },
+              {
+                "type": "graph_maintenance",
+                "status": "completed",
+                "payloadCharacters": 136,
+                "forgottenCanonicalIdInPayload": false,
+                "forgottenCanonicalIdInMetadata": false
+              }
+            ],
+            "physicalFilesContainingForgottenCanonicalIds": [],
+            "physicalFilesContainingForgottenPlaintext": [],
+            "physicalDeletionPassed": true,
+            "plaintextDeletionPassed": true,
+            "boundary": "Private synthetic PostgreSQL data and WAL; empty bank descriptors and content-free graph housekeeping retained; no user store inspected"
+          },
+          "restartVerified": true,
+          "unrelatedMemoryPreserved": true,
+          "qualification": "Named dedicated Linux local chunks server with automatic quiescent retention; no arbitrary external deployment, managed installer or semantic retrieval claim."
+        },
+        "measuredAt": "2026-10-15T20:37:43.891Z",
+        "platform": "linux-x64",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-LyvrCm",
+        "tracer": {
+          "path": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+          "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+          "ringObserver": {
+            "version": 1,
+            "upstream": "strace 7.2",
+            "sourceSha256": "edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6",
+            "observerPath": "scripts/native/strace-ring-observer.h",
+            "observerSha256": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+            "executable": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+            "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+            "scope": "Payload-free SQE opcode/flag observation for ordinary mmap-backed non-SQPOLL rings; unsupported layouts and operations remain opaque."
+          }
+        },
+        "ringCanaries": {
+          "control": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 2,
+            "opaqueIoUringCalls": 0,
+            "ioUringOpcodes": [
+              29
+            ],
+            "tracedTasks": 1,
+            "passed": true
+          },
+          "network": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 1,
+            "opaqueIoUringCalls": 1,
+            "ioUringOpcodes": [
+              16
+            ],
+            "tracedTasks": 1,
+            "passed": false
+          },
+          "executableSha256": "43bfa50aee5995a0b4792f75300da2877cb41fb1d55dbb2937b8b821edbbebe4"
+        },
+        "scope": "Launch through shutdown of the isolated Node/Python/PostgreSQL provider fixture in a loopback-only namespace. Connected writes and io_uring observed; payload strings suppressed; no user profile, model inference, dependency provisioning or ambient credentials.",
+        "captureOptions": {
+          "socketDescriptorDecoding": true,
+          "connectedWrites": true,
+          "payloadStrings": false,
+          "stackTrace": false,
+          "ringObservation": true
+        },
+        "canary": {
+          "outboundCalls": 1,
+          "loopbackCalls": 0,
+          "unixCalls": 0,
+          "externalAttempts": [
+            {
+              "pid": 1544653,
+              "call": "connect",
+              "address": "198.51.100.42",
+              "result": "-1 ENETUNREACH (Network is unreachable)"
+            }
+          ],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 1,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 6,
+          "decodedIoUringCalls": 6,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 6,
+          "passed": false
+        },
+        "acceptanceExitCode": 0,
+        "traceBytes": 7777125,
+        "traceSha256": "acabecbebf64d4118ab0db6e32aa61847eeaae2bcc501500151277fa8c2a1bdd",
+        "sourceHashes": {
+          "scripts/check-context-network.mjs": "aca4f9e1360b414d3ec3955d1ba53a2a7a21788bebbcba5d49c7bcae70a69af0",
+          "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+          "scripts/check-context-hindsight.mjs": "87dbfed7a6800661ada3778d5fa8cecfbde916c8c749dfc7ca1e10e52ee16804"
+        },
+        "audit": {
+          "outboundCalls": 337,
+          "loopbackCalls": 337,
+          "unixCalls": 12338,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 451,
+          "decodedIoUringCalls": 451,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 312,
+          "passed": true
+        },
+        "passed": true
+      }
+    },
+    "strictManagedLifecycle": {
+      "log": ".cache/stage34/strict-lifecycle-integrity.log",
+      "logSha256": "97d7dd863f9fb0af11e98c37504bfd9ecef0bdadf3c3809601bb957640dde990",
+      "result": {
+        "version": 3,
+        "appVersion": "1.16.21",
+        "fixture": "runtime-lifecycle",
+        "fixtureResult": {
+          "version": 1,
+          "measuredAt": "2026-10-15T21:20:29.873Z",
+          "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage34/runtime-lifecycle/fixture-c3yEy0",
+          "diskFull": false,
+          "profile": "mnemosyne-lexical-v1",
+          "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
+          "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
+          "checks": [
+            "Install verifies actual pinned files and backs up encrypted canonical memory",
+            "Update preserves the stopped old runtime/data pair",
+            "Rollback restores a compatible pair with its original readable snapshot",
+            "Recovery stops only the exact owned legacy bridge before starting a replacement",
+            "Concurrent cold starts reopen an existing derived directory without duplicate startup",
+            "SIGKILL of a live host also kills its in-flight child; restart opens only an intact atomic snapshot",
+            "SIGKILL after pointer activation recovers the last committed pair and canonical memory",
+            "Encrypted backup restore honours a newer forgetting tombstone",
+            "Forgetting removes derived copies from active, rollback and interrupted pairs",
+            "Installed-file mutation is refused before launching native code"
+          ],
+          "passed": true,
+          "healthChecks": 6,
+          "backupCount": 4,
+          "installedBytes": 211332376,
+          "artifactBytes": 211317255,
+          "artifactFiles": 5775,
+          "peakChildRssBytes": 53854208,
+          "elapsedMs": 131832.76068500002,
+          "qualification": "Actual pinned Linux x64 lifecycle and small synthetic workload; no other platform, full desktop capacity, model quality or arbitrary external deployment claim"
+        },
+        "measuredAt": "2026-10-15T21:20:31.583Z",
+        "platform": "linux-x64",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-Y6n3ac",
+        "tracer": {
+          "path": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+          "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+          "ringObserver": {
+            "version": 1,
+            "upstream": "strace 7.2",
+            "sourceSha256": "edd95315046f6f19e5718d2881144c4086af2aec26b6df460f59b920898aa5b6",
+            "observerPath": "scripts/native/strace-ring-observer.h",
+            "observerSha256": "489333befeb6a1a386954cbb3487e921a8716e7ce8a0fe9f1cc0c798727c1abe",
+            "executable": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-network-tracer/489333befeb6a1a3/source/src/strace",
+            "sha256": "1304e490e0c0cab19e68e0aa8c8d468ed46053dbf9fd367316288d3ef0d035dc",
+            "scope": "Payload-free SQE opcode/flag observation for ordinary mmap-backed non-SQPOLL rings; unsupported layouts and operations remain opaque."
+          }
+        },
+        "ringCanaries": {
+          "control": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 2,
+            "opaqueIoUringCalls": 0,
+            "ioUringOpcodes": [
+              29
+            ],
+            "tracedTasks": 1,
+            "passed": true
+          },
+          "network": {
+            "outboundCalls": 0,
+            "loopbackCalls": 0,
+            "unixCalls": 1,
+            "externalAttempts": [],
+            "successfulExternalCalls": 0,
+            "blockedExternalCalls": 0,
+            "unresolvedExternalCalls": 0,
+            "unclassifiedInternetCalls": [],
+            "ioUringCalls": 2,
+            "decodedIoUringCalls": 1,
+            "opaqueIoUringCalls": 1,
+            "ioUringOpcodes": [
+              16
+            ],
+            "tracedTasks": 1,
+            "passed": false
+          },
+          "executableSha256": "43bfa50aee5995a0b4792f75300da2877cb41fb1d55dbb2937b8b821edbbebe4"
+        },
+        "scope": "Launch through shutdown of the isolated Node/Python/PostgreSQL provider fixture in a loopback-only namespace. Connected writes and io_uring observed; payload strings suppressed; no user profile, model inference, dependency provisioning or ambient credentials.",
+        "captureOptions": {
+          "socketDescriptorDecoding": true,
+          "connectedWrites": true,
+          "payloadStrings": false,
+          "stackTrace": false,
+          "ringObservation": true
+        },
+        "canary": {
+          "outboundCalls": 1,
+          "loopbackCalls": 0,
+          "unixCalls": 0,
+          "externalAttempts": [
+            {
+              "pid": 1557732,
+              "call": "connect",
+              "address": "198.51.100.42",
+              "result": "-1 ENETUNREACH (Network is unreachable)"
+            }
+          ],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 1,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 6,
+          "decodedIoUringCalls": 6,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 6,
+          "passed": false
+        },
+        "acceptanceExitCode": 0,
+        "traceBytes": 53490068,
+        "traceSha256": "ac1b38e6f2722505055815ffcc98369c54630dc65a615529d714277c654e55f0",
+        "sourceHashes": {
+          "scripts/check-context-network.mjs": "aca4f9e1360b414d3ec3955d1ba53a2a7a21788bebbcba5d49c7bcae70a69af0",
+          "src/lib/context/network-audit.ts": "1f9846e36fc80bb0165d34eb6147e9a6a1ed949f46d9dbae806915cea06c3b3f",
+          "scripts/check-context-runtime-lifecycle.mjs": "8d2cedda088e0f8ef8a665acb54ac8825dc8181e26dd05c3011caf5ddfea9699"
+        },
+        "audit": {
+          "outboundCalls": 0,
+          "loopbackCalls": 0,
+          "unixCalls": 310,
+          "externalAttempts": [],
+          "successfulExternalCalls": 0,
+          "blockedExternalCalls": 0,
+          "unresolvedExternalCalls": 0,
+          "unclassifiedInternetCalls": [],
+          "ioUringCalls": 32,
+          "decodedIoUringCalls": 32,
+          "opaqueIoUringCalls": 0,
+          "ioUringOpcodes": [
+            29
+          ],
+          "tracedTasks": 58,
+          "passed": true
+        },
+        "passed": true
+      }
+    },
+    "actualDiskFull": {
+      "log": ".cache/stage34/disk-full-final.log",
+      "logSha256": "59ca2d54b0aec6ac27be4d2c8f9934e60e0cd0f91d3f8bbd8225b3816f9fa4e4",
+      "result": {
+        "version": 1,
+        "measuredAt": "2026-10-15T21:22:53.366Z",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage34/runtime-lifecycle/fixture-FOx2Ej",
+        "diskFull": true,
+        "profile": "mnemosyne-lexical-v1",
+        "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
+        "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
+        "checks": [
+          "Install verifies actual pinned files and backs up encrypted canonical memory",
+          "Actual ENOSPC during update preserves the verified active pair, readable provider snapshot and encrypted canonical memory"
+        ],
+        "passed": true,
+        "healthChecks": 2,
+        "backupCount": 1,
+        "installedBytes": 211850862,
+        "artifactBytes": 211317255,
+        "artifactFiles": 5775,
+        "peakChildRssBytes": 49250304,
+        "elapsedMs": 16828.271886000002,
+        "qualification": "Actual pinned Linux x64 lifecycle and small synthetic workload; no other platform, full desktop capacity, model quality or arbitrary external deployment claim"
+      }
+    },
+    "actualFusePortableInstall": {
+      "log": ".cache/stage34/fuse-exact-artifacts.log",
+      "logSha256": "71cf4964f4a02e1957cf680492bee1824fd91d90dd305299d50f11bdac7ee7b3",
+      "result": {
+        "version": 1,
+        "measuredAt": "2026-10-15T21:32:00.600Z",
+        "appVersion": "1.16.21",
+        "platform": "linux-x64",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-install-TUaTai",
+        "artifact": "/home/roosteyr/Documents/Projects/ourgeo/dist/ouRGeo-1.16.21.AppImage",
+        "artifactSha256": "51e4638dd9c6d8a2d09080153291820db72d20e9c6344baa6f1ca1031c52950d",
+        "archiveSha256": "539b1e8c696fed3252832de93d4ca80af3ad0af1fb8be5f2c7753010de748f32",
+        "extraction": true,
+        "installedPayloadMatchesUnpacked": true,
+        "nativeFuseMountVerified": true,
+        "acceptanceExitCode": 0,
+        "fixture": {
+          "appVersion": "1.16.21",
+          "appPath": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/.mount_ouRGeorxEp9J/resources/app.asar",
+          "filesystemType": 1702057286,
+          "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-5j1Dyn",
+          "mockRequests": 17,
+          "simpleRequestCount": 2,
+          "auxiliaryContext": false,
+          "electronSqliteWorker": {
+            "encryptedStorage": true,
+            "backend": "kwallet6"
+          },
+          "electronHttpAfterLaunch": {
+            "loopbackRequests": 0,
+            "blockedHosts": [],
+            "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+          },
+          "packaged": true,
+          "settingsCategoryNavigation": true,
+          "narrowSettingsLayout": true,
+          "directMemoryWithoutInferenceInBothLocations": true,
+          "memoryEditsAndTombstone": true,
+          "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+          "protectedConnectionSetupAndHealthOnly": true,
+          "suggestionsPinsAndSuppression": true,
+          "projectSaveForkAndDiscard": true,
+          "responsiveDuringRLoadWithoutScopeLeak": true,
+          "scopedPersistentExclusions": true,
+          "duplicateProjectFork": true,
+          "hostMemoryCommandsWithoutInference": true,
+          "relevantUnitPreferencesAndSupersession": true,
+          "conversationDerivedDeletionAndEditedRetention": true,
+          "stagedDocumentAttachment": true,
+          "workspaceColumnPrivacy": true,
+          "unbracketedNamedSchemaBlockedAndAllowed": true,
+          "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+          "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+          "historicalJoinFailurePairedWithCurrentSchemas": true,
+          "protectedColumnPolicy": true,
+          "authorisedFolderIndexing": true,
+          "packedFolderSearchAndRead": true,
+          "watcherRevocation": true,
+          "verifiedBackupInspection": true,
+          "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+          "durableInferenceAccounting": true,
+          "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+          "currentSourceBrowser": true,
+          "reviewedTranscriptForgetting": true,
+          "scopedUsageTotals": true,
+          "diagnosticRetentionControl": true,
+          "freshSourceDiscoveryWithoutKeyring": true,
+          "unreadablePolicyFailsClosed": true,
+          "screenshots": [
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+          ]
+        },
+        "uninstallRemovedDisposableInstallation": true,
+        "passed": true,
+        "scope": "Actual FUSE-mounted AppImage launch verified. Copy, extract, launch and remove a portable AppImage installation under the workspace cache. No native desktop integration, Debian package-manager installation or removal of user data is certified."
+      }
+    },
+    "privateDesktopRegistration": {
+      "log": ".cache/stage34/desktop-exact-artifacts.log",
+      "logSha256": "258549b048a6ea80e493d3088797e8aece5085ce5c0975eb403f33922a195841",
+      "result": {
+        "version": 1,
+        "appVersion": "1.16.21",
+        "measuredAt": "2026-10-15T21:39:55.603Z",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-desktop-3AAulf",
+        "artifactSha256": "51e4638dd9c6d8a2d09080153291820db72d20e9c6344baa6f1ca1031c52950d",
+        "desktopPackageSha256": "9ec5ee5c9c20a7196ce5151bfa2dbefaf38a97362a1f9d6bd79d63d800f4725b",
+        "templateSha256": "0e52d3bcb51fc9508b845bba87830e684e89d80290b4e8a3e1da90152b355d0e",
+        "privateXdgRegistration": true,
+        "gtkDesktopLaunch": true,
+        "privateProfileVerified": true,
+        "localMemoryAddAndForget": true,
+        "modelDispatches": 0,
+        "registeredEntryRemoved": true,
+        "passed": true,
+        "scope": "Actual packaged desktop template, private XDG applications directory and GTK launch of the AppImage. Regular menus, associations and user profiles are untouched. Debian installation and offline certification are separate."
+      }
+    },
+    "disposableDebianInstallUpgradeRemoval": {
+      "log": ".cache/stage34/debian-final.log",
+      "logSha256": "15fdea7cce06994c8dcf220d41909d9bc0ca91b4a4beafc12b8b03e4c3f9f680",
+      "result": {
+        "version": 1,
+        "appVersion": "1.16.21",
+        "measuredAt": "2026-10-15T21:28:37.361Z",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/context-deb-zV8Ceh",
+        "filesystem": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/debian/rootfs-minimal",
+        "artifactSha256": "9ec5ee5c9c20a7196ce5151bfa2dbefaf38a97362a1f9d6bd79d63d800f4725b",
+        "previousArtifactSha256": "7b638a48b0c4fc1a2851f9e427a13a2ce418a136394bedc389e0c8d8f450e88e",
+        "archiveSha256": "539b1e8c696fed3252832de93d4ca80af3ad0af1fb8be5f2c7753010de748f32",
+        "installVersion": "1.16.19",
+        "upgradeVersion": "1.16.21",
+        "packageManagerInstallAndUpgrade": true,
+        "installedPayloadMatchesUnpacked": true,
+        "installedBinaryAcceptance": {
+          "appVersion": "1.16.21",
+          "appPath": "/opt/ouRGeo/resources/app.asar",
+          "filesystemType": 2435016766,
+          "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-VHgUtr",
+          "mockRequests": 17,
+          "simpleRequestCount": 2,
+          "auxiliaryContext": false,
+          "electronSqliteWorker": {
+            "encryptedStorage": true,
+            "backend": "kwallet6"
+          },
+          "electronHttpAfterLaunch": {
+            "loopbackRequests": 0,
+            "blockedHosts": [],
+            "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+          },
+          "packaged": true,
+          "settingsCategoryNavigation": true,
+          "narrowSettingsLayout": true,
+          "directMemoryWithoutInferenceInBothLocations": true,
+          "memoryEditsAndTombstone": true,
+          "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+          "protectedConnectionSetupAndHealthOnly": true,
+          "suggestionsPinsAndSuppression": true,
+          "projectSaveForkAndDiscard": true,
+          "responsiveDuringRLoadWithoutScopeLeak": true,
+          "scopedPersistentExclusions": true,
+          "duplicateProjectFork": true,
+          "hostMemoryCommandsWithoutInference": true,
+          "relevantUnitPreferencesAndSupersession": true,
+          "conversationDerivedDeletionAndEditedRetention": true,
+          "stagedDocumentAttachment": true,
+          "workspaceColumnPrivacy": true,
+          "unbracketedNamedSchemaBlockedAndAllowed": true,
+          "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+          "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+          "historicalJoinFailurePairedWithCurrentSchemas": true,
+          "protectedColumnPolicy": true,
+          "authorisedFolderIndexing": true,
+          "packedFolderSearchAndRead": true,
+          "watcherRevocation": true,
+          "verifiedBackupInspection": true,
+          "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+          "durableInferenceAccounting": true,
+          "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+          "currentSourceBrowser": true,
+          "reviewedTranscriptForgetting": true,
+          "scopedUsageTotals": true,
+          "diagnosticRetentionControl": true,
+          "freshSourceDiscoveryWithoutKeyring": true,
+          "unreadablePolicyFailsClosed": true,
+          "screenshots": [
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+            "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png"
+          ]
+        },
+        "packageRemovalVerified": true,
+        "profilePreservedOnRemoval": true,
+        "passed": true,
+        "scope": "Actual dpkg install, upgrade, installed Debian binary/protected-memory acceptance and removal in a disposable Debian filesystem on the host Linux kernel. Host X11 and keyring services supply the desktop session; this is not a separately booted Debian desktop, association or strict-offline certificate."
+      }
+    },
+    "referenceComparison": {
+      "log": ".cache/stage34/mnemosyne-capacity-release.log",
+      "logSha256": "d3ee6aa982e8473e22c50a2e1cd8d981c81ac07bd93a8813af41c02cbed52ba9",
+      "result": {
+        "version": 1,
+        "profile": "mnemosyne-local-server-v1",
+        "observedAt": "2026-10-15T20:37:28.006Z",
+        "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-server-tEID0a",
+        "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
+        "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
+        "sourceHashes": {
+          "scripts/check-context-mnemosyne-server.mjs": "5dc40acf6df43437b8a30212f6fe0d9a35e31392e429dca7471c9976b0e6e70c",
+          "electron/main/context/storage.ts": "10179c88d01472bb5fc42f36de0e9da3548c4b55a0563038e22e3bc7fbb94a1f",
+          "src/lib/context/preferences.ts": "b02a0edae39afbf1af03cf6e20d4d2f9433d58a2f47d0d8bb09892ac4c0fdd47",
+          "electron/main/context/providers/local-server.ts": "fdb2e07d90486b345f69abbe208026fe554976b5c94cfce6aebea043e728f4da",
+          "electron/main/context/providers/local-server-mcp.ts": "9420f94505c09bccce541085e9424855b92b27a4ebfc31512c6ad2b666398bb5",
+          "electron/main/context/providers/mnemosyne.ts": "f12432c2bf86f8949e04508efc1b00aa05bde519a50c2695a70bd4a52cef93f2",
+          "electron/main/context/providers/local-server-mnemosyne.ts": "fb648148108aac77b7471751bd24ca35809bf0c9a46df673aca36b313355d77b",
+          "electron/main/context/providers/managed-mnemosyne.ts": "6965b5c3a25b682e0985240f2c06b5cc1bb900d81461d006011cc67741685726",
+          "electron/main/context/mnemosyne-sidecar.py": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18"
+        },
+        "conformance": {
+          "version": 1,
+          "certification": "not-issued",
+          "checks": [
+            {
+              "name": "probe and response contract",
+              "status": "passed"
+            },
+            {
+              "name": "permission revocation",
+              "status": "passed"
+            },
+            {
+              "name": "cancellation",
+              "status": "passed"
+            },
+            {
+              "name": "canonical ingestion and idempotent retry",
+              "status": "passed"
+            },
+            {
+              "name": "namespace isolation",
+              "status": "passed"
+            },
+            {
+              "name": "bounded response",
+              "status": "passed"
+            },
+            {
+              "name": "revision replacement",
+              "status": "passed"
+            },
+            {
+              "name": "temporal search",
+              "status": "unsupported",
+              "reason": "CAPABILITY_UNAVAILABLE"
+            },
+            {
+              "name": "scoped export",
+              "status": "unsupported",
+              "reason": "CAPABILITY_UNAVAILABLE"
+            },
+            {
+              "name": "reflection permission",
+              "status": "unsupported",
+              "reason": "CAPABILITY_UNAVAILABLE"
+            },
+            {
+              "name": "reflection lineage",
+              "status": "unsupported",
+              "reason": "CAPABILITY_UNAVAILABLE"
+            },
+            {
+              "name": "source deletion preserves unrelated records",
+              "status": "passed"
+            },
+            {
+              "name": "scope deletion and idempotent retry",
+              "status": "unsupported",
+              "reason": "CAPABILITY_UNAVAILABLE"
+            },
+            {
+              "name": "cleanup first",
+              "status": "passed"
+            },
+            {
+              "name": "cleanup second",
+              "status": "passed"
+            }
+          ]
+        },
+        "authentication": {
+          "invalidTokenRefused": true,
+          "crossNamespaceRefused": true,
+          "credentialsReported": false,
+          "scopeRevocationPreservesOtherScope": true
+        },
+        "recoveryVerified": true,
+        "derivativeAudit": {
+          "removedSourceIds": 10003,
+          "residualIds": 0,
+          "temporaryCopies": 0,
+          "inspectedFiles": 6
+        },
+        "comparison": {
+          "corpusRecords": 10000,
+          "measurements": [
+            {
+              "label": "built-in",
+              "correct": 100,
+              "queries": 100,
+              "medianMs": 0.2713759999969625,
+              "p95Ms": 0.5321379999986675
+            },
+            {
+              "label": "managed lexical",
+              "correct": 100,
+              "queries": 100,
+              "medianMs": 29.378124999999272,
+              "p95Ms": 46.722601000001305
+            },
+            {
+              "label": "authenticated local server",
+              "correct": 100,
+              "queries": 100,
+              "medianMs": 31.304212999995798,
+              "p95Ms": 48.375693999998475
+            }
+          ],
+          "coldStartProbeMs": 678.7306880000006,
+          "peakProviderResidentBytes": 60321792,
+          "nodePeakResidentBytes": 295411712,
+          "hardware": {
+            "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+            "memoryBytes": 16471642112
+          },
+          "boundary": "Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Cold probe measured separately; optional Python process RSS sampled every 20 ms. Not complete desktop RSS, semantic quality, human usability or model inference.",
+          "decision": "Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark."
+        },
+        "qualification": "Named owned experimental Linux x64 loopback lexical profile; arbitrary external MCP endpoints, semantic retrieval and other platforms are not qualified."
+      }
+    }
+  },
+  "measuredColdRecallFix": {
+    "previousDirectColdRequestMs": 3343,
+    "correctedDirectColdRequestMs": 2131,
+    "previousInventoryMs": 3224,
+    "correctedInventoryMs": 1551,
+    "productionRecallDeadlineMs": 3000,
+    "parallelReaders": 8,
+    "logs": [
+      ".cache/stage34/native-runtime-timing.log",
+      ".cache/stage34/native-runtime-timing-parallel.log"
+    ],
+    "boundary": "Single local diagnostic probes, not percentile or full-desktop capacity claims. Same inventory digest; bounded-reader tests preserve framing and cancellation."
+  },
+  "failedEvidencePreserved": [
+    {
+      "evidence": "docs/context-stage34-delivery-evidence.json",
+      "result": "Raw Hindsight HTTP deletion left PostgreSQL/WAL plaintext. That deployment remains unqualified; the new dedicated retention profile is separate."
+    },
+    {
+      "evidence": ".cache/stage34/hindsight/",
+      "result": "Earlier gateway request-delivery, statistics-retention and restart failures remain in raw logs. Corrected dedicated profile passes actual crash/deletion checks."
+    },
+    {
+      "evidence": ".cache/stage34/",
+      "result": "Ptrace 10k ingestion runs exceeded the deadline. Untraced capacity results and separate strict small-workload audits are distinct evidence."
+    },
+    {
+      "evidence": ".cache/stage34/native-exact-artifacts.log",
+      "result": "Provider status polling encountered an expected same-workspace refresh error. Retry is now restricted to the original lease; exact-build rerun passes."
+    },
+    {
+      "evidence": ".cache/stage34/packaged-managed-final.log",
+      "result": "Fixture attempted to read a migration-backup directory as a file. Recursive encrypted-file scans now pass in the packaged rerun."
+    }
+  ],
+  "deferredByOwner": [
+    {
+      "requirement": "Independent corpus authoring and blinded quality review",
+      "status": "required, deferred until a team is available; not passed",
+      "record": "docs/context-qualification-review.md"
+    },
+    {
+      "requirement": "Ten representative usability participants",
+      "status": "required, deferred until a team is available; not passed",
+      "record": "docs/context-qualification-review.md"
+    },
+    {
+      "requirement": "Windows and macOS native build, runtime, installer and accounting sessions",
+      "status": "required for those platform claims, deferred; not passed",
+      "record": "docs/context-platform-acceptance.md"
+    }
+  ],
+  "separatelyUnqualifiedExtensions": [
+    "Arbitrary external or hosted Mnemosyne/Hindsight deployments",
+    "Opaque hosted/subscription invoice or accounting certification",
+    "Optional managed Hindsight installer",
+    "Semantic retrieval and advanced reflection: disabled without benchmark evidence"
+  ],
+  "resourceBoundary": "Published RSS is fixture/process sampling. Hindsight PostgreSQL RSS is postmaster-only, not all database children; none of these values certifies full desktop capacity or every deployment."
+}

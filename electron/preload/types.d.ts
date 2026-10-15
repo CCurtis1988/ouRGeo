@@ -228,6 +228,7 @@ declare global {
         activationStatus: () => Promise<import('../../src/lib/context/providers/activation').ProviderActivationStatus[]>
         previewManagedActivation: (scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
         previewLocalServerActivation: (scope: 'global' | 'project', lease: string, acknowledged: boolean) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        previewHindsightActivation: (scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview | null>
         providerContributions: () => Promise<import('../../src/lib/context/providers/contributions').PublicProviderContribution[]>
         previewContributedProvider: (ref: import('../../src/lib/context/providers/contributions').ProviderContributionRef, scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
         previewActivation: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>

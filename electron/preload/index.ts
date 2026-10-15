@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     activationStatus: () => ipcRenderer.invoke('context:activationStatus'),
     previewManagedActivation: (scope: 'global' | 'project', lease: string) => ipcRenderer.invoke('context:previewManagedActivation', scope, lease),
     previewLocalServerActivation: (scope: 'global' | 'project', lease: string, acknowledged: boolean) => ipcRenderer.invoke('context:previewLocalServerActivation', scope, lease, acknowledged),
+    previewHindsightActivation: (scope: 'global' | 'project', lease: string) => ipcRenderer.invoke('context:previewHindsightActivation', scope, lease),
     providerContributions: () => ipcRenderer.invoke('context:providerContributions'),
     previewContributedProvider: (ref: import('../../src/lib/context/providers/contributions').ProviderContributionRef, scope: 'global' | 'project', lease: string) => ipcRenderer.invoke('context:previewContributedProvider', ref, scope, lease),
     previewActivation: (id: string, ids: string[], lease: string) => ipcRenderer.invoke('context:previewActivation', id, ids, lease),

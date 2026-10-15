@@ -151,7 +151,7 @@ boundary; it does not certify hostile-code isolation or provider deployments.
 ## Linux verification
 
 `npm run test:context-plugin-sdk` drives the built Electron app in a guarded
-synthetic profile. Add `-- --managed-profile --local-server` to exercise actual
+synthetic profile. Add `-- --managed-profile --local-server --hindsight` to exercise actual
 private runtime staging, scoped provider writes, migration, recall, health and
 old-copy cleanup. These optional fixtures require the separately downloaded,
 SHA-256-pinned archives used by `scripts/spike-context-mnemosyne.mjs`; they never
@@ -160,7 +160,9 @@ download packages, use a real account or open the owner's profile.
 `npm run test:context-mnemosyne-server` runs real upstream lexical conformance
 and a synthetic 512-record lookup comparison. Set `OURGEO_CONTEXT_STRACE_PATH`
 to a verified strace executable for the whole-process network observation and
-positive control. `docs/context-mnemosyne-local-server-evidence.json` records the
+positive control. The owned endpoint now implements Streamable HTTP MCP with
+initialisation, tool listing/calls, version validation and authenticated bank
+isolation. `docs/context-mnemosyne-local-server-evidence.json` records the
 reviewed Linux boundary. Unknown profiles and arbitrary remote deployments
 still need a host review; none can self-certify through a plugin manifest.
 
@@ -168,6 +170,11 @@ The Hindsight fixture requires a separate private Python venv with
 `hindsight-api-slim[embedded-db]` installed from commit
 `5fc4ce20917b916240cef27c212c387a177f115b`. It uses no LLM or learned embedding
 model and makes no semantic-quality claim. `npm run test:context-hindsight`
-accepts `-- --python /absolute/path/to/venv/bin/python`. Its current strict
-plaintext deletion audit intentionally fails; preserve the evidence and keep
-personal-memory activation unavailable rather than treating that exit as a pass.
+accepts `-- --python /absolute/path/to/venv/bin/python`. Its raw API plaintext
+deletion audit intentionally fails. `-- --gateway` tests the separate dedicated
+local profile, including automatic quiescent retention, actual SIGKILL recovery,
+authenticated banks and a scan after restart. Its PostgreSQL distribution is
+also separately provisioned. See [the deployment guide](context-hindsight-local-profile.md)
+and bundled evidence for the exact native review boundary. Preserve the raw API
+failure; a generic Hindsight endpoint cannot acquire this profile through its
+health response or a plugin declaration.

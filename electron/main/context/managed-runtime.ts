@@ -8,6 +8,7 @@ import { MNEMOSYNE_LOCAL_CANDIDATE as candidate } from './runtime-catalogue'
 import { RuntimeInstaller, type RuntimeInstallation } from './runtime-installer'
 import { MemoryRuntime, mnemosyneEnvironment } from './runtimes'
 import { contextLease, subscribeContextScope } from './scope'
+import { stopOwnedRuntimeOrphans } from './runtime-orphans'
 
 const instances = new Set<ManagedMnemosyneRuntime>()
 let stopping = false
@@ -30,7 +31,9 @@ export class ManagedMnemosyneRuntime {
   private activeRuntime?: MemoryRuntime
   private providerRuntime?: MemoryRuntime
   private providerFolder?: string
-  constructor(private directory: string, private bridgeFile: string) {
+  private providerStarting?: Promise<MemoryRuntime>
+  private verified?: { identity: string; promise: Promise<void> }
+  constructor(private directory: string, private bridgeFile: string, private checkpoint: () => Promise<void> = async () => {}) {
     const supported = process.platform === 'linux' && process.arch === 'x64'
     this.state = { id: candidate.id, label: 'Mnemosyne on this device', version: candidate.provider.engineVersion, experimental: true, platformSupported: supported,
       certification: 'pending', processing: 'local-profile-under-test', storage: 'readable-derived-sqlite', state: 'not-installed',
@@ -43,10 +46,16 @@ export class ManagedMnemosyneRuntime {
       if (!this.state.platformSupported) return
       this.installer = new RuntimeInstaller(this.directory, { id: candidate.id, version: candidate.provider.engineVersion, certification: candidate.certification,
         artifacts: [{ role: 'python', archive: candidate.python.profiles['linux-x64'] }, { role: 'engine', archive: candidate.provider.archive }, { role: 'yaml', archive: candidate.yaml.archive }] },
-      { health: (directory, installation, signal) => this.health(directory, installation, signal), changed: progress => {
+      { health: (directory, installation, signal) => this.health(directory, installation, signal), beforeActivate: async signal => {
+        signal.throwIfAborted()
+        await this.checkpoint()
+        signal.throwIfAborted()
+      }, changed: progress => {
         this.state = { ...this.state, step: progress.step, ...(progress.step === 'download' ? { receivedBytes: progress.progress.received, totalBytes: progress.progress.total } : { receivedBytes: undefined, totalBytes: undefined }) }
       } })
-      if (await this.installer.current()) this.state = { ...this.state, state: 'ready-for-certification' }
+      const current = await this.installer.current()
+      if (current) this.state = current.integrity ? { ...this.state, state: 'ready-for-certification' }
+        : { ...this.state, state: 'failed', error: 'Restage the verified runtime to add the installed-file integrity record. Canonical memory and the old runtime/data pair are preserved.' }
       this.state = { ...this.state, canRollback: await this.installer.canRollback() }
       this.metadataUnavailable = false
     })().catch(() => { this.metadataUnavailable = true; this.state = { ...this.state, state: 'failed', error: 'Runtime metadata is unavailable. Preserve the installation and restore a supported backup before retrying.' }; this.initialising = undefined })
@@ -58,17 +67,38 @@ export class ManagedMnemosyneRuntime {
     if (this.installing || !this.state.platformSupported || this.metadataUnavailable) throw new Error('Finish verified runtime staging before activation.')
     const installed = await this.installer?.current()
     if (!installed) throw new Error('Stage the pinned runtime before activation.')
+    const identity = JSON.stringify(installed)
+    if (this.verified?.identity !== identity) {
+      const promise = this.installer!.verify(installed).catch(error => { if (this.verified?.promise === promise) this.verified = undefined; throw error })
+      this.verified = { identity, promise }
+    }
+    try { await this.verified.promise }
+    catch (error) { this.state = { ...this.state, state: 'failed', error: 'Restage the verified runtime before processing memory. Its installed files could not be verified; canonical memory remains available.' }; throw error }
     return installed
   }
   async request(payload: Record<string, unknown>, host: Parameters<MemoryRuntime['request']>[1]): Promise<unknown> {
     const generation = this.generation, installed = await this.installed()
     host.signal.throwIfAborted()
     if (!host.authorised() || generation !== this.generation) throw new Error('POLICY_REFUSED')
-    if (!this.providerRuntime || this.providerFolder !== installed.folder) {
+    let runtime = this.providerFolder === installed.folder ? this.providerRuntime : undefined
+    if (!runtime) {
+      this.providerStarting ??= this.startProvider(installed, generation, host).finally(() => { this.providerStarting = undefined })
+      runtime = await this.providerStarting
+    }
+    if (!host.authorised() || generation !== this.generation) throw new Error('POLICY_REFUSED')
+    const result = await runtime.request(payload, host)
+    if (payload.operation === 'replace') {
+      await this.clearOlderCopies(installed, payload.namespace)
+    }
+    return result
+  }
+  private async startProvider(installed: RuntimeInstallation, generation: number, host: Parameters<MemoryRuntime['request']>[1]): Promise<MemoryRuntime> {
       await this.providerRuntime?.stop('Managed runtime/data pair changed.')
+      await stopOwnedRuntimeOrphans(this.directory)
       const directory = join(this.directory, installed.folder), data = join(directory, 'derived')
-      await mkdir(data, { mode: 0o700 })
-      if ((await lstat(data)).isSymbolicLink()) throw new Error('Restore the private derived store; symbolic links are refused.')
+      await mkdir(data, { recursive: true, mode: 0o700 })
+      const info = await lstat(data)
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Restore the private derived store; symbolic links are refused.')
       const path = (role: string): string => {
         const artifact = installed.artifacts.find(item => item.role === role)
         if (!artifact) throw new Error('Restage the complete pinned runtime.')
@@ -79,14 +109,14 @@ export class ManagedMnemosyneRuntime {
       const file = await open(bridge, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW, 0o600)
       try { await file.writeFile(await readFile(this.bridgeFile)); await file.sync() } finally { await file.close() }
       if (!host.authorised() || generation !== this.generation) throw new Error('POLICY_REFUSED')
-      this.providerRuntime = new MemoryRuntime({ executable: join(path('python'), 'bin', 'python3.12'), arguments: ['-I', '-S', bridge, path('engine'), join(path('yaml'), 'lib'), data], directory, environment: mnemosyneEnvironment(data), profile: candidate.id })
+      this.providerRuntime = new MemoryRuntime({ executable: join(path('python'), 'bin', 'python3.12'), arguments: ['-I', '-B', '-S', bridge, path('engine'), join(path('yaml'), 'lib'), data, '--parent-pid', String(process.pid)], directory, environment: mnemosyneEnvironment(data), profile: candidate.id,
+        verify: () => this.installer!.verify(installed) })
       this.providerFolder = installed.folder
-    }
-    const result = await this.providerRuntime.request(payload, host)
-    if (payload.operation === 'replace') {
+      return this.providerRuntime
+  }
+  private async clearOlderCopies(installed: RuntimeInstallation, namespace: unknown): Promise<void> {
       // Older rollback pairs are rebuildable caches too. Forgetting must not
       // leave their copies available for a later rollback on this profile.
-      const namespace = payload.namespace
       if (typeof namespace !== 'string' || !/^[a-f0-9-]{36}$/.test(namespace)) throw new Error('POLICY_REFUSED')
       const folders = (await readdir(this.directory)).filter(name => /^installed_[a-f0-9-]{36}$/.test(name) && name !== installed.folder)
       if (folders.length > 32) throw new Error('Review old runtime cache pairs before further indexing.')
@@ -99,15 +129,16 @@ export class ManagedMnemosyneRuntime {
         if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('Restore the private derived cache directories.')
         for (const suffix of ['', '-wal', '-shm', '-journal', '.init.lock']) await rm(join(old, `${namespace}.sqlite${suffix}`), { force: true })
       }
-    }
-    return result
   }
   /** A disconnected index is still a managed copy. Forgetting can remove it
    * without restarting native code or granting the old connection access. */
   async forgetDerived(namespaces: string[]): Promise<void> {
     if (!namespaces.length) return
     if (namespaces.length > 32 || namespaces.some(namespace => !/^[a-f0-9-]{36}$/i.test(namespace))) throw new Error('Review the bounded managed memory namespaces before cleanup.')
+    this.generation++
+    await this.providerStarting?.catch(() => {})
     await this.providerRuntime?.stop('Forgotten memory requires a clean derived reconstruction.')
+    await stopOwnedRuntimeOrphans(this.directory)
     this.providerRuntime = undefined; this.providerFolder = undefined
     let folders: string[]
     try { folders = (await readdir(this.directory)).filter(folder => /^installed_[a-f0-9-]{36}$/i.test(folder)) }
@@ -128,7 +159,7 @@ export class ManagedMnemosyneRuntime {
     if (suppliedLease !== contextLease().id) return Promise.reject(new Error('SCOPE_CHANGED: review runtime setup in the active workspace.'))
     if (this.installing) return this.installing
     const lease = contextLease().id
-    const generation = this.generation
+    const generation = ++this.generation
     this.installing = (async () => {
       await this.initialise()
       if (contextLease().id !== lease || this.generation !== generation) throw new Error('SCOPE_CHANGED: runtime staging was cancelled.')
@@ -136,6 +167,7 @@ export class ManagedMnemosyneRuntime {
       if (!this.installer || !this.state.platformSupported) throw new Error('This platform has connection-only support until its runtime is tested.')
       this.state = { ...this.state, state: 'installing', error: undefined }
       try {
+        await this.providerStarting?.catch(() => {})
         await this.providerRuntime?.stop('Runtime staging requires a fresh provider reconstruction.')
         this.providerRuntime = undefined; this.providerFolder = undefined
         await this.installer.install()
@@ -153,7 +185,7 @@ export class ManagedMnemosyneRuntime {
     void this.activeRuntime?.stop('Managed runtime setup cancelled.')
     void this.providerRuntime?.stop('Managed runtime scope revoked.')
   }
-  isRunning(): boolean { return Boolean(this.installing || this.activeRuntime || this.providerRuntime) }
+  isRunning(): boolean { return Boolean(this.installing || this.activeRuntime || this.providerRuntime || this.providerStarting) }
   async shutdown(): Promise<void> {
     this.cancel()
     await this.activeRuntime?.stop('ouRGeo is closing.')
@@ -165,13 +197,14 @@ export class ManagedMnemosyneRuntime {
   rollback(suppliedLease: unknown): Promise<ManagedRuntimeStatus> {
     if (suppliedLease !== contextLease().id) return Promise.reject(new Error('SCOPE_CHANGED'))
     if (this.installing) return Promise.reject(new Error('Cancel or finish runtime setup before restoring the previous pair.'))
-    const generation = this.generation
+    const generation = ++this.generation
     this.installing = (async () => {
       await this.initialise()
       if (contextLease().id !== suppliedLease || this.generation !== generation) throw new Error('SCOPE_CHANGED')
       if (!this.installer) throw new Error('Use a tested runtime platform or connect to your server.')
       this.state = { ...this.state, state: 'installing', step: 'health', error: undefined }
       try {
+        await this.providerStarting?.catch(() => {})
         await this.providerRuntime?.stop('Runtime rollback requires a fresh provider reconstruction.')
         this.providerRuntime = undefined; this.providerFolder = undefined
         await this.installer.rollback()
@@ -195,7 +228,7 @@ export class ManagedMnemosyneRuntime {
     finally { await script.close() }
     const data = join(directory, `.health-${randomUUID()}`)
     await mkdir(data, { mode: 0o700 })
-    const runtime = new MemoryRuntime({ executable: join(path('python'), 'bin', 'python3.12'), arguments: ['-I', '-S', bridge, path('engine'), join(path('yaml'), 'lib'), data],
+    const runtime = new MemoryRuntime({ executable: join(path('python'), 'bin', 'python3.12'), arguments: ['-I', '-B', '-S', bridge, path('engine'), join(path('yaml'), 'lib'), data, '--parent-pid', String(process.pid)],
       directory, environment: mnemosyneEnvironment(data), profile: candidate.id })
     this.activeRuntime = runtime
     try {
@@ -205,8 +238,8 @@ export class ManagedMnemosyneRuntime {
   }
 }
 
-export function registerManagedRuntimeHandlers(ipc: IpcMain, authorised: (event: IpcMainInvokeEvent) => void, directory: string, bridgeFile: string): ManagedMnemosyneRuntime {
-  const runtime = new ManagedMnemosyneRuntime(directory, bridgeFile)
+export function registerManagedRuntimeHandlers(ipc: IpcMain, authorised: (event: IpcMainInvokeEvent) => void, directory: string, bridgeFile: string, checkpoint: () => Promise<void>): ManagedMnemosyneRuntime {
+  const runtime = new ManagedMnemosyneRuntime(directory, bridgeFile, checkpoint)
   instances.add(runtime)
   subscribeContextScope(() => runtime.cancel())
   ipc.handle('context:runtimeStatus', event => { authorised(event); return runtime.status() })

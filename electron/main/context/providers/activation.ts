@@ -116,7 +116,10 @@ export class ProviderActivation {
         ?? this.state.bindings.find(binding => binding.connectionRef === connection.id)
       const reviewed = Boolean(this.host.registry.review(connection))
       return { connectionId: connection.id, state: reviewed ? binding?.enabled ? 'active' : binding ? 'paused' : 'ready' : 'review-required',
-        recovery: reviewed ? 'Review this scope before enabling future processing. Pausing does not delete remote copies.' : 'Complete review of this exact deployment, destinations, isolation, deletion and billing before activation.' }
+        recovery: reviewed ? 'Review this scope before enabling future processing. Pausing does not delete remote copies.' : connection.location === 'managed-local' || connection.localServer
+          ? 'Restage the verified runtime if needed, then review this scope. Canonical memories remain available.'
+          : connection.localProfile ? 'Start the dedicated server and review its private folder again before enabling this scope.'
+            : 'Complete review of this exact deployment, destinations, isolation, deletion and billing before activation.' }
     })
   }
   cancelRecall(id: string): void { this.recalls.get(id)?.abort() }
@@ -146,7 +149,7 @@ export class ProviderActivation {
       const connection = this.state.connections.find(item => item.id === binding?.connectionRef)
       const certificate = binding && connection ? this.host.registry.certificate(connection, binding) : undefined
       if (!scope || !binding || !connection || !certificate || !this.host.provider) return { status: 'unavailable', hits: [], coverage: 'local-only' }
-      if (connection.location !== 'managed-local' && !connection.localServer || certificate.operations.search?.processing !== 'non-billable') return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'UNSUPPORTED' }
+      if (connection.location !== 'managed-local' && !connection.localServer && !connection.localProfile || certificate.operations.search?.processing !== 'non-billable') return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'UNSUPPORTED' }
       connectionId = connection.id
       const breaker = this.breakers.get(connectionId)
       if (breaker && breaker.retryAt > this.now()) return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'PROVIDER_OFFLINE' }
@@ -169,7 +172,7 @@ export class ProviderActivation {
         const provider = await this.host.provider!(connection, token, certificate)
         check()
         if (!authorised() || providerDescriptorIssues(provider).length || provider.id !== certificate.providerId
-          || (connection.localServer ? provider.location.kind !== 'external' || provider.location.connectionId !== connection.id : provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId) || !provider.capabilities.lexicalSearch || provider.capabilities.scopeIsolation !== certificate.isolation) throw new Error('POLICY_REFUSED')
+          || (connection.localServer || connection.localProfile ? provider.location.kind !== 'external' || provider.location.connectionId !== connection.id : provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId) || !provider.capabilities.lexicalSearch || provider.capabilities.scopeIsolation !== certificate.isolation) throw new Error('POLICY_REFUSED')
         if (await this.host.dispatch('bindingSnapshotCurrent', { bindingId: binding.id, scope, generation: snapshot.generation }, check) !== true) return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'STALE_REFERENCE' }
         check()
         if (!authorised()) throw new Error('POLICY_REFUSED')
@@ -296,7 +299,7 @@ export class ProviderActivation {
       if (pending.length && ['mnemosyne-managed', 'mnemosyne-local-server'].includes(certificate.providerId) && this.host.provider && this.host.registry.review(connection)?.operations.read?.processing === 'non-billable') {
         const token = connection.credentialRef ? await this.host.dispatch('scopedCredential', { reference: connection.credentialRef, scopes: this.scopes() }, check) as string | undefined : undefined
         if (connection.credentialRef && !token) throw new Error('Recover the old provider’s protected credential before reconciliation.')
-        const provider = await this.host.provider(connection, token, certificate)
+        const provider = await this.host.provider(connection, token, certificate, 'reconciliation-read')
         if (providerDescriptorIssues(provider).length || provider.id !== certificate.providerId || !provider.capabilities.readById || provider.capabilities.scopeIsolation !== certificate.isolation
           || (connection.location === 'managed-local' ? provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId : provider.location.kind !== 'external' || provider.location.connectionId !== connection.id)) throw new Error('PROVIDER_UNCERTIFIED')
         const receipts: Array<{ id: string; revision: number }> = []

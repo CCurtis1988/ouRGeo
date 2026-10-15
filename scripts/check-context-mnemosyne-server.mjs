@@ -11,6 +11,9 @@ import assert from 'node:assert/strict'
 // This certifies a named owned loopback bridge; it never certifies arbitrary
 // upstream MCP endpoints from a probe. All inputs and profiles are synthetic.
 const root = resolve(import.meta.dirname, '..'), cache = join(root, '.cache/stage34/mnemosyne-server')
+const scale = process.argv.includes('--scale')
+const sourceFiles = ['scripts/check-context-mnemosyne-server.mjs', 'electron/main/context/storage.ts', 'src/lib/context/preferences.ts', 'electron/main/context/providers/local-server.ts', 'electron/main/context/providers/local-server-mcp.ts', 'electron/main/context/providers/mnemosyne.ts', 'electron/main/context/providers/local-server-mnemosyne.ts', 'electron/main/context/providers/managed-mnemosyne.ts', 'electron/main/context/mnemosyne-sidecar.py']
+const observedSources = Object.fromEntries(await Promise.all(sourceFiles.map(async path => [path, createHash('sha256').update(await readFile(join(root, path))).digest('hex')])))
 await mkdir(cache, { recursive: true })
 const tracer = process.env.OURGEO_CONTEXT_STRACE_PATH
 if (tracer && !process.argv.includes('--observed')) {
@@ -23,7 +26,7 @@ if (tracer && !process.argv.includes('--observed')) {
     const [exitCode] = await once(child, 'close'); await writeFile(`${file}.log`, output + errors)
     assert.equal(exitCode, 0, errors.slice(-3000)); return output
   }
-  const report = JSON.parse((await run([import.meta.filename, '--observed'], trace)).trim())
+  const report = JSON.parse((await run([import.meta.filename, '--observed', ...(scale ? ['--scale'] : [])], trace)).trim())
   const controlFile = join(directory, 'positive-control.network.trace')
   await run(['-e', "require('node:net').createServer().listen(0,'127.0.0.1',function(){this.close()})"], controlFile)
   const control = await readFile(controlFile, 'utf8'); assert(/socket\(/.test(control) && /bind\(/.test(control))
@@ -40,8 +43,17 @@ const python = await unpackRuntimeArchive('/tmp/ourgeo-mnemosyne-python.tar.gz',
 const source = await unpackRuntimeArchive('/tmp/ourgeo-mnemosyne-source.tar.gz', directory, candidate.provider.archive)
 const yaml = await unpackRuntimeArchive('/tmp/ourgeo-mnemosyne-pyyaml.tar.gz', directory, candidate.yaml.archive)
 const data = join(directory, 'derived'); await mkdir(data, { mode: 0o700 })
-const runtime = new MemoryRuntime({ executable: join(python, 'python/bin/python3'), arguments: ['-I', '-S', join(root, 'electron/main/context/mnemosyne-sidecar.py'), join(source, candidate.provider.archive.root), join(yaml, candidate.yaml.archive.root, 'lib'), data], directory, environment: mnemosyneEnvironment(data), profile: candidate.id })
-const server = new MnemosyneLocalServer(runtime), records = new Map(), ids = new Set(), registrations = {}
+let peakProviderResidentBytes = 0, childPid
+const sample = setInterval(() => { if (childPid) void readFile(`/proc/${childPid}/status`, 'utf8').then(text => { peakProviderResidentBytes = Math.max(peakProviderResidentBytes, Number(text.match(/^VmRSS:\s+(\d+)/m)?.[1] ?? 0) * 1024) }).catch(() => {}) }, 20)
+sample.unref()
+const runtime = new MemoryRuntime({ executable: join(python, 'python/bin/python3'), arguments: ['-I', '-B', '-S', join(root, 'electron/main/context/mnemosyne-sidecar.py'), join(source, candidate.provider.archive.root), join(yaml, candidate.yaml.archive.root, 'lib'), data], directory, environment: mnemosyneEnvironment(data), profile: candidate.id }, configuration => {
+  const child = spawn(configuration.executable, configuration.arguments, { cwd: configuration.directory, env: configuration.environment, stdio: ['pipe', 'pipe', 'pipe'] })
+  childPid = child.pid; child.once('close', () => { if (childPid === child.pid) childPid = undefined }); return child
+})
+const server = new MnemosyneLocalServer({ request: async (payload, host) => {
+  try { return await runtime.request(payload, host) }
+  catch (error) { console.error('Synthetic provider runtime failed:', String(error)); throw error }
+} }), records = new Map(), ids = new Set(), registrations = {}
 let conformance, recoveryVerified = false, derivativeAudit, authentication, comparison
 try {
   for (const name of ['first', 'second']) {
@@ -51,7 +63,7 @@ try {
   }
   const scopes = Object.fromEntries(Object.entries(registrations).map(([name, registration]) => {
     const canonical = { snapshot: async namespace => ({ namespace, ...records.get(namespace) }), current: async snapshot => records.get(snapshot.namespace).generation === snapshot.generation }
-    return [name, { isolatedFixture: true, provider: createLocalServerMnemosyne(registration.id, createJsonTransport({ endpoint: registration.endpoint, local: true, token: registration.token }), canonical),
+    return [name, { isolatedFixture: true, provider: createLocalServerMnemosyne(registration.id, createJsonTransport({ endpoint: registration.mcpEndpoint, local: true, token: registration.token }), canonical),
       host: operationId => ({ namespace: registration.namespace, signal: new AbortController().signal, timeoutMs: 15000, maxTokens: 2000, maxResults: 5, policyRevision: 1, idempotencyKey: operationId, paidProcessingAllowed: false, authorised: () => true }),
       commitCanonical: async next => { for (const record of next) ids.add(record.id); records.set(registration.namespace, { generation: records.get(registration.namespace).generation + 1, records: structuredClone(next) }) } }]
   }))
@@ -60,13 +72,16 @@ try {
   assert.equal((await rpc(first, first.namespace, 'wrong-secret')).status, 403)
   assert.equal((await rpc(first, second.namespace)).status, 403)
   authentication = { invalidTokenRefused: true, crossNamespaceRefused: true, credentialsReported: false }
+  const coldStart = performance.now()
+  assert.equal((await rpc(first, first.namespace)).status, 200)
+  const coldStartProbeMs = performance.now() - coldStart
   conformance = await runProviderConformance({ writesAcknowledged: true, scopes })
   assert(!conformance.checks.some(check => check.status === 'failed'), 'Actual local-server conformance failed.')
-  const corpus = Array.from({ length: 512 }, (_, index) => ({ id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'preference', statement: `Synthetic corpus benchmark_token_${String(index).padStart(4, '0')}: use metric units.`, assertion: 'user-declared', evidence: [], status: 'active', supersedes: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }))
+  const corpus = Array.from({ length: scale ? 10000 : 512 }, (_, index) => ({ id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'preference', statement: `Synthetic corpus benchmark_token_${String(index).padStart(4, '0')}: use metric units.`, assertion: 'user-declared', evidence: [], status: 'active', supersedes: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }))
   for (const record of corpus) ids.add(record.id)
   records.set(first.namespace, { generation: records.get(first.namespace).generation + 1, records: corpus })
   const copied = await scopes.first.provider.dispatch({ operation: 'upsert', records: [corpus[0]] }, scopes.first.host(crypto.randomUUID()))
-  assert.equal(copied.status, 'ok')
+  assert.equal(copied.status, 'ok', JSON.stringify(copied))
   const store = new MemoryStorage(':memory:', randomBytes(32))
   for (const record of corpus) store.save(record)
   const direct = createManagedMnemosyne(candidate.id, runtime)
@@ -80,20 +95,27 @@ try {
     ]
     for (const [label, search] of variants) {
       const times = []; let correct = 0
-      for (let index = 0; index < 25; index++) {
+      const queryCount = scale ? 100 : 25
+      for (let sample = 0; sample < queryCount; sample++) {
+        const index = Math.floor(sample * corpus.length / queryCount)
         const query = `benchmark_token_${String(index).padStart(4, '0')}`, start = performance.now(), found = await search(query)
         times.push(performance.now() - start)
         if (found.includes(corpus[index].id)) correct++
       }
-      assert.equal(correct, 25)
-      measurements.push({ label, correct, queries: 25, medianMs: p(times, 0.5), p95Ms: p(times, 0.95) })
+      assert.equal(correct, queryCount)
+      assert(p(times, 0.95) < 200, 'Warm lexical retrieval exceeds its 200 ms p95 gate.')
+      measurements.push({ label, correct, queries: queryCount, medianMs: p(times, 0.5), p95Ms: p(times, 0.95) })
     }
   } finally { store.close() }
-  comparison = { corpusRecords: corpus.length, measurements, nodePeakResidentBytes: process.resourceUsage().maxRSS * 1024, hardware: { cpu: cpus()[0]?.model, memoryBytes: totalmem() }, boundary: 'Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Not semantic quality, complete desktop RSS, human usability or model inference.', decision: 'Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark.' }
+  comparison = { corpusRecords: corpus.length, measurements, coldStartProbeMs, peakProviderResidentBytes, nodePeakResidentBytes: process.resourceUsage().maxRSS * 1024, hardware: { cpu: cpus()[0]?.model, memoryBytes: totalmem() }, boundary: 'Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Cold probe measured separately; optional Python process RSS sampled every 20 ms. Not complete desktop RSS, semantic quality, human usability or model inference.', decision: 'Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark.' }
   records.set(first.namespace, { generation: records.get(first.namespace).generation + 1, records: [] })
   assert.equal((await scopes.first.provider.dispatch({ operation: 'delete', ids: [corpus[0].id] }, scopes.first.host(crypto.randomUUID()))).status, 'ok')
   await runtime.stop()
-  for (const id of ids) for (const name of ['first', 'second']) {
+  // The final byte audit below covers every ID. At capacity, separately check
+  // representative API reads across the entire corpus without repeating the
+  // same empty-index protocol check twenty thousand times.
+  const readIds = scale ? [...ids].filter((_id, index) => index % 100 === 0 || index === ids.size - 1) : ids
+  for (const id of readIds) for (const name of ['first', 'second']) {
     const result = await scopes[name].provider.dispatch({ operation: 'read', id }, scopes[name].host(crypto.randomUUID()))
     assert.equal(result.status, 'ok'); assert.deepEqual(result.evidence, [])
   }
@@ -107,8 +129,9 @@ try {
   for (const name of files) { const path = join(data, name); if ((await stat(path)).isFile()) { const body = await readFile(path); if ([...ids].some(id => body.includes(Buffer.from(id)))) residual.push(name) } }
   derivativeAudit = { removedSourceIds: ids.size, residualIds: residual.length, temporaryCopies: files.filter(name => name.startsWith('.rebuild-') || /(?:-wal|-shm|-journal)$/.test(name)).length, inspectedFiles: files.length }
   assert.equal(derivativeAudit.residualIds, 0); assert.equal(derivativeAudit.temporaryCopies, 0)
-} finally { await server.close(); await runtime.stop() }
+} finally { clearInterval(sample); await server.close(); await runtime.stop() }
 const sourceHashes = {}
-for (const path of ['electron/main/context/providers/local-server.ts', 'electron/main/context/providers/local-server-mnemosyne.ts', 'electron/main/context/mnemosyne-sidecar.py']) sourceHashes[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex')
+for (const path of sourceFiles) sourceHashes[path] = createHash('sha256').update(await readFile(join(root, path))).digest('hex')
+assert.deepEqual(sourceHashes, observedSources, 'Provider sources changed during qualification; rerun the fixture.')
 const evidence = { version: 1, profile: 'mnemosyne-local-server-v1', observedAt: new Date().toISOString(), directory, upstreamCommit: candidate.provider.commit, bridgeSha256: sourceHashes['electron/main/context/mnemosyne-sidecar.py'], sourceHashes, conformance, authentication, recoveryVerified, derivativeAudit, comparison, qualification: 'Named owned experimental Linux x64 loopback lexical profile; arbitrary external MCP endpoints, semantic retrieval and other platforms are not qualified.' }
 await writeFile(join(directory, 'evidence.json'), JSON.stringify(evidence, null, 2)); console.log(JSON.stringify(evidence))

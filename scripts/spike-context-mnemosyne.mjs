@@ -83,7 +83,8 @@ try {
   assert.equal(afterRestart.evidence[0].revision, 2)
   // Force an interrupted rebuild and verify the committed generation survives.
   const abort = new AbortController()
-  const rebuilding = runtime.request({ operation: 'replace', namespace, generation: 3, records: Array.from({ length: 1000 }, (_, index) => ({ ...entries[0], id: randomUUID(), text: `SYNTHETIC_INTERRUPTED_ROW_${index}` })) }, { ...host, signal: abort.signal })
+  const interrupted = Array.from({ length: 1000 }, (_, index) => ({ ...entries[0], id: randomUUID(), text: `SYNTHETIC_INTERRUPTED_ROW_${index}` }))
+  const rebuilding = runtime.request({ operation: 'replace', namespace, generation: 3, records: [...revised, ...interrupted] }, { ...host, signal: abort.signal })
   const rejected = assert.rejects(rebuilding, /cancelled/)
   const deadline = Date.now() + 5000
   while (!(await readdir(bridgeData)).some(name => name.startsWith('.rebuild-'))) {
@@ -94,12 +95,14 @@ try {
   await rejected
   const preserved = await adapter.dispatch({ operation: 'read', id: canonicalId }, host)
   assert.equal(preserved.evidence[0].revision, 2)
+  const committed = await runtime.request({ operation: 'probe', namespace }, host)
+  assert([2, 3].includes(committed.generation), 'Cancellation must leave an intact old or fully committed new generation.')
   assert.equal((await readdir(bridgeData)).some(name => name.startsWith('.rebuild-')), false)
-  await runtime.request({ operation: 'replace', namespace, generation: 3, records: [] }, host)
+  await runtime.request({ operation: 'replace', namespace, generation: 4, records: [] }, host)
   assert.deepEqual((await adapter.dispatch({ operation: 'read', id: canonicalId }, host)).evidence, [])
   // Exercise the provider contract through a host-owned canonical snapshot;
   // direct bridge replacement alone does not certify adapter write receipts.
-  let generation = 4
+  let generation = 5
   const makeRecord = id => ({ id, revision: 1, scope: 'global', projectId: null, category: 'preference', statement: `SYNTHETIC_CANONICAL_METRIC_PREFERENCE ${id}`, evidence: [], assertion: 'user-declared', createdAt: '2026-10-07T00:00:00Z', updatedAt: '2026-10-07T00:00:00Z', status: 'active', supersedes: [] })
   let records = [makeRecord(canonicalId), makeRecord(removedId)]
   const provider = createManagedMnemosyne(candidate.id, runtime, { snapshot: async requested => { assert.equal(requested, namespace); return { namespace, generation, records } }, current: async snapshot => snapshot.namespace === namespace && snapshot.generation === generation })
@@ -114,8 +117,10 @@ try {
   assert.equal((await provider.dispatch({ operation: 'delete', ids: [canonicalId] }, host)).status, 'ok')
   assert.deepEqual((await provider.dispatch({ operation: 'read', id: canonicalId }, host)).evidence, [])
   assert.equal((await provider.dispatch({ operation: 'read', id: removedId }, host)).evidence[0].canonicalId, removedId)
+  records = []; generation++
+  assert.equal((await provider.dispatch({ operation: 'delete', ids: [removedId] }, host)).status, 'ok')
   const snapshots = new Map()
-  const fixtureIds = new Set([canonicalId])
+  const fixtureIds = new Set([canonicalId, removedId, ...interrupted.map(record => record.id)])
   const scopedProvider = createManagedMnemosyne(candidate.id, runtime, {
     snapshot: async namespace => { const snapshot = snapshots.get(namespace); assert(snapshot); return snapshot },
     current: async snapshot => snapshots.get(snapshot.namespace)?.generation === snapshot.generation,

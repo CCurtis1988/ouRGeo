@@ -12,6 +12,12 @@ export interface CanonicalSnapshotPort {
    * No endpoint or model response can supply this snapshot or its generation. */
   snapshot: (namespace: string, signal: AbortSignal) => Promise<CanonicalSnapshot>
   current: (snapshot: CanonicalSnapshot, signal: AbortSignal) => Promise<boolean>
+  /** Queue a fresh protected outbox write for already approved revisions when
+   * a rebuildable index is missing/stale. Reads never write a snapshot directly. */
+  repair?: (snapshot: CanonicalSnapshot, signal: AbortSignal) => Promise<void>
+  /** Host-only proof: one serial, exclusively locked, parent-supervised writer.
+   * An empty bounded read can then reconcile a crashed uncommitted snapshot. */
+  serialReads?: true
 }
 
 /** Integration is separate from certification and installation. Replacement
@@ -67,7 +73,7 @@ export function createManagedMnemosyne(runtimeId: string, runtime: { request: (p
           default: throw new Error('UNSUPPORTED')
         }
         const data = object(await runtime.request({ ...payload, namespace: host.namespace }, host))
-        if (!Array.isArray(data.evidence) || !Number.isSafeInteger(data.generation) || data.complete !== true) throw new Error('INVALID_RESPONSE')
+        if (!Array.isArray(data.evidence) || !Number.isSafeInteger(data.generation) || Number(data.generation) < 0 || data.complete !== true) throw new Error('INVALID_RESPONSE')
         const evidence = data.evidence.map(value => {
           const item = object(value)
           if (typeof item.id !== 'string' || typeof item.text !== 'string' || typeof item.revision !== 'number' || typeof item.updatedAt !== 'string') throw new Error('INVALID_RESPONSE')
@@ -77,7 +83,14 @@ export function createManagedMnemosyne(runtimeId: string, runtime: { request: (p
         if (canonical && request.operation !== 'probe') {
           const snapshot = await canonical.snapshot(host.namespace, host.signal)
           bank(host)
-          if (snapshot.namespace !== host.namespace || data.generation !== snapshot.generation
+          if (snapshot.namespace !== host.namespace) throw new Error('POLICY_REFUSED')
+          const absence = request.operation === 'read' && evidence.length === 0 && Number(data.generation) <= snapshot.generation && canonical.serialReads === true
+          if (Number(data.generation) < snapshot.generation && !absence && canonical.repair && await canonical.current(snapshot, host.signal)) {
+            bank(host)
+            await canonical.repair(snapshot, host.signal)
+            bank(host)
+          }
+          if (data.generation !== snapshot.generation && !absence
             || evidence.some(item => !snapshot.records.some(record => record.status === 'active' && record.id === item.canonicalId && record.revision === item.revision && record.statement === item.text && record.updatedAt === item.observedAt))
             || !await canonical.current(snapshot, host.signal)) throw new Error('INVALID_RESPONSE')
           bank(host)

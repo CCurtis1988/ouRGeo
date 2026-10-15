@@ -41,7 +41,7 @@ export interface ProviderRoutingPort {
   /** Must check live connection/binding/certificate generations AND memory
    * processing/disclosure consent. Budget consent is an additional boundary. */
   authorised: (lease: WorkspaceLease, connection: MemoryConnection, certificate: ProviderCertificate, job: OutboxJob) => boolean
-  provider: (connection: MemoryConnection, token: string | undefined, certificate: ProviderCertificate) => MemoryProviderDef | Promise<MemoryProviderDef>
+  provider: (connection: MemoryConnection, token: string | undefined, certificate: ProviderCertificate, purpose?: 'reconciliation-read') => MemoryProviderDef | Promise<MemoryProviderDef>
   maintenancePolicy: () => Promise<MaintenancePolicy>
   maintenance: MaintenanceRoutePort
 }
@@ -50,7 +50,7 @@ export interface ProviderRoutingPort {
  * disclosure, revision or destination change invalidates deployment approval. */
 export function connectionDigest(connection: MemoryConnection): string {
   return createHash('sha256').update(JSON.stringify([connection.id, connection.revision, connection.adapter, connection.endpoint, connection.location,
-    connection.scope, connection.namespaceRef, connection.credentialRef, connection.runtimeId ?? null, connection.localServer ?? false, connection.contribution ?? null, [...connection.destinations].sort((a, b) => a.purpose.localeCompare(b.purpose))])).digest('hex')
+    connection.scope, connection.namespaceRef, connection.credentialRef, connection.runtimeId ?? null, connection.localServer ?? false, connection.localProfile ?? null, connection.profileDirectory ?? null, connection.contribution ?? null, [...connection.destinations].sort((a, b) => a.purpose.localeCompare(b.purpose))])).digest('hex')
 }
 function jobDigest(job: OutboxJob): string {
   const binding = job.binding, operation = job.operation

@@ -68,6 +68,15 @@ export function MemoryConnections(): React.ReactElement {
     <p className="text-geo-muted mt-2">The built-in manager remains active. Deployment review is required before enabling memory updates; testing reachability grants no access. Activation reviews this scope and future committed updates. Testing sends no chat or memory content. A local server may use remote processing.</p>
     {!personalMemoryAvailable && <p className="text-geo-muted mt-1">Restore protected memory storage to save connections and authentication.</p>}
     <button className="text-geo-accent mt-2" disabled={busy} onClick={() => void act(async () => undefined)}>Refresh provider settings</button>
+    <section aria-label="Dedicated Hindsight server" data-ourgeo-id="context.hindsightLocalProfile" className="mt-3 border border-geo-border rounded p-2">
+      <h4 className="font-medium">Dedicated Hindsight server</h4>
+      <p className="text-geo-muted">Connect an existing server using the reviewed Linux local profile. It uses lexical retrieval with no model calls. Deletion includes database retention cleanup. Choose its private server folder, then review this scope; existing memories stay local until you select an import. Other Hindsight deployments still need their own review.</p>
+      {(['global', ...(projectId ? ['project'] : [])] as Array<'global' | 'project'>).map(scope => <button key={scope} className="text-geo-accent mr-3 mt-2" disabled={busy || !personalMemoryAvailable} onClick={() => void act(async () => {
+        const lease = await window.electronAPI.context.lease()
+        const preview = await window.electronAPI.context.previewHindsightActivation(scope, lease.id)
+        if (preview) await window.electronAPI.context.activateProvider(preview.ref)
+      })}>Review dedicated Hindsight for {scope === 'global' ? 'About you' : 'this project'}</button>)}
+    </section>
     {contributions.length > 0 && <section aria-label="Plugin memory profiles" data-ourgeo-id="context.pluginProviders" className="mt-3 border border-geo-border rounded p-2">
       <h4 className="font-medium">Plugin memory profiles</h4>
       <p className="text-geo-muted">Enabling a plugin offers its profiles here. Stage the corresponding runtime below, then separately review each scope. Existing memories stay local until selected for import or migration.</p>
@@ -93,7 +102,7 @@ export function MemoryConnections(): React.ReactElement {
     {connections.map(connection => <div key={connection.id} className="border-t border-geo-border mt-2 pt-2">
       <p>{connection.label} · {connection.adapter} · {connection.localServer ? 'On this device, authenticated local server' : connection.location === 'managed-local' ? 'On this device' : connection.location === 'loopback' ? 'Your server, loopback' : 'Your server or hosted service'} · {connection.scope === 'global' ? 'About you' : 'This project'}</p>
       <p className="text-geo-muted break-words">{connection.endpoint}</p>
-      <p className="text-geo-muted">{connection.state} · {connection.location === 'managed-local' || connection.localServer ? 'experimental Linux lexical profile' : 'certification pending'} · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
+      <p className="text-geo-muted">{connection.state} · {connection.localProfile ? 'reviewed dedicated Linux lexical profile' : connection.location === 'managed-local' || connection.localServer ? 'experimental Linux lexical profile' : 'certification pending'} · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
       <p className="text-geo-muted">Memory updates: {activation.find(item => item.connectionId === connection.id)?.state ?? 'review-required'}</p>
       {activation.find(item => item.connectionId === connection.id)?.state === 'review-required' && <p className="text-geo-muted">Review of this exact deployment, isolation, derivative deletion, processing destinations and billing is required.</p>}
       {['ready', 'paused'].includes(activation.find(item => item.connectionId === connection.id)?.state ?? '') && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(async () => {

@@ -43,6 +43,7 @@ export class DeploymentRegistry {
     this.reviews = structuredClone([...reviewed])
   }
   available(): boolean { return this.reviews.length > 0 }
+  withdraw(connectionId: string): void { this.reviews = this.reviews.filter(review => review.connectionId !== connectionId) }
   /** Privileged managed-profile review only; no renderer import API exists. */
   registerManaged(review: DeploymentReview): void {
     const others = this.reviews.filter(item => item.connectionDigest !== review.connectionDigest && (!review.connectionId || item.connectionId !== review.connectionId))
@@ -53,6 +54,12 @@ export class DeploymentRegistry {
   registerLocalServer(review: DeploymentReview): void {
     const others = this.reviews.filter(item => item.connectionDigest !== review.connectionDigest && (!review.connectionId || item.connectionId !== review.connectionId))
     if (!review.connectionId || !/^[a-f0-9-]{36}$/i.test(review.connectionId) || review.adapter !== 'mnemosyne' || review.providerId !== 'mnemosyne-local-server' || others.length >= 32) throw new Error('Use the reviewed authenticated local-server profile.')
+    this.reviews = [...others, structuredClone(review)]
+  }
+  /** Native verifier of the pinned operator-started local chunks server. */
+  registerLocalHindsight(review: DeploymentReview): void {
+    const others = this.reviews.filter(item => item.connectionId !== review.connectionId)
+    if (!review.connectionId || !/^[a-f0-9-]{36}$/i.test(review.connectionId) || review.adapter !== 'hindsight' || review.providerId !== 'hindsight' || others.length >= 32) throw new Error('Use the reviewed dedicated Hindsight profile.')
     this.reviews = [...others, structuredClone(review)]
   }
   review(connection: MemoryConnection): DeploymentReview | undefined {
@@ -74,7 +81,10 @@ export class DeploymentRegistry {
       || found.conformance.checks.length > 32 || new Set(found.conformance.checks.map(check => check.name)).size !== found.conformance.checks.length
       || found.conformance.checks.some(check => check.status === 'failed') || requiredChecks.some(name => !found.conformance.checks.some(check => check.name === name && check.status === 'passed'))
       || !found.operations || !(['read', 'upsert', 'delete'] as const).every(operation => bounded(found.operations[operation], now))
-      || (found.adapter === 'hindsight' ? found.operations.upsert?.processing !== 'paid' : (['search', 'read', 'upsert', 'delete'] as const).some(operation => found.operations[operation]?.processing !== 'non-billable'))
+      || (found.adapter === 'hindsight' ? connection.localProfile === 'hindsight-local-chunks-v1'
+        ? connection.location !== 'loopback' || !connection.credentialRef || !connection.profileDirectory || (['search', 'read', 'upsert', 'delete'] as const).some(operation => found.operations[operation]?.processing !== 'non-billable')
+        : found.operations.upsert?.processing !== 'paid'
+        : (['search', 'read', 'upsert', 'delete'] as const).some(operation => found.operations[operation]?.processing !== 'non-billable'))
       || connection.state !== 'reachable' || connection.destinations.length !== 7 || connection.destinations.some(item => item.destination === 'unknown')) return undefined
     return structuredClone(found)
   }

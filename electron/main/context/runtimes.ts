@@ -7,6 +7,7 @@ export interface RuntimeLaunch {
   directory: string
   environment: Record<string, string>
   profile: string
+  verify?: () => Promise<void>
 }
 export interface RuntimeOperation {
   signal: AbortSignal
@@ -50,6 +51,7 @@ export class MemoryRuntime {
     const generation = this.generation
     this.starting = (async () => {
       await this.closing
+      await this.configuration.verify?.()
       if (this.generation !== generation) throw new Error('Runtime startup cancelled.')
       const child = this.launch(this.configuration)
       this.child = child

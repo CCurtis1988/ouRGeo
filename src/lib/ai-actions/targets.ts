@@ -30,6 +30,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
   { id: 'context.providerMigrations', label: 'Provider migrations', where: 'Settings → AI Assistant → Advanced → Mnemosyne and Hindsight connections' },
   { id: 'context.pluginProviders', label: 'Plugin memory profiles', where: 'Settings → AI Assistant → Advanced → Mnemosyne and Hindsight connections' },
+  { id: 'context.hindsightLocalProfile', label: 'Dedicated Hindsight server', where: 'Settings → AI Assistant → Advanced → Mnemosyne and Hindsight connections' },
   { id: 'context.localServer', label: 'Authenticated local memory server', where: 'Settings → AI Assistant → Advanced → Mnemosyne on this device' },
   { id: 'settings.pluginStore', label: 'Plugin Store…', where: 'Settings → Plugins' },
   { id: 'plugins.browseStore', label: 'Browse the store…', where: 'the Plugin Manager, top row' },

@@ -136,8 +136,9 @@ package desktop template under a private XDG directory, verifies protected local
 memory without model inference, and removes that registration. This does not
 certify regular desktop menus or file associations.
 
-`scripts/check-context-deb.mjs` runs dpkg installation of 1.16.15, upgrade to the
-current package, installed archive/command/library checks, installed-binary
+`scripts/check-context-deb.mjs --previous dist/ouRGeo-1.16.19.deb` runs dpkg
+installation of the supplied older package, upgrade to the current package
+(1.16.21 in the latest Linux run), installed archive/command/library checks, installed-binary
 acceptance and removal inside a disposable Debian filesystem. The environment
 must first contain Debian desktop libraries and the fixture's R packages. Its
 default path is `.cache/stage02/debian/rootfs-minimal`; it refuses filesystems

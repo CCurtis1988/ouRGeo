@@ -86,3 +86,21 @@ it('stops an idle runtime after the last completed operation', async () => {
   await vi.waitFor(() => expect(child.kill).toHaveBeenCalledWith('SIGTERM'))
   await runtime.stop()
 })
+
+it('checks installed integrity before every launch and refuses cancellation during verification', async () => {
+  const { launch } = processFixture()
+  const verify = vi.fn<() => Promise<void>>(async () => { throw new Error('Synthetic integrity failure') })
+  const runtime = new MemoryRuntime({ ...configuration, verify }, launch)
+  await expect(runtime.request({}, host())).rejects.toThrow('integrity failure')
+  expect(launch).not.toHaveBeenCalled()
+  await runtime.stop()
+  let finish!: () => void
+  verify.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+  const abort = new AbortController()
+  const pending = runtime.request({}, { ...host(), signal: abort.signal })
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  abort.abort(); finish()
+  await expect(pending).rejects.toThrow('cancelled')
+  expect(launch).not.toHaveBeenCalled()
+  await runtime.stop()
+})

@@ -4,6 +4,7 @@ import { lstat, mkdir, mkdtemp, open, readdir, rename, rm, unlink } from 'node:f
 import { dirname, join } from 'node:path'
 import { downloadRuntimeArtifact, type DownloadArtifact, type DownloadProgress } from './runtime-download'
 import { unpackRuntimeArchive } from './runtime-archive'
+import { runtimeIntegrity, type RuntimeIntegrity } from './runtime-integrity'
 
 export interface RuntimeInstallProfile {
   id: string
@@ -19,6 +20,7 @@ export interface RuntimeInstallation {
   createdAt: string
   state: 'ready-for-certification' | 'ready'
   artifacts: { role: string; directory: string; sha256: string; root: string }[]
+  integrity?: RuntimeIntegrity
 }
 export type InstallProgress =
   | { step: 'download'; role: string; progress: DownloadProgress }
@@ -44,7 +46,7 @@ async function jsonFile(path: string): Promise<unknown | null> {
   let handle
   try {
     handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
-    if (!(await handle.stat()).isFile() || (await handle.stat()).size > 8192) throw new Error('Runtime installation metadata is damaged. Preserve it and restore a supported backup.')
+    if (!(await handle.stat()).isFile() || (await handle.stat()).size > 32768) throw new Error('Runtime installation metadata is damaged. Preserve it and restore a supported backup.')
     return JSON.parse(await handle.readFile('utf8'))
   } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error }
   finally { await handle?.close() }
@@ -70,13 +72,15 @@ function installation(value: unknown): RuntimeInstallation | null {
     || !['ready', 'ready-for-certification'].includes(String(item.state)) || typeof item.createdAt !== 'string' || !Number.isFinite(Date.parse(item.createdAt))
     || !Array.isArray(item.artifacts) || !item.artifacts.length || item.artifacts.length > 8
     || new Set(item.artifacts.map(artifact => artifact?.role)).size !== item.artifacts.length
+    || item.integrity !== undefined && (!item.integrity || item.integrity.version !== 1 || !/^[a-f0-9]{64}$/.test(item.integrity.sha256) || !Number.isSafeInteger(item.integrity.files) || item.integrity.files < 1 || item.integrity.files > 40000 || !Number.isSafeInteger(item.integrity.bytes) || item.integrity.bytes < 0 || item.integrity.bytes > 800 * 1024 * 1024)
     || item.artifacts.some(artifact => !artifact || typeof artifact.role !== 'string' || !/^[a-z0-9-]{1,40}$/.test(artifact.role)
       || typeof artifact.directory !== 'string' || !/^\.runtime-[a-zA-Z0-9_-]+$/.test(artifact.directory)
       || typeof artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(artifact.sha256) || typeof artifact.root !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(artifact.root) || ['.', '..'].includes(artifact.root))) {
     throw new Error('Runtime installation metadata is damaged. Preserve it and restore a supported backup.')
   }
   return { version: 1, profileId: item.profileId, providerVersion: item.providerVersion, folder: item.folder, createdAt: item.createdAt,
-    state: item.state as RuntimeInstallation['state'], artifacts: item.artifacts.map(({ role, directory, sha256, root }) => ({ role, directory, sha256, root })).sort((first, second) => first.role.localeCompare(second.role)) }
+    state: item.state as RuntimeInstallation['state'], artifacts: item.artifacts.map(({ role, directory, sha256, root }) => ({ role, directory, sha256, root })).sort((first, second) => first.role.localeCompare(second.role)),
+    ...(item.integrity ? { integrity: { version: 1, sha256: item.integrity.sha256, files: item.integrity.files, bytes: item.integrity.bytes } } : {}) }
 }
 
 /** Updates build a new immutable runtime/data pair. Activation switches one
@@ -91,13 +95,18 @@ export class RuntimeInstaller {
       || profile.artifacts.some(item => !/^[a-z0-9-]{1,40}$/.test(item.role))) throw new Error('Choose a supported host runtime catalogue profile.')
   }
   async current(): Promise<RuntimeInstallation | null> {
+    if (!this.running && await jsonFile(join(this.root, 'activation.json')) !== null) {
+      const release = await this.lock()
+      try { await this.recoverActivation() } finally { await release() }
+    }
     const active = installation(await jsonFile(join(this.root, 'active.json')))
     if (active) await this.pair(active)
     return active
   }
   async canRollback(): Promise<boolean> {
+    const active = await this.current()
     const previous = installation(await jsonFile(join(this.root, 'previous.json')))
-    if (!previous || previous.folder === (await this.current())?.folder) return false
+    if (!previous || previous.folder === active?.folder) return false
     await this.pair(previous)
     return true
   }
@@ -108,6 +117,11 @@ export class RuntimeInstaller {
     return this.running
   }
   cancel(): void { this.abort?.abort() }
+  async verify(value: RuntimeInstallation, signal?: AbortSignal): Promise<void> {
+    const directory = await this.pair(value)
+    if (!value.integrity) throw new Error('Restage the pinned runtime to verify its installed files before activation.')
+    if (JSON.stringify(await runtimeIntegrity(directory, value.artifacts, signal)) !== JSON.stringify(value.integrity)) throw new Error('Runtime integrity failed. Preserve the active pair and restage the pinned release.')
+  }
   private async pair(value: RuntimeInstallation): Promise<string> {
     const directory = join(this.root, value.folder), info = await lstat(directory)
     if (!info.isDirectory() || info.isSymbolicLink() || value.profileId !== this.profile.id) throw new Error('Runtime/data pair is unavailable or belongs to another provider profile. Preserve it and restore a supported backup.')
@@ -115,7 +129,7 @@ export class RuntimeInstaller {
     // A surviving pointer does not establish a surviving compatible pair.
     // Crossed pointers after an interrupted/manual restore must fail before
     // health can launch a binary with the wrong provider data.
-    if (!stored || JSON.stringify(stored) !== JSON.stringify(value)) throw new Error('Runtime/data pair metadata does not match its activation pointer. Preserve it and restore a supported backup.')
+    if (!stored || JSON.stringify(stored) !== JSON.stringify(installation(value))) throw new Error('Runtime/data pair metadata does not match its activation pointer. Preserve it and restore a supported backup.')
     return directory
   }
   async rollback(): Promise<RuntimeInstallation> {
@@ -128,16 +142,63 @@ export class RuntimeInstaller {
     await privateDirectory(this.root)
     const release = await this.lock()
     try {
+      await this.recoverActivation()
       const previous = installation(await jsonFile(join(this.root, 'previous.json')))
       if (!previous) throw new Error('No previous runtime/data pair is available. Keep built-in memory and reinstall a verified release.')
       const directory = await this.pair(previous)
       signal.throwIfAborted()
+      await this.verify(previous, signal)
       await this.host.health(directory, previous, signal)
       await this.host.beforeActivate?.(signal)
       signal.throwIfAborted()
-      await atomicJson(join(this.root, 'active.json'), previous)
+      await this.activate(previous, false, signal)
       return previous
     } finally { await release() }
+  }
+  /** A pending journal means the new pair has not completed its health probe.
+   * Restore both pointers before another process may use that pair. Never open
+   * a migrated database with the old binary: each pointer names its own pair. */
+  private async recoverActivation(): Promise<void> {
+    const value = await jsonFile(join(this.root, 'activation.json')) as { version?: unknown; candidate?: unknown; active?: unknown; previous?: unknown } | null
+    if (value === null) return
+    if (value.version !== 1 || value.candidate === undefined || value.active === undefined || value.previous === undefined) throw new Error('Runtime activation recovery is damaged. Preserve the runtime pairs before retrying.')
+    const candidate = installation(value.candidate), active = installation(value.active), previous = installation(value.previous)
+    if (!candidate) throw new Error('Runtime activation recovery is damaged. Preserve the runtime pairs before retrying.')
+    await this.pair(candidate)
+    if (active) await this.pair(active)
+    if (previous) await this.pair(previous)
+    const current = installation(await jsonFile(join(this.root, 'active.json')))
+    if (current) await this.pair(current)
+    if (JSON.stringify(current) !== JSON.stringify(candidate) && JSON.stringify(current) !== JSON.stringify(active)) throw new Error('Runtime activation pointers have changed. Preserve the runtime pairs before retrying.')
+    await this.pointer('active.json', active)
+    await this.pointer('previous.json', previous)
+    await this.pointer('activation.json', null)
+  }
+  private async pointer(name: string, value: unknown | null): Promise<void> {
+    const path = join(this.root, name)
+    if (value !== null) return atomicJson(path, value)
+    try { await unlink(path) } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+    if (process.platform !== 'win32') {
+      const directory = await open(this.root, 'r')
+      try { await directory.sync() } finally { await directory.close() }
+    }
+  }
+  private async activate(candidate: RuntimeInstallation, updatePrevious: boolean, signal: AbortSignal): Promise<void> {
+    const active = installation(await jsonFile(join(this.root, 'active.json'))), previous = installation(await jsonFile(join(this.root, 'previous.json')))
+    if (active) await this.pair(active)
+    if (previous) await this.pair(previous)
+    await atomicJson(join(this.root, 'activation.json'), { version: 1, candidate, active, previous })
+    try {
+      signal.throwIfAborted()
+      if (updatePrevious) await this.pointer('previous.json', active)
+      await atomicJson(join(this.root, 'active.json'), candidate)
+      await this.host.health(await this.pair(candidate), candidate, signal)
+      signal.throwIfAborted()
+    } catch (error) {
+      await this.recoverActivation()
+      throw error
+    }
+    await this.pointer('activation.json', null)
   }
   private async lock(): Promise<() => Promise<void>> {
     const path = join(this.root, '.install-lock'), nonce = randomUUID()
@@ -170,9 +231,10 @@ export class RuntimeInstaller {
     const release = await this.lock()
     let staged: string | undefined
     try {
+      await this.recoverActivation()
       const previous = await this.current() // Corrupt metadata cannot be overwritten.
       for (const entry of await readdir(this.root, { withFileTypes: true })) {
-        if (entry.isDirectory() && /^\.install-[a-zA-Z0-9_-]+$/.test(entry.name)) await rm(join(this.root, entry.name), { recursive: true, force: true })
+        if (entry.isDirectory() && /^\.install-[a-zA-Z0-9_-]+$/.test(entry.name)) await rm(join(this.root, entry.name), { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
       }
       signal.throwIfAborted()
       staged = await mkdtemp(join(this.root, '.install-'))
@@ -186,9 +248,10 @@ export class RuntimeInstaller {
         artifacts.push({ role, directory: directory.slice(staged.length + 1), sha256: archive.sha256, root: archive.root })
       }
       const value: RuntimeInstallation = { version: 1, profileId: this.profile.id, providerVersion: this.profile.version, folder: `installed_${randomUUID()}`, createdAt: new Date().toISOString(),
-        state: this.profile.certification === 'certified' ? 'ready' : 'ready-for-certification', artifacts }
+        state: this.profile.certification === 'certified' ? 'ready' : 'ready-for-certification', artifacts, integrity: await runtimeIntegrity(staged, artifacts, signal) }
       this.host.changed?.({ step: 'health' })
       await this.host.health(staged, value, signal)
+      if (JSON.stringify(await runtimeIntegrity(staged, artifacts, signal)) !== JSON.stringify(value.integrity)) throw new Error('Runtime files changed during health verification. Restage the pinned release.')
       signal.throwIfAborted()
       await atomicJson(join(staged, 'installation.json'), value)
       await rename(staged, join(this.root, value.folder))
@@ -198,12 +261,11 @@ export class RuntimeInstaller {
       signal.throwIfAborted()
       // Old installed folders include their own provider data and remain
       // readable/exportable. No database migration happens through this pointer.
-      if (previous) await atomicJson(join(this.root, 'previous.json'), previous)
-      await atomicJson(join(this.root, 'active.json'), value)
+      await this.activate(value, previous !== null, signal)
       this.host.changed?.({ step: 'complete', state: value.state })
       return value
     } finally {
-      if (staged) await rm(staged, { recursive: true, force: true })
+      if (staged) await rm(staged, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
       await release()
     }
   }

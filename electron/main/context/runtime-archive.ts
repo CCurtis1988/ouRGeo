@@ -124,13 +124,18 @@ export async function unpackRuntimeArchive(file: string, parent: string, profile
       await unlink(join(staged, '.CaseProbe'))
       if (folded) throw new Error('This runtime requires a case-sensitive filesystem. Use a supported application-data location.')
     }
-    const unpacker = extract({ cwd: staged, strict: true, maxMetaEntrySize: 65536, preservePaths: false, noMtime: true, noChmod: true, dmode: 0o700, fmode: 0o600,
+    let unpackingFailed = false
+    const unpacker = extract({ cwd: staged, strict: true, maxMetaEntrySize: 65536, preservePaths: false, preserveOwner: false, noMtime: true, noChmod: true, dmode: 0o700, fmode: 0o600,
       filter: (path, entry) => {
+        if (unpackingFailed) return false
         const known = entries.get(path.replace(/\/$/, ''))
         if (!known || !('type' in entry) || known.size !== entry.size || known.type !== entry.type) { unpacker.abort(new Error('Runtime archive changed while unpacking. Download a verified release again.')); return false }
         return ['File', 'Directory'].includes(entries.get(path.replace(/\/$/, ''))?.type ?? '')
       },
     })
+    // An extraction error can precede already queued filesystem callbacks.
+    // Refuse further entries before bounded cleanup retries remove staging.
+    unpacker.on('error', () => { unpackingFailed = true })
     await consumeArchive(file, unpacker, 'close', signal)
     for (const [path, target] of targets) {
       signal?.throwIfAborted()
@@ -145,7 +150,7 @@ export async function unpackRuntimeArchive(file: string, parent: string, profile
     await verifyRuntimeArchive(file, profile, signal)
     return staged
   } catch (error) {
-    await rm(staged, { recursive: true, force: true })
+    await rm(staged, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
     throw error
   }
 }

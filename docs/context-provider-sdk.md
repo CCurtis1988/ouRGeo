@@ -128,9 +128,13 @@ node scripts/spike-context-mnemosyne.mjs
 
 That command uses temporary namespaces and canonical snapshots, never a real
 profile. Optional OS network observation uses the independently verified strace
-executable and a positive control; see the delivery record. External Hindsight
-and Mnemosyne connections remain prototypes until their deployments pass the
-additional gates. A generic MCP server or HTTP URL is not a certified provider.
+executable and a positive control; see the delivery record. The named owned
+Mnemosyne MCP server and dedicated Hindsight local profile have deployment
+evidence and native review flows. The latter automatically drains workers and
+cleans PostgreSQL retention before acknowledgement; see
+[its deployment guide](context-hindsight-local-profile.md). A generic MCP server
+or HTTP URL is not a certified provider. Hosted processing/accounting needs its
+own review; no endpoint can approve itself.
 
 ## Protected host routing
 

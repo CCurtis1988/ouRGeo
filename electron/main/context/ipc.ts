@@ -26,6 +26,7 @@ import { PluginProviderContributions } from './providers/plugin-contributions'
 import { version as applicationVersion } from '../../../package.json'
 import { createManagedMnemosyne } from './providers/managed-mnemosyne'
 import { createHindsightProvider } from './providers/hindsight'
+import { HindsightLocalProfiles, HINDSIGHT_LOCAL_PROFILE } from './hindsight-profile'
 import { createJsonTransport } from './providers/transport'
 import type { CanonicalScopeSnapshot } from '../../../src/lib/context/providers/types'
 import type { MemoryRecallRequest } from '../../../src/lib/context/providers/recall'
@@ -52,10 +53,11 @@ let cleanupRunner: LocalCleanupRunner | undefined
 let retentionTimer: ReturnType<typeof setTimeout> | undefined
 let pluginProviders: PluginProviderContributions | undefined
 let localMemoryServer: MnemosyneLocalServer | undefined
+let hindsightProfiles: HindsightLocalProfiles | undefined
 let localServerPolicyRevision = 0
 let retentionStopped = false
 const accountingMutations = new Set(['recordInferenceUsage', 'prepareInferenceUsage', 'configureChatBudget', 'acknowledgeMigrationWrites'])
-const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'removeConnection', 'activateBinding', 'importBinding', 'beginMigration', 'beginBuiltinMigration', 'finishMigration', 'cancelMigration', 'configureBinding', 'configureMaintenance', 'exclude'])
+const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'renewLocalServer', 'renewHindsightServer', 'removeConnection', 'activateBinding', 'importBinding', 'beginMigration', 'beginBuiltinMigration', 'finishMigration', 'cancelMigration', 'configureBinding', 'configureMaintenance', 'exclude'])
 export function stopContextProviders(): void { retentionStopped = true; clearTimeout(retentionTimer); providerActivation?.stop(); cleanupRunner?.stop(); pluginProviders?.close(); void localMemoryServer?.close() }
 
 async function sweepRetention(): Promise<void> {
@@ -105,7 +107,8 @@ async function dispatch(op: string, value?: unknown, guard?: () => void): Promis
   const mutation = providerMutations.has(op)
   if (mutation) { localServerPolicyRevision++; providerActivation?.invalidate() }
   if (op === 'saveConnection' && (value as { connection?: MemoryConnection })?.connection?.state === 'disconnected') localMemoryServer?.revoke((value as { connection: MemoryConnection }).connection.id)
-  if (op === 'removeConnection') localMemoryServer?.revoke(String(value))
+  if (op === 'removeConnection') { localMemoryServer?.revoke(String(value)); hindsightProfiles?.revoke(String(value)) }
+  if (op === 'saveConnection' && (value as { connection?: MemoryConnection })?.connection?.state === 'disconnected') hindsightProfiles?.revoke((value as { connection: MemoryConnection }).connection.id)
   if (mutation || accountingMutations.has(op)) writeRecovery.assertWritable()
   const child = await worker().catch(error => { writeRecovery.failed(error); throw error })
   guard?.()
@@ -191,7 +194,11 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     return result.canceled ? null : result.filePaths[0] ?? null
   }, () => owner()?.send('context:foldersChanged'))
   const bridgeFile = join(__dirname, 'mnemosyne-sidecar.py')
-  const runtime = registerManagedRuntimeHandlers(ipc, authorised, join(app.getPath('userData'), 'memory-runtimes'), bridgeFile)
+  const runtime = registerManagedRuntimeHandlers(ipc, authorised, join(app.getPath('userData'), 'memory-runtimes'), bridgeFile, async () => {
+    const lease = contextLease().id
+    await dispatch('createBackup', undefined, () => { if (lease !== contextLease().id) throw new Error('SCOPE_CHANGED') })
+    if (lease !== contextLease().id) throw new Error('SCOPE_CHANGED')
+  })
   managedRuntime = runtime
   cleanupRunner = new LocalCleanupRunner({
     jobs: async () => await dispatch('cleanupJobs') as LocalCleanupJob[],
@@ -220,25 +227,52 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     }
     guard(); return current
   })
-  const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS, Date.now, connection => pluginProviders!.eligible(connection) && (!connection.localServer || localMemoryServer!.owns(connection)))
+  hindsightProfiles = new HindsightLocalProfiles(__dirname, fetchWithoutLocalProbes)
+  const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS, Date.now, connection => pluginProviders!.eligible(connection) && (!connection.localServer || localMemoryServer!.owns(connection)) && (!connection.localProfile || hindsightProfiles!.owns(connection)))
   providerActivation = new ProviderActivation({ dispatch, lease: contextLease, registry,
     fetcher: fetchWithoutLocalProbes,
     prepareManaged: async connections => {
       for (const connection of connections.filter(item => item.location === 'managed-local' && item.state === 'reachable' && pluginProviders!.eligible(item))) {
-        registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
+        try { registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)) }
+        catch { registry.withdraw(connection.id) /* A missing/damaged optional runtime must not hide canonical memory or connection settings. */ }
       }
-      for (const connection of connections.filter(item => item.localServer && item.state === 'reachable' && localMemoryServer!.owns(item))) registry.registerLocalServer(await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!))
+      for (const connection of connections.filter(item => item.localServer && item.state === 'reachable' && localMemoryServer!.owns(item))) {
+        try { registry.registerLocalServer(await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!)) }
+        catch { registry.withdraw(connection.id) /* Keep the scope visibly unreviewed until its runtime is restaged. */ }
+      }
+      for (const connection of connections.filter(item => item.localProfile && item.state === 'reachable' && hindsightProfiles!.owns(item))) {
+        try { await hindsightProfiles!.verify(connection); registry.registerLocalHindsight(hindsightProfiles!.review(connection)) }
+        catch { hindsightProfiles!.revoke(connection.id) /* A stopped external server returns to deployment review; built-in settings remain available. */ }
+      }
     },
-    provider: async (connection, token, certificate) => {
+    provider: async (connection, token, certificate, purpose) => {
+      if (connection.localProfile === HINDSIGHT_LOCAL_PROFILE) {
+        await hindsightProfiles!.verify(connection)
+        return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: true, token }, fetchWithoutLocalProbes), 'verified-local-chunks')
+      }
       if (connection.location !== 'managed-local' && !connection.localServer) {
         if (connection.adapter !== 'hindsight') throw new Error('Review this external Mnemosyne deployment before routing memory.')
         return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, fetchWithoutLocalProbes))
       }
       if (connection.localServer) await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!)
       else await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)
+      if (purpose === 'reconciliation-read') {
+        // This host-only serial barrier resolves a cancelled old write before
+        // the cleanup binding exists. It must not request that new binding's
+        // canonical snapshot, repair an index or grant ingestion authority.
+        return connection.localServer ? createLocalServerMnemosyne(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: true, token }, fetchWithoutLocalProbes))
+          : createManagedMnemosyne(MNEMOSYNE_LOCAL_CANDIDATE.id, { request: (payload, host) => runtime.request(payload as Record<string, unknown>, host) })
+      }
       const lease = contextLease()
       const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
       const canonical = {
+        serialReads: true as const,
+        repair: async (snapshot: import('./providers/managed-mnemosyne').CanonicalSnapshot, signal: AbortSignal) => {
+          signal.throwIfAborted(); guard()
+          if (snapshot.namespace !== connection.namespaceRef) throw new Error('POLICY_REFUSED')
+          await dispatch('repairBindingSnapshot', { bindingId: certificate.bindingId, scope: connection.scope, generation: snapshot.generation }, guard)
+          guard(); signal.throwIfAborted(); providerActivation?.wake()
+        },
         snapshot: async (namespace: string, signal: AbortSignal) => {
           signal.throwIfAborted(); guard()
           if (namespace !== connection.namespaceRef) throw new Error('POLICY_REFUSED')
@@ -300,6 +334,38 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     guard(); return providerActivation!.preview(connection.id, [], lease.id)
   })
   providerActivation.wake()
+  ipc.handle('context:previewHindsightActivation', async (event, scope, suppliedLease) => {
+    authorised(event)
+    const lease = contextLease(), guard = () => { if (contextLease().id !== lease.id || suppliedLease !== lease.id) throw new Error('SCOPE_CHANGED: refresh the deployment review in this workspace.') }
+    guard()
+    if (!['global', 'project'].includes(scope) || scope === 'project' && !lease.projectId) throw new Error('Choose About you or a saved project before reviewing Hindsight.')
+    const chosen = await dialog.showOpenDialog({ title: 'Choose the dedicated Hindsight server directory', properties: ['openDirectory'] })
+    guard(); if (chosen.canceled || chosen.filePaths.length !== 1) return null
+    const resolvedScope = scope === 'global' ? 'global' : `project:${lease.projectId}`
+    const connections = await dispatch('connections', undefined, guard) as MemoryConnection[]
+    let connection = connections.find(item => item.localProfile === HINDSIGHT_LOCAL_PROFILE && item.profileDirectory === chosen.filePaths[0] && item.scope === resolvedScope)
+    const id = connection?.id ?? randomUUID(), namespace = connection?.namespaceRef ?? randomUUID()
+    hindsightProfiles!.revoke(id); registry.withdraw(id)
+    if (connection) {
+      const bindings = (await dispatch('scopedProviderState', [resolvedScope], guard) as { bindings: import('../../../src/lib/context/providers/outbox').ProviderBinding[] }).bindings
+      for (const binding of bindings.filter(item => item.connectionRef === id && item.enabled)) await dispatch('configureBinding', { ...binding, enabled: false, policyRevision: binding.policyRevision + 1 }, guard)
+    }
+    const attached = await hindsightProfiles!.attach(chosen.filePaths[0], id, namespace)
+    guard()
+    const destinations = (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: ['storage', 'embeddings', 'reranking'].includes(purpose) ? attached.endpoint : 'disabled' }))
+    if (connection) {
+      connection = { ...connection, revision: connection.revision + 1, endpoint: attached.endpoint, destinations, state: 'reachable' }
+      await dispatch('renewHindsightServer', { connection, token: attached.token }, guard)
+    } else {
+      connection = { id, revision: 1, adapter: 'hindsight', label: 'Hindsight dedicated local server · lexical', endpoint: attached.endpoint, location: 'loopback', localProfile: HINDSIGHT_LOCAL_PROFILE,
+        profileDirectory: attached.directory, scope: resolvedScope as MemoryConnection['scope'], namespaceRef: namespace, credentialRef: randomUUID(), certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(), destinations }
+      await dispatch('saveConnection', { connection, token: attached.token }, guard)
+    }
+    guard(); registry.registerLocalHindsight(hindsightProfiles!.review(connection))
+    const state = await dispatch('scopedProviderState', [resolvedScope], guard) as { bindings: import('../../../src/lib/context/providers/outbox').ProviderBinding[] }
+    if (state.bindings.some(binding => binding.enabled && !binding.cleanupOnly)) return null
+    return providerActivation!.preview(connection.id, [], lease.id)
+  })
   ipc.handle('context:previewLocalServerActivation', async (event, scope, suppliedLease, acknowledged) => {
     authorised(event)
     const lease = contextLease()
@@ -312,17 +378,16 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     if (connection && !localMemoryServer!.owns(connection)) {
       const bindings = (await dispatch('scopedProviderState', [resolvedScope], guard) as { bindings: import('../../../src/lib/context/providers/outbox').ProviderBinding[] }).bindings
       for (const binding of bindings.filter(item => item.connectionRef === connection!.id && item.enabled)) await dispatch('configureBinding', { ...binding, enabled: false, policyRevision: binding.policyRevision + 1 }, guard)
-      const token = await dispatch('scopedCredential', { reference: connection.credentialRef, scopes: [resolvedScope] }, guard) as string | undefined
-      if (!token) throw new Error('Recover the protected local-server credential or remove its disconnected settings.')
-      const registration = await localMemoryServer!.register(connection.id, connection.namespaceRef, connection.scope, token)
-      connection = { ...connection, revision: connection.revision + 1, endpoint: registration.endpoint, state: 'reachable', destinations: connection.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? registration.endpoint : 'disabled' })) }
-      await dispatch('saveConnection', { connection }, guard)
+      const registration = await localMemoryServer!.register(connection.id, connection.namespaceRef, connection.scope)
+      connection = { ...connection, revision: connection.revision + 1, endpoint: registration.mcpEndpoint, state: 'reachable', destinations: connection.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? registration.mcpEndpoint : 'disabled' })) }
+      try { await dispatch('renewLocalServer', { connection, token: registration.token }, guard) }
+      catch (error) { localMemoryServer!.revoke(connection.id); throw error }
     }
     if (!connection) {
       const id = randomUUID(), namespace = randomUUID(), registration = await localMemoryServer!.register(id, namespace, resolvedScope as MemoryConnection['scope'])
       connection = { id, revision: 1, adapter: 'mnemosyne', label: 'Mnemosyne local server · experimental', location: 'loopback', localServer: true, runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id,
-        endpoint: registration.endpoint, scope: resolvedScope as MemoryConnection['scope'], namespaceRef: namespace, credentialRef: randomUUID(), certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
-        destinations: (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: purpose === 'storage' ? registration.endpoint : 'disabled' })) }
+        endpoint: registration.mcpEndpoint, scope: resolvedScope as MemoryConnection['scope'], namespaceRef: namespace, credentialRef: randomUUID(), certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
+        destinations: (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: purpose === 'storage' ? registration.mcpEndpoint : 'disabled' })) }
       await dispatch('saveConnection', { connection, token: registration.token }, guard)
     }
     guard(); registry.registerLocalServer(await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!))

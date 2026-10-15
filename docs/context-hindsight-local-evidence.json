@@ -1,0 +1,286 @@
+{
+  "version": 1,
+  "profile": "hindsight-local-chunks-v1",
+  "passed": true,
+  "networkAuditPassed": true,
+  "derivativeDeletionPassed": true,
+  "restartVerified": true,
+  "measuredAt": "2026-10-15T20:37:43.891Z",
+  "pythonSha256": "d78f9cf7178ecff09963551399855543c297f37ac207e626228bfe43cb26a70c",
+  "distribution": {
+    "files": 23197,
+    "bytes": 898496405,
+    "sha256": "3aa2455833d4134e55f3e6450eaa15b6dbe802b7c8ddfd8d7f3e84c9b1aa12b2"
+  },
+  "postgresDistribution": {
+    "files": 1422,
+    "bytes": 73610945,
+    "sha256": "8e58c33762723b8d0b6ece3ac2643369f41cf42e97e39b05fabf6f7661d07b28"
+  },
+  "sourceHashes": {
+    "hindsight-local-server.py": "e5dfd337310866c892c2c0348fc31df44986c3842ec1f8a2a0022e7a03c93a40",
+    "hindsight-gateway.py": "55505d3b7e31f2917c2b385bd962a82e4f14aee62981085713bc10fad54cb669",
+    "hindsight-retention.py": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437"
+  },
+  "conformance": {
+    "version": 1,
+    "certification": "not-issued",
+    "checks": [
+      {
+        "name": "probe and response contract",
+        "status": "passed"
+      },
+      {
+        "name": "permission revocation",
+        "status": "passed"
+      },
+      {
+        "name": "cancellation",
+        "status": "passed"
+      },
+      {
+        "name": "canonical ingestion and idempotent retry",
+        "status": "passed"
+      },
+      {
+        "name": "namespace isolation",
+        "status": "passed"
+      },
+      {
+        "name": "bounded response",
+        "status": "passed"
+      },
+      {
+        "name": "revision replacement",
+        "status": "passed"
+      },
+      {
+        "name": "temporal search",
+        "status": "passed"
+      },
+      {
+        "name": "scoped export",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection permission",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection lineage",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "source deletion preserves unrelated records",
+        "status": "passed"
+      },
+      {
+        "name": "scope deletion and idempotent retry",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "cleanup first",
+        "status": "passed"
+      },
+      {
+        "name": "cleanup second",
+        "status": "passed"
+      }
+    ]
+  },
+  "crashRecoveryVerified": true,
+  "upstreamCommit": "5fc4ce20917b916240cef27c212c387a177f115b",
+  "authenticationVerified": true,
+  "derivativeAudit": {
+    "maintenance": null,
+    "activeClientGuardChecked": true,
+    "scannedFiles": 1150,
+    "scannedBytes": 44513633,
+    "activeDerivativeRows": {
+      "async_operations": 5,
+      "attachments": 0,
+      "audit_log": 0,
+      "bank_aliases": 0,
+      "bank_stats_cache": 0,
+      "chunks": 0,
+      "directives": 0,
+      "documents": 0,
+      "entities": 0,
+      "entity_maintenance_queue": 0,
+      "graph_maintenance_queue": 0,
+      "invalidated_memory_units": 0,
+      "knowledge_pages": 0,
+      "llm_requests": 0,
+      "memory_links": 0,
+      "memory_units": 0,
+      "mental_model_history": 0,
+      "mental_models": 0,
+      "observation_history": 0,
+      "webhooks": 0
+    },
+    "activeRowsRemaining": 5,
+    "contentRowsRemaining": 0,
+    "housekeepingOperationCount": 5,
+    "operationDiagnostics": [
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      }
+    ],
+    "physicalFilesContainingForgottenCanonicalIds": [],
+    "physicalFilesContainingForgottenPlaintext": [],
+    "physicalDeletionPassed": true,
+    "plaintextDeletionPassed": true,
+    "boundary": "Private synthetic PostgreSQL data and WAL; empty bank descriptors and content-free graph housekeeping retained; no user store inspected"
+  },
+  "postRestartDeletionAudit": {
+    "maintenance": null,
+    "activeClientGuardChecked": false,
+    "scannedFiles": 1150,
+    "scannedBytes": 44513633,
+    "activeDerivativeRows": {
+      "async_operations": 5,
+      "attachments": 0,
+      "audit_log": 0,
+      "bank_aliases": 0,
+      "bank_stats_cache": 0,
+      "chunks": 0,
+      "directives": 0,
+      "documents": 0,
+      "entities": 0,
+      "entity_maintenance_queue": 0,
+      "graph_maintenance_queue": 0,
+      "invalidated_memory_units": 0,
+      "knowledge_pages": 0,
+      "llm_requests": 0,
+      "memory_links": 0,
+      "memory_units": 0,
+      "mental_model_history": 0,
+      "mental_models": 0,
+      "observation_history": 0,
+      "webhooks": 0
+    },
+    "activeRowsRemaining": 5,
+    "contentRowsRemaining": 0,
+    "housekeepingOperationCount": 5,
+    "operationDiagnostics": [
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      },
+      {
+        "type": "graph_maintenance",
+        "status": "completed",
+        "payloadCharacters": 136,
+        "forgottenCanonicalIdInPayload": false,
+        "forgottenCanonicalIdInMetadata": false
+      }
+    ],
+    "physicalFilesContainingForgottenCanonicalIds": [],
+    "physicalFilesContainingForgottenPlaintext": [],
+    "physicalDeletionPassed": true,
+    "plaintextDeletionPassed": true,
+    "boundary": "Private synthetic PostgreSQL data and WAL; empty bank descriptors and content-free graph housekeeping retained; no user store inspected"
+  },
+  "networkObservation": {
+    "audit": {
+      "outboundCalls": 337,
+      "loopbackCalls": 337,
+      "unixCalls": 12338,
+      "externalAttempts": [],
+      "successfulExternalCalls": 0,
+      "blockedExternalCalls": 0,
+      "unresolvedExternalCalls": 0,
+      "unclassifiedInternetCalls": [],
+      "ioUringCalls": 451,
+      "decodedIoUringCalls": 451,
+      "opaqueIoUringCalls": 0,
+      "ioUringOpcodes": [
+        29
+      ],
+      "tracedTasks": 312,
+      "passed": true
+    },
+    "traceDirectory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-network-LyvrCm",
+    "traceSha256": "acabecbebf64d4118ab0db6e32aa61847eeaae2bcc501500151277fa8c2a1bdd",
+    "canaryPassed": true,
+    "scope": "Launch through shutdown of the isolated Node/Python/PostgreSQL provider fixture in a loopback-only namespace. Connected writes and io_uring observed; payload strings suppressed; no user profile, model inference, dependency provisioning or ambient credentials."
+  },
+  "qualification": "Named dedicated Linux local chunks server with automatic quiescent retention; no arbitrary external deployment, managed installer or semantic retrieval claim.",
+  "qualificationSourceHashes": {
+    "scripts/check-context-hindsight-isolated.mjs": "c58b375d1d002007278d0e58ca12f75da8d295f9fb882e2e73efa6fd9012c57c",
+    "scripts/fixtures/context-hindsight-audit.py": "41d67b3b39d134c8ce409681bf9e561613905719bcd5c92c68c897d2b901a2f3",
+    "scripts/fixtures/stop-hindsight-fixture.py": "dd80140ef8d4e93c18c99a50c612654efa6fda2c0b47fa33a8e04b000436833d",
+    "electron/main/context/providers/hindsight.ts": "5b8e981e963496076822b926d34bd889110e9afb434ed72ddd9825fc55e39583",
+    "electron/main/context/providers/transport.ts": "4a4a782554fc3529e15701bdded4e54743a3611fb78f92785ede0c3f7d693df8",
+    "electron/main/context/providers/shared.ts": "ad52f90d2b6771a868d9cb6f61b0becd910dd3c6cd27d0a05e471aa6150e1175",
+    "src/lib/context/providers/conformance.ts": "95309d42d5adae6d8f158c0b1ce6ca5e1ee8366edf73112bc02e46c3aeaaf11b",
+    "electron/main/context/hindsight-local-server.py": "e5dfd337310866c892c2c0348fc31df44986c3842ec1f8a2a0022e7a03c93a40",
+    "electron/main/context/hindsight-gateway.py": "55505d3b7e31f2917c2b385bd962a82e4f14aee62981085713bc10fad54cb669",
+    "electron/main/context/hindsight-retention.py": "dbfc83e6a2e22c71ec58766e19059763303c6ae870582ae5059a262b0da8b437"
+  },
+  "resources": {
+    "peakPythonRssBytes": 405086208,
+    "peakPostgresRssBytes": 23425024,
+    "boundary": "Separate Python/API and PostgreSQL process RSS maxima sampled every 20 ms over this small synthetic conformance/crash workload; not aggregate desktop RSS or a capacity benchmark."
+  }
+}

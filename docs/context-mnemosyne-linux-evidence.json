@@ -1,9 +1,9 @@
 {
   "version": 1,
   "profile": "mnemosyne-lexical-v1",
-  "observedAt": "2026-10-08T07:32:33.094Z",
+  "observedAt": "2026-10-15T16:53:48.591Z",
   "platform": "linux-x64",
-  "bridgeSha256": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e",
+  "bridgeSha256": "54bf5a63577531f0abc3ac464e5d6f944e57e06dd96aa2376306fb2640240b18",
   "conformance": {
     "version": 1,
     "certification": "not-issued",
@@ -77,8 +77,8 @@
   },
   "derivativeAudit": {
     "mechanism": "all remaining derived-store bytes and permissions after deletion/rebuild and fixture cleanup",
-    "removedSourceIds": 4,
-    "filesChecked": 7,
+    "removedSourceIds": 1005,
+    "filesChecked": 8,
     "residualIds": 0,
     "temporaryCopies": 0,
     "storage": "readable-sqlite",
@@ -102,7 +102,7 @@
     "canonicalAdapterDeletion": true,
     "unrelatedMemoryPreserved": true
   },
-  "materialisedBytes": 217724739,
+  "materialisedBytes": 217788904,
   "limitations": [
     "experimental beta engine",
     "readable derived SQLite",

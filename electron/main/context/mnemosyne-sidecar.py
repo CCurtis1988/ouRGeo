@@ -12,7 +12,21 @@ import re
 import sqlite3
 import sys
 import tempfile
+import signal
+import ctypes
+import fcntl
+import stat
 from pathlib import Path
+
+# A dead host cannot leave a writer finishing a superseded snapshot. Register
+# before touching provider files, then close the fork/exec race with the host's
+# expected PID. Linux is the only qualified managed platform for this profile.
+parent = os.getppid()
+if sys.platform != "linux" or ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL, 0, 0, 0) != 0:
+    raise RuntimeError("The local profile requires Linux parent-death supervision")
+expected_parent = int(sys.argv[5]) if len(sys.argv) == 6 and sys.argv[4] == "--parent-pid" else parent
+if os.getppid() != expected_parent:
+    raise RuntimeError("Runtime host stopped before startup")
 
 wire = sys.stdout
 sys.stdout = sys.stderr
@@ -20,6 +34,12 @@ sys.path[:0] = [sys.argv[1], sys.argv[2]]
 directory = Path(sys.argv[3]).resolve()
 directory.mkdir(parents=True, exist_ok=True, mode=0o700)
 os.umask(0o077)
+lock = os.open(directory / ".runtime.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+if not stat.S_ISREG(os.fstat(lock).st_mode) or os.fstat(lock).st_nlink != 1:
+    raise RuntimeError("Restore the private runtime lock")
+# A second process cannot erase a live writer's staging files or publish an
+# older generation after its replacement. The OS releases this on process exit.
+fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 # Upstream YAML takes precedence over environment flags. This dedicated profile
 # has fixed host-authored settings, not a user's unrelated Mnemosyne config.
 configuration = {"force_local": True, "llm_enabled": False, "host_llm_enabled": False,
@@ -121,16 +141,32 @@ def replace_index(path, namespace, payload):
         # derivative. Activation is one file rename after all rows are verified.
         memory = BeamMemory(namespace, Path(staging), use_cloud=False)
         connection = memory.conn
-        connection.execute("CREATE TABLE ourgeo_records (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, text TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        # This file is a disposable, unpublished rebuild. Avoid one durable WAL
+        # flush per upstream remember/update call; seal and fsync the complete
+        # file before the atomic rename below. The committed index and canonical
+        # store never use these staging-only journal settings.
+        connection.execute("PRAGMA journal_mode=MEMORY")
+        connection.execute("PRAGMA synchronous=OFF")
+        # Upstream trims unpinned rows after every insert. A partial index keeps
+        # that maintenance from repeatedly scanning all already pinned records.
+        connection.execute("CREATE INDEX ourgeo_unpinned_working ON working_memory(session_id) WHERE consolidated_at IS NULL AND (pinned IS NULL OR pinned = 0)")
+        connection.execute("CREATE TABLE ourgeo_records (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL UNIQUE, revision INTEGER NOT NULL, text TEXT NOT NULL, updated_at TEXT NOT NULL)")
         connection.execute("CREATE TABLE ourgeo_snapshot (generation INTEGER NOT NULL, digest TEXT NOT NULL)")
-        for record in checked:
-            stored = memory.remember(record["text"], source="user", memory_id=record["id"], dedupe=False,
-                                     extract=False, extract_entities=False, veracity="stated", scope="global")
-            if stored != record["id"] or not memory.update_working(record["id"], pinned=1):
-                raise RuntimeError("Index write failed")
-            connection.execute("INSERT INTO ourgeo_records VALUES (?, ?, ?, ?)",
-                               (record["id"], record["revision"], record["text"], record["updatedAt"]))
-            connection.commit()
+        # Use the pinned public bulk API; keep its generated IDs in a host-owned
+        # receipt map. Pin at insertion so upstream's batch trim cannot discard
+        # approved records before the receipt table is built.
+        connection.execute("CREATE TRIGGER ourgeo_pin_insert AFTER INSERT ON working_memory BEGIN UPDATE working_memory SET pinned=1 WHERE id=NEW.id; END")
+        provider_ids = memory.remember_batch([{"content": record["text"], "source": "user"} for record in checked],
+                                            veracity="stated", force_veracity=True, extract=False, extract_entities=False) if checked else []
+        connection.execute("DROP TRIGGER ourgeo_pin_insert")
+        stored = dict(connection.execute("SELECT id, content FROM working_memory").fetchall())
+        if len(provider_ids) != len(checked) or len(set(provider_ids)) != len(checked) or any(not isinstance(item, str) for item in provider_ids):
+            raise RuntimeError("Incomplete batch identity map")
+        for record, provider_id in zip(checked, provider_ids, strict=True):
+            if stored.get(provider_id) != record["text"]:
+                raise RuntimeError("Index changed canonical content")
+            connection.execute("INSERT INTO ourgeo_records VALUES (?, ?, ?, ?, ?)",
+                               (record["id"], provider_id, record["revision"], record["text"], record["updatedAt"]))
         connection.execute("INSERT INTO ourgeo_snapshot VALUES (?, ?)", (generation, digest))
         connection.commit()
         if connection.execute("SELECT count(*) FROM working_memory").fetchone()[0] != len(checked):
@@ -195,8 +231,9 @@ def dispatch(payload):
             finally:
                 memory.conn.close()
             rows = []
+            identity_column = "provider_id" if any(row[1] == "provider_id" for row in connection.execute("PRAGMA table_info(ourgeo_records)")) else "id"
             for hit in hits:
-                row = connection.execute("SELECT * FROM ourgeo_records WHERE id = ?", (hit["id"],)).fetchone()
+                row = connection.execute("SELECT * FROM ourgeo_records WHERE " + identity_column + " = ?", (hit["id"],)).fetchone()
                 if row is not None:
                     rows.append(row)
         return {"generation": generation, "evidence": [{"id": row["id"], "revision": row["revision"], "text": row["text"], "updatedAt": row["updated_at"]} for row in rows], "complete": True}

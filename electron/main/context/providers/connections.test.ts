@@ -43,10 +43,55 @@ it('encrypts connection endpoints, credentials and namespaces and removes authen
   expect(publicConnection(recovered.connection(connection.id)!)).toMatchObject({ authenticated: false })
   recovered.close()
 })
-it('tests an owned local-server profile through its snapshot RPC rather than bare MCP', async () => {
-  const prepared = prepareConnection({ ...input(), adapter: 'mnemosyne', location: 'loopback', endpoint: 'http://127.0.0.1:19001', destinations: input().destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'http://127.0.0.1:19001' : 'disabled' })) }, null)
+it('rotates owned local-server credentials atomically without allowing public credential replacement', () => {
+  const store = new MemoryStorage(':memory:', randomBytes(32))
+  try {
+    const initial = prepareConnection({ ...input(), adapter: 'mnemosyne', endpoint: 'http://127.0.0.1:19001', location: 'loopback', destinations: input().destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'http://127.0.0.1:19001' : 'disabled' })) }, null)
+    const connection = { ...initial.connection, localServer: true as const, state: 'reachable' as const, runtimeId: 'mnemosyne-lexical-v1' }
+    store.saveConnection(connection, initial.token)
+    const endpoint = 'http://127.0.0.1:19002'
+    const renewed = { ...connection, revision: 2, endpoint, destinations: connection.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? endpoint : 'disabled' })) }
+    const token = randomBytes(32).toString('base64url')
+    expect(() => store.saveConnection(renewed, token)).toThrow('new connection')
+    expect(() => store.renewLocalServer({ ...renewed, endpoint: 'https://external.example.invalid' }, token)).toThrow('owned local-server')
+    expect(store.credential(connection.credentialRef!)).toBe(initial.token)
+    expect(store.connection(connection.id)).toEqual(connection)
+    store.renewLocalServer(renewed, token)
+    expect(store.credential(connection.credentialRef!)).toBe(token)
+    expect(store.connection(connection.id)).toEqual(renewed)
+    expect(() => store.renewLocalServer(renewed, randomBytes(32).toString('base64url'))).toThrow('changed')
+    expect(store.credential(connection.credentialRef!)).toBe(token)
+  } finally { store.close() }
+})
+it('restricts Hindsight credential renewal to a paused native deployment in the same private folder', () => {
+  const store = new MemoryStorage(':memory:', randomBytes(32))
+  try {
+    const endpoint = 'http://127.0.0.1:19111'
+    const prepared = prepareConnection({ ...input(), endpoint, location: 'loopback', destinations: input().destinations.map(item => ({ ...item, destination: ['storage', 'embeddings', 'reranking'].includes(item.purpose) ? endpoint : 'disabled' })) }, null)
+    const initial = { ...prepared.connection, namespaceRef: crypto.randomUUID(), state: 'reachable' as const, localProfile: 'hindsight-local-chunks-v1' as const, profileDirectory: '/private/deployment' }
+    store.saveConnection(initial, prepared.token)
+    const renewal = { ...initial, revision: 2 }, token = initial.namespaceRef + '.' + 'a'.repeat(64)
+    expect(() => store.saveConnection(renewal, token)).toThrow('new connection')
+    expect(() => store.renewHindsightServer({ ...renewal, endpoint: 'https://foreign.invalid' }, token)).toThrow('Pause the reviewed Hindsight')
+    expect(() => store.renewHindsightServer({ ...renewal, profileDirectory: '/another/deployment' }, token)).toThrow('Pause the reviewed Hindsight')
+    expect(store.credential(initial.credentialRef!)).toBe(prepared.token)
+    store.renewHindsightServer(renewal, token)
+    expect(store.credential(initial.credentialRef!)).toBe(token)
+    expect(publicConnection(renewal)).not.toHaveProperty('profileDirectory')
+    const binding = { id: crypto.randomUUID(), scope: initial.scope, adapter: initial.adapter, adapterVersion: 'synthetic-pin', namespaceRef: initial.namespaceRef, connectionRef: initial.id, enabled: true, writesCertified: true, policyRevision: 1 }
+    store.configureBinding(binding)
+    expect(() => store.renewHindsightServer({ ...renewal, revision: 3 }, token)).toThrow('Pause the reviewed Hindsight')
+    expect(store.connection(initial.id)?.revision).toBe(2)
+  } finally { store.close() }
+})
+it('negotiates MCP before testing the owned local-server snapshot tool', async () => {
+  const prepared = prepareConnection({ ...input(), adapter: 'mnemosyne', location: 'loopback', endpoint: 'http://127.0.0.1:19001/mcp', destinations: input().destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'http://127.0.0.1:19001/mcp' : 'disabled' })) }, null)
   let connection = { ...prepared.connection, localServer: true as const, namespaceRef: crypto.randomUUID() }
-  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ generation: 0, evidence: [], complete: true })))
+  const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, options) => {
+    const body = JSON.parse(String(options?.body))
+    if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
+    return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: body.method === 'initialize' ? { protocolVersion: '2025-11-25' } : { content: [{ type: 'text', text: JSON.stringify({ generation: 0, evidence: [], complete: true }) }] } }))
+  })
   const controller = new MemoryConnections(async (operation, value) => {
     if (operation === 'connections') return [connection]
     if (operation === 'connectionCredential') return prepared.token
@@ -55,9 +100,9 @@ it('tests an owned local-server profile through its snapshot RPC rather than bar
   }, () => ({ id: 'synthetic-lease', projectId: null }), fetcher)
   const result = await controller.probe(connection.id)
   expect(result.state).toBe('reachable')
-  expect(String(fetcher.mock.calls[0][0])).toBe('http://127.0.0.1:19001/rpc')
-  expect(JSON.parse(fetcher.mock.calls[0][1]!.body as string)).toMatchObject({ operation: 'probe', namespace: connection.namespaceRef })
-  expect(JSON.stringify(fetcher.mock.calls)).not.toContain('initialize')
+  expect(String(fetcher.mock.calls[0][0])).toBe('http://127.0.0.1:19001/mcp')
+  expect(JSON.parse(fetcher.mock.calls[0][1]!.body as string)).toMatchObject({ method: 'initialize' })
+  expect(JSON.parse(fetcher.mock.calls.at(-1)![1]!.body as string)).toMatchObject({ method: 'tools/call', params: { name: 'ourgeo_mnemosyne_snapshot', arguments: { operation: 'probe', namespace: connection.namespaceRef, bank: connection.namespaceRef } } })
 })
 
 it('migrates a previous database without losing records and only removes disconnected settings', () => {

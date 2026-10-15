@@ -130,7 +130,8 @@ it('reconciles a snapshot profile’s uncertain old write without replaying inge
       calls.push(operation.operation)
       return { status: 'ok', operationId: host.idempotencyKey, complete: true, records: operation.operation === 'upsert' ? operation.records : [], evidence: [], usage: { estimated: true } }
     } }
-  const { activation, store, connection: prior, review, registry, record, lease } = fixture(null, async () => provider)
+  const purposes: Array<string | undefined> = []
+  const { activation, store, connection: prior, review, registry, record, lease } = fixture(null, async (_connection, _token, _certificate, purpose) => { purposes.push(purpose); return provider })
   const connection = { ...prior, id: crypto.randomUUID(), namespaceRef: crypto.randomUUID(), revision: 1, adapter: 'mnemosyne' as const, location: 'managed-local' as const, runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id, endpoint: 'on-device', credentialRef: null,
     destinations: prior.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'on-device' : 'disabled' })) }
   store.saveConnection(connection)
@@ -144,6 +145,7 @@ it('reconciles a snapshot profile’s uncertain old write without replaying inge
   expect(await activation.finishMigration(migration.id, 'delete', lease.id)).toBe(true)
   expect(calls.filter(value => value === 'upsert')).toHaveLength(0)
   expect(calls).toContain('read')
+  expect(purposes).toContain('reconciliation-read')
   expect(store.migrationUncertainWrites(migration.id, ['global'])).toEqual([])
   expect(store.list('global')).toEqual([record])
 })

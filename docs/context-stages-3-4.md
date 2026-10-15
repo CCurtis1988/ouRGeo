@@ -11,21 +11,32 @@ usability study until a team is available. Their requirements remain recorded in
 macOS testing while asking the agent to handle Linux checks. Opaque provider
 accounting remains unqualified; Linux evidence cannot certify those boundaries.
 
-| Stage | Delivery | Starting status / closure evidence |
+**Current status, 1.16.22:** stage 3–4 Linux engineering is closed for the
+named profiles below. Human quality/usability review and Windows/macOS testing
+remain deferred by the owner, not passed. Full release qualification is separate
+from this Linux engineering closure. Machine-readable results and source/build
+hashes are in [context-stage34-linux-closure-evidence.json](context-stage34-linux-closure-evidence.json).
+
+The closure checks and installer hashes below were recorded against 1.16.21.
+The 1.16.22 release advances version metadata with the same implementation;
+its production build is checked separately. The recorded 1.16.21 results retain
+their original versions and hashes.
+
+| Stage | Delivery | Linux closure boundary |
 | --- | --- | --- |
-| 3 | Typed provider SDK and response validation | Implemented; adversarial synthetic conformance fixtures exist |
-| 3 | Managed Linux Mnemosyne | Experimental lexical profile: pinned artifacts, approved future writes, selected import, scoped recall, pause/deletion and offline fixtures exist; runtime upgrade/recovery and full qualification remain |
-| 3 | External Mnemosyne | 1.16.19 delivers a named authenticated Linux loopback snapshot bridge through the external adapter contract, with conformance, scoped writes/recall/deletion and whole-process network evidence. Arbitrary upstream MCP/remote deployments remain unqualified |
-| 3 | External/local-server Hindsight | Real pinned API conformance and cold-restart tests pass at their supported boundary. Copied ingestion history is removed in the experimental chunks-only profile; PostgreSQL/WAL still retains forgotten plaintext, so personal-memory qualification remains failed and no deployment review is registered |
-| 3 | Provider activation, revocation and accounting | Managed activation implemented; external review, paid recall and deployment evidence remain |
-| 3 | Scoped provider migration | 1.16.19 implements encrypted restartable journals, exact selection, current-revision acknowledgements, built-in migration, separate retention/cleanup consent and delete-only bindings. Previous activations in the same bank are included. Snapshot-backed Mnemosyne reads reconcile uncertain old writes without replay; other adapters require terminal receipts. Native Linux migration/recall/old-copy cleanup passes |
-| 3 | Runtime install/update/rollback/health | Linux staging and supervision exist; 1.16.18 checks matching installation records before using/restoring runtime/data pointers. Crossed, incomplete and foreign-profile recovery fixtures pass. Complete upgrade/crash/backup and supported-platform qualification remain |
-| 3 | Offline/disclosure conformance | Built-in Linux audit and managed lexical spike pass at their documented boundaries; every external deployment needs its own evidence |
-| 4 | Declarative skills and documentation compatibility | 1.16.19 adds addressable sections, local dependency graphs, minimum app versions, mandatory section delivery and current evidence prerequisites. Packaging, adversarial broker fixtures and native section retrieval pass |
-| 4 | Dynamic plugin sources and permissions | Implemented in 1.16.18: separate context-source consent, bounded own-resource reads, host revisions, live revocation, workspace withdrawal and update permission renewal. Adversarial fixtures and synthetic Linux native SDK checks pass; hostile-code isolation is outside the existing soft sandbox |
-| 4 | Certified plugin memory providers | 1.16.19 adds declarative references to host-reviewed profiles, separate memory-provider grants, exact installed-manifest checks, native scoped activation and durable revocation. Native actual writes/disablement pass for the experimental managed Linux profile. Arbitrary executable/provider self-certification remains unsupported |
-| 4 | Semantic retrieval and advanced reasoning | Optional features remain disabled. Published synthetic lexical comparison shows no relevance improvement over built-in lookup and higher latency; it does not evaluate semantic models or reflection. Establish a measured model-quality benefit before enabling either |
-| 4 | Comparative results and usability | Development evidence retained; independent review/study deferred by owner |
+| 3 | Typed provider SDK and response validation | Closed: adversarial fixtures and real pinned provider conformance |
+| 3 | Managed Mnemosyne | Closed for the reviewed Linux x64 lexical profile: actual installed-file integrity, scoped consent/import/recall, supervised lifetime, canonical checkpoint, update/rollback, crash, real ENOSPC and forgetting checks |
+| 3 | External Mnemosyne | Closed for the named authenticated owned MCP loopback profile; protocol initialisation, tools, bank isolation, current protected writes, token rotation and native migration/recall are tested. Arbitrary upstream/remote deployments need their own review |
+| 3 | External/local-server Hindsight | Closed for the dedicated operator-started Linux chunks profile: pinned distribution/process/listener verification, authenticated banks, actual API conformance, serial quiescent retention, SIGKILL recovery, native routing and physical deletion scans. Ordinary raw API deletion still fails and is unqualified |
+| 3 | Activation, revocation and accounting | Closed for named non-billable local profiles. Native scope review and protected credentials are required. Reachability grants no memory access; arbitrary paid/hosted deployments remain unavailable without bounded accounting/deployment evidence |
+| 3 | Scoped migration | Closed: exact selected canonical revisions, encrypted journals, restart/reconciliation, separate old-copy cleanup and canonical preservation. A host-only serial read barrier resolves cancelled snapshot writes before a cleanup binding exists |
+| 3 | Offline/disclosure conformance | Closed at each named Linux boundary with strict whole-process connected-write/io_uring observation and working controls; no external attempts or opaque calls in the passing runs |
+| 4 | Declarative skills and documentation compatibility | Closed: addressable/required sections, local dependencies, minimum versions and current evidence prerequisites are tested in the real broker/tool transport |
+| 4 | Dynamic sources and permissions | Closed: separate source consent, bounded own-resource callbacks, revisions, workspace withdrawal, exclusions and live revocation/renewal. Hostile native-code isolation is outside the existing soft sandbox |
+| 4 | Certified provider contributions | Closed for host-reviewed profile references, separate grants, exact manifest checks, scoped native activation and durable disablement. Plugins cannot self-certify or supply credentials/adapters |
+| 4 | Measured refinement | Closed with the published lexical comparison: built-in remains the default. Semantic models and reflection stay disabled because this evidence establishes no benefit for enabling them |
+| 4 | Quality/usability and other platforms | Deferred by owner: independent corpus review, representative usability participants and Windows/macOS native sessions. These are retained qualification requirements |
+
 
 Authorisation carried forward: use local models or the configured ouRGeo OpenAI
 subscription for evaluations. Do not use unrelated paid credentials. Work in
@@ -76,6 +87,10 @@ advanced reasoning require comparative evidence of benefit. Deferred human
 reviews and other-platform sessions remain separately tracked.
 
 ## Second delivery: 1.16.19
+
+This is a historical delivery record. Its raw Hindsight failure remains valid;
+the separate dedicated profile delivered in 1.16.21 supplies the missing
+retention boundary rather than changing that result.
 
 The skill contract, scoped migration and reviewed profile contribution SDK are
 implemented. Migration uses schema 17's encrypted journal and preserves canonical
@@ -149,8 +164,98 @@ and restarting an owned listener pauses old bindings before endpoint renewal.
 Reactivation preserves only acknowledged current imported revisions; revisions
 edited while paused and deliberately removed copies are never silently imported.
 
-No manual owner test is required for these Linux checks. Stage 3 remains open
+No manual owner test was required for these Linux checks. At this delivery, stage 3 remained open
 for the recorded Hindsight deletion qualification, arbitrary remote deployment
 qualification and remaining runtime/release certification. The implemented stage
 4 SDK is tested for its supported named profiles; the deferred human studies
 and benchmark-dependent model refinements retain their original requirements.
+
+
+## Linux engineering closure: 1.16.21
+
+The final native SDK/provider run passes actual staging, cancellation and scope
+approval; protected MCP credentials and cold restart; selected migration and
+old-copy removal; direct library creation; Hindsight native folder verification,
+future writes, canonical recall, pause and physical plaintext removal. It uses
+14 synthetic local model replies and records no renderer errors. No real user
+profile, provider account or paid inference is used.
+
+Runtime activation now checkpoints encrypted canonical memory, verifies actual
+installed artifact inventories, journals the pointer switch and probes health
+after activation. Failures and cancellation restore the previous compatible
+runtime/data pair. Actual SIGKILL and disk-exhaustion fixtures preserve canonical
+records and readable snapshots. Linux parent-death supervision, an exclusive
+store lock and exact legacy process recovery prevent abandoned writers. Older
+installations without inventories remain visible and can be restaged without
+hiding canonical settings.
+
+The owned external Mnemosyne endpoint now speaks Streamable HTTP MCP. It
+validates protocol versions, Host/Origin, authentication and bank scope; normal
+health uses its snapshot tool. A cold app restart rotates the protected token
+and requires renewed scope approval. Stale/missing derived snapshots repair only
+through protected outbox writes for already approved current revisions. A
+cancelled write reconciles through an explicitly read-only serial barrier,
+without requiring a not-yet-created cleanup binding or replaying ingestion.
+
+The dedicated Hindsight profile is documented in
+[context-hindsight-local-profile.md](context-hindsight-local-profile.md), with
+installed distribution/source hashes in
+[context-hindsight-local-evidence.json](context-hindsight-local-evidence.json).
+It uses the upstream public API and embedding extension interface without a
+private engine fork. In-process lexical features need no model or embedding
+listener. PostgreSQL is on a private Unix socket with durable writes enabled.
+Before acknowledging mutations, the gateway journals, drains API/workers,
+rewrites live relations and statistics catalogues, advances/checkpoints WAL,
+then reopens a fresh API. Failed cleanup blocks reads; actual SIGKILL recovery
+runs maintenance before reads resume. Unrelated bank data survives, while scans
+find no forgotten IDs/plaintext after cleanup and restart. The strict audit
+observes zero external attempts and zero opaque io_uring calls. This is an
+operator-started existing server, not the optional managed Hindsight installer.
+
+For 10,000 synthetic records and 100 exact-token queries, built-in, managed
+lexical and authenticated MCP lookup each find the expected canonical ID on
+all queries. The comparison records hardware, warmed median/p95, a separate
+cold probe and sampled Python RSS. Timing comes from an untraced loopback-only
+run; strict network observations are separate. The exact measurements are in
+the closure JSON. This is lexical correctness/performance evidence, not a
+semantic model-quality or human usability study. Built-in stays the default;
+semantic retrieval and advanced reflection remain disabled.
+
+The larger workload exposed quadratic canonical-save scans and individual
+upstream inserts. Ordinary memories now avoid scanning/decrypting an entire
+scope, and the bridge uses pinned public remember_batch with an explicit
+canonical-ID map. Staged indexes use in-memory journalling, are sealed/fsynced
+before rename, and keep committed durability independent of staging.
+
+Failed checks remain recorded rather than counted as passes: raw Hindsight
+retention; the first gateway's request-delivery loop, statistics copies and
+restart defects; native migration's proposed cleanup-binding lookup; and cold
+verification overrunning recall. The last defect was measured: serial installed
+file verification made a direct cold request take about 3.34 s, so the 3 s recall
+deadline repeatedly cancelled startup. Eight bounded readers preserve existing
+inventory digests and reduce that direct probe to about 2.13 s. The production
+recall deadline is unchanged. Ptrace scale-ingestion timeouts remain failed
+runs and do not establish performance.
+
+Native acceptance now explicitly awaits asynchronous IPC polling. Playwright's
+synchronous waitForFunction treated promises resolving false as truthy and
+previously let fixtures race activation. The library's saved paragraph is also
+selected independently of its transient populated input. Provider status refresh
+errors are retried only while the original workspace lease remains current;
+unexpected failures and real scope changes still fail. Packaged plaintext scans
+include encrypted migration-backup files recursively. Debian upgrade checks
+read the actual older artifact version, set a guest-local temporary directory
+and start from a clean disposable package state. No regular installation,
+desktop menu or owner profile is modified.
+
+Release checks and their exact boundaries are collected in the closure JSON.
+Final verification passes 2,577 tests in 258 files, three Python gateway tests,
+TypeScript, lint with zero errors and 37 existing warnings, production packaging,
+the 15-check native SDK run and packaged managed-runtime acceptance. Actual FUSE
+launch, private desktop registration and Debian 1.16.19-to-1.16.21 installation,
+upgrade and removal pass against the recorded final artifacts.
+Deferred human/platform requirements stay in
+[context-qualification-review.md](context-qualification-review.md) and
+[context-platform-acceptance.md](context-platform-acceptance.md). Arbitrary remote
+services, hosted processing/accounting and managed Hindsight require their own
+future named qualification; they cannot inherit the local certificates.

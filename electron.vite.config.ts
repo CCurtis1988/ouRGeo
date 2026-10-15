@@ -15,6 +15,7 @@ export default defineConfig({
       name: 'context-runtime-bridge',
       generateBundle() {
         this.emitFile({ type: 'asset', fileName: 'mnemosyne-sidecar.py', source: readFileSync(resolve('electron/main/context/mnemosyne-sidecar.py')) })
+        for (const fileName of ['hindsight-local-server.py', 'hindsight-gateway.py', 'hindsight-retention.py']) this.emitFile({ type: 'asset', fileName, source: readFileSync(resolve('electron/main/context', fileName)) })
       }
     }],
     build: {

@@ -13,8 +13,9 @@ const filesystem = await realpath(resolve(option('--rootfs', '.cache/stage02/deb
 assert(filesystem.startsWith(join(await realpath(join(root, '.cache')), 'stage02/debian/')), 'Use a disposable Debian filesystem inside the acceptance cache.')
 assert.match(await readFile(join(filesystem, 'etc/os-release'), 'utf8'), /^ID=debian$/m)
 const directory = await mkdtemp(join(root, '.cache/context-deb-'))
-const previousVersion = version.replace(/\d+$/, patch => String(Number(patch) - 1))
-const artifact = join(root, 'dist', `ouRGeo-${version}.deb`), previous = join(root, 'dist', `ouRGeo-${previousVersion}.deb`)
+const defaultPreviousVersion = version.replace(/\d+$/, patch => String(Number(patch) - 1))
+const artifact = join(root, 'dist', `ouRGeo-${version}.deb`), previous = resolve(option('--previous', join(root, 'dist', `ouRGeo-${defaultPreviousVersion}.deb`)))
+assert(previous.startsWith(join(root, 'dist') + '/'), 'Use a previously built release artifact in dist.')
 const run = (program, argv, log, env = process.env) => new Promise((resolveRun, reject) => {
   const child = spawn(program, argv, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
   let output = ''
@@ -22,11 +23,20 @@ const run = (program, argv, log, env = process.env) => new Promise((resolveRun, 
   child.on('error', reject)
   child.on('close', async code => { if (log) await writeFile(join(directory, log), output); resolveRun({ code, output }) })
 })
-const namespace = ['--unshare-user', '--uid', '0', '--gid', '0', '--bind', filesystem, '/', '--proc', '/proc', '--dev', '/dev', '--ro-bind', join(root, 'dist'), '/artifacts', '--setenv', 'PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', '--']
+const namespace = ['--unshare-user', '--uid', '0', '--gid', '0', '--bind', filesystem, '/', '--proc', '/proc', '--dev', '/dev', '--ro-bind', join(root, 'dist'), '/artifacts', '--setenv', 'TMPDIR', '/tmp', '--setenv', 'PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', '--']
 const guest = async (argv, log) => {
   const result = await run('bwrap', [...namespace, ...argv], log)
   assert.equal(result.code, 0, result.output.slice(-4000)); return result.output
 }
+const previousVersion = (await guest(['dpkg-deb', '--field', `/artifacts/${previous.split('/').at(-1)}`, 'Version'], 'previous-version.log')).trim()
+assert.match(previousVersion, /^\d+\.\d+\.\d+$/)
+const previousParts = previousVersion.split('.').map(Number), currentParts = version.split('.').map(Number)
+const difference = previousParts.findIndex((part, index) => part !== currentParts[index])
+assert(difference >= 0 && previousParts[difference] < currentParts[difference], 'Select an older real package for the upgrade test.')
+// A failed prior run deliberately preserves its installation for inspection.
+// Start this package-manager test cleanly inside the disposable guest only.
+await guest(['dpkg', '--purge', 'ourgeo'], 'preflight-purge.log')
+await assert.rejects(access(join(filesystem, 'opt/ouRGeo/resources/app.asar')))
 await guest(['dpkg', '-i', `/artifacts/${previous.split('/').at(-1)}`], 'install.log')
 assert.equal((await guest(['dpkg-query', '-W', '-f=${Status} ${Version}\n', 'ourgeo'], 'installed-status.log')).trim(), `install ok installed ${previousVersion}`)
 await guest(['dpkg', '-i', `/artifacts/${artifact.split('/').at(-1)}`], 'upgrade.log')
@@ -68,7 +78,7 @@ assert.equal(await readFile(join(preservedProfile, 'preserve.txt'), 'utf8'), 'Sy
 await assert.rejects(access(installedArchive))
 await assert.rejects(access(join(filesystem, 'usr/bin/ourgeo')))
 await assert.rejects(access(join(filesystem, 'usr/share/applications/ourgeo.desktop')))
-const report = { version: 1, appVersion: version, measuredAt: new Date().toISOString(), directory, filesystem, artifactSha256: await hash(artifact), previousArtifactSha256: await hash(previous), archiveSha256, installVersion: '1.16.15', upgradeVersion: version, packageManagerInstallAndUpgrade: true, installedPayloadMatchesUnpacked: true, installedBinaryAcceptance: fixture, packageRemovalVerified: true, profilePreservedOnRemoval: true, passed: true, scope: 'Actual dpkg install, upgrade, installed Debian binary/protected-memory acceptance and removal in a disposable Debian filesystem on the host Linux kernel. Host X11 and keyring services supply the desktop session; this is not a separately booted Debian desktop, association or strict-offline certificate.' }
+const report = { version: 1, appVersion: version, measuredAt: new Date().toISOString(), directory, filesystem, artifactSha256: await hash(artifact), previousArtifactSha256: await hash(previous), archiveSha256, installVersion: previousVersion, upgradeVersion: version, packageManagerInstallAndUpgrade: true, installedPayloadMatchesUnpacked: true, installedBinaryAcceptance: fixture, packageRemovalVerified: true, profilePreservedOnRemoval: true, passed: true, scope: 'Actual dpkg install, upgrade, installed Debian binary/protected-memory acceptance and removal in a disposable Debian filesystem on the host Linux kernel. Host X11 and keyring services supply the desktop session; this is not a separately booted Debian desktop, association or strict-offline certificate.' }
 await writeFile(join(directory, 'report.json'), JSON.stringify(report, null, 2))
 await writeFile('/tmp/ourgeo-context-deb-evidence.json', JSON.stringify(report, null, 2))
 console.log(JSON.stringify(report))

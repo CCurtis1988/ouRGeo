@@ -1,5 +1,6 @@
 /* global window, document */
 // Isolated built-app acceptance check; never deletes the user's normal profile.
+import { waitForAsync } from './lib/wait-async.mjs'
 import { createRequire } from 'node:module'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -17,7 +18,7 @@ const app = await _electron.launch({ executablePath: path.join(cwd, 'node_module
 try {
   const page = await app.firstWindow({ timeout: 90000 });page.setDefaultTimeout(30000)
   page.on('response',async res=>{if(res.url().includes('/preflight/')){const body=await res.json();if(body.success===false)console.log('Local fixture check:',body.error)}})
-  await page.waitForFunction(async () => window.electronAPI.r.isReady())
+  await waitForAsync(page, async () => window.electronAPI.r.isReady())
   const post = (action,body) => page.evaluate(async ({action,body}) => {
     const port=await window.electronAPI.r.getPort()
     const response=await fetch(`http://127.0.0.1:${port}/${action}`,{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body) })

@@ -1,10 +1,14 @@
 # Context and memory implementation status
 
 This is the delivery record for [the specification](context-management-spec.md).
-The full specification is **not complete or release-certified**. The default
-local broker and the controls described below are implemented; optional provider
-external adapters remain prototypes; connection reachability alone grants no
-retrieval/ingestion authority. The reviewed experimental Linux managed profile
+Linux engineering for stages 0–4 is implemented at the named profile boundaries
+in the [stage 3–4 closure record](context-stages-3-4.md). Full release qualification
+remains open for the owner's deferred independent quality/usability reviews and
+Windows/macOS sessions. The default
+local broker and the controls described below are implemented. Named Linux
+provider deployments have host-reviewed activation; arbitrary external endpoints
+remain unqualified. Connection reachability alone grants no retrieval/ingestion
+authority. The reviewed experimental Linux managed profile
 supports separately approved future updates, selected committed-memory imports
 and broker recall with authorised local fallback.
 
@@ -12,7 +16,7 @@ The 1.16.18 [plugin context SDK](context-plugin-sdk.md) adds separately approved
 declarative and dynamic own-resource sources, on-demand Markdown reads,
 revision/revocation enforcement and update permission renewal. Runtime/data
 recovery validates each pair's installation record before rollback health.
-Stage 3–4 progress and the remaining deployment/migration/SDK qualification gates
+Stage 3–4 delivery and the exact Linux/deferred qualification boundaries
 are recorded in [the delivery checklist](context-stages-3-4.md).
 
 Built-in Linux stage 0–2 engineering closed in 1.16.17. Their unwaived release

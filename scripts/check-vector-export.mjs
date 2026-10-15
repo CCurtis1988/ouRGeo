@@ -1,6 +1,7 @@
 /* global window, document */
 // Built-app export acceptance with a fresh profile; the normal user session is
 // untouched. Native dialog responses are stubbed per the repository run skill.
+import { waitForAsync } from './lib/wait-async.mjs'
 import { createRequire } from 'node:module'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -21,7 +22,7 @@ try {
     const png=await app.evaluate(async({BrowserWindow})=>{const win=BrowserWindow.getAllWindows()[0];win.focus();return (await win.webContents.capturePage()).toPNG().toString('base64')})
     await writeFile(path.join(directory,name),Buffer.from(png,'base64'))
   }
-  await page.waitForFunction(async()=>window.electronAPI.r.isReady())
+  await waitForAsync(page, async()=>window.electronAPI.r.isReady())
   await app.evaluate(({BrowserWindow,dialog})=>{BrowserWindow.getAllWindows()[0].setSize(1280,900);globalThis.exportReviews=[];dialog.showMessageBox=async(...args)=>{globalThis.exportReviews.push(args.at(-1));return {response:1,checkboxChecked:false}}})
   const post=(action,body)=>page.evaluate(async({action,body})=>{const port=await window.electronAPI.r.getPort();return (await fetch(`http://127.0.0.1:${port}/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json()},{action,body})
   const setup=await post('r/execute',{code:`if (dir.exists(${JSON.stringify(path.join(cwd,'.cache/preflight-r/s2'))})) .libPaths(c(${JSON.stringify(path.join(cwd,'.cache/preflight-r'))}, .libPaths())); export_points <- sf::st_as_sf(data.frame(key=c("01","1"),value=c(0,NA_real_),x=c(500000,500003),y=c(4100000,4100004)),coords=c("x","y"),crs=32610); export_original <- serialize(export_points,NULL)`})

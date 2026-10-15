@@ -205,8 +205,7 @@ the whole analysis.
   tools, not that connection. Portable project memory exports are readable files.
   The [delivery record](docs/context-implementation.md) lists current limits:
   Mnemosyne/Hindsight connection settings can store protected credentials and
-  test reachability without sending chat or memory content. Their adapters remain
-  prototypes. Linux x86_64 offers explicitly acknowledged experimental runtime
+  test reachability without sending chat or memory content. Linux x86_64 offers explicitly acknowledged experimental runtime
   staging with synthetic health checks and a separate native activation review
   for future committed memory updates. Existing memories are not imported
   automatically. This beta profile uses a readable local derived index; you can
@@ -214,13 +213,18 @@ the whole analysis.
   matches to broker search, with local fallback. Existing committed memories can
   be selected for a separately reviewed import.
   An authenticated Linux local-server option offers the same lexical profile
-  through a protected loopback connection. Review it under the staged runtime
+  through an authenticated MCP loopback connection. Review it under the staged runtime
   in **Advanced**, then select memories for migration in connection settings.
   Migration preserves local canonical records and separately reviews removal of
-  old-provider copies. Raw external deployments require their own qualification;
-  the tested Hindsight PostgreSQL profile still fails its plaintext deletion audit.
-  External deployment certification
-  and the full specification's release gates remain unfinished.
+  old-provider copies. A separately provisioned [dedicated Hindsight local profile](docs/context-hindsight-local-profile.md)
+  supports native folder verification, scoped writes/recall and automatic
+  PostgreSQL/WAL retention cleanup before deletion is acknowledged. It uses no
+  model or paid processing. Its raw upstream API still lacks that cleanup
+  guarantee. Arbitrary external deployments require their own qualification.
+  Managed-runtime checks cover installed-file integrity, real disk exhaustion,
+  atomic update/rollback, app/provider crashes and protected memory recovery.
+  The [stage 3–4 record](docs/context-stages-3-4.md) keeps the Linux evidence and
+  the owner's deferred human and Windows/macOS checks separate.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
   like. Settings → Workspace is where you move panels, save arrangements by

@@ -48,7 +48,7 @@ export function createHindsightProvider(connectionId: string, request: JsonTrans
               const metadata = document.document_metadata ? object(document.document_metadata) : null
               if (document.id !== result.canonicalId || document.bank_id !== host.namespace || metadata?.ourgeo_id !== result.canonicalId) throw new Error('INVALID_RESPONSE')
               if (typeof metadata.ourgeo_revision !== 'string' || !/^[1-9][0-9]{0,9}$/.test(metadata.ourgeo_revision) || typeof document.original_text !== 'string') throw new Error('INVALID_RESPONSE')
-              Object.assign(result, { revision: Number(metadata.ourgeo_revision), text: document.original_text })
+              Object.assign(result, { sourceId: result.canonicalId, revision: Number(metadata.ourgeo_revision), text: document.original_text })
               // In chunks-only mode mentioned_at is ingestion time. The host's
               // canonical timestamp is explicit document metadata, so date
               // filtering cannot quietly use today's ingestion date instead.

@@ -1,6 +1,7 @@
 /* global window */
 // Register the actual packaged desktop metadata in a private XDG directory,
 // launch it through GTK, and exercise protected local memory in that window.
+import { waitForAsync } from './lib/wait-async.mjs'
 import { chromium } from 'playwright-core'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -97,7 +98,7 @@ try {
   await memory.waitFor()
   assert.equal(requests, 0, 'Native desktop memory entry must not dispatch a model.')
   await memory.locator('..').getByRole('button', { name: 'Forget', exact: true }).click()
-  await page.waitForFunction(async () => !(await window.electronAPI.context.listGlobal()).some(memory => memory.statement === 'Native desktop acceptance: prefer readable labels.'))
+  await waitForAsync(page, async () => !(await window.electronAPI.context.listGlobal()).some(memory => memory.statement === 'Native desktop acceptance: prefer readable labels.'))
   await page.screenshot({ path: join(directory, 'desktop-memory.png') })
   await page.evaluate(() => window.electronAPI.app.confirmQuit()).catch(() => undefined)
   await browser.close(); browser = undefined

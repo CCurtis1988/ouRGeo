@@ -1,14 +1,28 @@
 /* global document, window */
+import { waitForAsync as pollAsync } from './lib/wait-async.mjs'
 import { _electron as electron } from 'playwright-core'
 import electronExecutable from 'electron'
 import { createServer } from 'node:http'
 import { mkdtemp, mkdir, writeFile, readFile, realpath, copyFile, readdir, chmod } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { join, resolve } from 'node:path'
-import { createHash } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { build } from 'esbuild'
 import { pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
+
+// Plugin reload invalidates in-flight provider metadata even in the same
+// workspace. Retry that refresh request, while retaining the actual scope guard.
+async function waitForAsync(page, predicate, argument, options) {
+  const initial = await page.evaluate(() => window.electronAPI.context.lease())
+  return pollAsync(page, predicate, argument, { ...options, retryError: async error => {
+    if (!String(error).includes('SCOPE_CHANGED')) return false
+    const current = await page.evaluate(() => window.electronAPI.context.lease())
+    return current.id === initial.id
+  } })
+}
 
 // Built Electron, real plugin compilation and broker/tool transport. All files
 // and model replies are synthetic; no paid model or user profile is opened.
@@ -16,6 +30,8 @@ const root = resolve(import.meta.dirname, '..'), { version } = JSON.parse(await 
 const directory = await mkdtemp(join(tmpdir(), 'ourgeo-context-plugin-sdk-')), data = join(directory, 'profile')
 const managedProfile = process.argv.includes('--managed-profile')
 const localServerProfile = process.argv.includes('--local-server')
+const hindsightProfile = process.argv.includes('--hindsight')
+let hindsightServer, hindsightDirectory, hindsightExited
 assert(!localServerProfile || managedProfile, 'Local-server acceptance needs the managed-profile fixture assets.')
 if (managedProfile) {
   const catalogue = join(directory, 'catalogue.mjs')
@@ -73,15 +89,22 @@ await new Promise(done => server.listen(0, '127.0.0.1', done))
 await writeFile(join(data, 'ai-preferences.json'), JSON.stringify({ provider: 'ollama', modelByProvider: { ollama: 'sdk-fixture' }, webAccessEnabled: false, autopilotWarningDismissed: true }))
 await writeFile(join(data, 'api-keys.json'), JSON.stringify({ ollama_url: `http://127.0.0.1:${server.address().port}`, ollama_ctx: '32768' }))
 const wrapper = join(directory, 'launch.cjs')
-await writeFile(wrapper, `const {app}=require('electron');app.setPath('userData',${JSON.stringify(data)});require(${JSON.stringify(join(root, 'out/main/index.js'))});`)
-let app
-try {
+await writeFile(wrapper, `const {app}=require('electron');app.setPath('userData',${JSON.stringify(data)});
+globalThis.fixtureCredentialHash=()=>{const db=new(require('node:sqlite').DatabaseSync)(${JSON.stringify(join(data, 'context/canonical.sqlite'))},{readOnly:true});try{const rows=db.prepare('SELECT payload FROM memory_credentials').all();if(rows.length!==1)throw new Error('Expected one synthetic protected credential.');return require('node:crypto').createHash('sha256').update(Buffer.from(rows[0].payload)).digest('hex')}finally{db.close()}};
+require(${JSON.stringify(join(root, 'out/main/index.js'))});`)
+let app, page
+async function launch() {
   app = await electron.launch({ executablePath: electronExecutable, args: ['--no-sandbox', wrapper], cwd: root, env: { ...process.env, XDG_CONFIG_HOME: directory, OURGEO_CONTEXT_TEST_PROFILE: await realpath(data) }, timeout: 60000 })
+  const diagnostics = []
+  app.process().stderr.on('data', data => { diagnostics.push(String(data)); void writeFile(join(directory, 'electron-diagnostics.log'), diagnostics.join('')) })
   assert.equal(await app.evaluate(({ app }) => app.getPath('userData')), data)
-  const page = await app.firstWindow()
+  page = await app.firstWindow()
   await page.setViewportSize({ width: 1120, height: 900 })
   page.on('pageerror', error => errors.push(String(error)))
   await page.waitForFunction(() => document.body.innerText.includes('R session ready.'), { timeout: 30000 })
+}
+try {
+  await launch()
   const onboarding = page.getByRole('button', { name: "Let's go", exact: true })
   if (await onboarding.count()) await onboarding.evaluate(button => button.click())
   await page.locator('[data-ourgeo-id="toolbar.ai"]').evaluate(button => button.click())
@@ -165,11 +188,11 @@ try {
     await profiles.getByText('This profile has no host-reviewed implementation on this platform.', { exact: false }).waitFor()
     await app.evaluate(({ dialog }) => { globalThis.originalProfileDialog = dialog.showMessageBox; dialog.showMessageBox = async options => options.title === 'Activate memory processing' ? { response: 0, checkboxChecked: false } : globalThis.originalProfileDialog(options) })
     await profiles.getByRole('button', { name: 'Review Synthetic lexical profile for About you', exact: true }).evaluate(button => button.click())
-    await page.waitForFunction(async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'ready'))
+    await waitForAsync(page, async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'ready'))
     assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.state === 'active'))
     await app.evaluate(({ dialog }) => { dialog.showMessageBox = async options => options.title === 'Activate memory processing' ? { response: 1, checkboxChecked: false } : globalThis.originalProfileDialog(options) })
     await profiles.getByRole('button', { name: 'Review Synthetic lexical profile for About you', exact: true }).evaluate(button => button.click())
-    await page.waitForFunction(async () => { try { return (await window.electronAPI.context.activationStatus()).some(item => item.state === 'active') } catch { return false } })
+    await waitForAsync(page, async () => { try { return (await window.electronAPI.context.activationStatus()).some(item => item.state === 'active') } catch { return false } })
     await page.getByRole('tab', { name: 'Memory Library', exact: true }).click()
     const library = page.getByRole('dialog', { name: 'Settings' }).getByRole('region', { name: 'Memory library' })
     await library.getByRole('button', { name: 'About you', exact: true }).evaluate(button => button.click())
@@ -199,7 +222,7 @@ try {
       await runtime.locator(':scope > summary').evaluate(element => element.click())
       await runtime.getByLabel('Acknowledge experimental native memory runtime', { exact: true }).check()
       await runtime.getByRole('button', { name: 'Review local server for About you', exact: true }).evaluate(button => button.click())
-      await page.waitForFunction(async () => (await window.electronAPI.context.connections()).some(item => item.localServer))
+      await waitForAsync(page, async () => (await window.electronAPI.context.connections()).some(item => item.localServer))
       const connections = page.getByLabel('Memory provider connections', { exact: true })
       await connections.locator(':scope > summary').evaluate(element => element.click())
       await connections.getByRole('button', { name: 'Refresh provider settings', exact: true }).evaluate(button => button.click())
@@ -208,7 +231,7 @@ try {
       await migration.getByRole('checkbox').check()
       await app.evaluate(({ dialog }) => { globalThis.originalMigrationDialog = dialog.showMessageBox; dialog.showMessageBox = async options => ['Migrate memory provider', 'Remove old-provider copies'].includes(options.title) ? { response: 1, checkboxChecked: false } : globalThis.originalMigrationDialog(options) })
       await migration.getByRole('button', { name: 'Review migration of 1 memory', exact: true }).evaluate(button => button.click())
-      await page.waitForFunction(async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'ready'))
+      await waitForAsync(page, async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'ready'))
       const recalled = await page.evaluate(async () => {
         const initial = await window.electronAPI.context.lease(), deadline = Date.now() + 10000
         while (true) {
@@ -226,14 +249,14 @@ try {
       const progress = page.locator('[data-ourgeo-id="context.providerMigrations"]')
       await progress.getByRole('button', { name: 'Refresh migration progress', exact: true }).evaluate(button => button.click())
       await progress.getByRole('button', { name: 'Review removal of old-provider copies', exact: true }).evaluate(button => button.click())
-      await page.waitForFunction(async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'complete'))
+      await waitForAsync(page, async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'complete'))
       assert((await page.evaluate(() => window.electronAPI.context.listGlobal())).some(record => record.id === contributedRecord.id))
       await page.screenshot({ path: join(directory, 'local-server-migration.png') })
       const localConnection = (await page.evaluate(() => window.electronAPI.context.connections())).find(item => item.localServer)
       const health = await page.evaluate(id => window.electronAPI.context.probeConnection(id), localConnection.id)
       assert.equal(health.state, 'reachable')
       assert((await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.connectionId === localConnection.id && item.state === 'active'))
-      checks.push('Owned local-server health uses the snapshot RPC and preserves unchanged scoped activation')
+      checks.push('Owned local-server health uses its MCP snapshot tool and preserves unchanged scoped activation')
       await app.evaluate(({ dialog }) => { dialog.showMessageBox = globalThis.originalMigrationDialog; delete globalThis.originalMigrationDialog })
       await page.keyboard.press('Escape')
       checks.push('Native migration to authenticated local-server transport acknowledges canonical IDs, recalls through protected credentials and deletes approved old copies without deleting canonical memory')
@@ -253,7 +276,7 @@ try {
     assert(!oldBytes.includes(Buffer.from(afterDisable.id)))
     await row(provider.name).getByRole('checkbox').evaluate(input => input.click())
     await row(provider.name).locator('input:checked').waitFor()
-    await page.waitForFunction(async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'paused'))
+    await waitForAsync(page, async () => (await window.electronAPI.context.activationStatus()).some(item => item.state === 'paused'))
     if (!localServerProfile) assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.state === 'active'))
     else {
       const local = (await page.evaluate(() => window.electronAPI.context.connections())).find(item => item.localServer)
@@ -273,12 +296,128 @@ try {
   assert.equal(await row(reference.name).getByRole('checkbox').isChecked(), false)
   await page.screenshot({ path: join(directory, 'permission-renewal.png') })
   checks.push('Added update permissions require explicit renewed enablement')
+  if (localServerProfile) {
+    await page.keyboard.press('Escape')
+    const local = (await page.evaluate(() => window.electronAPI.context.connections())).find(item => item.localServer)
+    async function credentialHash() {
+      return await app.evaluate(() => globalThis.fixtureCredentialHash())
+    }
+    const previousCredentialHash = await credentialHash()
+    await app.close(); await launch()
+    assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.connectionId === local.id && item.state === 'active'))
+    await page.evaluate(async () => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.previewLocalServerActivation('global', lease.id, true) })
+    assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.connectionId === local.id && item.state === 'active'))
+    assert.notEqual(await credentialHash(), previousCredentialHash)
+    const preview = await page.evaluate(async () => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.previewLocalServerActivation('global', lease.id, true) })
+    await app.evaluate(({ dialog }) => { globalThis.fixtureDialog = dialog.showMessageBox; dialog.showMessageBox = async options => options.title === 'Activate memory processing' ? { response: 1, checkboxChecked: false } : globalThis.fixtureDialog(options) })
+    try { assert.equal(await page.evaluate(ref => window.electronAPI.context.activateProvider(ref), preview.ref), true) }
+    finally { await app.evaluate(({ dialog }) => { dialog.showMessageBox = globalThis.fixtureDialog; delete globalThis.fixtureDialog }) }
+    await waitForAsync(page, async id => (await window.electronAPI.context.activationStatus()).some(item => item.connectionId === id && item.state === 'active'), local.id)
+    const recalled = await page.evaluate(async () => {
+      // Three short retrieval failures deliberately open the 30 s breaker.
+      // Allow one recovery interval without relaxing the production deadline.
+      const initial = await window.electronAPI.context.lease(), deadline = Date.now() + 45000
+      let last
+      while (Date.now() < deadline) {
+        const lease = await window.electronAPI.context.lease()
+        if (lease.id !== initial.id) throw new Error('Workspace changed during cold recall.')
+        try { last = await window.electronAPI.context.recallMemory({ query: 'APPROVED_METRIC', scope: 'global' }, crypto.randomUUID(), lease.id); if (last.status === 'ok') return last }
+        catch (error) { if (!String(error).includes('SCOPE_CHANGED')) throw error }
+        await new Promise(done => setTimeout(done, 300))
+      }
+      throw new Error(`Cold recall did not recover: ${JSON.stringify(last)}`)
+    })
+    assert.equal(recalled.status, 'ok'); assert(recalled.hits.some(hit => hit.id === contributedRecord.id))
+    checks.push('Cold app restart rotates protected server credentials, requires renewed scoped approval and recalls only previously approved current memories')
+  }
+  if (hindsightProfile) {
+    const cache = join(root, '.cache/stage34/hindsight')
+    hindsightDirectory = await mkdtemp(join(cache, 'fixture-'))
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => ['PATH', 'LANG', 'LC_ALL', 'TMPDIR'].includes(key)))
+    hindsightServer = spawn(join(cache, 'venv/bin/python'), ['-I', '-B', join(root, 'electron/main/context/hindsight-local-server.py'), '--state', hindsightDirectory, '--postgres', join(homedir(), '.pg0/installation/18.1.0/bin/postgres')], { env, cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
+    hindsightExited = once(hindsightServer, 'close')
+    let output = ''
+    for (const stream of [hindsightServer.stdout, hindsightServer.stderr]) stream.on('data', data => { output = (output + data).slice(-65536) })
+    const deadline = Date.now() + 60000
+    while (true) {
+      assert.equal(hindsightServer.exitCode, null, output)
+      try {
+        const metadata = JSON.parse(await readFile(join(hindsightDirectory, 'server.json'), 'utf8')), namespace = crypto.randomUUID()
+        const token = namespace + '.' + createHmac('sha256', await readFile(join(hindsightDirectory, 'server-secret'))).update(namespace).digest('hex')
+        if ((await fetch(metadata.endpoint+'/health', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(500) })).ok) break
+      } catch { /* Await the isolated schema and provider startup. */ }
+      assert(Date.now() < deadline, 'Dedicated Hindsight startup did not finish. '+output)
+      await new Promise(done => setTimeout(done, 100))
+    }
+    await app.evaluate(({ dialog }, folder) => {
+      globalThis.hindsightOpen = dialog.showOpenDialog; globalThis.hindsightApproval = dialog.showMessageBox
+      dialog.showOpenDialog = async options => options.title === 'Choose the dedicated Hindsight server directory' ? { canceled: false, filePaths: [folder] } : globalThis.hindsightOpen(options)
+      dialog.showMessageBox = async options => ['Activate memory processing', 'Migrate memory provider', 'Remove old-provider copies'].includes(options.title) ? { response: 1, checkboxChecked: false } : globalThis.hindsightApproval(options)
+    }, hindsightDirectory)
+    try {
+      await page.locator('[data-ourgeo-id="toolbar.settings"]').evaluate(button => button.click())
+      await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'AI Assistant', exact: true }).click()
+      await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+      const connections = page.getByLabel('Memory provider connections', { exact: true })
+      await connections.locator(':scope > summary').evaluate(element => element.click())
+      await connections.getByRole('button', { name: 'Review dedicated Hindsight for About you', exact: true }).evaluate(button => button.click())
+      await waitForAsync(page, async () => (await window.electronAPI.context.connections()).some(item => item.localProfile === 'hindsight-local-chunks-v1'))
+      const connection = (await page.evaluate(() => window.electronAPI.context.connections())).find(item => item.localProfile)
+      const selected = contributedRecord?.id ?? (await page.evaluate(() => window.electronAPI.context.listGlobal()))[0]?.id
+      if (selected && (await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.connectionId !== connection.id && item.state === 'active')) {
+        const preview = await page.evaluate(async ({ id, selected }) => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.previewMemoryMigration(id, [selected], lease.id) }, { id: connection.id, selected })
+        assert.equal(await page.evaluate(ref => window.electronAPI.context.activateProvider(ref), preview.ref), true)
+        await waitForAsync(page, async () => (await window.electronAPI.context.memoryMigrations()).some(item => item.state === 'ready'))
+        const migration = (await page.evaluate(() => window.electronAPI.context.memoryMigrations())).find(item => item.state === 'ready')
+        await page.evaluate(async id => { const lease = await window.electronAPI.context.lease(); return window.electronAPI.context.finishMemoryMigration(id, 'delete', lease.id) }, migration.id)
+        await waitForAsync(page, async id => (await window.electronAPI.context.memoryMigrations()).some(item => item.id === id && item.state === 'complete'), migration.id)
+      }
+      await waitForAsync(page, async id => (await window.electronAPI.context.activationStatus()).some(item => item.connectionId === id && item.state === 'active'), connection.id)
+      const record = await page.evaluate(async () => {
+        const now = new Date().toISOString(), record = { id: crypto.randomUUID(), revision: 1, scope: 'global', projectId: null, category: 'finding', statement: 'SYNTHETIC_HINDSIGHT_NATIVE_METRIC', evidence: [], assertion: 'user-declared', status: 'active', supersedes: [], createdAt: now, updatedAt: now }
+        await window.electronAPI.context.saveGlobal(record); return record
+      })
+      await waitForAsync(page, async id => {
+        try { const lease = await window.electronAPI.context.lease(); const result = await window.electronAPI.context.recallMemory({ query: 'HINDSIGHT_NATIVE_METRIC', scope: 'global' }, crypto.randomUUID(), lease.id); return result.status === 'ok' && result.hits.some(hit => hit.id === id) } catch { return false }
+      }, record.id, { timeout: 30000 })
+      await page.screenshot({ path: join(directory, 'hindsight-profile.png') })
+      const receipt = await page.evaluate(id => window.electronAPI.context.forget(id, { scope: 'global', projectId: null, sources: [] }), record.id)
+      assert.equal(receipt.local, 'excluded')
+      const expires = Date.now() + 20000
+      while (true) {
+        const files = async directory => { const entries = await readdir(directory, { withFileTypes: true }); return (await Promise.all(entries.map(async entry => entry.isDirectory() ? files(join(directory, entry.name)) : [join(directory, entry.name)]))).flat() }
+        const paths = await files(join(hindsightDirectory, 'postgres-data'))
+        let changed = false, retained = false
+        for (const path of paths) {
+          try { if ((await readFile(path)).includes(Buffer.from(record.statement))) { retained = true; break } }
+          catch (error) { if (error.code !== 'ENOENT') throw error; changed = true }
+        }
+        if (!changed && !retained) break
+        assert(Date.now() < expires, 'Forgotten Hindsight plaintext remained after native deletion.')
+        await new Promise(done => setTimeout(done, 100))
+      }
+      assert(!(await page.evaluate(() => window.electronAPI.context.listGlobal())).some(item => item.id === record.id))
+      assert.equal((await page.evaluate(id => window.electronAPI.context.probeConnection(id), connection.id)).state, 'reachable')
+      await page.evaluate(id => window.electronAPI.context.pauseProvider(id), connection.id)
+      assert(!(await page.evaluate(() => window.electronAPI.context.activationStatus())).some(item => item.connectionId === connection.id && item.state === 'active'))
+      checks.push('Native Hindsight folder verification, protected bank credentials, scoped migration, future writes, canonical recall, pause and physical plaintext deletion pass on the real pinned server')
+      await writeFile(join(directory, 'hindsight-diagnostics.log'), output)
+    } finally {
+      await app.evaluate(({ dialog }) => { dialog.showOpenDialog = globalThis.hindsightOpen; dialog.showMessageBox = globalThis.hindsightApproval; delete globalThis.hindsightOpen; delete globalThis.hindsightApproval })
+    }
+  }
   assert.deepEqual(errors, [])
   const report = { version: 1, appVersion: version, measuredAt: new Date().toISOString(), profile: directory, builtMainSha256: createHash('sha256').update(await readFile(join(root, 'out/main/index.js'))).digest('hex'), builtRendererIndexSha256: createHash('sha256').update(await readFile(join(root, 'out/renderer/index.html'))).digest('hex'), checks, modelRequests: requests.length, rendererErrors: errors, passed: true, qualification: 'Synthetic Linux SDK integration; not a provider deployment or hostile-code sandbox certificate' }
   await writeFile(join(directory, 'evidence.json'), JSON.stringify(report, null, 2))
   await writeFile(join(tmpdir(), 'ourgeo-context-plugin-sdk-evidence.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify(report))
+} catch (error) {
+  await writeFile(join(directory, 'failure-renderer.txt'), await page?.locator('body').innerText().catch(() => '') ?? '')
+  await writeFile(join(directory, 'failure.json'), JSON.stringify({ checks, error: String(error), stack: error.stack, status: await page?.evaluate(async () => ({ runtime: await window.electronAPI.context.runtimeStatus(), activation: await window.electronAPI.context.activationStatus() })).catch(() => null) }, null, 2))
+  await page?.screenshot({ path: join(directory, 'failure.png') }).catch(() => {})
+  throw error
 } finally {
   await app?.close().catch(() => undefined)
+  if (hindsightServer?.exitCode === null) { hindsightServer.kill('SIGTERM'); await hindsightExited }
   await new Promise(done => server.close(done))
 }
