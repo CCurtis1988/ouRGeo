@@ -1,6 +1,7 @@
 # Context delivery: stages 0–2 closure checklist
 
-Priority: finish these stages before new provider/plugin feature work. This is
+Built-in Linux engineering closed in 1.16.17; the owner has moved implementation
+to stages 3–4 while retaining the qualification gates below. This is
 requirement coverage, not a release certificate or a percentage based on tests.
 The full specification and `context-implementation.md` remain authoritative.
 

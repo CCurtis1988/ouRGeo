@@ -3,12 +3,13 @@ export interface ProviderActivationPreview {
   connectionId: string
   label: string
   scope: 'global' | 'project'
-  operation: 'activate' | 'import'
+  operation: 'activate' | 'import' | 'migrate' | 'migrate-builtin' | 'cleanup'
   selectedCount: number
   estimatedIngestionMicros: number
   currency: 'USD'
   futureWrites: true
   expiresAt: string
+  oldCopyCount?: number
 }
 export interface ProviderActivationStatus {
   connectionId: string

@@ -37,6 +37,13 @@ beforeEach(async () => {
 })
 afterEach(async () => { await stopPluginServices(); await rm(state.dir, { recursive: true, force: true }) })
 describe('managed plugin services', () => {
+  it('refuses a service after its manifest adds an unapproved context permission', async () => {
+    const manifest = { id: 'media', permissions: ['service', 'context-source'], service: { entry: 'server/main.mjs', files: ['server/main.mjs'] } }
+    await writeFile(join(state.dir, 'plugins', 'media', 'ourgeo-plugin.json'), JSON.stringify(manifest))
+    await writeFile(join(state.dir, 'plugins.json'), JSON.stringify({ enabled: { media: true }, permissionGrants: { media: ['service'] } }))
+    await expect(startPluginService('media', owner())).rejects.toThrow('Enable')
+    expect(state.forks).toHaveLength(0)
+  })
   it('deduplicates starts and retains a running service across panel remounts', async () => {
     const window = owner(), a = startPluginService('media', window), b = startPluginService('media', window)
     expect(a).toBe(b)

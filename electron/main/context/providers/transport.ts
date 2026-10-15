@@ -6,6 +6,9 @@ export interface ConnectionProfile {
   token?: string
 }
 export type JsonTransport = (path: string, method: 'GET' | 'POST' | 'DELETE', body: unknown, host: ProviderHost, headers?: Record<string, string>, onHeaders?: (headers: Headers) => void) => Promise<unknown>
+export class ProviderHttpError extends Error {
+  constructor(readonly status: number) { super(`PROVIDER_OFFLINE: HTTP ${status}`) }
+}
 
 /** Endpoints come only from deliberate connection setup. Redirects cannot
  * move credentials or project evidence to another processing destination. */
@@ -25,15 +28,17 @@ export function createJsonTransport(profile: ConnectionProfile, fetcher: typeof 
     if (!host.authorised()) throw new Error('POLICY_REFUSED')
     if (!Number.isFinite(host.maxTokens) || host.maxTokens < 0 || !Number.isFinite(host.timeoutMs)) throw new Error('BUDGET_LIMIT')
     if (Object.keys(headers).some(name => !['mcp-protocol-version', 'mcp-session-id'].includes(name.toLowerCase()))) throw new Error('POLICY_REFUSED')
-    if (path && (!path.startsWith('/') || path.includes('..') || path.includes('?') || path.includes('#'))) throw new Error('POLICY_REFUSED')
+    if (path && (!path.startsWith('/') || path.startsWith('//') || path.length > 4096 || path.includes('#') || [...path].some(character => character.charCodeAt(0) <= 32) || /(?:\.\.|%2e)/i.test(path.split('?')[0]))) throw new Error('POLICY_REFUSED')
     const url = new URL(base)
-    url.pathname = `${base.pathname.replace(/\/$/, '')}${path}`
+    const query = path.indexOf('?')
+    url.pathname = `${base.pathname.replace(/\/$/, '')}${query < 0 ? path : path.slice(0, query)}`
+    url.search = query < 0 ? '' : path.slice(query + 1)
     const signal = AbortSignal.any([host.signal, AbortSignal.timeout(Math.max(100, Math.min(host.timeoutMs, 15_000)))])
     const response = await fetcher(url, { method, redirect: 'error', signal,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...(profile.token ? { Authorization: `Bearer ${profile.token}` } : {}), ...headers },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
-    if (!response.ok) { await response.body?.cancel(); throw new Error(`PROVIDER_OFFLINE: HTTP ${response.status}`) }
+    if (!response.ok) { await response.body?.cancel(); host.signal.throwIfAborted(); if (!host.authorised()) throw new Error('POLICY_REFUSED'); throw new ProviderHttpError(response.status) }
     onHeaders?.(response.headers)
     if (response.status === 202 || response.status === 204) { await response.body?.cancel(); return null }
     const maximum = Math.min(2_000_000, Math.max(32_000, host.maxTokens * 20))

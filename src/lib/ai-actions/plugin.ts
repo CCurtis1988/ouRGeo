@@ -177,7 +177,7 @@ export const pluginActions: UiAction[] = [
       { name: 'description', type: 'string', description: 'One line saying what it is for.' },
       {
         name: 'permissions', type: 'strings',
-        description: 'Any of: network (fetch), r (run R), ui (dialogs and panels). Ask for none you do not use.',
+        description: 'Any of: network (fetch), r (run R), ui (dialogs and panels), context-source (share the plugin’s own resources with the assistant). Ask for none you do not use.',
       },
       {
         name: 'withCode', type: 'boolean', default: false,
@@ -195,7 +195,7 @@ export const pluginActions: UiAction[] = [
       }
       const withCode = argBool(args, 'withCode')
       const permissions = (Array.isArray(args.permissions) ? args.permissions : [])
-        .map(String).filter((p) => ['network', 'r', 'ui'].includes(p))
+        .map(String).filter((p) => ['network', 'r', 'ui', 'context-source'].includes(p))
 
       const manifest = {
         id, name, version: '1.0.0',

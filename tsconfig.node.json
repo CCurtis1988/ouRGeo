@@ -23,6 +23,10 @@
     "src/lib/session-scoped-files.ts",
     "src/lib/health-policy.ts",
     "src/lib/context/types.ts",
+    "src/lib/context/providers/contributions.ts",
+    "src/lib/context/skills.ts",
+    "src/lib/context/sources/plugin.ts",
+    "src/lib/plugins/app-version.ts",
     "src/lib/context/folders.ts",
     "src/lib/context/document-range.ts",
     "src/lib/context/column-policy.ts",
@@ -41,6 +45,7 @@
     "src/lib/context/providers/runtimes.ts",
     "src/lib/context/providers/outbox.ts",
     "src/lib/context/providers/activation.ts",
+    "src/lib/context/providers/migration.ts",
     "src/lib/context/providers/recall.ts",
     "src/lib/context/providers/conformance.ts",
     "src/lib/context/memory-schema.ts",
@@ -52,6 +57,7 @@
     "src/lib/data-preflight-types.ts",
     "src/lib/plugins/archive-policy.ts",
     "src/lib/plugins/store-origin.ts",
-    "src/lib/plugins/service-policy.ts"
+    "src/lib/plugins/service-policy.ts",
+    "src/lib/plugins/permission-policy.ts"
   ]
 }

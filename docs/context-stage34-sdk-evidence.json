@@ -1,0 +1,331 @@
+{
+  "version": 1,
+  "appVersion": "1.16.18",
+  "recordedAt": "2026-10-13T21:54:28.581Z",
+  "stagesComplete": false,
+  "releaseCertified": false,
+  "delivered": [
+    "Declarative and dynamic plugin own-resource sources",
+    "Separate context-source consent and update permission renewal",
+    "On-demand SHA-256-checked Markdown source reads and store packaging",
+    "Live host revisions, exclusions, cancellation and workspace revocation",
+    "Runtime/data pair metadata validation before reporting or rollback health"
+  ],
+  "verification": {
+    "tests": {
+      "passed": 2508,
+      "files": 248,
+      "failed": 0
+    },
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "existingWarnings": 37
+    },
+    "build": "passed"
+  },
+  "sdkNative": {
+    "version": 1,
+    "appVersion": "1.16.18",
+    "measuredAt": "2026-10-13T21:50:33.671Z",
+    "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-plugin-sdk-7Z763z",
+    "builtMainSha256": "2d4fcfd18cc392eef7f31377054d3f3af32cf38162a9b9d4c2a3acfa067281f8",
+    "builtRendererIndexSha256": "291d1dc539aebb3053427dc506adf464f5607bf9b8da83e2907f08ae17715c05",
+    "checks": [
+      "Legacy enablement does not grant context sharing",
+      "Declarative Markdown and compiled dynamic sources reach broker evidence",
+      "Callbacks receive cancellation only; no chat, query, memory or unrelated permissions",
+      "Source exclusion prevents later retrieval",
+      "Disable withdraws dynamic context and prevents callback invocation",
+      "Added update permissions require explicit renewed enablement"
+    ],
+    "modelRequests": 11,
+    "rendererErrors": [],
+    "passed": true,
+    "qualification": "Synthetic Linux SDK integration; not a provider deployment or hostile-code sandbox certificate"
+  },
+  "memoryNative": {
+    "passed": true,
+    "packageVersion": "1.16.18",
+    "builtMainSha256": "7a176a7217ee52f5548fe3eff9219756ed6dcb2f91f0627101b007710b98144b",
+    "boundary": "Existing context/native managed fixture before final SDK-only refinements; core runtime pair validation is unchanged. Wrapper appVersion is Electron version; unpackaged built app.",
+    "report": {
+      "appVersion": "41.0.2",
+      "appPath": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-zfFj1m",
+      "filesystemType": 2435016766,
+      "profile": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-ui-zfFj1m",
+      "mockRequests": 17,
+      "simpleRequestCount": 2,
+      "auxiliaryContext": false,
+      "electronSqliteWorker": {
+        "encryptedStorage": true,
+        "backend": "kwallet6"
+      },
+      "electronHttpAfterLaunch": {
+        "loopbackRequests": 0,
+        "blockedHosts": [],
+        "boundary": "Electron HTTP(S) layer from attachment through fixture actions; loopback model/health calls allowed. Cold startup and subprocess traffic are not certified."
+      },
+      "packaged": false,
+      "settingsCategoryNavigation": true,
+      "narrowSettingsLayout": true,
+      "directMemoryWithoutInferenceInBothLocations": true,
+      "memoryEditsAndTombstone": true,
+      "estimatedMaintenanceSettingsWithoutPaidDispatch": true,
+      "protectedConnectionSetupAndHealthOnly": true,
+      "experimentalRuntimeStagingAndCancellation": true,
+      "managedFutureOnlyActivationAndNativeReview": true,
+      "managedDeletionAcrossRuntimePairs": true,
+      "managedRecallAndPauseRevocation": true,
+      "selectedCommittedMemoryImport": true,
+      "disconnectedManagedCacheDeletion": true,
+      "durableLocalCleanupFailureAndRepair": true,
+      "suggestionsPinsAndSuppression": true,
+      "projectSaveForkAndDiscard": true,
+      "responsiveDuringRLoadWithoutScopeLeak": true,
+      "scopedPersistentExclusions": true,
+      "duplicateProjectFork": true,
+      "hostMemoryCommandsWithoutInference": true,
+      "relevantUnitPreferencesAndSupersession": true,
+      "conversationDerivedDeletionAndEditedRetention": true,
+      "stagedDocumentAttachment": true,
+      "workspaceColumnPrivacy": true,
+      "unbracketedNamedSchemaBlockedAndAllowed": true,
+      "localConversationMemoryAddEditMoveForgetSaveAndDelivery": true,
+      "chatOnlyInstructionReceivesResponseWithoutDurablePromotion": true,
+      "historicalJoinFailurePairedWithCurrentSchemas": true,
+      "protectedColumnPolicy": true,
+      "authorisedFolderIndexing": true,
+      "packedFolderSearchAndRead": true,
+      "watcherRevocation": true,
+      "verifiedBackupInspection": true,
+      "nativeSecondaryIndexDamageAndPreservedRecovery": true,
+      "durableInferenceAccounting": true,
+      "estimatedChatBudgetPreDispatchAndToolReconciliation": true,
+      "currentSourceBrowser": true,
+      "reviewedTranscriptForgetting": true,
+      "scopedUsageTotals": true,
+      "diagnosticRetentionControl": true,
+      "freshSourceDiscoveryWithoutKeyring": true,
+      "unreadablePolicyFailsClosed": true,
+      "screenshots": [
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-memory.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-library.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-memory-narrow.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-settings-panel-memory.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-index-repair.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-chat-budget.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-forget-copies.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-folders.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-backups.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-column-privacy.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-attachments.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-conversation.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-settings.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-learning.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-project.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-exclusions.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-retention.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-connections.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-maintenance.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-runtime.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-activation.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-import.png",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-context-cleanup.png"
+      ]
+    }
+  },
+  "managedMnemosyne": {
+    "profile": "mnemosyne-lexical-v1",
+    "certification": "pending",
+    "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT",
+    "healthMs": 8880,
+    "materialisedBytes": 217732605,
+    "supervised": {
+      "stdio": true,
+      "scopeIsolation": true,
+      "snapshotRetries": true,
+      "correction": true,
+      "restart": true,
+      "interruptedRebuild": true,
+      "deletionRebuild": true,
+      "canonicalAdapterWrites": true,
+      "canonicalAdapterDeletion": true,
+      "unrelatedMemoryPreserved": true
+    },
+    "conformance": {
+      "version": 1,
+      "certification": "not-issued",
+      "checks": [
+        {
+          "name": "probe and response contract",
+          "status": "passed"
+        },
+        {
+          "name": "permission revocation",
+          "status": "passed"
+        },
+        {
+          "name": "cancellation",
+          "status": "passed"
+        },
+        {
+          "name": "canonical ingestion and idempotent retry",
+          "status": "passed"
+        },
+        {
+          "name": "namespace isolation",
+          "status": "passed"
+        },
+        {
+          "name": "bounded response",
+          "status": "passed"
+        },
+        {
+          "name": "revision replacement",
+          "status": "passed"
+        },
+        {
+          "name": "temporal search",
+          "status": "unsupported",
+          "reason": "CAPABILITY_UNAVAILABLE"
+        },
+        {
+          "name": "scoped export",
+          "status": "unsupported",
+          "reason": "CAPABILITY_UNAVAILABLE"
+        },
+        {
+          "name": "reflection permission",
+          "status": "unsupported",
+          "reason": "CAPABILITY_UNAVAILABLE"
+        },
+        {
+          "name": "reflection lineage",
+          "status": "unsupported",
+          "reason": "CAPABILITY_UNAVAILABLE"
+        },
+        {
+          "name": "source deletion preserves unrelated records",
+          "status": "passed"
+        },
+        {
+          "name": "scope deletion and idempotent retry",
+          "status": "unsupported",
+          "reason": "CAPABILITY_UNAVAILABLE"
+        },
+        {
+          "name": "cleanup first",
+          "status": "passed"
+        },
+        {
+          "name": "cleanup second",
+          "status": "passed"
+        }
+      ]
+    },
+    "derivativeAudit": {
+      "mechanism": "all remaining derived-store bytes and permissions after deletion/rebuild and fixture cleanup",
+      "removedSourceIds": 4,
+      "filesChecked": 7,
+      "residualIds": 0,
+      "temporaryCopies": 0,
+      "storage": "readable-sqlite",
+      "physicalErasure": "not-claimed"
+    },
+    "networkObservation": {
+      "mechanism": "strace network syscalls with child tracing",
+      "positiveControl": true,
+      "runtimeLaunches": 5,
+      "networkSyscalls": 0,
+      "traces": [
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT/health.network.trace",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT/bridge-1.network.trace",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT/bridge-2.network.trace",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT/bridge-3.network.trace",
+        "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-spike-aQQSqT/bridge-4.network.trace"
+      ]
+    },
+    "python": "3.12.15",
+    "fts5": true,
+    "separateDatabases": true,
+    "duplicateContentIds": true,
+    "correctionAndTierDeletion": true,
+    "remainingDeletedIdTables": [],
+    "remainingDeletedTextTables": [],
+    "auditedSocketAttempts": []
+  },
+  "rawLogs": [
+    {
+      "path": ".cache/stage02/stage34-build.log",
+      "sha256": "068b80a63384a18714c7c5c5a1ae32e018967615c4ffe0168f865e7d682ebf64"
+    },
+    {
+      "path": ".cache/stage02/stage34-typecheck.log",
+      "sha256": "99fd4e5b4286686a0d3f61136d423e629eb228cda120d3e57a6ec94192e54ee0"
+    },
+    {
+      "path": ".cache/stage02/stage34-lint.log",
+      "sha256": "1419f9be1e280cbb53aa7f95329a6c722cf989efca733689402eb2ab9adbe888"
+    },
+    {
+      "path": ".cache/stage02/stage34-tests.log",
+      "sha256": "5a32827e80fbc150ee7a74f2155634d711b7806d4b47d71e850da565497f8b2f"
+    },
+    {
+      "path": ".cache/stage02/stage34-sdk-native.log",
+      "sha256": "8b5310af69c8f2f89677a4480afb95f18e31214598d2d0fca04b1bfd0b2a27a8"
+    },
+    {
+      "path": ".cache/stage02/stage34-core-native.log",
+      "sha256": "0790e621ffdded36226293a01ccc86e9938c874bf56e5ea444f54499485cc1b1"
+    },
+    {
+      "path": ".cache/stage02/stage34-mnemosyne.log",
+      "sha256": "f8efa7041baab43c2b894cb5cac8925f4de87893a203b8680063fe63e913ab6d"
+    }
+  ],
+  "sourceSha256": {
+    "electron/main/context/runtime-installer.test.ts": "9111e416e86a9c8ae982420b2f75798c63b960740aeaaefaac12a9e5a50ff5af",
+    "electron/main/context/runtime-installer.ts": "db57c8a8c793a5a87364d031e0003d679a9d2ccf86282ff95a643439d2db883c",
+    "electron/main/plugin-services.test.ts": "1b3413b8a6b5fb04d3225f6c51e9b96766621585f5c3a2584e6365700b782ecb",
+    "electron/main/plugin-services.ts": "a9f15f7075082c51da88395b4fbde2d40f8bcd6593691c1a3cb9d994649d73a3",
+    "package-lock.json": "b6dbfef1554b561393cf1406cefe04c22343e330e25bf84367d0570ce95dbe2b",
+    "package.json": "3da2797a382782bf789e08880371652ff49d0b3ca6e28c9cf62efe3d6c799bb4",
+    "scripts/check-context-plugin-sdk.mjs": "104d81b40820f9a565a9de70f16c733af8f0b9423fa838a9fa6e87922c0bc97b",
+    "src/lib/ai-actions/plugin.ts": "3b721ec1a121c0060a056859b1483c496ef8a267d11259a93ee4ca2a62e48094",
+    "src/lib/ai-skill-ourgeo.ts": "813f9c569694c7f8e044c1114768bc0481fc3ba70ec1e278f27689662f1eb3bc",
+    "src/lib/context/lifecycle.ts": "015c41b5f623d45e6f1d202b7bc7a991ffd814c9a62b2460a818ee4bca76c0dc",
+    "src/lib/context/skills.ts": "978a718a04e4373890cfe44e2c5dd48beef2bfbe33667d4f2ce94afa48a7bf83",
+    "src/lib/context/sources/plugin.test.ts": "cadbc4885ebc51ad843992d38c4c4d20b30f648df0e279cd53846c65fc531f4d",
+    "src/lib/context/sources/plugin.ts": "c005ab8089748a78de2f61bbc5fab0b697ff19b878006a9126c683204b043557",
+    "src/lib/context/sources/workspace.ts": "7c0f51f9464d43204ee8af39e2e0f9193ea2d752b377dce1332fa7ce83070d83",
+    "src/lib/plugins-persistence.ts": "373d8e87105e02361ae9347a8f13a691e0a9129f1df0668c5fde0e72a6fc7c95",
+    "src/lib/plugins/dist-files.test.ts": "a459e6e05d11a7814d869c697f6da06d060d70dfad180e43464bca68125db277",
+    "src/lib/plugins/host-api.tsx": "76f73f22dcacb2e2fa085de2d5c4006473db5209c94f5c5ee8e9ef1f0b94a52a",
+    "src/lib/plugins/loader.test.ts": "f38faefaaa4d89b629e8877dc8fe334e17b27f5e302d8320422bf07856c6da7b",
+    "src/lib/plugins/loader.ts": "d88ee732c63fabccbeaa5d077938aab14779e4295e6eca787722d89bd182ee41",
+    "src/lib/plugins/manifest.test.ts": "91b43c49aca89dd28235997ac7b222425e800e7778f3149a1832b06363af6cd8",
+    "src/lib/plugins/manifest.ts": "b4cc47a233e7dc1824a1072372a3ac3977844565a61146217fcbbe0a6d671f0e",
+    "src/lib/plugins/permission-policy.test.ts": "5daf5460a9862a82560633b461cda5ad6c4e3310b24349127494e99ca82590bf",
+    "src/lib/plugins/permission-policy.ts": "bbb9c1c9b8bd4f398012c60e91614567fb55ff83e4c1ffd7947ec26a6b243988",
+    "src/lib/plugins/store-package.ts": "daf9c8961c221d7dcd52a20954d5cb640b5458ebec5c1c242e1d676577c122e1",
+    "src/lib/plugins/types.ts": "744b780021e84284307176f6bffb5a40734accd6d4b73136d29c0a461f27c4fc",
+    "tsconfig.node.json": "2934c98a3a1afa1a604194a9ad9ecc523c6b8b2d394685690954cfaf6bdf6079"
+  },
+  "failedAttempts": [
+    "Restricted Node/WASM compiler run: five 60-second test timeouts; same compiler tests passed outside the sandbox and in Electron.",
+    "Early native SDK harness: response selector, asynchronous checkbox assertion and exact context-summary selector failed; corrected native run passed.",
+    "TypeScript shared native helper omitted from tsconfig.node include; inclusion corrected and check passed."
+  ],
+  "remaining": [
+    "External Mnemosyne and Hindsight deployment qualification and operations",
+    "Scoped migration, interruption and old-provider deletion reconciliation",
+    "Complete runtime upgrade/backup/platform qualification",
+    "Complete declarative skill section/dependency contract",
+    "Certified plugin memory-provider registration",
+    "Benchmark-supported semantic retrieval and advanced reasoning",
+    "Independent corpus/quality review and ten-participant study deferred pending team",
+    "Windows/macOS native sessions deferred; opaque provider accounting remains unqualified"
+  ]
+}

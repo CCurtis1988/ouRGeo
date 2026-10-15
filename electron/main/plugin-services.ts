@@ -3,6 +3,7 @@ import { readFile, realpath, mkdir } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { createHash } from 'node:crypto'
 import { serviceSpec, serviceConnection, type ServiceConnection } from '../../src/lib/plugins/service-policy'
+import { pluginPermissionsApproved } from '../../src/lib/plugins/permission-policy'
 
 interface Running {
   owner: WebContents
@@ -24,7 +25,7 @@ async function descriptor(id: string): Promise<{ entry: string; dir: string; dat
   if (!dir.startsWith(root + sep)) throw new Error('Service folder is outside the installed plugins directory.')
   const manifest = JSON.parse(await readFile(join(dir, 'ourgeo-plugin.json'), 'utf8'))
   const prefs = JSON.parse(await readFile(join(app.getPath('userData'), 'plugins.json'), 'utf8'))
-  if (manifest.id !== id || prefs.enabled?.[id] !== true || !manifest.permissions?.includes('service')) {
+  if (manifest.id !== id || prefs.enabled?.[id] !== true || !manifest.permissions?.includes('service') || !pluginPermissionsApproved(manifest.permissions, prefs.permissionGrants?.[id])) {
     throw new Error('Enable this plugin with its background service permission before starting it.')
   }
   const spec = serviceSpec(manifest.service)

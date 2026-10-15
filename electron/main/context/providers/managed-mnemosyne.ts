@@ -1,5 +1,4 @@
-import type { MemoryProviderDef } from '../../../../src/lib/context/providers/types'
-import { MemoryRuntime } from '../runtimes'
+import type { MemoryProviderDef, ProviderHost } from '../../../../src/lib/context/providers/types'
 import { bank, boundedEvidence, failed, object, providerQuery } from './shared'
 import { estimateTokens } from '../../../../src/lib/context/budget'
 import { redactContext } from '../../../../src/lib/context/policy'
@@ -18,7 +17,7 @@ export interface CanonicalSnapshotPort {
 /** Integration is separate from certification and installation. Replacement
  * snapshots are host-owned maintenance, never a model tool. A read-only caller
  * supplies no canonical port and cannot accidentally enable writes. */
-export function createManagedMnemosyne(runtimeId: string, runtime: Pick<MemoryRuntime, 'request'>, canonical?: CanonicalSnapshotPort): MemoryProviderDef {
+export function createManagedMnemosyne(runtimeId: string, runtime: { request: (payload: unknown, host: ProviderHost) => Promise<unknown> }, canonical?: CanonicalSnapshotPort): MemoryProviderDef {
   return { id: 'mnemosyne-managed', label: 'Mnemosyne on this device', apiVersion: 1, location: { kind: 'managed-local', runtimeId },
     capabilities: { lexicalSearch: true, semanticSearch: false, temporalSearch: false, readById: true, upsert: Boolean(canonical),
       deleteBySource: Boolean(canonical), deleteScope: false, export: false, reflection: false, usageReporting: false, scopeIsolation: 'dedicated-instance' },

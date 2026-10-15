@@ -18,6 +18,8 @@ import {
   type PluginManifest, type PluginPermission, type PluginContributions,
 } from './types'
 import { validateSkills } from '@/lib/context/skills'
+import { checkAppVersion } from './app-version'
+export { checkAppVersion } from './app-version'
 import { serviceSpec } from './service-policy'
 
 export interface ManifestResult {
@@ -111,6 +113,13 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
   if (m.context !== undefined) {
     try { context = validateSkills(m.context) }
     catch (error) { return { ok: false, warnings, error: String(error) } }
+    for (const skill of context.skills) if (skill.ourgeoVersion) {
+      const problem = checkAppVersion(skill.ourgeoVersion, appVersion)
+      if (problem) return { ok: false, warnings, error: `Skill "${skill.id}": ${problem}` }
+    }
+    if ((context.sources?.length || context.required?.includes('dynamic-sources')) && !permissions.includes('context-source')) return { ok: false, warnings, error: 'Context sources need the separate "context-source" permission. Network access does not grant context sharing.' }
+    if (context.required?.includes('dynamic-sources') && !m.main) return { ok: false, warnings, error: 'Dynamic context sources need a "main" entry point. Use context.sources for declarative Markdown resources.' }
+    if (context.providers?.length && !permissions.includes('memory-provider')) return { ok: false, warnings, error: 'Memory profiles need the separate "memory-provider" permission and host deployment review.' }
   }
 
   const main = m.main === undefined ? undefined : str(m.main)
@@ -132,7 +141,7 @@ export function readManifest(text: string, appVersion: string): ManifestResult {
     catch (error) { return { ok: false, warnings, error: (error as Error).message } }
   }
 
-  if (!main && isEmpty(contributes)) {
+  if (!main && isEmpty(contributes) && !context?.skills.length && !context?.sources?.length && !context?.providers?.length) {
     return {
       ok: false, warnings,
       error: 'This plugin contributes nothing and has no "main". Add something under "contributes", ' +
@@ -247,16 +256,3 @@ function readContributions(raw: unknown, warnings: string[]): PluginContribution
  * be a dependency and a source of its own surprises, and the only question a
  * plugin actually needs to ask is "is ouRGeo new enough".
  */
-export function checkAppVersion(need: string, appVersion: string): string | null {
-  const want = need.trim().replace(/^[>=^~\s]+/, '')
-  const parse = (v: string): number[] => v.split(/[.-]/).slice(0, 3).map((n) => Number(n) || 0)
-  const a = parse(want)
-  const b = parse(appVersion)
-  for (let i = 0; i < 3; i++) {
-    if ((b[i] ?? 0) > (a[i] ?? 0)) return null
-    if ((b[i] ?? 0) < (a[i] ?? 0)) {
-      return `This plugin needs ouRGeo ${want} or newer; this is ${appVersion}.`
-    }
-  }
-  return null
-}

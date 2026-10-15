@@ -11,6 +11,24 @@ function evidence(result: ProviderResult): NonNullable<Extract<ProviderResult, {
   return result.evidence ?? []
 }
 describe('pinned provider mappings and disclosure boundaries', () => {
+  it('clears terminal local retain payloads in the exact namespace before acknowledging deletion', async () => {
+    const scope = { ...host(), paidProcessingAllowed: false }, id = crypto.randomUUID(), operationId = crypto.randomUUID()
+    const request = vi.fn<JsonTransport>(async path => {
+      if (path.includes('/operations?')) return { bank_id: scope.namespace, total: 1, operations: [{ id: operationId, task_type: 'batch_retain', status: 'completed' }] }
+      if (path.endsWith(`/operations/${operationId}/delete`)) return { success: true, operation_id: operationId }
+      if (path.endsWith(`/operations/${operationId}`)) return { operation_id: operationId, status: 'completed' }
+      return { success: true, document_id: id }
+    })
+    const result = await createHindsightProvider('connection', request, 'verified-local-chunks').dispatch({ operation: 'delete', ids: [id] }, scope)
+    expect(result.status).toBe('ok')
+    expect(request.mock.calls.map(call => call[0])).toEqual([`/v1/default/banks/${scope.namespace}/operations?type=batch_retain&limit=100&offset=0`, `/v1/default/banks/${scope.namespace}/operations/${operationId}`, `/v1/default/banks/${scope.namespace}/operations/${operationId}/delete`, `/v1/default/banks/${scope.namespace}/documents/${id}`])
+  })
+  it.each(['pending', 'foreign', 'oversized'] as const)('blocks unsafe %s ingestion-history cleanup before deleting a source', async fault => {
+    const scope = host(), operationId = crypto.randomUUID()
+    const request = vi.fn<JsonTransport>(async path => path.includes('/operations?') ? { bank_id: fault === 'foreign' ? 'another-bank' : scope.namespace, total: fault === 'oversized' ? 101 : 1, operations: [{ id: operationId, task_type: 'batch_retain', status: 'pending' }] } : { operation_id: operationId, status: 'processing' })
+    const result = await createHindsightProvider('connection', request, 'verified-local-chunks').dispatch({ operation: 'delete', ids: [crypto.randomUUID()] }, scope)
+    expect(result.status).toBe('failed'); expect(request).toHaveBeenCalledTimes(fault === 'pending' ? 2 : 1)
+  })
   it('never asks Hindsight to search another bank or treats temporal ranking as a date filter', async () => {
     const request = vi.fn<JsonTransport>().mockResolvedValue({ results: [
       { id: 'old', text: 'Monday decision', mentioned_at: '2026-09-01T00:00:00Z' },
@@ -21,7 +39,7 @@ describe('pinned provider mappings and disclosure boundaries', () => {
     expect(request.mock.calls[0][0]).toBe(`/v1/default/banks/${scope.namespace}/memories/recall`)
     expect(request.mock.calls[0][2]).toMatchObject({ temporal_window: { start: '2026-09-15T00:00:00Z', end: '9999-12-31T23:59:59Z' }, max_tokens: 800 })
     expect(evidence(result).map(item => item.sourceId)).toEqual(['current'])
-    expect(result).toMatchObject({ complete: false })
+    expect(result).toMatchObject({ complete: true })
     expect(request).toHaveBeenCalledTimes(1)
   })
   it('refuses paid recall, ingestion and reflection before contacting a service', async () => {
@@ -104,6 +122,14 @@ describe('pinned provider mappings and disclosure boundaries', () => {
 })
 
 describe('connection egress', () => {
+  it('supports host adapter queries without changing origin, credentials or the configured path prefix', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}'))
+    const transport = createJsonTransport({ endpoint: 'https://memory.example/api', local: false }, fetcher)
+    await transport('/operations?type=batch_retain&limit=100&offset=0', 'GET', undefined, host())
+    expect(String(fetcher.mock.calls[0][0])).toBe('https://memory.example/api/operations?type=batch_retain&limit=100&offset=0')
+    for (const path of ['//another.example/operations', '/%2e%2e/private', '/operations#fragment', '/operations\nheader']) await expect(transport(path, 'GET', undefined, host())).rejects.toThrow('POLICY_REFUSED')
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
   it('requires TLS except for deliberately configured loopback profiles', () => {
     expect(() => connectionUrl({ endpoint: 'http://192.168.1.2', local: true })).toThrow('HTTPS')
     expect(() => connectionUrl({ endpoint: 'http://localhost', local: false })).toThrow('HTTPS')

@@ -306,11 +306,29 @@ export class ContextBroker {
 
   async ensureSkills(ids: string[]): Promise<string | null> {
     this.check()
-    const missing = ids.filter(id => {
+    const ordered: string[] = [], visiting = new Set<string>(), visited = new Set<string>()
+    const visit = (id: string): void => {
+      if (visiting.has(id)) throw new Error('SOURCE_UNAVAILABLE: skill dependencies contain a cycle. Reload a corrected plugin.')
+      if (visited.has(id)) return
+      if (visited.size + visiting.size >= 32) throw new Error('BUDGET_LIMIT: this action requires more than 32 skill resources. Split the plugin workflow.')
+      const source = this.eligible(['skill'], source => source.id === id)[0]
+      visiting.add(id)
+      for (const dependency of source?.requiredSkills ?? []) visit(dependency)
+      visiting.delete(id); visited.add(id); ordered.push(id)
+    }
+    for (const id of ids) visit(id)
+    const missing = ordered.filter(id => {
       const source = this.eligible(['skill'], s => s.id === id)[0]
       return !source || !this.delivered.has(sourceRevisionKey(id, source.revision))
     })
-    if (!missing.length) return null
+    if (!missing.length) {
+      const requirements = new Set(ordered.flatMap(id => this.eligible(['skill'], source => source.id === id)[0]?.requiredSources ?? []))
+      const categories: Record<string, ContextKind> = { 'environment.schema': 'environment', 'document.current': 'document', 'console.execution': 'console' }
+      const unmet = [...requirements].filter(requirement => !this.eligible(categories[requirement] ? [categories[requirement]] : undefined, source => categories[requirement] ? source.kind === categories[requirement] : source.id === requirement)
+        .some(source => this.delivered.has(sourceRevisionKey(source.id, source.revision))))
+      if (unmet.length) return JSON.stringify({ status: 'REQUIRED_CONTEXT', executed: false, requiredSources: unmet, recovery: 'Search and read the required current evidence before retrying this action. Excluded or unavailable sources do not satisfy prerequisites.' })
+      return null
+    }
     const guidance = await this.prefetch(missing)
     return JSON.stringify({ status: 'REQUIRED_SKILL', executed: false, guidance, recovery: 'Read the supplied prerequisites and retry the action on the next invocation. Missing or excluded skills must be enabled by the user.' })
   }

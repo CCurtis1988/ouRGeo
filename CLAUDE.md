@@ -3722,8 +3722,57 @@ private offline/deletion spike and regenerating its bundled evidence hash.
 `check-context.mjs` verifies native cancel/approve, future-only updates, deletion,
 pause and disconnect in a synthetic Electron profile. This is experimental Linux
 activation, not a stable all-platform release or an external provider certificate.
-External provider recall, cross-provider migration and complete runtime/quality certification remain work.
+The named authenticated Linux local-server profile now supports protected-token
+recall through the external adapter contract. Native writes require a current
+outbox job and its exact canonical snapshot; workspace/policy changes invalidate
+server authority. Its reviewed evidence is in
+`docs/context-mnemosyne-local-server-evidence.json`. Arbitrary remote MCP
+deployments and complete runtime/quality certification remain unqualified.
+Scoped migration uses encrypted schema-17 journals, includes previous bindings
+in the same bank and separately reviews old-copy retention/deletion. Snapshot
+profiles reconcile uncertain old writes by bounded read barriers; other adapters
+require terminal receipts. Keep unresolved writes blocked rather than replaying
+them. Hindsight's real API/restart/network checks pass, but its PostgreSQL/WAL
+plaintext deletion audit fails; do not enable personal writes on that evidence.
+Runtime pointer recovery now matches the immutable installation record in the
+same provider/data pair before current-state reporting or rollback health. A
+crossed, incomplete or foreign-profile restore cannot launch a binary or replace
+the surviving pointer. JSON field order is not identity; validated metadata is
+normalised for comparison. This checks pair consistency, not a full installed-file
+integrity audit or provider-database migration certificate.
 
+### Plugin context SDK
+
+`context.sources` declares plugin-relative Markdown resources;
+`ctx.context.publish` provides bounded dynamic own-resource evidence. Both require
+separate `context-source` consent. `context.required` preserves capability names
+so older hosts reject source manifests instead of dropping their resources.
+Context-only skills/sources are real contributions and their declared Markdown
+must be included in store packages. Static sources retain SHA-256 observations,
+not bodies; reads recheck the current file and refuse changes until reload.
+
+`context/sources/plugin.ts` owns activation sessions, namespaced document IDs,
+untrusted provenance, per-publication host revisions, 64-source limits, two-second
+reads and 100,000-character responses. Search uses local descriptors and gives
+no query to callbacks. A callback gets only cancellation; no personal context
+or memory API is supplied. Disable/reload revokes old owners before disk/code
+waits. Workspace changes abort and remove dynamic resources while installed
+Markdown remains application reference. Republishing emits the plugin revision
+signal and invalidates retained assistant sessions. Existing broker exclusions,
+secret redaction and token budgets still apply.
+
+Plugin preferences now retain explicitly approved permission sets. Legacy enabled
+flags preserve their existing permission categories once and grant no new context
+sharing. Added update permissions disable the plugin for review; the enable switch
+rechecks the displayed manifest against disk. Lifecycle operations are serialised
+so an overlapping reload cannot reinstall revoked owners. Main's native-service
+boundary checks approved permissions too. This is enforcement of host APIs within
+the existing soft code sandbox, not isolation from a hostile renderer plugin.
+`docs/context-plugin-sdk.md` documents authoring and
+`scripts/check-context-plugin-sdk.mjs` drives the real built app in a synthetic
+profile. The remaining stage 3–4 gates are in `docs/context-stages-3-4.md`.
+
+### Managed recall and selected import
 
 `ContextBroker.searchWithMemory` adds approved ordinal provider matches to local
 ranking; synchronous discovery remains available for compatibility tools. Main
@@ -3735,6 +3784,24 @@ Project-first routing avoids sending project queries to a separate global provid
 
 Selected imports use the same expiring native review, but `importBinding` checks
 an existing exact active binding and queues only selected committed revisions.
+From 1.16.19, plugin skills support addressable Markdown sections, mandatory
+section/dependency delivery, minimum app versions and current evidence category
+prerequisites. Declarative provider contributions reference host-reviewed profile
+IDs under the separate `memory-provider` permission. The native host rechecks
+installed bytes and grants; disabling/changing descriptors cancels routes and
+pauses contributed bindings. Unknown profiles remain unavailable. Context source
+callbacks never receive personal memory. See `docs/context-plugin-sdk.md`.
+
+Provider migration uses schema 17's encrypted `provider_migrations` journal.
+It atomically pauses old primary routing, queues the exact committed selection
+and tracks current destination revisions across restart. Switching to built-in
+memory sends no provider content. Old copies require a separate retain/delete
+decision. Cleanup bindings permit deletion only and are pinned to the reviewed
+connection revision. Unresolved old ingestion blocks deletion; cancelled
+migrations preserve canonical memory and transmitted copies. Linux UI fixtures
+cover native review cancellation and built-in migration; storage/controller
+fixtures cover interrupted copying, stale selection and deletion scope.
+
 `bindingSnapshot` owns a namespace generation independent of whole-scope memory:
 importing an unchanged record changes the approved subset without changing the
 canonical scope generation. Include binding policy and selected revisions in its

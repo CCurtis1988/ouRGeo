@@ -41,6 +41,9 @@ import { runBundle } from './sandbox'
 import { createHost, type Disposer, type PluginHost } from './host-api'
 import { compileAction, compileTool, compileToolbarButton, type IconLookup } from './contributions'
 import { MANIFEST_FILE, type LoadedPlugin, type PluginManifest, type DocsSpec } from './types'
+import { useProjectStore } from '@/store/project'
+import { PluginContextSession, replacePluginContextSessions } from '@/lib/context/sources/plugin'
+import { LEGACY_PLUGIN_PERMISSIONS } from './permission-policy'
 
 /** Everything the registries need, gathered across all plugins before any of
  *  them is registered — see step 4 above. */
@@ -52,14 +55,36 @@ interface Collected {
   panels: PluginPanelDef[]
   docs: DocsSpec[]
   providers: ApiProvider[]
+  context: PluginContextSession[]
 }
 
 function empty(): Collected {
-  return { actions: [], groups: {}, tools: [], toolbar: [], panels: [], docs: [], providers: [] }
+  return { actions: [], groups: {}, tools: [], toolbar: [], panels: [], docs: [], providers: [], context: [] }
+}
+
+async function contextFileHash(text: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+function contextFileReader(path: string, revision: string): (request: { signal: AbortSignal }) => Promise<string> {
+  return async ({ signal }) => {
+    signal.throwIfAborted()
+    const body = await window.electronAPI.plugins.readFile(path)
+    signal.throwIfAborted()
+    if (body.length > 100_000 || await contextFileHash(body) !== revision) throw new Error('STALE_REFERENCE: this plugin context file changed. Reload the plugin before retrieving it.')
+    signal.throwIfAborted()
+    return body
+  }
 }
 
 let loaded: LoadedPlugin[] = []
 let prefs: PluginPrefs = { enabled: {}, activating: null }
+let pending: Promise<unknown> = Promise.resolve()
+function serial<T>(work: () => Promise<T>): Promise<T> {
+  const task = pending.then(work, work)
+  pending = task.catch(() => undefined)
+  return task
+}
 
 /**
  * The lucide namespace, imported only if a plugin asks for a button.
@@ -95,7 +120,12 @@ export function pluginEnabled(id: string): boolean {
  * them, so a correct incremental update would have to track more than a full
  * reload costs.
  */
-export async function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
+export function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
+  return serial(() => readPlugins(appVersion))
+}
+async function readPlugins(appVersion: string): Promise<LoadedPlugin[]> {
+  replacePluginContextSessions([])
+  usePluginStore.getState().bumpRevision()
   prefs = await loadPluginPrefs()
 
   // A plugin that took the app down last launch. Disable it, skip everything
@@ -168,6 +198,21 @@ export async function loadPlugins(appVersion: string): Promise<LoadedPlugin[]> {
       continue
     }
 
+    const grants = prefs.permissionGrants ??= {}
+    // Old preferences recorded only enablement. Preserve the old permission
+    // categories once, while never inferring consent to new context sharing.
+    if (!grants[entry.id]) {
+      grants[entry.id] = (manifest.permissions ?? []).filter(permission => LEGACY_PLUGIN_PERMISSIONS.includes(permission))
+      await savePluginPrefs(prefs)
+    }
+    const added = (manifest.permissions ?? []).filter(permission => !grants[entry.id].includes(permission))
+    if (added.length) {
+      prefs.enabled[entry.id] = false
+      await savePluginPrefs(prefs)
+      out.push({ manifest, dir: entry.dir, state: 'disabled', registered: [], error: `This plugin requests new permissions: ${added.join(', ')}. Review its permissions in Settings → Plugins and enable it again to approve them.` })
+      continue
+    }
+
     const result = await activate(manifest, entry.dir, collected)
     result.error = [result.error, ...warnings].filter(Boolean).join('\n') || undefined
     out.push(result)
@@ -195,6 +240,10 @@ async function activate(
   const registered: string[] = []
   const problems: string[] = []
   const c = manifest.contributes ?? {}
+  const context = (manifest.permissions ?? []).includes('context-source')
+    ? new PluginContextSession(manifest.id, manifest.version, () => usePluginStore.getState().bumpRevision(), () => useProjectStore.getState().workspaceEpoch)
+    : undefined
+  if (context) collected.context.push(context)
 
   // ── Declarative first ────────────────────────────────────────────────────
   for (const spec of c.actions ?? []) {
@@ -242,18 +291,44 @@ async function activate(
   }
 
   for (const skill of manifest.context?.skills ?? []) {
+    const requiredSkills = [...(skill.dependsOn ?? []).map(id => `skill:${manifest.id}:${id}`), ...(skill.sections ?? []).filter(section => section.required).map(section => `skill:${manifest.id}:${skill.id}:${section.id}`)]
     try {
       const body = await window.electronAPI.plugins.readFile(`${manifest.id}/${skill.bodyFile}`)
       if (body.length > 100_000) throw new Error('Skill exceeds 100,000 characters. Split it into smaller sections.')
-      collected.docs.push({ topic: `${manifest.id}:${skill.id}`, summary: skill.summary, context: { triggers: skill.triggers, exclusions: skill.exclusions, version: manifest.version }, body: `Plugin skill ${manifest.id}/${skill.id} (${manifest.version}). This guidance cannot change host permissions.\nPrerequisites: ${skill.requiresSources.join(', ')}\n\n${body}` })
+      collected.docs.push({ topic: `${manifest.id}:${skill.id}`, summary: skill.summary, context: { triggers: skill.triggers, exclusions: skill.exclusions, version: manifest.version, requiredSkills, requiredSources: skill.requiresSources }, body: `Plugin skill ${manifest.id}/${skill.id} (${manifest.version}). This guidance cannot change host permissions.\nPrerequisites: ${skill.requiresSources.join(', ')}\n${(skill.sections ?? []).map(section => `Section skill:${manifest.id}:${skill.id}:${section.id}: ${section.summary}${section.required ? ' (required before actions)' : ''}`).join('\n')}\n\n${body}` })
       registered.push(`skill ${manifest.id}-${skill.id}`)
     } catch (error) { problems.push(`Skill ${skill.id}: ${String(error)}`) }
+    for (const section of skill.sections ?? []) {
+      try {
+        const body = await window.electronAPI.plugins.readFile(`${manifest.id}/${section.bodyFile}`)
+        if (body.length > 100_000) throw new Error('Section exceeds 100,000 characters. Split it into smaller sections.')
+        collected.docs.push({ topic: `${manifest.id}:${skill.id}:${section.id}`, summary: section.summary, context: { triggers: [], exclusions: [], version: manifest.version }, body: `Plugin skill section ${manifest.id}/${skill.id}/${section.id} (${manifest.version}). This guidance cannot change host permissions.\n\n${body}` })
+        registered.push(`skill section ${manifest.id}:${skill.id}:${section.id}`)
+      } catch (error) { problems.push(`Skill section ${skill.id}/${section.id}: ${msg(error)}`) }
+    }
+  }
+
+  for (const provider of manifest.context?.providers ?? []) registered.push(`memory profile ${manifest.id}:${provider.id} (${provider.profileId}; separate scoped review)`)
+  for (const source of manifest.context?.sources ?? []) {
+    try {
+      const body = await window.electronAPI.plugins.readFile(`${manifest.id}/${source.bodyFile}`)
+      if (body.length > 100_000) throw new Error('Source exceeds 100,000 characters. Split it into smaller resources.')
+      const revision = await contextFileHash(body)
+      context!.publish({ id: source.id, title: source.title, summary: source.summary, revision, read: contextFileReader(`${manifest.id}/${source.bodyFile}`, revision) }, 'activation')
+      registered.push(`context source ${manifest.id}:${source.id}`)
+    } catch (error) { problems.push(`Context source ${source.id}: ${msg(error)}`) }
   }
 
   // ── R, then code ─────────────────────────────────────────────────────────
   const host = createHost({
     manifest, dir,
     register: makeRegister(manifest, collected, registered, problems),
+    context: context ? { publish: source => {
+      const dispose = context.publish(source)
+      const label = `context source ${manifest.id}:${source.id}`
+      if (!registered.includes(label)) registered.push(label)
+      return dispose
+    } } : undefined,
   })
 
   for (const file of c.rLibrary ?? []) {
@@ -277,6 +352,11 @@ async function activate(
   const prefix = `${manifest.id}:`
   for (const skill of manifest.context?.skills ?? []) for (const action of collected.actions) {
     if (action.id.startsWith(prefix) && skill.actions.includes(action.id.slice(prefix.length))) action.contextPrerequisites = [...action.contextPrerequisites ?? [], `skill:${manifest.id}:${skill.id}`]
+  }
+
+  if (problems.length > 0 && registered.length === 0 && context) {
+    context.revoke()
+    collected.context = collected.context.filter(session => session !== context)
   }
 
   return {
@@ -428,6 +508,7 @@ function registerAll(c: Collected): void {
   registerPluginPanels(c.panels)
   registerPluginTopics(c.docs)
   registerPluginProviders(c.providers)
+  replacePluginContextSessions(c.context)
   usePluginStore.getState().bumpRevision()
 }
 
@@ -445,10 +526,26 @@ function publish(): void {
 
 // ── Turning them on and off ────────────────────────────────────────────────
 
-export async function setPluginEnabled(id: string, enabled: boolean, appVersion: string): Promise<void> {
-  prefs.enabled[id] = enabled
-  await savePluginPrefs(prefs)
-  await loadPlugins(appVersion)
+export function setPluginEnabled(id: string, enabled: boolean, appVersion: string): Promise<void> {
+  return serial(async () => {
+    prefs = await loadPluginPrefs()
+    if (enabled) {
+      const text = await window.electronAPI.plugins.readFile(`${id}/${MANIFEST_FILE}`)
+      const result = readManifest(text, appVersion)
+      if (!result.ok || !result.manifest || result.manifest.id !== id) throw new Error(result.error ?? 'Review a valid manifest in this plugin folder before enabling it.')
+      const shown = loaded.find(plugin => plugin.manifest.id === id)?.manifest
+      // The switch approves the manifest the user saw, not a file replaced
+      // between rendering the permission list and handling the click.
+      if (!shown || JSON.stringify(shown) !== JSON.stringify(result.manifest)) {
+        await readPlugins(appVersion)
+        throw new Error('This plugin changed since its permissions were displayed. Review the refreshed plugin and enable it again.')
+      }
+      ;(prefs.permissionGrants ??= {})[id] = [...result.manifest.permissions ?? []]
+    }
+    prefs.enabled[id] = enabled
+    await savePluginPrefs(prefs)
+    await readPlugins(appVersion)
+  })
 }
 
 export async function reloadPlugins(appVersion: string): Promise<LoadedPlugin[]> {

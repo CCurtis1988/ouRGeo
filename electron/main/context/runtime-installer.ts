@@ -66,15 +66,17 @@ function installation(value: unknown): RuntimeInstallation | null {
   if (value === null) return null
   const item = value as Partial<RuntimeInstallation>
   if (!item || item.version !== 1 || typeof item.folder !== 'string' || !/^installed_[a-f0-9-]{36}$/.test(item.folder)
-    || typeof item.profileId !== 'string' || !/^[a-z0-9-]{1,80}$/.test(item.profileId) || typeof item.providerVersion !== 'string' || item.providerVersion.length > 80
+    || typeof item.profileId !== 'string' || !/^[a-z0-9-]{1,80}$/.test(item.profileId) || typeof item.providerVersion !== 'string' || !item.providerVersion || item.providerVersion.length > 80
     || !['ready', 'ready-for-certification'].includes(String(item.state)) || typeof item.createdAt !== 'string' || !Number.isFinite(Date.parse(item.createdAt))
     || !Array.isArray(item.artifacts) || !item.artifacts.length || item.artifacts.length > 8
+    || new Set(item.artifacts.map(artifact => artifact?.role)).size !== item.artifacts.length
     || item.artifacts.some(artifact => !artifact || typeof artifact.role !== 'string' || !/^[a-z0-9-]{1,40}$/.test(artifact.role)
       || typeof artifact.directory !== 'string' || !/^\.runtime-[a-zA-Z0-9_-]+$/.test(artifact.directory)
-      || typeof artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(artifact.sha256) || typeof artifact.root !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(artifact.root))) {
+      || typeof artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(artifact.sha256) || typeof artifact.root !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(artifact.root) || ['.', '..'].includes(artifact.root))) {
     throw new Error('Runtime installation metadata is damaged. Preserve it and restore a supported backup.')
   }
-  return item as RuntimeInstallation
+  return { version: 1, profileId: item.profileId, providerVersion: item.providerVersion, folder: item.folder, createdAt: item.createdAt,
+    state: item.state as RuntimeInstallation['state'], artifacts: item.artifacts.map(({ role, directory, sha256, root }) => ({ role, directory, sha256, root })).sort((first, second) => first.role.localeCompare(second.role)) }
 }
 
 /** Updates build a new immutable runtime/data pair. Activation switches one
@@ -90,17 +92,14 @@ export class RuntimeInstaller {
   }
   async current(): Promise<RuntimeInstallation | null> {
     const active = installation(await jsonFile(join(this.root, 'active.json')))
-    if (active) {
-      const info = await lstat(join(this.root, active.folder))
-      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('The active runtime is unavailable. Preserve its data and reinstall a verified release.')
-    }
+    if (active) await this.pair(active)
     return active
   }
   async canRollback(): Promise<boolean> {
     const previous = installation(await jsonFile(join(this.root, 'previous.json')))
     if (!previous || previous.folder === (await this.current())?.folder) return false
-    const info = await lstat(join(this.root, previous.folder))
-    return info.isDirectory() && !info.isSymbolicLink()
+    await this.pair(previous)
+    return true
   }
   install(): Promise<RuntimeInstallation> {
     if (this.running) return this.running
@@ -109,6 +108,16 @@ export class RuntimeInstaller {
     return this.running
   }
   cancel(): void { this.abort?.abort() }
+  private async pair(value: RuntimeInstallation): Promise<string> {
+    const directory = join(this.root, value.folder), info = await lstat(directory)
+    if (!info.isDirectory() || info.isSymbolicLink() || value.profileId !== this.profile.id) throw new Error('Runtime/data pair is unavailable or belongs to another provider profile. Preserve it and restore a supported backup.')
+    const stored = installation(await jsonFile(join(directory, 'installation.json')))
+    // A surviving pointer does not establish a surviving compatible pair.
+    // Crossed pointers after an interrupted/manual restore must fail before
+    // health can launch a binary with the wrong provider data.
+    if (!stored || JSON.stringify(stored) !== JSON.stringify(value)) throw new Error('Runtime/data pair metadata does not match its activation pointer. Preserve it and restore a supported backup.')
+    return directory
+  }
   async rollback(): Promise<RuntimeInstallation> {
     if (this.running) throw new Error('Cancel or finish installation before restoring the previous runtime.')
     this.abort = new AbortController()
@@ -121,8 +130,7 @@ export class RuntimeInstaller {
     try {
       const previous = installation(await jsonFile(join(this.root, 'previous.json')))
       if (!previous) throw new Error('No previous runtime/data pair is available. Keep built-in memory and reinstall a verified release.')
-      const directory = join(this.root, previous.folder), info = await lstat(directory)
-      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('The previous runtime is unavailable. Preserve its data and restore a supported backup.')
+      const directory = await this.pair(previous)
       signal.throwIfAborted()
       await this.host.health(directory, previous, signal)
       await this.host.beforeActivate?.(signal)

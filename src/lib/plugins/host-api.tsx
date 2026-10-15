@@ -27,12 +27,16 @@ import { useLayoutStore } from '@/store/layout'
 import { createJsonFileStore } from '@/lib/persistence'
 import type { PluginManifest, PluginPermission } from './types'
 import type { ServiceConnection } from './service-policy'
+import type { PluginContextSourceDef } from '@/lib/context/sources/plugin'
 
 /** A registration's undo. Every `register` call returns one, and the loader
  *  keeps them so disabling a plugin can be exact rather than a full reload. */
 export type Disposer = () => void
 
 export interface PluginHost {
+  /** Supply only this plugin's own resources. No query, chat, memory or host
+   * context is given to the callback. Requires separate context-source consent. */
+  context?: { publish(source: PluginContextSourceDef): Disposer }
   /** Available only for a declared, permitted service. No commands or paths are accepted. */
   service?: { start(): Promise<ServiceConnection> }
   /** Who this plugin is. */
@@ -111,6 +115,7 @@ export interface HostOptions {
   dir: string
   /** Filled in by the loader; each call appends to the plugin's disposer list. */
   register: PluginHost['register']
+  context?: PluginHost['context']
 }
 
 function has(manifest: PluginManifest, p: PluginPermission): boolean {
@@ -129,7 +134,7 @@ function has(manifest: PluginManifest, p: PluginPermission): boolean {
  * that points nowhere near here. Freeze what this function builds; never
  * freeze what it merely hands through.
  */
-export function createHost({ manifest, dir, register }: HostOptions): PluginHost {
+export function createHost({ manifest, dir, register, context }: HostOptions): PluginHost {
   const id = manifest.id
   const tag = `[${manifest.name}]`
   const console_ = (type: 'info' | 'error', text: string): void => {
@@ -201,6 +206,8 @@ export function createHost({ manifest, dir, register }: HostOptions): PluginHost
     host.service = { start: () => window.electronAPI.plugins.services.start(id) }
   }
 
+  if (has(manifest, 'context-source') && context) host.context = context
+
   if (has(manifest, 'ui')) {
     host.ui = {
       React,
@@ -212,7 +219,7 @@ export function createHost({ manifest, dir, register }: HostOptions): PluginHost
     }
   }
 
-  for (const ns of [host.plugin, host.register, host.read, host.r, host.http, host.ui, host.service]) {
+  for (const ns of [host.plugin, host.register, host.read, host.r, host.http, host.ui, host.service, host.context]) {
     if (ns) Object.freeze(ns)
   }
   Object.freeze(host)

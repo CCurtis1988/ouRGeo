@@ -6,10 +6,11 @@ import type { PublicMemoryConnection } from '@/lib/context/providers/connections
 
 /** A selection is a preview, not authority. Main rechecks committed revisions,
  * exclusions and the active binding after native consent. */
-export function MemoryImportSelection({ connection, disabled, review }: {
+export function MemoryImportSelection({ connection, disabled, review, migration = false }: {
   connection: PublicMemoryConnection
   disabled: boolean
   review: (ids: string[]) => Promise<boolean>
+  migration?: boolean
 }): React.ReactElement {
   const globals = useContextStore(state => state.globals)
   const projectContext = useContextStore(state => state.projectContext)
@@ -25,9 +26,9 @@ export function MemoryImportSelection({ connection, disabled, review }: {
       && !excluded.includes(`memory:${record.id}`))
   const selectedIds = selected.filter(id => records.some(record => record.id === id))
   const matches = records.filter(record => record.statement.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
-  return <details className="mt-2" aria-label={`Import memories to ${connection.label}`}>
-    <summary className="cursor-pointer">Import existing committed memories</summary>
-    <p className="text-geo-muted">Choose existing memories to copy to this active provider. Canonical records stay in ouRGeo. No other scope or conversation history is imported.</p>
+  return <details className="mt-2" aria-label={`${migration ? 'Migrate' : 'Import'} memories to ${connection.label}`}>
+    <summary className="cursor-pointer">{migration ? 'Migrate selected memories to this provider' : 'Import existing committed memories'}</summary>
+    <p className="text-geo-muted">{migration ? 'Copy selected committed memories and route future updates to this provider. The old provider is paused; its copies stay until you separately review cleanup.' : 'Choose existing memories to copy to this active provider.'} Canonical records stay in ouRGeo. No other scope or conversation history is imported.</p>
     {unsaved && <p role="status">Save this project before selecting committed project memories.</p>}
     <label className="block mt-1">Find a memory<input aria-label="Find memories to import" value={query} maxLength={256} onChange={event => setQuery(event.target.value)} className="w-full bg-geo-bg border border-geo-border rounded p-1" /></label>
     <fieldset disabled={disabled}><legend className="text-geo-muted">{matches.length} matching memories · {selectedIds.length} selected</legend>
@@ -41,8 +42,8 @@ export function MemoryImportSelection({ connection, disabled, review }: {
     {matches.length > 100 && <p className="text-geo-muted">Showing the first 100. Narrow the search to find more; selected memories remain selected.</p>}
     <button className="text-geo-accent mt-2 disabled:opacity-50" disabled={disabled || !selectedIds.length} onClick={() => {
       const epoch = useProjectStore.getState().workspaceEpoch
-      void review(selectedIds).then(saved => { setNotice(saved ? 'Selected memories queued for import. Processing may be pending; canonical records remain local.' : 'Review cancelled. No memories queued.'); if (saved) { setSelected([]); if (useProjectStore.getState().workspaceEpoch === epoch) useSessionStore.getState().addConsoleEntry('info', '[Context] Selected committed memories queued for provider import.') } }, () => setNotice('Import did not complete. Review the current memories, save project changes and retry.'))
-    }}>Review import of {selectedIds.length} {selectedIds.length === 1 ? 'memory' : 'memories'}</button>
+      void review(selectedIds).then(saved => { setNotice(saved ? migration ? 'Migration started. Review progress and old-copy cleanup in Provider migrations.' : 'Selected memories queued for import. Processing may be pending; canonical records remain local.' : 'Review cancelled. No memories queued.'); if (saved) { setSelected([]); if (useProjectStore.getState().workspaceEpoch === epoch) useSessionStore.getState().addConsoleEntry('info', migration ? '[Context] Scoped provider migration started; canonical records remain local.' : '[Context] Selected committed memories queued for provider import.') } }, () => setNotice(`${migration ? 'Migration' : 'Import'} did not complete. Review the current memories, save project changes and retry.`))
+    }}>Review {migration ? 'migration' : 'import'} of {selectedIds.length} {selectedIds.length === 1 ? 'memory' : 'memories'}</button>
     {notice && <p role="status" className="text-geo-muted mt-1">{notice}</p>}
   </details>
 }

@@ -4,7 +4,7 @@ import { constants, chmodSync, closeSync, copyFileSync, fsyncSync, lstatSync, mk
 import { dirname, join } from 'node:path'
 import type { MemoryIndexRepair } from '../../../src/lib/context/storage-recovery'
 export type { MemoryIndexRepair } from '../../../src/lib/context/storage-recovery'
-const encryptedTables = new Set(['memories', 'journals', 'provider_bindings', 'outbox', 'file_links', 'exclusions', 'project_locations', 'memory_connections', 'memory_credentials', 'provider_snapshots', 'maintenance_budget', 'local_cleanup', 'column_policies', 'inference_usage', 'chat_budget'])
+const encryptedTables = new Set(['memories', 'journals', 'provider_bindings', 'outbox', 'file_links', 'exclusions', 'project_locations', 'memory_connections', 'memory_credentials', 'provider_snapshots', 'maintenance_budget', 'local_cleanup', 'column_policies', 'inference_usage', 'chat_budget', 'provider_migrations'])
 const tables = new Set([...encryptedTables, 'tombstones', 'suppressed_sources', 'record_scopes', 'remote_namespaces'])
 
 /** Only a rebuildable secondary index may be repaired. Unreadable pages,

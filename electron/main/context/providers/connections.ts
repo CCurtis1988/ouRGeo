@@ -8,6 +8,7 @@ import { prepareConnection } from './connection-policy'
 import { createJsonTransport } from './transport'
 import { createHindsightProvider } from './hindsight'
 import { createMnemosyneProvider, createMnemosyneMcpCall } from './mnemosyne'
+import { createLocalServerMnemosyne } from './local-server-mnemosyne'
 
 type Dispatch = (operation: string, value?: unknown, guard?: () => void) => Promise<unknown>
 export class MemoryConnections {
@@ -47,7 +48,7 @@ export class MemoryConnections {
       guard()
       if (connection.credentialRef && !token) throw new Error('Credentials are unavailable. Disconnect and create a new connection.')
       const request = createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, this.fetcher)
-      const provider = connection.adapter === 'hindsight' ? createHindsightProvider(id, request) : createMnemosyneProvider(id, createMnemosyneMcpCall(request))
+      const provider = connection.localServer ? createLocalServerMnemosyne(id, request) : connection.adapter === 'hindsight' ? createHindsightProvider(id, request) : createMnemosyneProvider(id, createMnemosyneMcpCall(request))
       const result = await provider.dispatch({ operation: 'probe' }, { namespace: connection.namespaceRef, signal: abort.signal, timeoutMs: 5000, policyRevision: connection.revision,
         maxResults: 1, maxTokens: 256, idempotencyKey: randomUUID(), paidProcessingAllowed: false,
         authorised: () => !abort.signal.aborted && this.lease().id === snapshot.id })

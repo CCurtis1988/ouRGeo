@@ -96,3 +96,46 @@ it('never overwrites malformed activation metadata or a live install lock', asyn
   await writeFile(join(root, '.install-lock'), JSON.stringify({ pid: process.pid, nonce: crypto.randomUUID() }))
   await expect(installer.install()).rejects.toThrow('Another runtime installation')
 })
+
+it('refuses crossed runtime/data metadata before rollback health can launch a binary', async () => {
+  const { installer, profile, root, health, fetcher } = await fixture()
+  const first = await installer.install()
+  const update = new RuntimeInstaller(root, { ...profile, version: '2' }, { health, fetcher })
+  const second = await update.install(), calls = health.mock.calls.length
+  const crossed = { ...first, providerVersion: '99' }
+  await writeFile(join(root, 'previous.json'), JSON.stringify(crossed))
+  await expect(update.canRollback()).rejects.toThrow('does not match')
+  await expect(update.rollback()).rejects.toThrow('does not match')
+  expect(health).toHaveBeenCalledTimes(calls)
+  expect(await update.current()).toEqual(second)
+  expect(await readFile(join(root, first.folder, 'provider-data', 'synthetic-decision.txt'), 'utf8')).toBe('1')
+})
+
+it('recognises compatible pair metadata after JSON field ordering changes', async () => {
+  const { installer, root } = await fixture()
+  const first = await installer.install()
+  const reordered = Object.fromEntries(Object.entries(first).reverse())
+  await writeFile(join(root, first.folder, 'installation.json'), JSON.stringify(reordered))
+  expect(await installer.current()).toEqual(first)
+})
+
+it('preserves an interrupted activation pair when its installation record is missing', async () => {
+  const { installer, root } = await fixture()
+  const first = await installer.install()
+  await rm(join(root, first.folder, 'installation.json'))
+  await expect(installer.current()).rejects.toThrow('does not match')
+  await expect(installer.install()).rejects.toThrow('does not match')
+  expect(JSON.parse(await readFile(join(root, 'active.json'), 'utf8'))).toEqual(first)
+  expect(await readFile(join(root, first.folder, 'provider-data', 'synthetic-decision.txt'), 'utf8')).toBe('1')
+})
+
+it('refuses rollback into another provider profile even when its pair metadata agrees', async () => {
+  const { installer, profile, root, health, fetcher } = await fixture()
+  const first = await installer.install()
+  const foreign = { ...first, profileId: 'foreign-provider' }
+  await writeFile(join(root, first.folder, 'installation.json'), JSON.stringify(foreign))
+  await writeFile(join(root, 'previous.json'), JSON.stringify(foreign))
+  const update = new RuntimeInstaller(root, { ...profile, version: '2' }, { health, fetcher })
+  await expect(update.rollback()).rejects.toThrow('another provider profile')
+  expect(health).toHaveBeenCalledOnce()
+})

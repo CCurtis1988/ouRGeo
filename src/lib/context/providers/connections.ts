@@ -22,6 +22,9 @@ export interface MemoryConnection {
   endpoint: string
   location: 'loopback' | 'server' | 'managed-local'
   runtimeId?: string
+  /** Set only by the native host for its authenticated, owned loopback bridge. */
+  localServer?: true
+  contribution?: import('./contributions').ProviderContributionRef
   scope: 'global' | `project:${string}`
   namespaceRef: string
   credentialRef: string | null

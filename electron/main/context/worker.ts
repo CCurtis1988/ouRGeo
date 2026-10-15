@@ -81,6 +81,32 @@ parentPort!.on('message', (message: { id: number; op: string; value?: unknown })
         const input = message.value as { binding: Parameters<MemoryStorage['activateBinding']>[0]; generation: number; ids: string[]; connectionRevision: number }
         result = store.activateBinding(input.binding, input.generation, input.ids, input.connectionRevision); break
       }
+      case 'beginMigration': {
+        const input = message.value as { sourceBindingId: string; binding: Parameters<MemoryStorage['beginMigration']>[1]; generation: number; ids: string[]; connectionRevision: number }
+        result = store.beginMigration(input.sourceBindingId, input.binding, input.generation, input.ids, input.connectionRevision); break
+      }
+      case 'migrationStatuses': result = store.migrationStatuses(message.value as string[]); break
+      case 'migrationUncertainWrites': {
+        const input = message.value as { id: string; scopes: string[] }; result = store.migrationUncertainWrites(input.id, input.scopes); break
+      }
+      case 'acknowledgeMigrationWrites': {
+        const input = message.value as { id: string; scopes: string[]; receipts: Array<{ id: string; revision: number }> }; result = store.acknowledgeMigrationWrites(input.id, input.scopes, input.receipts); break
+      }
+      case 'revokeContributionBindings': result = store.revokeContributionBindings(message.value as string[]); break
+      case 'beginBuiltinMigration': {
+        const input = message.value as { sourceBindingId: string; generation: number }; result = store.beginBuiltinMigration(input.sourceBindingId, input.generation); break
+      }
+      case 'migrationBindings': {
+        const input = message.value as { id: string; scopes: string[] }; result = store.migrationBindings(input.id, input.scopes); break
+      }
+      case 'finishMigration': {
+        const input = message.value as { id: string; scopes: string[]; choice: 'retain' | 'delete'; binding?: Parameters<MemoryStorage['finishMigration']>[3]; connectionRevision?: number }
+        if (input.choice === 'delete' && !Number.isSafeInteger(input.connectionRevision)) throw new Error('Review the current old-provider connection before deletion.')
+        result = store.finishMigration(input.id, input.scopes, input.choice, input.binding, input.connectionRevision); break
+      }
+      case 'cancelMigration': {
+        const input = message.value as { id: string; scopes: string[] }; result = store.cancelMigration(input.id, input.scopes); break
+      }
       case 'configureBinding': result = store.configureBinding(message.value as Parameters<MemoryStorage['configureBinding']>[0]); break
       case 'scopedConnection': {
         const input = message.value as { id: string; scopes: string[] }

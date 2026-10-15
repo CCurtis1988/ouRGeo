@@ -1,11 +1,12 @@
 import type { MemoryRecallRequest, MemoryRecallResult } from '../../../../src/lib/context/providers/recall'
-import { providerDescriptorIssues } from '../../../../src/lib/context/providers/validation'
+import { providerDescriptorIssues, providerResponseIssues } from '../../../../src/lib/context/providers/validation'
 import { providerQuery } from './shared'
 import { randomUUID } from 'node:crypto'
 import type { MemoryConnection } from '../../../../src/lib/context/providers/connections'
 import type { ProviderBinding, OutboxJob } from '../../../../src/lib/context/providers/outbox'
 import type { CanonicalScopeSnapshot } from '../../../../src/lib/context/providers/types'
 import type { MaintenanceStatus } from '../../../../src/lib/context/providers/maintenance'
+import type { ProviderMigration, ProviderMigrationStatus } from '../../../../src/lib/context/providers/migration'
 import type { ProviderActivationPreview, ProviderActivationStatus } from '../../../../src/lib/context/providers/activation'
 import type { WorkspaceLease } from '../scope'
 import { OutboxRunner } from '../outbox-runner'
@@ -18,7 +19,7 @@ import type { ProviderRoutingPort } from './routing'
 
 type Dispatch = Parameters<typeof createProviderWorkerPort>[0]
 interface State { connections: MemoryConnection[]; bindings: ProviderBinding[] }
-interface Prepared { public: ProviderActivationPreview; connection: MemoryConnection; binding: ProviderBinding; lease: WorkspaceLease; generation: number; ids: string[] }
+interface Prepared { public: ProviderActivationPreview; connection: MemoryConnection; binding: ProviderBinding; lease: WorkspaceLease; generation: number; ids: string[]; sourceBindingId?: string }
 export interface ActivationHost {
   dispatch: Dispatch
   lease: () => WorkspaceLease
@@ -78,7 +79,10 @@ export class ProviderActivation {
       },
     })
     const scopes = worker.scopes
-    worker.scopes = () => scopes().filter(scope => this.state.bindings.some(binding => binding.scope === scope && this.state.connections.some(connection => connection.id === binding.connectionRef && (this.paidAllowed || connection.location === 'managed-local') && host.registry.certificate(connection, binding))))
+    worker.scopes = () => scopes().filter(scope => this.state.bindings.some(binding => binding.scope === scope && this.state.connections.some(connection => {
+      const certificate = connection.id === binding.connectionRef ? host.registry.certificate(connection, binding) : undefined
+      return certificate && (this.paidAllowed || certificate.operations[binding.cleanupOnly ? 'delete' : 'upsert']?.processing === 'non-billable')
+    })))
     this.runner = new OutboxRunner(worker, this.now)
   }
   invalidate(): void {
@@ -108,7 +112,7 @@ export class ProviderActivation {
       await this.refresh()
     }
     return this.state.connections.map(connection => {
-      const binding = this.state.bindings.find(binding => binding.connectionRef === connection.id && binding.enabled)
+      const binding = this.state.bindings.find(binding => binding.connectionRef === connection.id && binding.enabled && !binding.cleanupOnly)
         ?? this.state.bindings.find(binding => binding.connectionRef === connection.id)
       const reviewed = Boolean(this.host.registry.review(connection))
       return { connectionId: connection.id, state: reviewed ? binding?.enabled ? 'active' : binding ? 'paused' : 'ready' : 'review-required',
@@ -138,11 +142,11 @@ export class ProviderActivation {
     try {
       check(); await Promise.race([this.refresh(), aborted]); check()
       const scope = input.scope === 'global' ? 'global' : lease.projectId ? `project:${lease.projectId}` : null
-      const binding = this.state.bindings.find(item => item.scope === scope && item.enabled)
+      const binding = this.state.bindings.find(item => item.scope === scope && item.enabled && !item.cleanupOnly)
       const connection = this.state.connections.find(item => item.id === binding?.connectionRef)
       const certificate = binding && connection ? this.host.registry.certificate(connection, binding) : undefined
       if (!scope || !binding || !connection || !certificate || !this.host.provider) return { status: 'unavailable', hits: [], coverage: 'local-only' }
-      if (connection.location !== 'managed-local' || certificate.operations.search?.processing !== 'non-billable') return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'UNSUPPORTED' }
+      if (connection.location !== 'managed-local' && !connection.localServer || certificate.operations.search?.processing !== 'non-billable') return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'UNSUPPORTED' }
       connectionId = connection.id
       const breaker = this.breakers.get(connectionId)
       if (breaker && breaker.retryAt > this.now()) return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'PROVIDER_OFFLINE' }
@@ -160,10 +164,12 @@ export class ProviderActivation {
       const work = async (): Promise<MemoryRecallResult> => {
         const snapshot = await this.host.dispatch('bindingSnapshot', { bindingId: binding.id, scope }, check) as CanonicalScopeSnapshot
         check()
-        const provider = await this.host.provider!(connection, undefined, certificate)
+        const token = connection.credentialRef ? await this.host.dispatch('scopedCredential', { reference: connection.credentialRef, scopes: [scope] }, check) as string | undefined : undefined
+        check(); if (connection.credentialRef && !token) throw new Error('CREDENTIAL_UNAVAILABLE')
+        const provider = await this.host.provider!(connection, token, certificate)
         check()
         if (!authorised() || providerDescriptorIssues(provider).length || provider.id !== certificate.providerId
-          || provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId || !provider.capabilities.lexicalSearch || provider.capabilities.scopeIsolation !== certificate.isolation) throw new Error('POLICY_REFUSED')
+          || (connection.localServer ? provider.location.kind !== 'external' || provider.location.connectionId !== connection.id : provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId) || !provider.capabilities.lexicalSearch || provider.capabilities.scopeIsolation !== certificate.isolation) throw new Error('POLICY_REFUSED')
         if (await this.host.dispatch('bindingSnapshotCurrent', { bindingId: binding.id, scope, generation: snapshot.generation }, check) !== true) return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'STALE_REFERENCE' }
         check()
         if (!authorised()) throw new Error('POLICY_REFUSED')
@@ -196,16 +202,18 @@ export class ProviderActivation {
       return { status: 'degraded', hits: [], coverage: 'local-fallback', reason: 'PROVIDER_OFFLINE' }
     } finally { clearTimeout(timer); if (this.recalls.get(id) === controller) this.recalls.delete(id) }
   }
-  async preview(id: string, ids: string[], suppliedLease: string, operation: 'activate' | 'import' = 'activate'): Promise<ProviderActivationPreview> {
+  async preview(id: string, ids: string[], suppliedLease: string, operation: 'activate' | 'import' | 'migrate' = 'activate'): Promise<ProviderActivationPreview> {
     if (suppliedLease !== this.host.lease().id || !Array.isArray(ids) || ids.length > 1000 || new Set(ids).size !== ids.length) throw new Error('Refresh the workspace and choose at most 1,000 canonical memories.')
     await this.refresh()
     const lease = this.host.lease(), generation = this.generation
     const connection = this.state.connections.find(connection => connection.id === id)
     if (!connection) throw new Error('Choose a connection in the active scope.')
-    const active = this.state.bindings.find(item => item.connectionRef === connection.id && item.enabled)
+    const active = this.state.bindings.find(item => item.connectionRef === connection.id && item.enabled && !item.cleanupOnly)
     if (operation === 'import' && (!active || !ids.length || !this.host.registry.certificate(connection, active))) throw new Error('Activate this reviewed provider and select committed memories before importing.')
     const binding = operation === 'import' ? active! : this.host.registry.binding(connection)
-    if (operation === 'activate' && this.state.bindings.some(item => item.scope === binding.scope && item.enabled)) throw new Error('Pause the current primary provider before reviewing a migration.')
+    const source = this.state.bindings.find(item => item.scope === binding.scope && item.enabled && !item.cleanupOnly)
+    if (operation === 'activate' && source) throw new Error('Use the scoped migration flow to switch an active primary provider.')
+    if (operation === 'migrate' && (!source || source.connectionRef === id || !ids.length)) throw new Error('Choose a distinct reviewed destination and select committed memories before migrating.')
     const check = () => { if (generation !== this.generation || lease.id !== this.host.lease().id) throw new Error('SCOPE_CHANGED: prepare a new activation preview.') }
     const snapshot = await this.host.dispatch('scopeSnapshot', binding.scope, check) as CanonicalScopeSnapshot
     check()
@@ -221,7 +229,7 @@ export class ProviderActivation {
     if (this.previews.size >= 8) throw new Error('Finish or let pending activation previews expire before opening another.')
     const preview: ProviderActivationPreview = { ref: randomUUID(), connectionId: id, label: connection.label, scope: binding.scope === 'global' ? 'global' : 'project', selectedCount: ids.length,
       operation, estimatedIngestionMicros: estimate, currency: 'USD', futureWrites: true, expiresAt: new Date(this.now() + 60000).toISOString() }
-    this.previews.set(preview.ref, { public: preview, connection, binding, lease, generation: snapshot.generation, ids: [...ids] })
+    this.previews.set(preview.ref, { public: preview, connection, binding, lease, generation: snapshot.generation, ids: [...ids], ...(source && operation === 'migrate' ? { sourceBindingId: source.id } : {}) })
     return preview
   }
   async activate(ref: string): Promise<boolean> {
@@ -244,17 +252,89 @@ export class ProviderActivation {
       if (prepared.lease.id !== this.host.lease().id || Date.parse(prepared.public.expiresAt) <= this.now()
         || !this.host.registry.certificate(prepared.connection, prepared.binding)) throw new Error('STALE_SELECTION: prepare a new activation preview.')
     }
-    await this.host.dispatch(prepared.public.operation === 'import' ? 'importBinding' : 'activateBinding', { binding: prepared.binding, generation: prepared.generation, ids: prepared.ids, connectionRevision: prepared.connection.revision }, queued)
+    await this.host.dispatch(prepared.public.operation === 'migrate' ? 'beginMigration' : prepared.public.operation === 'import' ? 'importBinding' : 'activateBinding', { binding: prepared.binding, generation: prepared.generation, ids: prepared.ids, connectionRevision: prepared.connection.revision, ...(prepared.sourceBindingId ? { sourceBindingId: prepared.sourceBindingId } : {}) }, queued)
     this.invalidate(); this.wake()
     return true
   }
   async pause(id: string): Promise<void> {
     await this.refresh()
-    const binding = this.state.bindings.find(binding => binding.connectionRef === id && binding.enabled)
+    const binding = this.state.bindings.find(binding => binding.connectionRef === id && binding.enabled && !binding.cleanupOnly)
     if (!binding) throw new Error('Choose an active provider in the current scope.')
     const lease = this.host.lease()
     this.invalidate()
     await this.host.dispatch('configureBinding', { ...binding, enabled: false, policyRevision: binding.policyRevision + 1 }, () => { if (lease.id !== this.host.lease().id) throw new Error('SCOPE_CHANGED') })
+  }
+  async migrationStatuses(): Promise<ProviderMigrationStatus[]> {
+    const lease = this.host.lease().id
+    return await this.host.dispatch('migrationStatuses', this.scopes(), () => { if (lease !== this.host.lease().id) throw new Error('SCOPE_CHANGED') }) as ProviderMigrationStatus[]
+  }
+  async finishMigration(id: string, choice: 'retain' | 'delete', suppliedLease: string): Promise<boolean> {
+    if (suppliedLease !== this.host.lease().id || !['retain', 'delete'].includes(choice)) throw new Error('SCOPE_CHANGED')
+    await this.refresh()
+    const lease = this.host.lease(), generation = this.generation
+    const check = (): void => { if (lease.id !== this.host.lease().id || generation !== this.generation) throw new Error('SCOPE_CHANGED') }
+    const state = await this.host.dispatch('migrationBindings', { id, scopes: this.scopes() }, check) as { migration: ProviderMigration; source: ProviderBinding; destination: ProviderBinding | null }
+    check()
+    let cleanup: ProviderBinding | undefined, connectionRevision: number | undefined
+    if (choice === 'delete') {
+      const connection = this.state.connections.find(connection => connection.id === state.source.connectionRef)
+      if (!connection) throw new Error('Reconnect and review the old provider before deleting its copies.')
+      cleanup = { ...this.host.registry.binding(connection), cleanupOnly: true }; connectionRevision = connection.revision
+      const certificate = this.host.registry.certificate(connection, cleanup)!, operation = certificate.operations.delete
+      if (!operation) throw new Error('The old deployment is not reviewed for deletion.')
+      const expiresAt = new Date(this.now() + 60000).toISOString(), digest = connectionDigest(connection)
+      const preview: ProviderActivationPreview = { ref: randomUUID(), connectionId: connection.id, label: connection.label, scope: connection.scope === 'global' ? 'global' : 'project', operation: 'cleanup', oldCopyCount: state.migration.sourceIds.length, selectedCount: state.migration.sourceIds.length,
+        estimatedIngestionMicros: operation.processing === 'paid' ? operation.estimateMicros * state.migration.sourceIds.length : 0, currency: 'USD', futureWrites: true, expiresAt }
+      if (!await this.host.approve(preview, connection)) return false
+      check()
+      if (Date.parse(expiresAt) <= this.now() || !this.host.registry.certificate(connection, cleanup) || connectionDigest(connection) !== digest) throw new Error('STALE_SELECTION: review old-provider cleanup again.')
+      const pending = await this.host.dispatch('migrationUncertainWrites', { id, scopes: this.scopes() }, check) as Array<{ id: string; canonicalId: string; revision: number }>
+      // The named snapshot-backed profiles serialise reads after a cancelled
+      // writer and reject stale generations. A fresh read is a quiescence
+      // barrier; absent/superseded data cannot be recreated by that old job.
+      // Other adapters retain uncertainty until their own terminal receipt.
+      if (pending.length && ['mnemosyne-managed', 'mnemosyne-local-server'].includes(certificate.providerId) && this.host.provider && this.host.registry.review(connection)?.operations.read?.processing === 'non-billable') {
+        const token = connection.credentialRef ? await this.host.dispatch('scopedCredential', { reference: connection.credentialRef, scopes: this.scopes() }, check) as string | undefined : undefined
+        if (connection.credentialRef && !token) throw new Error('Recover the old provider’s protected credential before reconciliation.')
+        const provider = await this.host.provider(connection, token, certificate)
+        if (providerDescriptorIssues(provider).length || provider.id !== certificate.providerId || !provider.capabilities.readById || provider.capabilities.scopeIsolation !== certificate.isolation
+          || (connection.location === 'managed-local' ? provider.location.kind !== 'managed-local' || provider.location.runtimeId !== connection.runtimeId : provider.location.kind !== 'external' || provider.location.connectionId !== connection.id)) throw new Error('PROVIDER_UNCERTIFIED')
+        const receipts: Array<{ id: string; revision: number }> = []
+        for (const job of pending) {
+          const authorised = (): boolean => { try { check(); return this.now() < Date.parse(expiresAt) && Boolean(this.host.registry.certificate(connection, cleanup!)) } catch { return false } }
+          const context = { namespace: connection.namespaceRef, signal: new AbortController().signal, timeoutMs: Math.min(3000, certificate.timeoutMs), maxTokens: 2000, maxResults: 1, policyRevision: cleanup.policyRevision, idempotencyKey: randomUUID(), paidProcessingAllowed: false, authorised }
+          const result = await provider.dispatch({ operation: 'read', id: job.canonicalId }, context)
+          check()
+          if (!authorised() || providerResponseIssues(result, context).length || result.status !== 'ok' || !result.complete) continue
+          if (!result.evidence?.length || result.evidence.length === 1 && result.evidence[0].canonicalId === job.canonicalId && Number(result.evidence[0].revision) >= job.revision) receipts.push({ id: job.id, revision: job.revision })
+        }
+        if (receipts.length) await this.host.dispatch('acknowledgeMigrationWrites', { id, scopes: this.scopes(), receipts }, check)
+        check()
+      }
+    }
+    await this.host.dispatch('finishMigration', { id, scopes: this.scopes(), choice, ...(cleanup ? { binding: cleanup, connectionRevision } : {}) }, () => { if (lease.id !== this.host.lease().id) throw new Error('SCOPE_CHANGED') })
+    this.invalidate(); this.wake(); return true
+  }
+  async cancelMigration(id: string, suppliedLease: string): Promise<void> {
+    if (suppliedLease !== this.host.lease().id) throw new Error('SCOPE_CHANGED')
+    await this.host.dispatch('cancelMigration', { id, scopes: this.scopes() }, () => { if (suppliedLease !== this.host.lease().id) throw new Error('SCOPE_CHANGED') })
+    this.invalidate(); this.wake()
+  }
+  async useBuiltin(id: string, suppliedLease: string): Promise<boolean> {
+    if (suppliedLease !== this.host.lease().id) throw new Error('SCOPE_CHANGED')
+    await this.refresh()
+    const binding = this.state.bindings.find(binding => binding.connectionRef === id && binding.enabled && !binding.cleanupOnly), connection = this.state.connections.find(connection => connection.id === id)
+    if (!binding || !connection) throw new Error('Choose an active provider in this workspace.')
+    const lease = this.host.lease().id, generation = this.generation
+    const check = (): void => { if (lease !== this.host.lease().id || generation !== this.generation) throw new Error('SCOPE_CHANGED') }
+    const snapshot = await this.host.dispatch('scopeSnapshot', binding.scope, check) as CanonicalScopeSnapshot
+    check()
+    const expiresAt = new Date(this.now() + 60000).toISOString()
+    if (!await this.host.approve({ ref: randomUUID(), connectionId: id, label: 'Built-in memory', scope: binding.scope === 'global' ? 'global' : 'project', operation: 'migrate-builtin', selectedCount: snapshot.records.length, estimatedIngestionMicros: 0, currency: 'USD', futureWrites: true, expiresAt }, connection)) return false
+    check()
+    if (Date.parse(expiresAt) <= this.now()) throw new Error('STALE_SELECTION')
+    await this.host.dispatch('beginBuiltinMigration', { sourceBindingId: binding.id, generation: snapshot.generation }, () => { if (lease !== this.host.lease().id) throw new Error('SCOPE_CHANGED') })
+    this.invalidate(); this.wake(); return true
   }
   /** Bounded batches and backoff; errors leave canonical records/outbox intact.
    * There is no paid fan-out or automatic switch to another cloud provider. */
@@ -269,7 +349,7 @@ export class ProviderActivation {
         await this.refresh()
         const maintenance = await this.host.dispatch('maintenanceStatus') as MaintenanceStatus
         this.paidAllowed = maintenance.policy.enabled
-        const local = this.state.connections.some(connection => connection.location === 'managed-local' && this.state.bindings.some(binding => binding.connectionRef === connection.id && this.host.registry.certificate(connection, binding)))
+        const local = this.state.connections.some(connection => this.state.bindings.some(binding => binding.connectionRef === connection.id && this.host.registry.certificate(connection, binding)?.operations[binding.cleanupOnly ? 'delete' : 'upsert']?.processing === 'non-billable'))
         if (maintenance.policy.enabled || local) await this.runner.run(4)
       }
     })().catch(() => { /* Status/queue remain available for recovery; no unbounded immediate retries. */ }).finally(() => {

@@ -44,6 +44,20 @@ const declarative = (over: Partial<PluginManifest> = {}): PluginManifest => ({
 beforeEach(stubElectron)
 
 describe('buildDistFiles', () => {
+  it('preserves skills and source Markdown in context-only packages', async () => {
+    fake.files['tide/skills/flood.md'] = 'Synthetic flood workflow'
+    fake.files['tide/docs/flood.md'] = 'Synthetic flood reference'
+    fake.files['tide/skills/safety.md'] = 'Mandatory section guidance'
+    const manifest = declarative({ contributes: undefined, permissions: ['context-source'], context: { version: 1, required: ['sources', 'skill-sections'], skills: [{ id: 'workflow', summary: 'Flood workflow', bodyFile: 'skills/flood.md', sections: [{ id: 'safety', summary: 'Safety', bodyFile: 'skills/safety.md', required: true }], triggers: [], exclusions: [], actions: [], requiresSources: [] }], sources: [{ id: 'flood', title: 'Flood', summary: 'Flood reference', bodyFile: 'docs/flood.md' }] } })
+    const result = await buildDistFiles(manifest)
+    expect(result.ok).toBe(true)
+    expect(result.files?.['skills/flood.md']).toContain('workflow')
+    expect(result.files?.['docs/flood.md']).toContain('reference')
+    expect(result.files?.['skills/safety.md']).toContain('Mandatory section guidance')
+    expect(JSON.parse(result.files!['ourgeo-plugin.json']).context.required).toEqual(['sources', 'skill-sections'])
+    delete fake.files['tide/docs/flood.md']
+    expect((await buildDistFiles(manifest)).error).toContain('Could not package context resource')
+  })
   it('includes all service assets in a distributable', async () => {
     fake.files['tide/server/main.mjs'] = 'export {}'
     fake.files['tide/web/index.html'] = '<main>Player</main>'

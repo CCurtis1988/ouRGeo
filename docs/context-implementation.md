@@ -8,9 +8,18 @@ retrieval/ingestion authority. The reviewed experimental Linux managed profile
 supports separately approved future updates, selected committed-memory imports
 and broker recall with authorised local fallback.
 
-Stages 0–2 are now the delivery priority. Their open requirements and evidence
-boundaries are tracked in [the closure checklist](context-stages-0-2.md);
-later-stage provider/plugin work does not count as closing those gates.
+The 1.16.18 [plugin context SDK](context-plugin-sdk.md) adds separately approved
+declarative and dynamic own-resource sources, on-demand Markdown reads,
+revision/revocation enforcement and update permission renewal. Runtime/data
+recovery validates each pair's installation record before rollback health.
+Stage 3–4 progress and the remaining deployment/migration/SDK qualification gates
+are recorded in [the delivery checklist](context-stages-3-4.md).
+
+Built-in Linux stage 0–2 engineering closed in 1.16.17. Their unwaived release
+qualification requirements and evidence boundaries remain in
+[the closure checklist](context-stages-0-2.md). The owner has advanced delivery to
+[stages 3–4](context-stages-3-4.md); provider/plugin work does not close deferred
+quality, usability or platform gates.
 
 ## Available in this working tree
 
@@ -380,14 +389,14 @@ Disconnected settings can be removed without
 losing deletion receipts or claiming remote erasure. The desktop fixture checks
 this flow and writes `/tmp/ourgeo-context-connections.png`.
 
-Required work still outstanding includes managed/external Mnemosyne delivery,
-certified Hindsight operations and provider bindings,
-external production activation/deletion reconciliation and recall, scoped provider migrations
-and runtime backup/upgrade certification;
-dynamic plugin sources/provider permissions and certification; optional embedding
-downloads; column disclosure controls and folder indexing; complete retained-session
-delivery accounting and model-overflow recovery; total monetary/maintenance
-budgets; the full scale, quality, platform/offline and usability release gates.
+This prototype backlog is superseded by `context-stages-0-2.md` and the current
+`context-stages-3-4.md` delivery record. Built-in Linux engineering closed in
+1.16.17. Versions 1.16.18–19 add dynamic plugin sources, complete declarative
+skill dependencies/sections, reviewed profile contributions, encrypted scoped
+migration and an authenticated Linux Mnemosyne local-server profile. Current
+limitations include Hindsight's failed PostgreSQL/WAL plaintext deletion gate,
+arbitrary remote deployment qualification, complete runtime backup/upgrade and
+resource certification, and the retained human/platform/accounting gates.
 The deterministic working-state view is useful but does not yet implement the
 complete compaction and task-state model described in the specification.
 
@@ -424,9 +433,11 @@ journalling before replacing a snapshot; a renamed database must never inherit
 an older WAL. This verifies logical removal in managed files, not physical erasure.
 
 This is an experimental Linux x86_64 lexical profile, not full release
-certification. External Hindsight/Mnemosyne deployment reviews and recall,
-cross-provider migration verification, multi-platform runtime/upgrade recovery, peak resident
-memory measurements and the full task-quality/usability gates remain outstanding.
+certification. The named authenticated Linux Mnemosyne bridge now supports
+external-contract recall and verified native cross-provider migration. Arbitrary
+remote deployment reviews, Hindsight's failed plaintext deletion qualification,
+multi-platform runtime/upgrade recovery, complete desktop resource measurements
+and the full task-quality/usability gates remain outstanding.
 The broker retains authorised local canonical memory as its authority and fallback.
 
 

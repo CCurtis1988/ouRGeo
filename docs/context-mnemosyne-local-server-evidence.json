@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "profile": "mnemosyne-local-server-v1",
+  "observedAt": "2026-10-14T05:14:16.040Z",
+  "directory": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage02/tmp/ourgeo-mnemosyne-server-PlfJ59",
+  "upstreamCommit": "e871f39480b9b9156faa4396162f7ec1f3b11525",
+  "bridgeSha256": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e",
+  "sourceHashes": {
+    "electron/main/context/providers/local-server.ts": "2f43e36692c828f8def4806e487a8e350d8760961dd42ac9b6ff79a5e389dd0c",
+    "electron/main/context/providers/local-server-mnemosyne.ts": "e2f9f0b0e3f199b487b23c8413294e2b29784320b022065c9de02e855f18d7f4",
+    "electron/main/context/mnemosyne-sidecar.py": "ccaeffbeec444e95dab3559a1070092ec07c4f41558edc37b7005f5b3f87045e"
+  },
+  "conformance": {
+    "version": 1,
+    "certification": "not-issued",
+    "checks": [
+      {
+        "name": "probe and response contract",
+        "status": "passed"
+      },
+      {
+        "name": "permission revocation",
+        "status": "passed"
+      },
+      {
+        "name": "cancellation",
+        "status": "passed"
+      },
+      {
+        "name": "canonical ingestion and idempotent retry",
+        "status": "passed"
+      },
+      {
+        "name": "namespace isolation",
+        "status": "passed"
+      },
+      {
+        "name": "bounded response",
+        "status": "passed"
+      },
+      {
+        "name": "revision replacement",
+        "status": "passed"
+      },
+      {
+        "name": "temporal search",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "scoped export",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection permission",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "reflection lineage",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "source deletion preserves unrelated records",
+        "status": "passed"
+      },
+      {
+        "name": "scope deletion and idempotent retry",
+        "status": "unsupported",
+        "reason": "CAPABILITY_UNAVAILABLE"
+      },
+      {
+        "name": "cleanup first",
+        "status": "passed"
+      },
+      {
+        "name": "cleanup second",
+        "status": "passed"
+      }
+    ]
+  },
+  "authentication": {
+    "invalidTokenRefused": true,
+    "crossNamespaceRefused": true,
+    "credentialsReported": false,
+    "scopeRevocationPreservesOtherScope": true
+  },
+  "recoveryVerified": true,
+  "derivativeAudit": {
+    "removedSourceIds": 515,
+    "residualIds": 0,
+    "temporaryCopies": 0,
+    "inspectedFiles": 5
+  },
+  "comparison": {
+    "corpusRecords": 512,
+    "measurements": [
+      {
+        "label": "built-in",
+        "correct": 25,
+        "queries": 25,
+        "medianMs": 0.100761000001512,
+        "p95Ms": 0.1598039999989851
+      },
+      {
+        "label": "managed lexical",
+        "correct": 25,
+        "queries": 25,
+        "medianMs": 35.1019329999981,
+        "p95Ms": 41.20710699999836
+      },
+      {
+        "label": "authenticated local server",
+        "correct": 25,
+        "queries": 25,
+        "medianMs": 36.36544800000047,
+        "p95Ms": 43.42864700000064
+      }
+    ],
+    "nodePeakResidentBytes": 205144064,
+    "hardware": {
+      "cpu": "11th Gen Intel(R) Core(TM) i5-11500H @ 2.90GHz",
+      "memoryBytes": 16471642112
+    },
+    "boundary": "Synthetic exact lexical token lookup; sequential warmed process including fixture startup and compilation. Not semantic quality, complete desktop RSS, human usability or model inference.",
+    "decision": "Keep built-in as default. No demonstrated semantic/reflection benefit in this lexical comparison; enable neither without an appropriate model-quality benchmark."
+  },
+  "qualification": "Named owned experimental Linux x64 loopback lexical profile; arbitrary external MCP endpoints, semantic retrieval and other platforms are not qualified.",
+  "networkObservation": {
+    "positiveControl": true,
+    "scope": "Whole Node fixture, listener, HTTP client and pinned Python descendants from startup through shutdown",
+    "loopbackConnectAttempts": 3,
+    "externalConnectAttempts": 0,
+    "trace": "/home/roosteyr/Documents/Projects/ourgeo/.cache/stage34/mnemosyne-server/audit-8PrABL/whole-process.network.trace",
+    "observationOnly": true
+  }
+}

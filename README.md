@@ -212,7 +212,14 @@ the whole analysis.
   automatically. This beta profile uses a readable local derived index; you can
   pause updates or disconnect it. Approved local recall adds canonical memory
   matches to broker search, with local fallback. Existing committed memories can
-  be selected for a separately reviewed import. External deployment certification
+  be selected for a separately reviewed import.
+  An authenticated Linux local-server option offers the same lexical profile
+  through a protected loopback connection. Review it under the staged runtime
+  in **Advanced**, then select memories for migration in connection settings.
+  Migration preserves local canonical records and separately reviews removal of
+  old-provider copies. Raw external deployments require their own qualification;
+  the tested Hindsight PostgreSQL profile still fails its plaintext deletion audit.
+  External deployment certification
   and the full specification's release gates remain unfinished.
 - **A workspace you arrange.** Four zones — left, centre, right and bottom —
   and any panel can go in any of them, split or tabbed, at whatever size you
@@ -328,12 +335,28 @@ in the Studio, exportable, and usable as a template like any other.
 
 ouRGeo can gain capabilities it did not ship with, without being rebuilt.
 
+Plugins can also contribute declarative skills and Markdown context sources.
+Skills support local dependencies, addressable Markdown sections and required
+current evidence before their actions run. Plugins can offer host-reviewed
+memory profiles with a separate **memory-provider** permission; enablement alone
+shares no memories. Review each scope in AI Assistant → Advanced after staging
+its runtime. Scoped migration preserves canonical memory and separately reviews
+whether to keep or remove old-provider copies.
+The separate **context-source** permission allows sharing the plugin's own
+resources with the assistant. Code plugins can publish bounded dynamic resources;
+their callbacks receive cancellation, without chat, query or memory access.
+Sources appear in **Browse current context sources**, where you can exclude them.
+Disabling/reloading a plugin withdraws its resources; project changes withdraw
+dynamic resources. Updates requesting new permissions switch the plugin off until
+you review and enable it again. See the [context SDK](docs/context-plugin-sdk.md)
+and [stage 3–4 delivery record](docs/context-stages-3-4.md).
+
 **A plugin** is a folder with a manifest. Most are pure JSON: a data connector
 for an API nobody has written one for, a geoprocessing tool, an action, a
 documentation topic the assistant then knows about. A plugin can also ship an
 R file that is sourced into your session, or TypeScript that ouRGeo compiles
-when it loads — but the JSON path covers the common cases, and needs no trust
-decision from you at all.
+when it loads. The JSON path covers the common cases without running renderer
+code; context sharing still needs its separate permission.
 
 **Ask for one in prose.** "Add a connector for the NOAA tides API" is a
 request the assistant can carry out: it probes the API to learn its shape,

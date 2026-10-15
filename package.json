@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.16.17",
+  "version": "1.16.20",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -27,6 +27,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:context-ui": "node scripts/check-context.mjs",
+    "test:context-plugin-sdk": "node scripts/check-context-plugin-sdk.mjs",
+    "test:context-hindsight": "node scripts/check-context-hindsight.mjs",
+    "test:context-mnemosyne-server": "node scripts/check-context-mnemosyne-server.mjs",
     "benchmark:context": "node --expose-gc scripts/benchmark-context.mjs"
   },
   "dependencies": {

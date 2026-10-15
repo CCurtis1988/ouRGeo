@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type { MemoryRecord } from '../../../src/lib/context/types'
 import type { ProjectContext, AuthorisedFileLink } from '../../../src/lib/context/types'
 import type { ProviderBinding, OutboxOperation, OutboxJob, OutboxReceipt } from '../../../src/lib/context/providers/outbox'
+import type { ProviderMigration, ProviderMigrationStatus } from '../../../src/lib/context/providers/migration'
 import { randomUUID } from 'node:crypto'
 import { applyMemoryRevision } from '../../../src/lib/context/preferences'
 import type { MemoryConnection } from '../../../src/lib/context/providers/connections'
@@ -23,7 +24,7 @@ import { mergeInferenceUsage, summariseInferenceUsage, validateInferenceUsage, t
 
 const cleanupIdentity = (namespace: string): string => `managed:${createHash('sha256').update(namespace).digest('hex')}`
 
-export const MEMORY_SCHEMA_VERSION = 16
+export const MEMORY_SCHEMA_VERSION = 17
 
 /** SQLite never sees canonical plaintext on disk. FTS exists in a separate
  * in-memory database, so its pages, WAL and temp files cannot leak statements.
@@ -45,7 +46,7 @@ export class MemoryStorage {
       if (version > 0 && version < MEMORY_SCHEMA_VERSION && path !== ':memory:') {
         // A wrong/unavailable key must not create repeated recovery copies or
         // advance the schema. Validate every existing encrypted record first.
-        for (const table of ['memories', 'journals', 'provider_bindings', 'outbox', 'file_links', 'exclusions', 'project_locations', 'memory_connections', 'memory_credentials', 'provider_snapshots', 'maintenance_budget', 'local_cleanup', 'column_policies', 'inference_usage', 'chat_budget']) {
+        for (const table of ['memories', 'journals', 'provider_bindings', 'outbox', 'file_links', 'exclusions', 'project_locations', 'memory_connections', 'memory_credentials', 'provider_snapshots', 'maintenance_budget', 'local_cleanup', 'column_policies', 'inference_usage', 'chat_budget', 'provider_migrations']) {
           if (this.db.prepare('SELECT name FROM sqlite_master WHERE type=? AND name=?').get('table', table)) {
             for (const row of this.db.prepare(`SELECT * FROM ${table}`).all()) this.unseal(row)
           }
@@ -57,6 +58,7 @@ export class MemoryStorage {
         this.db.exec('CREATE TABLE IF NOT EXISTS memories(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS tombstones(id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS journals(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS suppressed_sources(id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS record_scopes(id TEXT PRIMARY KEY, scope TEXT NOT NULL); CREATE TABLE IF NOT EXISTS provider_bindings(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS file_links(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
         this.db.exec('CREATE TABLE IF NOT EXISTS exclusions(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS project_locations(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS memory_connections(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS memory_credentials(id TEXT PRIMARY KEY, payload BLOB NOT NULL); CREATE TABLE IF NOT EXISTS remote_namespaces(id TEXT PRIMARY KEY, scope TEXT NOT NULL);')
         this.db.exec('CREATE TABLE IF NOT EXISTS provider_snapshots(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
+        this.db.exec('CREATE TABLE IF NOT EXISTS provider_migrations(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
         this.db.exec('CREATE TABLE IF NOT EXISTS maintenance_budget(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
         this.db.exec('CREATE TABLE IF NOT EXISTS chat_budget(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
         this.db.exec('CREATE TABLE IF NOT EXISTS column_policies(id TEXT PRIMARY KEY, payload BLOB NOT NULL);')
@@ -327,8 +329,10 @@ export class MemoryStorage {
     const snapshot = this.scopeSnapshot(scope)
     // Managed rebuilds must not turn a selected import into blanket indexing.
     // Only records with an approved write in this binding enter its snapshot.
-    const selected = new Set(this.outbox().filter(job => job.bindingId === bindingId && job.operation === 'upsert' && job.policyRevision === binding.policyRevision && job.status !== 'cancelled').map(job => `${job.canonicalId}:${job.revision}`))
-    const records = snapshot.records.filter(record => selected.has(`${record.id}:${record.revision}`))
+    const previousBindings = new Set(this.bindings().filter(item => item.connectionRef === binding.connectionRef && item.namespaceRef === binding.namespaceRef && item.scope === scope).map(item => item.id))
+    const selected = new Set(this.outbox().filter(job => job.operation === 'upsert' && (job.bindingId === bindingId && job.policyRevision === binding.policyRevision && job.status !== 'cancelled'
+      || previousBindings.has(job.bindingId) && !job.copyRemoved && (job.status === 'confirmed' || job.providerAcknowledged))).map(job => `${job.canonicalId}:${job.revision}`))
+    const records = binding.cleanupOnly ? [] : snapshot.records.filter(record => selected.has(`${record.id}:${record.revision}`))
     // An approved import can change this subset without editing canonical
     // memory. Namespace generations also survive pause/new binding revisions.
     const key = `binding:${binding.connectionRef}:${binding.namespaceRef}`
@@ -511,7 +515,7 @@ export class MemoryStorage {
   }
   private queueRecord(record: MemoryRecord): void {
     const scope = record.scope === 'global' ? 'global' : `project:${record.projectId}`
-    for (const binding of this.bindings().filter(binding => binding.scope === scope && binding.enabled && binding.writesCertified)) {
+    for (const binding of this.bindings().filter(binding => binding.scope === scope && binding.enabled && binding.writesCertified && !binding.cleanupOnly)) {
       const jobs = this.outbox().filter(job => job.bindingId === binding.id && job.canonicalId === record.id)
       if (jobs.some(job => job.revision === record.revision && job.operation === 'upsert' && job.status !== 'cancelled')) continue
       for (const job of jobs) if (job.operation === 'upsert' && !['confirmed', 'cancelled'].includes(job.status)) this.putJob({ ...job, status: 'cancelled', reason: 'superseded' })
@@ -534,10 +538,10 @@ export class MemoryStorage {
   }
   private validateBinding(binding: ProviderBinding): void {
     if (![binding.id, binding.namespaceRef, binding.connectionRef, binding.adapterVersion].every(value => typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,128}$/.test(value))
-      || !['mnemosyne', 'hindsight'].includes(binding.adapter) || typeof binding.enabled !== 'boolean' || typeof binding.writesCertified !== 'boolean'
+      || !['mnemosyne', 'hindsight'].includes(binding.adapter) || typeof binding.enabled !== 'boolean' || typeof binding.writesCertified !== 'boolean' || binding.cleanupOnly !== undefined && typeof binding.cleanupOnly !== 'boolean'
       || !/^(global|project:[a-f0-9-]{36})$/i.test(binding.scope) || !Number.isSafeInteger(binding.policyRevision) || binding.policyRevision < 0) throw new Error('Invalid host memory binding.')
     const previous = this.binding(binding.id)
-    if (binding.enabled && this.bindings().some(other => other.id !== binding.id && other.scope === binding.scope && other.enabled)) throw new Error('Choose one primary provider per scope before migrating.')
+    if (binding.enabled && !binding.cleanupOnly && this.bindings().some(other => other.id !== binding.id && other.scope === binding.scope && other.enabled && !other.cleanupOnly)) throw new Error('Choose one primary provider per scope before migrating.')
     if (previous && (previous.scope !== binding.scope || previous.namespaceRef !== binding.namespaceRef || previous.connectionRef !== binding.connectionRef || previous.adapter !== binding.adapter || binding.policyRevision <= previous.policyRevision)) throw new Error('Create a new binding for migration; increment policy revision to change access.')
   }
   private writeBinding(binding: ProviderBinding): void {
@@ -564,7 +568,7 @@ export class MemoryStorage {
    * Import neither promotes drafts nor changes the scope's provider policy. */
   importBinding(binding: ProviderBinding, generation: number, ids: string[], connectionRevision: number): void {
     const live = this.binding(binding.id), connection = this.connection(binding.connectionRef)
-    if (!live || JSON.stringify(live) !== JSON.stringify(binding) || !live.enabled || !live.writesCertified || !connection || connection.revision !== connectionRevision
+    if (!live || JSON.stringify(live) !== JSON.stringify(binding) || !live.enabled || live.cleanupOnly || !live.writesCertified || !connection || connection.revision !== connectionRevision
       || connection.state !== 'reachable' || connection.namespaceRef !== binding.namespaceRef || connection.scope !== binding.scope
       || !Array.isArray(ids) || !ids.length || ids.length > 1000 || new Set(ids).size !== ids.length) throw new Error('STALE_SELECTION: refresh the active provider and choose committed memories.')
     const snapshot = this.scopeSnapshot(binding.scope)
@@ -573,6 +577,137 @@ export class MemoryStorage {
     try {
       for (const record of snapshot.records) if (ids.includes(record.id)) this.queueRecord(record)
       this.db.exec('COMMIT')
+    } catch (error) { this.rollback(error) }
+  }
+  revokeContributionBindings(connectionIds: string[]): void {
+    if (!Array.isArray(connectionIds) || connectionIds.length > 1000) throw new Error('Inspect a bounded set of contributed provider connections.')
+    const ids = new Set(connectionIds.filter(id => this.connection(id)?.contribution))
+    this.db.exec('BEGIN IMMEDIATE')
+    try { for (const binding of this.bindings()) if (binding.enabled && ids.has(binding.connectionRef)) this.writeBinding({ ...binding, enabled: false, policyRevision: binding.policyRevision + 1 }); this.db.exec('COMMIT') }
+    catch (error) { this.rollback(error) }
+  }
+  private migration(id: string): ProviderMigration {
+    const row = this.db.prepare('SELECT * FROM provider_migrations WHERE id=?').get(id)
+    if (!row) throw new Error('Refresh provider migrations in the active scope.')
+    return this.unseal(row) as ProviderMigration
+  }
+  private putMigration(value: ProviderMigration): void {
+    this.db.prepare('INSERT INTO provider_migrations VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(value.id, this.seal(value.id, value))
+  }
+  /** Switch primary routing and queue the exact selection in one transaction.
+   * Old copies stay intact until destination acknowledgement and a second,
+   * explicit cleanup decision. Restart resumes from this encrypted journal. */
+  beginMigration(sourceBindingId: string, destination: ProviderBinding, generation: number, ids: string[], connectionRevision: number): string {
+    const source = this.binding(sourceBindingId), connection = this.connection(destination.connectionRef)
+    if (!source?.enabled || source.cleanupOnly || source.scope !== destination.scope || source.connectionRef === destination.connectionRef
+      || this.binding(destination.id) || destination.cleanupOnly || !destination.enabled || !destination.writesCertified
+      || !connection || connection.revision !== connectionRevision || connection.state !== 'reachable' || connection.scope !== destination.scope || connection.namespaceRef !== destination.namespaceRef || connection.adapter !== destination.adapter
+      || !Array.isArray(ids) || !ids.length || ids.length > 1000 || new Set(ids).size !== ids.length) throw new Error('Review distinct providers in the same scope and choose 1–1,000 committed memories.')
+    const snapshot = this.scopeSnapshot(source.scope)
+    if (snapshot.generation !== generation || ids.some(id => !snapshot.records.some(record => record.id === id))) throw new Error('STALE_SELECTION: review current memories before migration.')
+    const existing = this.db.prepare('SELECT * FROM provider_migrations').all().map(row => this.unseal(row) as ProviderMigration)
+    if (existing.length >= 100 || existing.some(item => item.scope === source.scope && ['copying', 'ready', 'cleaning'].includes(item.state))) throw new Error('Finish or cancel this scope’s current migration before starting another.')
+    const sourceBindings = new Set(this.bindings().filter(binding => binding.connectionRef === source.connectionRef && binding.namespaceRef === source.namespaceRef && binding.scope === source.scope).map(binding => binding.id))
+    const sourceIds = [...new Set(this.outbox().filter(job => sourceBindings.has(job.bindingId) && job.operation === 'upsert').map(job => job.canonicalId))]
+    if (sourceIds.length > 1000) throw new Error('Review a smaller provider namespace before migrating more than 1,000 old copies.')
+    const uncertainOperationIds = this.outbox().filter(job => sourceBindings.has(job.bindingId) && job.operation === 'upsert' && !job.providerAcknowledged && (['running', 'pending'].includes(job.status) || job.status === 'cancelled' && job.attempts > 0)).map(job => job.id)
+    const migration: ProviderMigration = { id: randomUUID(), scope: source.scope, sourceBindingId: source.id, destinationBindingId: destination.id, selectedIds: [...ids], sourceIds, state: 'copying', uncertainOperationIds, createdAt: new Date().toISOString() }
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      this.writeBinding({ ...source, enabled: false, policyRevision: source.policyRevision + 1 })
+      this.validateBinding(destination); this.writeBinding(destination)
+      for (const record of snapshot.records) if (ids.includes(record.id)) this.queueRecord(record)
+      this.putMigration(migration); this.db.exec('COMMIT'); return migration.id
+    } catch (error) { this.rollback(error) }
+  }
+  migrationStatuses(scopes: string[]): ProviderMigrationStatus[] {
+    return this.db.prepare('SELECT * FROM provider_migrations').all().map(row => this.unseal(row) as ProviderMigration).filter(item => scopes.includes(item.scope)).map(item => {
+      const destination = item.destinationBindingId ? this.binding(item.destinationBindingId) : null, jobs = this.outbox()
+      const current = this.list(item.scope)
+      const copiedCount = item.selectedIds.filter(id => {
+        const record = current.find(record => record.id === id && record.status === 'active' && !memoryRetention(record).expired)
+        if (!record || this.exclusions(item.scope).includes(`memory:${id}`)) return !jobs.some(job => job.bindingId === item.destinationBindingId && job.canonicalId === id && job.operation === 'delete' && job.status !== 'confirmed')
+        return item.destinationBindingId === null || jobs.some(job => job.bindingId === item.destinationBindingId && job.canonicalId === id && job.revision === record.revision && job.operation === 'upsert' && job.status === 'confirmed')
+      }).length
+      const removedCount = item.cleanupBindingId ? item.sourceIds.filter(id => jobs.some(job => job.bindingId === item.cleanupBindingId && job.canonicalId === id && job.operation === 'delete' && job.status === 'confirmed')).length : 0
+      if (item.state === 'copying' && copiedCount === item.selectedIds.length && (!item.destinationBindingId || destination?.enabled)) { item.state = 'ready'; this.putMigration(item) }
+      if (item.state === 'ready' && copiedCount !== item.selectedIds.length) { item.state = 'copying'; this.putMigration(item) }
+      if (item.state === 'cleaning' && removedCount === item.sourceIds.length) {
+        item.state = 'complete'; this.putMigration(item)
+        const cleanup = item.cleanupBindingId ? this.binding(item.cleanupBindingId) : null
+        if (cleanup?.enabled) this.configureBinding({ ...cleanup, enabled: false, policyRevision: cleanup.policyRevision + 1 })
+      }
+      return { id: item.id, scope: item.scope === 'global' ? 'global' : 'project', state: item.state, selectedCount: item.selectedIds.length, copiedCount, oldCopyCount: item.sourceIds.length, removedCount,
+        recovery: item.state === 'copying' ? 'Canonical memory is available locally. Destination copies are still awaiting acknowledgement; interrupted or failed ingestion is reconciled before retry.' : item.state === 'ready' ? 'Selected memories are copied. Review removal of all previously approved old-provider copies, or deliberately keep them.' : item.state === 'cleaning' ? 'Old-provider deletion is pending. Keep its reviewed connection available; local canonical memories are preserved.' : item.state === 'retained' ? 'Migration finished with old-provider copies deliberately retained.' : item.state === 'cancelled' ? 'Migration was cancelled. Both providers are paused; canonical memory and any transmitted copies are preserved.' : 'Destination copies are acknowledged and approved old-provider deletion is confirmed.' }
+    })
+  }
+  beginBuiltinMigration(sourceBindingId: string, generation: number): string {
+    const source = this.binding(sourceBindingId)
+    if (!source?.enabled || source.cleanupOnly) throw new Error('Choose an active primary provider before switching to built-in memory.')
+    const snapshot = this.scopeSnapshot(source.scope)
+    if (snapshot.generation !== generation) throw new Error('STALE_SELECTION: review current memory before switching providers.')
+    const existing = this.db.prepare('SELECT * FROM provider_migrations').all().map(row => this.unseal(row) as ProviderMigration)
+    if (existing.length >= 100 || existing.some(item => item.scope === source.scope && ['copying', 'ready', 'cleaning'].includes(item.state))) throw new Error('Finish or cancel the current scoped migration first.')
+    const sourceBindings = new Set(this.bindings().filter(binding => binding.connectionRef === source.connectionRef && binding.namespaceRef === source.namespaceRef && binding.scope === source.scope).map(binding => binding.id))
+    const jobs = this.outbox().filter(job => sourceBindings.has(job.bindingId) && job.operation === 'upsert')
+    const migration: ProviderMigration = { id: randomUUID(), scope: source.scope, sourceBindingId: source.id, destinationBindingId: null, selectedIds: snapshot.records.map(record => record.id), sourceIds: [...new Set(jobs.map(job => job.canonicalId))], state: 'ready', createdAt: new Date().toISOString(), uncertainOperationIds: jobs.filter(job => !job.providerAcknowledged && (['running', 'pending'].includes(job.status) || job.status === 'cancelled' && job.attempts > 0)).map(job => job.id) }
+    this.db.exec('BEGIN IMMEDIATE')
+    try { this.writeBinding({ ...source, enabled: false, policyRevision: source.policyRevision + 1 }); this.putMigration(migration); this.db.exec('COMMIT'); return migration.id }
+    catch (error) { this.rollback(error) }
+  }
+  migrationBindings(id: string, scopes: string[]): { migration: ProviderMigration; source: ProviderBinding; destination: ProviderBinding | null } {
+    const migration = this.migration(id), source = this.binding(migration.sourceBindingId), destination = migration.destinationBindingId ? this.binding(migration.destinationBindingId) : null
+    if (!scopes.includes(migration.scope) || !source || migration.destinationBindingId && !destination) throw new Error('SCOPE_CHANGED: inspect this migration in its authorised workspace.')
+    return { migration, source, destination }
+  }
+  migrationUncertainWrites(id: string, scopes: string[]): Array<{ id: string; canonicalId: string; revision: number }> {
+    const { migration, source } = this.migrationBindings(id, scopes)
+    const sourceBindings = new Set(this.bindings().filter(binding => binding.connectionRef === source.connectionRef && binding.namespaceRef === source.namespaceRef && binding.scope === source.scope).map(binding => binding.id))
+    return this.outbox().filter(job => migration.uncertainOperationIds.includes(job.id) && sourceBindings.has(job.bindingId) && job.operation === 'upsert' && !job.providerAcknowledged).slice(0, 16).map(job => ({ id: job.id, canonicalId: job.canonicalId, revision: job.revision }))
+  }
+  acknowledgeMigrationWrites(id: string, scopes: string[], receipts: Array<{ id: string; revision: number }>): void {
+    const { migration, source } = this.migrationBindings(id, scopes)
+    if (!['copying', 'ready'].includes(migration.state) || !Array.isArray(receipts) || receipts.length > 16 || new Set(receipts.map(item => item.id)).size !== receipts.length) throw new Error('Review bounded old-write reconciliation in this migration.')
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const receipt of receipts) {
+        const job = this.outbox().find(job => job.id === receipt.id)
+        const binding = job ? this.binding(job.bindingId) : null
+        if (!job || !binding || !migration.uncertainOperationIds.includes(job.id) || binding.connectionRef !== source.connectionRef || binding.namespaceRef !== source.namespaceRef || binding.scope !== source.scope || job.operation !== 'upsert' || job.revision !== receipt.revision) throw new Error('STALE_OPERATION: inspect this migration’s exact old-write receipts.')
+        this.putJob({ ...job, providerAcknowledged: true })
+      }
+      this.db.exec('COMMIT')
+    } catch (error) { this.rollback(error) }
+  }
+  finishMigration(id: string, scopes: string[], choice: 'retain' | 'delete', cleanup?: ProviderBinding, connectionRevision?: number): void {
+    this.migrationStatuses(scopes)
+    const { migration, source } = this.migrationBindings(id, scopes)
+    if (migration.state !== 'ready') throw new Error('Wait for current destination acknowledgements before reviewing old-copy cleanup.')
+    if (choice !== 'retain' && choice !== 'delete') throw new Error('Choose whether to keep or delete old-provider copies.')
+    if (choice === 'delete' && migration.uncertainOperationIds.some(id => !this.outbox().find(job => job.id === id)?.providerAcknowledged)) throw new Error('Old-provider ingestion is still uncertain. Keep old copies until it confirms completion; deletion cannot race an unresolved write.')
+    if (choice === 'delete' && (!cleanup || !cleanup.cleanupOnly || !cleanup.enabled || !cleanup.writesCertified || cleanup.scope !== source.scope || cleanup.connectionRef !== source.connectionRef || cleanup.namespaceRef !== source.namespaceRef || cleanup.adapter !== source.adapter || cleanup.adapterVersion !== source.adapterVersion || this.binding(cleanup.id))) throw new Error('Review a fresh delete-only binding for this exact old provider.')
+    const connection = cleanup ? this.connection(cleanup.connectionRef) : null
+    if (choice === 'delete' && (!connection || connection.state !== 'reachable' || connectionRevision !== undefined && connection.revision !== connectionRevision || connection.scope !== source.scope || connection.namespaceRef !== source.namespaceRef || connection.adapter !== source.adapter)) throw new Error('Reconnect and review the exact old-provider connection before cleanup.')
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      if (choice === 'retain') migration.state = 'retained'
+      else {
+        this.validateBinding(cleanup!); this.writeBinding(cleanup!)
+        for (const id of migration.sourceIds) this.queueDeletion(id, 1, cleanup!)
+        migration.cleanupBindingId = cleanup!.id; migration.state = 'cleaning'
+      }
+      this.putMigration(migration); this.db.exec('COMMIT')
+    } catch (error) { this.rollback(error) }
+  }
+  cancelMigration(id: string, scopes: string[]): void {
+    const { migration, destination } = this.migrationBindings(id, scopes)
+    if (['retained', 'complete', 'cancelled'].includes(migration.state)) return
+    this.db.exec('BEGIN IMMEDIATE')
+    try {
+      if (destination) this.writeBinding({ ...destination, enabled: false, policyRevision: destination.policyRevision + 1 })
+      const cleanup = migration.cleanupBindingId ? this.binding(migration.cleanupBindingId) : null
+      if (cleanup) this.writeBinding({ ...cleanup, enabled: false, policyRevision: cleanup.policyRevision + 1 })
+      migration.state = 'cancelled'; this.putMigration(migration); this.db.exec('COMMIT')
     } catch (error) { this.rollback(error) }
   }
   /** Claim with an expiry so a worker crash retries the same operation ID.
@@ -585,7 +720,7 @@ export class MemoryStorage {
         if (scopes && !scopes.includes(job.scope)) continue
         if (!['queued', 'running'].includes(job.status) || Date.parse(job.nextAttemptAt) > now || (job.status === 'running' && Date.parse(job.leaseUntil ?? '') > now)) continue
         const binding = this.binding(job.bindingId)
-        if (!binding?.enabled || !binding.writesCertified || binding.scope !== job.scope || binding.policyRevision !== job.policyRevision) { this.putJob({ ...job, status: 'cancelled', reason: 'revoked' }); continue }
+        if (!binding?.enabled || !binding.writesCertified || binding.cleanupOnly && job.operation !== 'delete' || binding.scope !== job.scope || binding.policyRevision !== job.policyRevision) { this.putJob({ ...job, status: 'cancelled', reason: 'revoked' }); continue }
         const row = this.db.prepare('SELECT * FROM memories WHERE id=? AND id NOT IN (SELECT id FROM tombstones)').get(job.canonicalId)
         const record = row ? this.decode(row) : undefined
         if (job.operation === 'upsert' && (!record || record.revision !== job.revision || record.status !== 'active' || this.exclusions(job.scope).includes(`memory:${job.canonicalId}`))) { this.putJob({ ...job, status: 'cancelled', reason: 'superseded' }); continue }
@@ -611,7 +746,7 @@ export class MemoryStorage {
       for (const job of this.outbox()) {
         if (job.status !== 'pending' || job.operation !== 'upsert' || (scopes && !scopes.includes(job.scope)) || Date.parse(job.nextAttemptAt) > now || Date.parse(job.leaseUntil ?? '') > now) continue
         const binding = this.binding(job.bindingId)
-        if (!binding?.enabled || !binding.writesCertified || binding.scope !== job.scope || binding.policyRevision !== job.policyRevision) { this.putJob({ ...job, status: 'cancelled', reason: 'revoked' }); continue }
+        if (!binding?.enabled || !binding.writesCertified || binding.cleanupOnly || binding.scope !== job.scope || binding.policyRevision !== job.policyRevision) { this.putJob({ ...job, status: 'cancelled', reason: 'revoked' }); continue }
         const row = this.db.prepare('SELECT * FROM memories WHERE id=? AND id NOT IN (SELECT id FROM tombstones)').get(job.canonicalId)
         const record = row ? this.decode(row) : undefined
         if (!record || record.status !== 'active' || record.revision !== job.revision || this.exclusions(job.scope).includes(`memory:${job.canonicalId}`)) { this.putJob({ ...job, status: 'cancelled', reason: 'superseded' }); continue }
@@ -630,7 +765,7 @@ export class MemoryStorage {
     const job = this.outbox().find(job => job.id === id && scopes.includes(job.scope) && ['running', 'pending'].includes(job.status))
     if (!job) return null
     const binding = this.binding(job.bindingId)
-    if (!binding?.enabled || !binding.writesCertified || binding.policyRevision !== job.policyRevision) return null
+    if (!binding?.enabled || !binding.writesCertified || binding.cleanupOnly && job.operation !== 'delete' || binding.policyRevision !== job.policyRevision) return null
     const row = this.db.prepare('SELECT * FROM memories WHERE id=? AND id NOT IN (SELECT id FROM tombstones)').get(job.canonicalId)
     const record = row ? this.decode(row) : undefined
     if (job.operation === 'upsert' && (!record || record.status !== 'active' || record.revision !== job.revision || this.exclusions(job.scope).includes(`memory:${job.canonicalId}`))) return null
@@ -642,6 +777,11 @@ export class MemoryStorage {
       const job = this.outbox().find(job => job.id === id)
       if (!job) { this.db.exec('COMMIT'); return }
       const binding = this.binding(job.bindingId)
+      if (receipt.status === 'confirmed') this.putJob({ ...job, providerAcknowledged: true })
+      if (receipt.status === 'confirmed' && job.operation === 'delete' && binding) {
+        const related = new Set(this.bindings().filter(item => item.connectionRef === binding.connectionRef && item.namespaceRef === binding.namespaceRef && item.scope === binding.scope).map(item => item.id))
+        for (const earlier of this.outbox()) if (related.has(earlier.bindingId) && earlier.operation === 'upsert' && earlier.canonicalId === job.canonicalId) this.putJob({ ...earlier, copyRemoved: true })
+      }
       if (job.status === 'cancelled') {
         if (job.operation === 'upsert' && binding && receipt.status !== 'retry') {
           const deleted = this.db.prepare('SELECT id FROM tombstones WHERE id=?').get(job.canonicalId)
@@ -661,7 +801,7 @@ export class MemoryStorage {
       }
       if (!['running', 'pending'].includes(job.status)) { this.db.exec('COMMIT'); return }
       if (!binding?.enabled || binding.policyRevision !== job.policyRevision) this.putJob({ ...job, status: 'cancelled', reason: 'revoked' })
-      else if (receipt.status === 'confirmed') this.putJob({ ...job, status: 'confirmed', leaseUntil: undefined })
+      else if (receipt.status === 'confirmed') this.putJob({ ...job, status: 'confirmed', providerAcknowledged: true, leaseUntil: undefined })
       // A failed/abandoned read cannot prove that an earlier paid write never
       // ran. Preserve pending ingestion even when a caller reports retry.
       else if (receipt.status === 'pending' || job.status === 'pending' && job.operation === 'upsert') this.putJob({ ...job, status: 'pending', reason: (job.reconciliationAttempts ?? 0) >= 6 ? 'reconciliation-limit' : 'awaiting-completion', leaseUntil: undefined,

@@ -13,8 +13,9 @@ export interface DeploymentReview {
   id: string
   adapter: 'hindsight' | 'mnemosyne'
   adapterVersion: string
-  providerId: 'hindsight' | 'mnemosyne-managed'
+  providerId: 'hindsight' | 'mnemosyne-managed' | 'mnemosyne-local-server'
   connectionDigest: string
+  connectionId?: string
   reviewedAt: string
   expiresAt: string
   /** Host/release-reviewed evidence, not endpoint assertions or UI ticks. */
@@ -37,24 +38,32 @@ function bounded(profile: CertifiedOperation | undefined, now: number): boolean 
  * downloaded manifest or probe can add a review. Keeping it empty is valid. */
 export class DeploymentRegistry {
   private reviews: DeploymentReview[]
-  constructor(reviewed: readonly DeploymentReview[], private now: () => number = Date.now) {
+  constructor(reviewed: readonly DeploymentReview[], private now: () => number = Date.now, private eligible: (connection: MemoryConnection) => boolean = () => true) {
     if (reviewed.length > 32 || new Set(reviewed.map(review => review.id)).size !== reviewed.length) throw new Error('Review the bounded deployment registry before activating providers.')
     this.reviews = structuredClone([...reviewed])
   }
   available(): boolean { return this.reviews.length > 0 }
   /** Privileged managed-profile review only; no renderer import API exists. */
   registerManaged(review: DeploymentReview): void {
-    const others = this.reviews.filter(item => item.connectionDigest !== review.connectionDigest)
-    if (review.adapter !== 'mnemosyne' || review.providerId !== 'mnemosyne-managed' || others.length >= 32) throw new Error('Use a bounded reviewed managed deployment.')
+    const others = this.reviews.filter(item => item.connectionDigest !== review.connectionDigest && (!review.connectionId || item.connectionId !== review.connectionId))
+    if (!review.connectionId || !/^[a-f0-9-]{36}$/i.test(review.connectionId) || review.adapter !== 'mnemosyne' || review.providerId !== 'mnemosyne-managed' || others.length >= 32) throw new Error('Use a bounded reviewed managed deployment.')
+    this.reviews = [...others, structuredClone(review)]
+  }
+  /** Owned and tested loopback bridge only; no public review import API. */
+  registerLocalServer(review: DeploymentReview): void {
+    const others = this.reviews.filter(item => item.connectionDigest !== review.connectionDigest && (!review.connectionId || item.connectionId !== review.connectionId))
+    if (!review.connectionId || !/^[a-f0-9-]{36}$/i.test(review.connectionId) || review.adapter !== 'mnemosyne' || review.providerId !== 'mnemosyne-local-server' || others.length >= 32) throw new Error('Use the reviewed authenticated local-server profile.')
     this.reviews = [...others, structuredClone(review)]
   }
   review(connection: MemoryConnection): DeploymentReview | undefined {
+    if (!this.eligible(connection)) return undefined
     const now = this.now(), digest = connectionDigest(connection)
     const found = this.reviews.find(review => review.connectionDigest === digest)
     if (!found || !/^[a-zA-Z0-9_.:-]{1,96}$/.test(found.id) || !hash(found.connectionDigest)
-      || found.adapter !== connection.adapter
+      || found.adapter !== connection.adapter || found.connectionId !== undefined && found.connectionId !== connection.id
       || (found.adapter === 'hindsight' ? found.providerId !== 'hindsight' || found.adapterVersion !== HINDSIGHT_PROFILE.commit || connection.location === 'managed-local'
-        : found.providerId !== 'mnemosyne-managed' || found.adapterVersion !== MNEMOSYNE_LOCAL_CANDIDATE.provider.commit || connection.location !== 'managed-local' || connection.runtimeId !== MNEMOSYNE_LOCAL_CANDIDATE.id)
+        : found.adapterVersion !== MNEMOSYNE_LOCAL_CANDIDATE.provider.commit || connection.runtimeId !== MNEMOSYNE_LOCAL_CANDIDATE.id
+          || (connection.localServer ? found.providerId !== 'mnemosyne-local-server' || connection.location !== 'loopback' || !connection.credentialRef : found.providerId !== 'mnemosyne-managed' || connection.location !== 'managed-local'))
       || !Number.isFinite(Date.parse(found.reviewedAt)) || Date.parse(found.reviewedAt) > now || !current(found.expiresAt, now)
       || Date.parse(found.expiresAt) - Date.parse(found.reviewedAt) > 90 * 86400_000
       || !['native', 'dedicated-instance'].includes(found.isolation)
@@ -75,7 +84,7 @@ export class DeploymentRegistry {
       || binding.adapter !== review.adapter || binding.scope !== connection.scope || binding.namespaceRef !== connection.namespaceRef) return undefined
     return { id: `${review.id}:${binding.policyRevision}`, bindingId: binding.id, bindingPolicyRevision: binding.policyRevision, connectionId: connection.id,
       connectionDigest: review.connectionDigest, adapterVersion: review.adapterVersion, providerId: review.providerId, scope: connection.scope,
-      isolation: review.isolation, expiresAt: review.expiresAt, timeoutMs: review.timeoutMs, maxTokens: review.maxTokens, operations: review.operations }
+      isolation: review.isolation, expiresAt: review.expiresAt, timeoutMs: review.timeoutMs, maxTokens: review.maxTokens, operations: binding.cleanupOnly ? { delete: review.operations.delete } : review.operations }
   }
   binding(connection: MemoryConnection): ProviderBinding {
     const review = this.review(connection)

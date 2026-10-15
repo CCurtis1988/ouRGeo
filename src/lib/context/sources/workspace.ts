@@ -14,6 +14,7 @@ import { languageOf } from '@/lib/markdown/doc-kind'
 import { describeDocument } from '@/lib/ai-doc-context'
 import { rClient } from '@/lib/r-client'
 import { skillPrerequisites } from '../prerequisites'
+import { pluginContextSources } from './plugin'
 import { snapshotDocument } from '../document-snapshots'
 import { environmentSourceId, conversationSourceId } from '../source-identity'
 import { preferenceCategories } from '../preferences'
@@ -54,9 +55,9 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
   if (wants('skill')) {
     const descriptors = new Map(topicDescriptors().map(descriptor => [descriptor.topic, descriptor]))
     for (const [topic, body] of Object.entries(OURGEO_TOPICS)) {
-      const prerequisites = skillPrerequisites(topic)
       const descriptor = descriptors.get(topic)
-      sources.push({ id: `skill:${topic}`, kind: 'skill', scope: 'application', title: topic, summary: `${descriptor?.summary ?? ''} ${descriptor?.triggers.join(' ') ?? ''}`.slice(0, 1000), revision: contentRevision(`${descriptor?.version}:${prerequisites}\n${body}`), prerequisites, trust: 'untrusted', read: () => `${prerequisites}\n\n${topic === 'documents' ? `${buildDocumentSkill({ hasDocumentTools: true })}\n\n${body}` : body}` })
+      const prerequisites = [skillPrerequisites(topic), ...(descriptor?.requiredSkills?.length ? [`Required guidance: ${descriptor.requiredSkills.join(', ')}.`] : []), ...(descriptor?.requiredSources?.length ? [`Required current evidence: ${descriptor.requiredSources.join(', ')}.`] : [])].filter(Boolean).join('\n')
+      sources.push({ id: `skill:${topic}`, kind: 'skill', scope: 'application', title: topic, summary: `${descriptor?.summary ?? ''} ${descriptor?.triggers.join(' ') ?? ''}`.slice(0, 1000), revision: contentRevision(`${descriptor?.version}:${prerequisites}\n${body}`), prerequisites, requiredSkills: descriptor?.requiredSkills, requiredSources: descriptor?.requiredSources, trust: 'untrusted', read: () => `${prerequisites}\n\n${topic === 'documents' ? `${buildDocumentSkill({ hasDocumentTools: true })}\n\n${body}` : body}` })
     }
   }
   if (wants('action')) {
@@ -92,6 +93,7 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
     }
   }
   if (wants('document')) {
+    sources.push(...pluginContextSources())
     if (includeFolders) sources.push(...folderSources(window.electronAPI.context))
     for (const tab of useEditorStore.getState().tabs.filter(t => !t.type || t.type === 'code')) {
       const snapshot = tab.viewMode === 'visual' ? snapshotDocument(tab.id) : tab.content
@@ -148,6 +150,7 @@ export function* workspaceSourceScan(kinds?: ContextKind[], beforeEnvironmentRea
   yield* workspaceSources(localKinds, false)
   if (!kinds || kinds.includes('environment')) yield* environmentIndex.scan(beforeEnvironmentRead, query)
   if ((!kinds || kinds.includes('document')) && !hasColumnExclusions()) {
+    yield* pluginContextSources()
     yield* documentIndex.scan(query)
     yield* folderSourceScan(window.electronAPI.context)
   }

@@ -227,8 +227,16 @@ declare global {
         cancelRecall: (id: string) => Promise<void>
         activationStatus: () => Promise<import('../../src/lib/context/providers/activation').ProviderActivationStatus[]>
         previewManagedActivation: (scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        previewLocalServerActivation: (scope: 'global' | 'project', lease: string, acknowledged: boolean) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        providerContributions: () => Promise<import('../../src/lib/context/providers/contributions').PublicProviderContribution[]>
+        previewContributedProvider: (ref: import('../../src/lib/context/providers/contributions').ProviderContributionRef, scope: 'global' | 'project', lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
         previewActivation: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
         previewMemoryImport: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        previewMemoryMigration: (id: string, ids: string[], lease: string) => Promise<import('../../src/lib/context/providers/activation').ProviderActivationPreview>
+        memoryMigrations: () => Promise<import('../../src/lib/context/providers/migration').ProviderMigrationStatus[]>
+        finishMemoryMigration: (id: string, choice: 'retain' | 'delete', lease: string) => Promise<boolean>
+        cancelMemoryMigration: (id: string, lease: string) => Promise<void>
+        useBuiltinMemory: (id: string, lease: string) => Promise<boolean>
         activateProvider: (ref: string) => Promise<boolean>
         pauseProvider: (id: string) => Promise<void>
         maintenanceStatus: () => Promise<import('../../src/lib/context/providers/maintenance').MaintenanceStatus>

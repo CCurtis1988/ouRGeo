@@ -21,6 +21,8 @@ export interface ContextSource {
   timestamp?: string
   trust: 'host' | 'user' | 'observed' | 'untrusted'
   prerequisites?: string
+  requiredSkills?: string[]
+  requiredSources?: string[]
   legacyIds?: string[]
   resource?: { environment: string; name: string }
   group?: string

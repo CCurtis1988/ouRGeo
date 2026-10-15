@@ -1,5 +1,11 @@
 # Context memory provider adapter SDK
 
+Plugin-owned skills and context sources use the separate
+[plugin context SDK](context-plugin-sdk.md). That API supplies evidence and does
+not register a memory provider or grant personal context access. Stage 3–4
+deployment, migration and certified plugin provider work remains tracked in
+[the delivery record](context-stages-3-4.md).
+
 API version: 1. This contract and its reusable fixtures are available in the
 working tree. Plugin provider registration and external deployment activation
 remain gated on the remaining [delivery requirements](context-implementation.md).

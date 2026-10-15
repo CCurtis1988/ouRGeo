@@ -48,15 +48,17 @@ export const MANIFEST_FILE = 'ourgeo-plugin.json'
  * `service` permission grants native system access to a declared background
  * process and is shown explicitly when enabling the plugin.
  */
-export type PluginPermission = 'network' | 'r' | 'ui' | 'service'
+export type PluginPermission = 'network' | 'r' | 'ui' | 'service' | 'context-source' | 'memory-provider'
 
-export const PERMISSIONS: PluginPermission[] = ['network', 'r', 'ui', 'service']
+export const PERMISSIONS: PluginPermission[] = ['network', 'r', 'ui', 'service', 'context-source', 'memory-provider']
 
 export const PERMISSION_LABELS: Record<PluginPermission, string> = {
   network: 'Fetch from the internet',
   r: 'Run R in your session',
   ui: 'Open dialogs and change the workspace',
   service: 'Run an isolated background service with native system access',
+  'context-source': 'Share this plugin’s own context resources with the AI assistant',
+  'memory-provider': 'Offer host-reviewed memory profiles for separate scoped activation',
 }
 
 // ── Declarative contributions ──────────────────────────────────────────────
@@ -68,7 +70,7 @@ export interface DocsSpec {
   /** One line for the topic listing. */
   summary: string
   body: string
-  context?: { triggers: string[]; exclusions: string[]; version: string }
+  context?: { triggers: string[]; exclusions: string[]; version: string; requiredSkills?: string[]; requiredSources?: string[] }
 }
 
 /** An action the assistant can run. `run` is declarative in all three forms,
@@ -171,7 +173,7 @@ export interface PluginManifest {
   description?: string
   author?: string
   homepage?: string
-  context?: { version: 1; skills: import('@/lib/context/skills').SkillDescriptor[] }
+  context?: import('@/lib/context/skills').PluginContextManifest
   permissions?: PluginPermission[]
   /** Entry point, relative to the plugin directory. `.ts`/`.tsx` are compiled
    *  on load; omit it entirely for a declarative-only plugin. */

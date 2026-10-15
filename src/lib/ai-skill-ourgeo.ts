@@ -667,6 +667,22 @@ One folder per plugin, under ouRGeo's app data directory, holding \`ourgeo-plugi
 
 **Ask for no permission you do not use.** \`network\` to fetch, \`r\` to run R, \`ui\` to open dialogs and panels. The renderer has no filesystem. R operations run visibly in the console. OurGeo 1.16.0 also supports \`service\`: native system access for an installed JavaScript background process. Declare \`service: {entry: "server/service.mjs", files: ["server/service.mjs"]}\` and permission \`service\`, then call \`ourgeo.service.start()\` for its private loopback connection. The host owns startup and shutdown; do not ask users to run a companion terminal or enter a pairing key. Service code must handle the private Electron parentPort ready/stop protocol.
 
+## Skills and plugin context sources (1.16.18)
+
+\`context: {version: 1, skills: [...] }\` can be the only contribution. Skills declare local IDs, summaries, triggers, exclusions, bodyFile (a plugin-relative Markdown file), actions and requiresSources. Their guidance is untrusted and does not grant context or action permissions.
+
+Declare \`permissions: ["context-source"]\` separately to share the plugin's own resources. For static resources use \`context: {version: 1, required: ["sources"], sources: [{id: "reference", title: "Flood reference", summary: "Flood exposure terminology", bodyFile: "docs/flood.md"}]}\`. Required capability names ensure older apps refuse incompatible manifests. Markdown files travel with store packages; edited bodies need Reload all before reading.
+
+For dynamic resources declare \`context.required: ["dynamic-sources"]\` and a main entry, then call \`ctx.context.publish({id: "result", title: "Flood result", summary: "Parcel flood exposure", revision: "1", read: ({signal}) => "Own resource text"})\`. The returned disposer withdraws that publication. Republishing updates its host revision, even if the plugin reuses its own revision. Reads are limited to two seconds and 100,000 characters, with at most 64 sources per plugin. The callback receives only cancellation; it never receives the user's query, chat, memories or host context. Publish again for a new workspace: project changes withdraw dynamic resources.
+
+From 1.16.19 skills also support local dependsOn and ourgeoVersion with required capability "skill-dependencies"; sections [{id, summary, bodyFile, required}] need "skill-sections". Required dependencies and sections must be delivered at current revisions before an action runs. requiresSources categories environment.schema, document.current and console.execution require already-delivered current authorised evidence; guidance grants no permission to fetch it.
+
+Declare a separate "memory-provider" permission and context.required: ["memory-providers"] to offer providers [{id, label, profileId}]. Profiles reference host-reviewed implementations; they cannot supply executable adapters, certificates, namespaces, scope or credentials. The Linux mnemosyne-lexical-v1 profile is currently available after staging its experimental runtime. Enablement alone grants no memory access. Review each scope in Settings → AI Assistant → Advanced → Plugin memory profiles. Disable or descriptor changes revoke contributed provider access; canonical memories and already transmitted copies remain. Scoped migrations copy only selected committed records, pause the old provider and separately review retention or deletion of all its previously approved copies, including earlier activations of the same bank. Snapshot-backed Mnemosyne profiles can reconcile uncertain writes by bounded reads; other adapters require terminal receipts.
+
+After staging the experimental Linux runtime, Advanced also offers an authenticated local server. Review its scope, then use connection settings for selected import or migration. It uses the same lexical engine, a protected per-bank token and current canonical snapshot checks; paid processing is disabled. The built-in manager remains independent. Raw remote MCP deployments require separate qualification. The tested Hindsight profile still retains forgotten plaintext in PostgreSQL/WAL despite live-row deletion, so personal-memory activation remains unavailable for that deployment. Neither semantic retrieval nor reflection is enabled without measured model-quality benefit.
+
+All source IDs, scope, trust and broker budgets belong to the host. Sources appear in Browse current context sources and honour exclusions. Disable/reload revokes handles and in-flight reads. Updates adding permissions require renewed user enablement. The source API provides no personal context access. Code plugins still use the existing soft sandbox.
+
 ## Always contribute a docs topic
 
 \`contributes.docs\` adds a topic to \`ourgeo_docs\`. A plugin that adds a connector and nothing else leaves the next assistant — or you, next session — guessing what it does from an id in a listing. One paragraph saying what it is for and how to use it costs nothing until someone opens it.
@@ -937,10 +953,11 @@ export const BUILTIN_OURGEO_TOPICS: Readonly<Record<string, string>> = BUILTIN_T
 export const OURGEO_TOPICS: Record<string, string> = { ...BUILTIN_TOPICS }
 
 const PLUGIN_SUMMARIES: Record<string, string> = {}
-const PLUGIN_CONTEXT: Record<string, { triggers: string[]; exclusions: string[]; version: string }> = {}
+interface PluginTopicContext { triggers: string[]; exclusions: string[]; version: string; requiredSkills?: string[]; requiredSources?: string[] }
+const PLUGIN_CONTEXT: Record<string, PluginTopicContext> = {}
 
 export function registerPluginTopics(
-  topics: { topic: string; summary: string; body: string; context?: { triggers: string[]; exclusions: string[]; version: string } }[],
+  topics: { topic: string; summary: string; body: string; context?: PluginTopicContext }[],
 ): void {
   for (const key of Object.keys(OURGEO_TOPICS)) {
     if (!(key in BUILTIN_TOPICS)) delete OURGEO_TOPICS[key]
@@ -952,7 +969,7 @@ export function registerPluginTopics(
     if (!key || key in BUILTIN_TOPICS) continue
     OURGEO_TOPICS[key] = t.body
     PLUGIN_SUMMARIES[key] = t.summary.slice(0, 500)
-    if (t.context) PLUGIN_CONTEXT[key] = { triggers: t.context.triggers.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), exclusions: t.context.exclusions.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), version: String(t.context.version).slice(0, 128) }
+    if (t.context) PLUGIN_CONTEXT[key] = { triggers: t.context.triggers.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), exclusions: t.context.exclusions.filter(value => typeof value === 'string').slice(0, 32).map(value => value.slice(0, 128)), version: String(t.context.version).slice(0, 128), ...(t.context.requiredSkills ? { requiredSkills: t.context.requiredSkills.filter(value => typeof value === 'string').slice(0, 32) } : {}), ...(t.context.requiredSources ? { requiredSources: t.context.requiredSources.filter(value => typeof value === 'string').slice(0, 32) } : {}) }
   }
 }
 
@@ -990,8 +1007,8 @@ const TOPIC_CONTEXT: Record<string, { triggers: string[]; exclusions: string[] }
     exclusions: ['general explanation of pdf files'],
   },
 }
-export function topicDescriptors(): { topic: string; summary: string; triggers: string[]; exclusions: string[]; version: string }[] {
-  return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? TOPIC_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? TOPIC_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin' }))
+export function topicDescriptors(): ({ topic: string; summary: string } & PluginTopicContext)[] {
+  return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? TOPIC_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? TOPIC_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin', ...(PLUGIN_CONTEXT[topic]?.requiredSkills ? { requiredSkills: PLUGIN_CONTEXT[topic].requiredSkills } : {}), ...(PLUGIN_CONTEXT[topic]?.requiredSources ? { requiredSources: PLUGIN_CONTEXT[topic].requiredSources } : {}) }))
 }
 
 /** Topic names, for when the model calls `ourgeo_docs` with nothing. */

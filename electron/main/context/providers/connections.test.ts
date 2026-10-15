@@ -43,6 +43,22 @@ it('encrypts connection endpoints, credentials and namespaces and removes authen
   expect(publicConnection(recovered.connection(connection.id)!)).toMatchObject({ authenticated: false })
   recovered.close()
 })
+it('tests an owned local-server profile through its snapshot RPC rather than bare MCP', async () => {
+  const prepared = prepareConnection({ ...input(), adapter: 'mnemosyne', location: 'loopback', endpoint: 'http://127.0.0.1:19001', destinations: input().destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'http://127.0.0.1:19001' : 'disabled' })) }, null)
+  let connection = { ...prepared.connection, localServer: true as const, namespaceRef: crypto.randomUUID() }
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ generation: 0, evidence: [], complete: true })))
+  const controller = new MemoryConnections(async (operation, value) => {
+    if (operation === 'connections') return [connection]
+    if (operation === 'connectionCredential') return prepared.token
+    if (operation === 'saveConnection') { connection = (value as { connection: typeof connection }).connection; return }
+    throw new Error(operation)
+  }, () => ({ id: 'synthetic-lease', projectId: null }), fetcher)
+  const result = await controller.probe(connection.id)
+  expect(result.state).toBe('reachable')
+  expect(String(fetcher.mock.calls[0][0])).toBe('http://127.0.0.1:19001/rpc')
+  expect(JSON.parse(fetcher.mock.calls[0][1]!.body as string)).toMatchObject({ operation: 'probe', namespace: connection.namespaceRef })
+  expect(JSON.stringify(fetcher.mock.calls)).not.toContain('initialize')
+})
 
 it('migrates a previous database without losing records and only removes disconnected settings', () => {
   const directory = mkdtempSync(join(tmpdir(), 'ourgeo-connection-migration-')); directories.push(directory)

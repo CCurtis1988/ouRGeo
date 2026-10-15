@@ -70,6 +70,23 @@ export function ManagedMemoryRuntime(): React.ReactElement {
             })()
           }}>Review activation for {scope === 'global' ? 'About you' : 'this project'}</button>)}
         </div>
+        {status.state === 'ready-for-certification' && <section aria-label="Authenticated local memory server" data-ourgeo-id="context.localServer" className="border-t border-geo-border mt-3 pt-2">
+          <h4 className="font-medium">Authenticated local server</h4>
+          <p className="text-geo-muted">Use the same experimental lexical profile through a private local connection. Starting it shares no memories; review each scope separately, then select existing memories in connection settings. Paid processing stays disabled.</p>
+          {(['global', ...(projectId ? ['project'] : [])] as Array<'global' | 'project'>).map(scope => <button key={scope} className="text-geo-accent mr-3 mt-2 disabled:opacity-50" disabled={busy || !acknowledged} onClick={() => {
+            void (async () => {
+              const epoch = useProjectStore.getState().workspaceEpoch
+              setBusy(true); setError('')
+              try {
+                const lease = await window.electronAPI.context.lease()
+                if (useProjectStore.getState().workspaceEpoch !== epoch) return
+                const preview = await window.electronAPI.context.previewLocalServerActivation(scope, lease.id, acknowledged)
+                await window.electronAPI.context.activateProvider(preview.ref)
+              } catch (error) { if (useProjectStore.getState().workspaceEpoch === epoch) setError(error instanceof Error ? error.message : 'Review the local-server connection and this scope, then retry.') }
+              finally { if (useProjectStore.getState().workspaceEpoch === epoch) useContextStore.getState().refreshProviders(); setBusy(false) }
+            })()
+          }}>Review local server for {scope === 'global' ? 'About you' : 'this project'}</button>)}
+        </section>}
       </>}
       {status.step && <p className="text-geo-muted mt-1">{status.step}{status.receivedBytes !== undefined ? ` · ${size(status.receivedBytes)} received${status.totalBytes ? ` of ${size(status.totalBytes)}` : ''}` : ''}</p>}
       {status.state === 'installing' && status.totalBytes && <progress className="w-full" aria-label="Runtime package download" max={status.totalBytes} value={status.receivedBytes ?? 0} />}

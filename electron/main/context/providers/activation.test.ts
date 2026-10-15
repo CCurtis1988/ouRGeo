@@ -8,10 +8,12 @@ import { DeploymentRegistry, type DeploymentReview } from './certification'
 import { connectionDigest } from './routing'
 import { HINDSIGHT_PROFILE } from './hindsight'
 import { ProviderActivation, type ActivationHost } from './activation'
+import { MNEMOSYNE_LOCAL_CANDIDATE } from '../runtime-catalogue'
+import type { MemoryProviderDef } from '../../../../src/lib/context/providers/types'
 
 const cleanups: Array<() => void> = []
 afterEach(() => { for (const cleanup of cleanups.splice(0).reverse()) cleanup() })
-function fixture(projectId: string | null = null) {
+function fixture(projectId: string | null = null, provider?: ActivationHost['provider']) {
   const store = new MemoryStorage(':memory:', randomBytes(32)); cleanups.push(() => store.close())
   store.maintenance().configure({ revision: 1, enabled: true, currency: 'USD', mode: 'estimated', dailyMicros: 1000000, monthlyMicros: 2000000 })
   const { connection: configured, token } = prepareConnection({ adapter: 'hindsight', label: 'Synthetic deployment only', endpoint: 'https://memory.example.invalid', location: 'server', scope: projectId ? 'project' : 'global', token: 'synthetic-unused-secret',
@@ -35,6 +37,14 @@ function fixture(projectId: string | null = null) {
     switch (operation) {
       case 'scopedProviderState': { const scopes = value as string[]; return { connections: store.connections().filter(item => scopes.includes(item.scope)), bindings: store.bindings().filter(item => scopes.includes(item.scope)) } }
       case 'scopeSnapshot': return store.scopeSnapshot(String(value))
+      case 'beginBuiltinMigration': return store.beginBuiltinMigration(String(input.sourceBindingId), Number(input.generation))
+      case 'beginMigration': return store.beginMigration(String(input.sourceBindingId), input.binding as ProviderBinding, Number(input.generation), input.ids as string[], Number(input.connectionRevision))
+      case 'migrationStatuses': return store.migrationStatuses(value as string[])
+      case 'migrationBindings': return store.migrationBindings(String(input.id), input.scopes as string[])
+      case 'migrationUncertainWrites': return store.migrationUncertainWrites(String(input.id), input.scopes as string[])
+      case 'acknowledgeMigrationWrites': return store.acknowledgeMigrationWrites(String(input.id), input.scopes as string[], input.receipts as Array<{ id: string; revision: number }>)
+      case 'finishMigration': return store.finishMigration(String(input.id), input.scopes as string[], input.choice as 'retain' | 'delete', input.binding as ProviderBinding | undefined, input.connectionRevision as number | undefined)
+      case 'cancelMigration': return store.cancelMigration(String(input.id), input.scopes as string[])
       case 'maintenanceStatus': return { policy: store.maintenance().policy(), summary: store.maintenance().summary() }
       case 'importBinding': return store.importBinding(input.binding as ProviderBinding, Number(input.generation), input.ids as string[], Number(input.connectionRevision))
       case 'activateBinding': return store.activateBinding(input.binding as ProviderBinding, Number(input.generation), input.ids as string[], Number(input.connectionRevision))
@@ -53,9 +63,54 @@ function fixture(projectId: string | null = null) {
   })
   const approve = vi.fn<ActivationHost['approve']>(async () => true)
   const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ success: true, items_count: 1 })))
-  const activation = new ProviderActivation({ dispatch, lease: () => ({ ...lease }), registry, approve, fetcher, now: () => now }); cleanups.push(() => activation.stop())
+  const activation = new ProviderActivation({ dispatch, lease: () => ({ ...lease }), registry, approve, fetcher, provider, now: () => now }); cleanups.push(() => activation.stop())
   return { store, connection, record, registry, review, lease, activation, dispatch, approve, fetcher, advance: (ms: number) => { now += ms } }
 }
+
+it('reviews a switch to built-in memory, keeps canonical records and requires a separate old-copy decision', async () => {
+  const { activation, connection, record, lease, store, approve, fetcher } = fixture()
+  const preview = await activation.preview(connection.id, [], lease.id)
+  await activation.activate(preview.ref)
+  approve.mockResolvedValueOnce(false)
+  expect(await activation.useBuiltin(connection.id, lease.id)).toBe(false)
+  expect(await activation.migrationStatuses()).toEqual([])
+  expect(store.bindings().some(binding => binding.enabled)).toBe(true)
+  expect(await activation.useBuiltin(connection.id, lease.id)).toBe(true)
+  const migration = (await activation.migrationStatuses())[0]
+  expect(migration).toMatchObject({ state: 'ready', selectedCount: 1, copiedCount: 1 })
+  expect(store.list('global')).toEqual([record])
+  expect(store.bindings().some(binding => binding.enabled)).toBe(false)
+  expect(fetcher).not.toHaveBeenCalled()
+  expect(await activation.finishMigration(migration.id, 'retain', lease.id)).toBe(true)
+  expect((await activation.migrationStatuses())[0].state).toBe('retained')
+})
+
+it.each(['expiry', 'workspace', 'revocation'] as const)('rejects %s changes during native built-in migration review', async fault => {
+  const { activation, connection, lease, store, approve, advance } = fixture()
+  await activation.activate((await activation.preview(connection.id, [], lease.id)).ref)
+  approve.mockImplementationOnce(async () => {
+    if (fault === 'expiry') advance(61000)
+    if (fault === 'workspace') lease.id = crypto.randomUUID()
+    if (fault === 'revocation') activation.invalidate()
+    return true
+  })
+  await expect(activation.useBuiltin(connection.id, lease.id)).rejects.toThrow(fault === 'expiry' ? 'STALE_SELECTION' : 'SCOPE_CHANGED')
+  expect(store.migrationStatuses(['global'])).toEqual([])
+  expect(store.bindings().some(binding => binding.enabled)).toBe(true)
+})
+
+it('cancels native cleanup without a delete binding and rejects connection changes during approval', async () => {
+  const { activation, connection, lease, store, approve } = fixture()
+  await activation.activate((await activation.preview(connection.id, [], lease.id)).ref)
+  await activation.useBuiltin(connection.id, lease.id)
+  const migration = (await activation.migrationStatuses())[0]
+  approve.mockResolvedValueOnce(false)
+  expect(await activation.finishMigration(migration.id, 'delete', lease.id)).toBe(false)
+  expect(store.bindings().some(binding => binding.cleanupOnly)).toBe(false)
+  approve.mockImplementationOnce(async () => { store.saveConnection({ ...connection, revision: connection.revision + 1 }); activation.invalidate(); return true })
+  await expect(activation.finishMigration(migration.id, 'delete', lease.id)).rejects.toThrow('SCOPE_CHANGED')
+  expect(store.bindings().some(binding => binding.cleanupOnly)).toBe(false)
+})
 
 it('requires reviewed deployment evidence rather than health or a conformance pass alone', async () => {
   const { connection, review } = fixture()
@@ -66,6 +121,31 @@ it('requires reviewed deployment evidence rather than health or a conformance pa
   }
   const unsupported = structuredClone(review); unsupported.conformance.checks[4].status = 'unsupported'
   expect(new DeploymentRegistry([unsupported]).review(connection)).toBeUndefined()
+})
+it('reconciles a snapshot profile’s uncertain old write without replaying ingestion before cleanup', async () => {
+  const calls: string[] = []
+  const provider: MemoryProviderDef = { id: 'mnemosyne-managed', label: 'Synthetic snapshot profile', apiVersion: 1, location: { kind: 'managed-local', runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id },
+    capabilities: { lexicalSearch: true, semanticSearch: false, temporalSearch: false, readById: true, upsert: true, deleteBySource: true, deleteScope: false, export: false, reflection: false, usageReporting: false, scopeIsolation: 'dedicated-instance' },
+    dispatch: async (operation, host) => {
+      calls.push(operation.operation)
+      return { status: 'ok', operationId: host.idempotencyKey, complete: true, records: operation.operation === 'upsert' ? operation.records : [], evidence: [], usage: { estimated: true } }
+    } }
+  const { activation, store, connection: prior, review, registry, record, lease } = fixture(null, async () => provider)
+  const connection = { ...prior, id: crypto.randomUUID(), namespaceRef: crypto.randomUUID(), revision: 1, adapter: 'mnemosyne' as const, location: 'managed-local' as const, runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id, endpoint: 'on-device', credentialRef: null,
+    destinations: prior.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? 'on-device' : 'disabled' })) }
+  store.saveConnection(connection)
+  registry.registerManaged({ ...review, connectionId: connection.id, connectionDigest: connectionDigest(connection), adapter: 'mnemosyne', adapterVersion: MNEMOSYNE_LOCAL_CANDIDATE.provider.commit, providerId: 'mnemosyne-managed', isolation: 'dedicated-instance',
+    operations: { search: { processing: 'non-billable' }, read: { processing: 'non-billable' }, upsert: { processing: 'non-billable' }, delete: { processing: 'non-billable' } } })
+  store.activateBinding(registry.binding(connection), store.scopeSnapshot('global').generation, [record.id], connection.revision)
+  expect(store.claimJob()).toBeTruthy() // Simulate a crash after claim, before a final receipt.
+  await activation.useBuiltin(connection.id, lease.id)
+  const migration = (await activation.migrationStatuses())[0]
+  expect(store.migrationUncertainWrites(migration.id, ['global'])).toHaveLength(1)
+  expect(await activation.finishMigration(migration.id, 'delete', lease.id)).toBe(true)
+  expect(calls.filter(value => value === 'upsert')).toHaveLength(0)
+  expect(calls).toContain('read')
+  expect(store.migrationUncertainWrites(migration.id, ['global'])).toEqual([])
+  expect(store.list('global')).toEqual([record])
 })
 
 it.each(['digest', 'pin', 'expired', 'duplicate', 'failed', 'price'] as const)('refuses %s certification evidence without granting a binding', fault => {

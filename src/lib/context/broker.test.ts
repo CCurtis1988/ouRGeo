@@ -17,6 +17,37 @@ function source(extra: Partial<ContextSource> = {}): ContextSource {
 function first(broker: ContextBroker, query = 'theme') { return JSON.parse(broker.search({ query })).results[0].ref }
 
 describe('context leases and budgets', () => {
+  it('requires dependencies and mandatory sections to be delivered before action guidance is ready', async () => {
+    const units = source({ id: 'skill:plugin:units', title: 'units' })
+    const safety = source({ id: 'skill:plugin:flood:safety', title: 'safety' })
+    const flood = source({ id: 'skill:plugin:flood', title: 'flood', requiredSkills: [units.id, safety.id] })
+    const { broker, state } = fixture([units, safety, flood])
+    const guidance = await broker.ensureSkills([flood.id])
+    expect(JSON.parse(guidance!).status).toBe('REQUIRED_SKILL')
+    broker.recordInvocation(100, 4096, guidance)
+    expect(await broker.ensureSkills([flood.id])).toBeNull()
+    state.excluded = [safety.id]
+    expect(JSON.parse((await broker.ensureSkills([flood.id]))!).status).toBe('REQUIRED_SKILL')
+  })
+  it('requires current disclosed evidence and invalidates it after a schema revision', async () => {
+    const schema = source({ id: 'environment:parcels', kind: 'environment', scope: 'workspace', title: 'parcels', read: () => 'Current synthetic schema' })
+    const flood = source({ id: 'skill:plugin:flood', requiredSources: ['environment.schema'] })
+    const { broker } = fixture([schema, flood])
+    const guidance = await broker.ensureSkills([flood.id])
+    broker.recordInvocation(100, 4096, guidance)
+    expect(JSON.parse((await broker.ensureSkills([flood.id]))!).status).toBe('REQUIRED_CONTEXT')
+    const evidence = (await broker.prefetch([schema.id]))[0]
+    broker.recordInvocation(100, 4096, evidence)
+    expect(await broker.ensureSkills([flood.id])).toBeNull()
+    schema.revision = '2'
+    expect(JSON.parse((await broker.ensureSkills([flood.id]))!).status).toBe('REQUIRED_CONTEXT')
+  })
+  it('refuses a forged cyclic dependency graph without reading its bodies', async () => {
+    const read = vi.fn(() => 'Body'), loop = source({ requiredSkills: ['skill:themes'], read })
+    const { broker } = fixture([loop])
+    await expect(broker.ensureSkills([loop.id])).rejects.toThrow('cycle')
+    expect(read).not.toHaveBeenCalled()
+  })
   it('reads a bounded selected span in a multi-megabyte document and keeps every cursor inside it', async () => {
     const selected = '# Relevant\n' + 'selected text '.repeat(250)
     const text = 'x'.repeat(2_000_000) + '\n' + selected + '\nDO NOT INCLUDE THIS NEIGHBOUR'

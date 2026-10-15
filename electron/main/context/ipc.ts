@@ -18,8 +18,12 @@ import { registerMemoryConnectionHandlers } from './providers/connections'
 import { registerManagedRuntimeHandlers, type ManagedMnemosyneRuntime } from './managed-runtime'
 import { ProviderActivation } from './providers/activation'
 import { DeploymentRegistry, REVIEWED_EXTERNAL_DEPLOYMENTS } from './providers/certification'
-import { managedDeploymentReview } from './managed-profile'
+import { managedDeploymentReview, localServerDeploymentReview } from './managed-profile'
+import { MnemosyneLocalServer } from './providers/local-server'
+import { createLocalServerMnemosyne } from './providers/local-server-mnemosyne'
 import { MNEMOSYNE_LOCAL_CANDIDATE } from './runtime-catalogue'
+import { PluginProviderContributions } from './providers/plugin-contributions'
+import { version as applicationVersion } from '../../../package.json'
 import { createManagedMnemosyne } from './providers/managed-mnemosyne'
 import { createHindsightProvider } from './providers/hindsight'
 import { createJsonTransport } from './providers/transport'
@@ -46,10 +50,13 @@ let providerActivation: ProviderActivation | undefined
 let managedRuntime: ManagedMnemosyneRuntime | undefined
 let cleanupRunner: LocalCleanupRunner | undefined
 let retentionTimer: ReturnType<typeof setTimeout> | undefined
+let pluginProviders: PluginProviderContributions | undefined
+let localMemoryServer: MnemosyneLocalServer | undefined
+let localServerPolicyRevision = 0
 let retentionStopped = false
-const accountingMutations = new Set(['recordInferenceUsage', 'prepareInferenceUsage', 'configureChatBudget'])
-const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'removeConnection', 'activateBinding', 'importBinding', 'configureBinding', 'configureMaintenance', 'exclude'])
-export function stopContextProviders(): void { retentionStopped = true; clearTimeout(retentionTimer); providerActivation?.stop(); cleanupRunner?.stop() }
+const accountingMutations = new Set(['recordInferenceUsage', 'prepareInferenceUsage', 'configureChatBudget', 'acknowledgeMigrationWrites'])
+const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'removeConnection', 'activateBinding', 'importBinding', 'beginMigration', 'beginBuiltinMigration', 'finishMigration', 'cancelMigration', 'configureBinding', 'configureMaintenance', 'exclude'])
+export function stopContextProviders(): void { retentionStopped = true; clearTimeout(retentionTimer); providerActivation?.stop(); cleanupRunner?.stop(); pluginProviders?.close(); void localMemoryServer?.close() }
 
 async function sweepRetention(): Promise<void> {
   if (retentionStopped) return
@@ -96,7 +103,9 @@ async function dispatch(op: string, value?: unknown, guard?: () => void): Promis
   // Revoke synchronous routing authority before a queued canonical/policy
   // mutation can race with a network request. Failed writes stay revoked.
   const mutation = providerMutations.has(op)
-  if (mutation) providerActivation?.invalidate()
+  if (mutation) { localServerPolicyRevision++; providerActivation?.invalidate() }
+  if (op === 'saveConnection' && (value as { connection?: MemoryConnection })?.connection?.state === 'disconnected') localMemoryServer?.revoke((value as { connection: MemoryConnection }).connection.id)
+  if (op === 'removeConnection') localMemoryServer?.revoke(String(value))
   if (mutation || accountingMutations.has(op)) writeRecovery.assertWritable()
   const child = await worker().catch(error => { writeRecovery.failed(error); throw error })
   guard?.()
@@ -193,36 +202,68 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
   retentionStopped = false
   retentionTimer = setTimeout(() => void sweepRetention(), 1000)
   retentionTimer.unref()
-  const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS)
+  pluginProviders = new PluginProviderContributions(app.getPath('userData'), applicationVersion)
+  localMemoryServer = new MnemosyneLocalServer(runtime, async (registration, payload) => {
+    const lease = contextLease(), revision = localServerPolicyRevision
+    const current = (): boolean => lease.id === contextLease().id && revision === localServerPolicyRevision
+    const guard = () => { if (!current()) throw new Error('SCOPE_CHANGED') }
+    const scopes = ['global', ...(lease.projectId ? [`project:${lease.projectId}`] : [])]
+    const connection = await dispatch('scopedConnection', { id: registration.id, scopes }, guard) as MemoryConnection | undefined
+    if (!connection || !localMemoryServer!.owns(connection) || connection.state === 'disconnected' || connection.state !== 'reachable' && payload.operation !== 'probe') throw new Error('POLICY_REFUSED')
+    if (payload.operation === 'replace') {
+      if (typeof payload.invocationId !== 'string') throw new Error('POLICY_REFUSED')
+      const job = await dispatch('currentOutbox', { id: payload.invocationId, scopes }, guard) as import('../../../src/lib/context/providers/outbox').OutboxJob | null
+      if (!job || job.binding.connectionRef !== connection.id || job.binding.namespaceRef !== registration.namespace) throw new Error('POLICY_REFUSED')
+      const snapshot = await dispatch('bindingSnapshot', { bindingId: job.binding.id, scope: job.binding.scope }, guard) as CanonicalScopeSnapshot
+      const expected = snapshot.records.map(record => ({ id: record.id, revision: record.revision, text: record.statement, updatedAt: record.updatedAt }))
+      if (payload.generation !== snapshot.generation || JSON.stringify(payload.records) !== JSON.stringify(expected)) throw new Error('POLICY_REFUSED')
+    }
+    guard(); return current
+  })
+  const registry = new DeploymentRegistry(REVIEWED_EXTERNAL_DEPLOYMENTS, Date.now, connection => pluginProviders!.eligible(connection) && (!connection.localServer || localMemoryServer!.owns(connection)))
   providerActivation = new ProviderActivation({ dispatch, lease: contextLease, registry,
     fetcher: fetchWithoutLocalProbes,
     prepareManaged: async connections => {
-      for (const connection of connections.filter(item => item.location === 'managed-local' && item.state === 'reachable')) {
+      for (const connection of connections.filter(item => item.location === 'managed-local' && item.state === 'reachable' && pluginProviders!.eligible(item))) {
         registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
       }
+      for (const connection of connections.filter(item => item.localServer && item.state === 'reachable' && localMemoryServer!.owns(item))) registry.registerLocalServer(await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!))
     },
     provider: async (connection, token, certificate) => {
-      if (connection.location !== 'managed-local') return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, fetchWithoutLocalProbes))
-      await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)
+      if (connection.location !== 'managed-local' && !connection.localServer) {
+        if (connection.adapter !== 'hindsight') throw new Error('Review this external Mnemosyne deployment before routing memory.')
+        return createHindsightProvider(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: connection.location === 'loopback', token }, fetchWithoutLocalProbes))
+      }
+      if (connection.localServer) await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!)
+      else await managedDeploymentReview(connection, await runtime.installed(), bridgeFile)
       const lease = contextLease()
       const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
-      return createManagedMnemosyne(MNEMOSYNE_LOCAL_CANDIDATE.id, { request: (payload, host) => runtime.request(payload as Record<string, unknown>, host) }, {
-        snapshot: async (namespace, signal) => {
+      const canonical = {
+        snapshot: async (namespace: string, signal: AbortSignal) => {
           signal.throwIfAborted(); guard()
           if (namespace !== connection.namespaceRef) throw new Error('POLICY_REFUSED')
           const snapshot = await dispatch('bindingSnapshot', { bindingId: certificate.bindingId, scope: connection.scope }, guard) as CanonicalScopeSnapshot
           guard(); signal.throwIfAborted()
           return { ...snapshot, namespace }
         },
-        current: async (snapshot, signal) => {
+        current: async (snapshot: import('./providers/managed-mnemosyne').CanonicalSnapshot, signal: AbortSignal) => {
           signal.throwIfAborted(); guard()
           const current = await dispatch('bindingSnapshotCurrent', { bindingId: certificate.bindingId, scope: connection.scope, generation: snapshot.generation }, guard)
           guard(); signal.throwIfAborted()
           return current === true
         },
-      })
+      }
+      return connection.localServer ? createLocalServerMnemosyne(connection.id, createJsonTransport({ endpoint: connection.endpoint, local: true, token }, fetchWithoutLocalProbes), canonical)
+        : createManagedMnemosyne(MNEMOSYNE_LOCAL_CANDIDATE.id, { request: (payload, host) => runtime.request(payload as Record<string, unknown>, host) }, canonical)
     },
     approve: async (preview, connection) => {
+      if (['migrate', 'migrate-builtin', 'cleanup'].includes(preview.operation)) {
+        const cleanup = preview.operation === 'cleanup', builtin = preview.operation === 'migrate-builtin'
+        const review = await dialog.showMessageBox({ type: 'question', title: cleanup ? 'Remove old-provider copies' : 'Migrate memory provider', buttons: ['Cancel', cleanup ? 'Delete old copies' : 'Migrate'], defaultId: 0, cancelId: 0,
+          message: cleanup ? `Remove all ${preview.oldCopyCount} previously approved memory copies from ${preview.label}?` : `Use ${preview.label} for ${preview.scope === 'global' ? 'About you' : 'this saved project'}?`,
+          detail: cleanup ? 'Canonical memories remain in ouRGeo. This removes old-provider copies only after current destination acknowledgements. Uncertain old writes block deletion. Other provider namespaces are unaffected; deletion stays pending until verified.' : `${builtin ? 'Canonical memories are already stored locally; this sends no memory to a provider.' : `Copy ${preview.selectedCount} selected committed memories and route future approved updates to this reviewed provider.\n\n${connection.destinations.map(item => `${item.purpose}: ${item.destination}`).join('\n')}`}\n\nThe old provider is paused. Its copies remain until you separately choose to keep or remove them. Canonical scope and IDs are preserved. Estimated processing: USD ${(preview.estimatedIngestionMicros / 1e6).toFixed(6)}; limits are estimated, not an invoice cap.` })
+        return review.response === 1
+      }
       const review = await dialog.showMessageBox({ type: 'question', title: preview.operation === 'import' ? 'Import selected memories' : 'Activate memory processing', buttons: ['Cancel', preview.operation === 'import' ? 'Import selected' : 'Activate'], defaultId: 0, cancelId: 0,
         message: `${preview.operation === 'import' ? 'Copy selected memories to' : 'Use'} ${preview.label} for ${preview.scope === 'global' ? 'About you' : 'this saved project'}?`,
         detail: `${connection.location === 'managed-local' ? 'This is an experimental beta native runtime with machine access and a readable derived SQLite store. The reviewed Linux lexical profile disables embeddings, extraction, reflection and sync. Your separately selected assistant still receives selected context.\n\n' : ''}${preview.operation === 'import' ? `This copies ${preview.selectedCount} selected committed memories. Future update permissions remain as previously approved.` : `This sends ${preview.selectedCount} selected committed memories and future approved changes to this provider.`} Estimated initial ingestion: USD ${(preview.estimatedIngestionMicros / 1e6).toFixed(6)}. Maintenance limits are estimated, not an invoice cap.\n\n${connection.destinations.map(item => `${item.purpose}: ${item.destination}`).join('\n')}\n\nPausing or disconnecting stops new requests; it does not erase already transmitted content.`,
@@ -230,7 +271,63 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
       return review.response === 1
     } })
   subscribeContextScope(() => { providerActivation?.invalidate(); providerActivation?.wake() })
+  pluginProviders.observe(() => {
+    providerActivation?.invalidate()
+    void (async () => {
+      const records = await dispatch('connections') as MemoryConnection[]
+      const revoked = records.filter(connection => connection.contribution && !pluginProviders!.eligible(connection)).map(connection => connection.id)
+      if (revoked.length) await dispatch('revokeContributionBindings', revoked)
+      providerActivation?.wake()
+    })().catch(() => { /* Live descriptor checks remain fail-closed; inspect settings to recover. */ })
+  })
+  ipc.handle('context:providerContributions', event => { authorised(event); return pluginProviders!.list() })
+  ipc.handle('context:previewContributedProvider', async (event, ref, scope, suppliedLease) => {
+    authorised(event)
+    const lease = contextLease()
+    if (suppliedLease !== lease.id || !['global', 'project'].includes(scope) || scope === 'project' && !lease.projectId) throw new Error('Choose About you or save this project before reviewing this provider.')
+    const item = pluginProviders!.require(ref)
+    const guard = () => { if (lease.id !== contextLease().id) throw new Error('SCOPE_CHANGED'); pluginProviders!.require(ref) }
+    const resolvedScope = scope === 'global' ? 'global' : `project:${lease.projectId}`
+    const records = await dispatch('connections', undefined, guard) as MemoryConnection[]
+    let connection = records.find(connection => connection.scope === resolvedScope && connection.state !== 'disconnected' && connection.contribution?.pluginId === item.pluginId && connection.contribution.id === item.id && connection.contribution.manifestSha256 === item.manifestSha256)
+    if (!connection) {
+      connection = { id: randomUUID(), revision: 1, adapter: 'mnemosyne', label: `${item.label} · ${item.pluginId}`, location: 'managed-local', runtimeId: item.profileId, contribution: { pluginId: item.pluginId, id: item.id, manifestSha256: item.manifestSha256 },
+        endpoint: 'on-device', scope: resolvedScope as MemoryConnection['scope'], namespaceRef: randomUUID(), credentialRef: null, certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
+        destinations: (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: purpose === 'storage' ? 'on-device' : 'disabled' })) }
+      registry.registerManaged(await managedDeploymentReview(connection, await runtime.installed(), bridgeFile))
+      await dispatch('saveConnection', { connection }, guard)
+    }
+    guard(); return providerActivation!.preview(connection.id, [], lease.id)
+  })
   providerActivation.wake()
+  ipc.handle('context:previewLocalServerActivation', async (event, scope, suppliedLease, acknowledged) => {
+    authorised(event)
+    const lease = contextLease()
+    if (acknowledged !== true || suppliedLease !== lease.id || !['global', 'project'].includes(scope) || scope === 'project' && !lease.projectId) throw new Error('Acknowledge the experimental runtime and choose a saved scope before reviewing the local server.')
+    await runtime.installed()
+    const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
+    const resolvedScope = scope === 'global' ? 'global' : `project:${lease.projectId}`
+    const connections = await dispatch('connections', undefined, guard) as MemoryConnection[]
+    let connection = connections.find(item => item.localServer && item.scope === resolvedScope && item.state !== 'disconnected')
+    if (connection && !localMemoryServer!.owns(connection)) {
+      const bindings = (await dispatch('scopedProviderState', [resolvedScope], guard) as { bindings: import('../../../src/lib/context/providers/outbox').ProviderBinding[] }).bindings
+      for (const binding of bindings.filter(item => item.connectionRef === connection!.id && item.enabled)) await dispatch('configureBinding', { ...binding, enabled: false, policyRevision: binding.policyRevision + 1 }, guard)
+      const token = await dispatch('scopedCredential', { reference: connection.credentialRef, scopes: [resolvedScope] }, guard) as string | undefined
+      if (!token) throw new Error('Recover the protected local-server credential or remove its disconnected settings.')
+      const registration = await localMemoryServer!.register(connection.id, connection.namespaceRef, connection.scope, token)
+      connection = { ...connection, revision: connection.revision + 1, endpoint: registration.endpoint, state: 'reachable', destinations: connection.destinations.map(item => ({ ...item, destination: item.purpose === 'storage' ? registration.endpoint : 'disabled' })) }
+      await dispatch('saveConnection', { connection }, guard)
+    }
+    if (!connection) {
+      const id = randomUUID(), namespace = randomUUID(), registration = await localMemoryServer!.register(id, namespace, resolvedScope as MemoryConnection['scope'])
+      connection = { id, revision: 1, adapter: 'mnemosyne', label: 'Mnemosyne local server · experimental', location: 'loopback', localServer: true, runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id,
+        endpoint: registration.endpoint, scope: resolvedScope as MemoryConnection['scope'], namespaceRef: namespace, credentialRef: randomUUID(), certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
+        destinations: (['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync'] as const).map(purpose => ({ purpose, destination: purpose === 'storage' ? registration.endpoint : 'disabled' })) }
+      await dispatch('saveConnection', { connection, token: registration.token }, guard)
+    }
+    guard(); registry.registerLocalServer(await localServerDeploymentReview(connection, await runtime.installed(), bridgeFile, localMemoryServer!))
+    return providerActivation!.preview(connection.id, [], lease.id)
+  })
   ipc.handle('context:previewManagedActivation', async (event, scope, suppliedLease) => {
     authorised(event)
     const lease = contextLease()
@@ -238,7 +335,7 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     const guard = () => { if (contextLease().id !== lease.id) throw new Error('SCOPE_CHANGED') }
     const resolvedScope = scope === 'global' ? 'global' : `project:${lease.projectId}`
     const records = await dispatch('connections', undefined, guard) as MemoryConnection[]
-    let connection = records.find(item => item.location === 'managed-local' && item.scope === resolvedScope && item.state !== 'disconnected')
+    let connection = records.find(item => item.location === 'managed-local' && !item.contribution && item.scope === resolvedScope && item.state !== 'disconnected')
     if (!connection) {
       connection = { id: randomUUID(), revision: 1, adapter: 'mnemosyne', label: 'Mnemosyne on this device · experimental', location: 'managed-local', runtimeId: MNEMOSYNE_LOCAL_CANDIDATE.id,
         endpoint: 'on-device', scope: resolvedScope as MemoryConnection['scope'], namespaceRef: randomUUID(), credentialRef: null, certification: 'pending', state: 'reachable', createdAt: new Date().toISOString(),
@@ -268,6 +365,15 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     return providerActivation!.preview(memoryId(id), ids.map(memoryId), lease, 'import')
   })
   ipc.handle('context:activateProvider', (event, ref) => { authorised(event); return providerActivation!.activate(memoryId(ref)) })
+  ipc.handle('context:previewMemoryMigration', (event, id, ids, lease) => {
+    authorised(event)
+    if (!Array.isArray(ids) || !ids.length || ids.length > 1000 || typeof lease !== 'string') throw new Error('Choose committed memories in this workspace before migrating.')
+    return providerActivation!.preview(memoryId(id), ids.map(memoryId), lease, 'migrate')
+  })
+  ipc.handle('context:memoryMigrations', event => { authorised(event); return providerActivation!.migrationStatuses() })
+  ipc.handle('context:finishMemoryMigration', (event, id, choice, lease) => { authorised(event); return providerActivation!.finishMigration(memoryId(id), choice, String(lease)) })
+  ipc.handle('context:cancelMemoryMigration', (event, id, lease) => { authorised(event); return providerActivation!.cancelMigration(memoryId(id), String(lease)) })
+  ipc.handle('context:useBuiltinMemory', (event, id, lease) => { authorised(event); return providerActivation!.useBuiltin(memoryId(id), String(lease)) })
   ipc.handle('context:pauseProvider', (event, id) => { authorised(event); return providerActivation!.pause(memoryId(id)) })
   registerMemoryConnectionHandlers(ipc, authorised, dispatch, contextLease)
   ipc.handle('context:maintenanceStatus', event => { authorised(event); return dispatch('maintenanceStatus') })

@@ -78,7 +78,7 @@ export async function buildDistFiles(manifest: PluginManifest): Promise<DistResu
     }
     out['main.js'] = built.code
     dist.main = 'main.js'
-  } else if (!manifest.contributes) {
+  } else if (!manifest.contributes && !manifest.context?.skills.length && !manifest.context?.sources?.length) {
     return {
       ok: false,
       warnings,
@@ -104,6 +104,12 @@ export async function buildDistFiles(manifest: PluginManifest): Promise<DistResu
   }
 
   // ── Anything a reader expects to find ────────────────────────────────────
+  // Context-only plugins have no compiled entry point. Their declared Markdown
+  // is still executable guidance/evidence and must survive store round trips.
+  for (const rel of new Set([...(manifest.context?.skills ?? []).flatMap(skill => [skill.bodyFile, ...(skill.sections ?? []).map(section => section.bodyFile)]), ...(manifest.context?.sources ?? []).map(source => source.bodyFile)])) {
+    try { out[rel] = await window.electronAPI.plugins.readFile(`${id}/${rel}`) }
+    catch (error) { return { ok: false, error: `Could not package context resource "${rel}": ${msg(error)}`, warnings } }
+  }
   // Background services are native JavaScript and web assets, not renderer
   // inputs. Preserve every declared file so installed packages are complete.
   for (const rel of manifest.service?.files ?? []) {

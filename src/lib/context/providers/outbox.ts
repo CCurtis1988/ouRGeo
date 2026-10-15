@@ -10,6 +10,9 @@ export interface ProviderBinding {
   policyRevision: number
   enabled: boolean
   writesCertified: boolean
+  /** An explicitly approved old-provider cleanup may delete only. It cannot
+   * ingest, serve recall or compete with the scope's primary provider. */
+  cleanupOnly?: boolean
 }
 
 export interface OutboxOperation {
@@ -26,6 +29,9 @@ export interface OutboxOperation {
   nextAttemptAt: string
   leaseUntil?: string
   reconciliationAttempts?: number
+  providerAcknowledged?: true
+  /** A terminal deletion withdrew the copied revision's inherited approval. */
+  copyRemoved?: true
   reason?: 'revoked' | 'superseded' | 'retry-limit' | 'provider-offline' | 'awaiting-completion' | 'reconciliation-limit'
 }
 

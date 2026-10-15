@@ -4,6 +4,7 @@ import { actionById, actionList } from '@/lib/ai-actions/registry'
 import { toolList } from '@/components/toolbox/tools'
 import { OURGEO_TOPICS } from '@/lib/ai-skill-ourgeo'
 import { providerById } from '@/lib/api-connectors/registry'
+import { pluginContextSources } from '@/lib/context/sources/plugin'
 
 // A plugin folder is untrusted input from three directions at once: a file the
 // user edited, a file another machine wrote, and a file a model generated. So
@@ -234,5 +235,89 @@ describe('turning one off', () => {
     expect(actionById('demo:hello')).toBeUndefined()
     expect(actionList().length).toBe(before - 1)
     expect(loadedPlugins()[0].state).toBe('disabled')
+  })
+})
+
+describe('context sharing consent', () => {
+  it('registers skill sections and keeps a missing mandatory section in its dependency gate', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context: { version: 1, required: ['skill-sections', 'skill-dependencies'], skills: [{ id: 'units', summary: 'Units', bodyFile: 'skills/units.md' }, { id: 'flood', summary: 'Flood', bodyFile: 'skills/flood.md', dependsOn: ['units'], sections: [{ id: 'safety', summary: 'Safety', bodyFile: 'skills/safety.md', required: true }] }] } })
+    fake.files['demo/skills/units.md'] = 'Use metre units.'
+    fake.files['demo/skills/flood.md'] = 'Read the safety section before assessing.'
+    await loadPlugins(APP); await setPluginEnabled('demo', true, APP)
+    expect(OURGEO_TOPICS['demo:flood']).toContain('skill:demo:flood:safety')
+    const { topicDescriptors } = await import('@/lib/ai-skill-ourgeo')
+    expect(topicDescriptors().find(topic => topic.topic === 'demo:flood')?.requiredSkills).toEqual(['skill:demo:units', 'skill:demo:flood:safety'])
+    expect(OURGEO_TOPICS['demo:flood:safety']).toBeUndefined()
+  })
+  const context = { version: 1, required: ['sources'], sources: [{ id: 'flood', title: 'Flood result', summary: 'Parcel flood exposure', bodyFile: 'docs/flood.md' }] }
+  it('does not turn an old enabled flag into consent to share new plugin resources', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context, permissions: ['network', 'context-source'] })
+    fake.files['demo/docs/flood.md'] = 'Synthetic plugin reference'
+    fake.prefs.enabled = { demo: true }
+    const loaded = await loadPlugins(APP)
+    expect(loaded[0].state).toBe('disabled')
+    expect(loaded[0].error).toContain('new permissions: context-source')
+    expect(pluginEnabled('demo')).toBe(false)
+    expect([...pluginContextSources()]).toEqual([])
+    await setPluginEnabled('demo', true, APP)
+    expect(loadedPlugins()[0].state).toBe('active')
+    expect(fake.prefs.permissionGrants).toEqual({ demo: ['network', 'context-source'] })
+    const source = [...pluginContextSources()][0]
+    expect(source.scope).toBe('application')
+    expect(await source.read()).toContain('Synthetic plugin reference')
+    await setPluginEnabled('demo', false, APP)
+    await expect(source.read()).rejects.toThrow()
+    expect([...pluginContextSources()]).toEqual([])
+  })
+  it('treats a damaged approval as no permissions instead of migrating it as legacy consent', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ permissions: ['network'], contributes: { docs: [{ topic: 'usage', summary: 'Use', body: 'Usage' }] } })
+    fake.prefs = { enabled: { demo: true }, permissionGrants: { demo: null } }
+    const loaded = await loadPlugins(APP)
+    expect(pluginEnabled('demo')).toBe(false)
+    expect(loaded[0].error).toContain('new permissions: network')
+  })
+  it('requires renewed permission approval after a plugin update', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ contributes: { docs: [{ topic: 'usage', summary: 'Use', body: 'Usage' }] } })
+    await loadPlugins(APP); await setPluginEnabled('demo', true, APP)
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context, permissions: ['context-source'], version: '1.0.1' })
+    fake.files['demo/docs/flood.md'] = 'Synthetic updated reference'
+    await loadPlugins(APP)
+    expect(pluginEnabled('demo')).toBe(false)
+    expect(OURGEO_TOPICS['demo-usage']).toBeUndefined()
+    expect([...pluginContextSources()]).toEqual([])
+    await setPluginEnabled('demo', true, APP)
+    expect(await [...pluginContextSources()][0].read()).toContain('updated reference')
+  })
+  it('refuses permission changes between displaying a plugin and enabling it', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ contributes: { docs: [{ topic: 'usage', summary: 'Use', body: 'Usage' }] } })
+    await loadPlugins(APP)
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context, permissions: ['context-source'] })
+    fake.files['demo/docs/flood.md'] = 'Synthetic updated reference'
+    await expect(setPluginEnabled('demo', true, APP)).rejects.toThrow('changed since')
+    expect(pluginEnabled('demo')).toBe(false)
+    expect([...pluginContextSources()]).toEqual([])
+    await setPluginEnabled('demo', true, APP)
+    expect([...pluginContextSources()]).toHaveLength(1)
+  })
+  it('revokes prior resources when an updated file is unavailable', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context, permissions: ['context-source'] })
+    fake.files['demo/docs/flood.md'] = 'Synthetic plugin reference'
+    await loadPlugins(APP); await setPluginEnabled('demo', true, APP)
+    const source = [...pluginContextSources()][0]
+    delete fake.files['demo/docs/flood.md']
+    await loadPlugins(APP)
+    expect(loadedPlugins()[0].state).toBe('failed')
+    expect([...pluginContextSources()]).toEqual([])
+    await expect(source.read()).rejects.toThrow('revoked')
+  })
+  it('refuses a modified Markdown body until the plugin is reindexed', async () => {
+    fake.files['demo/ourgeo-plugin.json'] = manifest({ context, permissions: ['context-source'] })
+    fake.files['demo/docs/flood.md'] = 'Synthetic original reference'
+    await loadPlugins(APP); await setPluginEnabled('demo', true, APP)
+    const source = [...pluginContextSources()][0]
+    fake.files['demo/docs/flood.md'] = 'Synthetic changed reference'
+    await expect(source.read()).rejects.toThrow('STALE_REFERENCE')
+    await loadPlugins(APP)
+    expect(await [...pluginContextSources()][0].read()).toContain('changed reference')
   })
 })

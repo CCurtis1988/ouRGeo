@@ -30,11 +30,34 @@ describe('a manifest that is fine', () => {
 })
 
 describe('context capability compatibility', () => {
-  it('refuses required dynamic context capabilities instead of silently dropping them', () => {
-    const result = read({ context: { version: 1, skills: [], required: ['dynamic-sources'] } })
+  it('requires separate permission for context-only provider profile contributions', () => {
+    const context = { version: 1, required: ['memory-providers'], providers: [{ id: 'lexical', label: 'Local memory', profileId: 'mnemosyne-lexical-v1' }] }
+    expect(read({ contributes: undefined, context, permissions: ['memory-provider'] }).ok).toBe(true)
+    expect(read({ context, permissions: ['network'] }).error).toContain('memory-provider')
+  })
+  it('checks skill-level app requirements before activating the plugin', () => {
+    const context = { version: 1, required: ['skill-dependencies'], skills: [{ id: 'flood', summary: 'Flood workflow', bodyFile: 'skills/flood.md', ourgeoVersion: '>=1.16.19' }] }
+    expect(read({ context }, '1.16.18').error).toContain('Skill "flood"')
+    expect(read({ context }, '1.16.19').ok).toBe(true)
+  })
+  it('refuses required provider context capabilities instead of silently dropping them', () => {
+    const result = read({ context: { version: 1, skills: [], required: ['unreviewed-provider-code'] } })
     expect(result.ok).toBe(false)
     expect(result.error).toContain('unsupported context capabilities')
     expect(read({ context: { version: 1, skills: [], required: ['skills'] } }).ok).toBe(true)
+  })
+  it('requires separate sharing permission for dynamic sources and preserves required capabilities', () => {
+    const context = { version: 1, required: ['dynamic-sources'] }
+    expect(read({ context, main: 'main.ts', permissions: ['network'] }).error).toContain('context-source')
+    expect(read({ context, main: 'main.ts', permissions: ['context-source'] }).manifest?.context?.required).toEqual(['dynamic-sources'])
+  })
+  it('accepts a skill-only plugin without a dummy contribution', () => {
+    expect(read({ contributes: undefined, context: { version: 1, skills: [{ id: 'flood', summary: 'Assess flood exposure', bodyFile: 'skills/flood.md' }] } }).ok).toBe(true)
+  })
+  it('requires older-app rejection for declarative source manifests', () => {
+    const context = { version: 1, sources: [{ id: 'flood', title: 'Flood', summary: 'Flood', bodyFile: 'docs/flood.md' }] }
+    expect(read({ context, permissions: ['context-source'] }).error).toContain('context.required')
+    expect(read({ contributes: undefined, context: { ...context, required: ['sources'] }, permissions: ['context-source'] }).ok).toBe(true)
   })
   it('refuses a skill body that leaves the plugin directory', () => {
     expect(read({ context: { version: 1, skills: [{ id: 'flood', summary: 'Assess flood exposure', bodyFile: '../private.md' }] } }).ok).toBe(false)

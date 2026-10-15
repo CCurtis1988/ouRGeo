@@ -2,6 +2,8 @@ import { usePluginStore } from '@/store/plugins'
 import { useContextStore } from '@/store/context'
 import { useAiStore } from '@/store/ai'
 import { clearResultCache } from './result-cache'
+import { useProjectStore } from '@/store/project'
+import { revokePluginWorkspaceSources } from './sources/plugin'
 
 /** Keep revocation active even while the chat panel is closed. A provider-held
  * transcript cannot have a removed plugin's bytes edited out in place. */
@@ -15,5 +17,8 @@ export function setupContextLifecycle(): () => void {
     if (state.chats === previous.chats) return
     for (const chat of previous.chats) if (!state.chats.some(current => current.id === chat.id)) clearResultCache(chat.id)
   })
-  return () => { plugins(); chats(); clearResultCache() }
+  const projects = useProjectStore.subscribe((state, previous) => {
+    if (state.workspaceEpoch !== previous.workspaceEpoch) revokePluginWorkspaceSources()
+  })
+  return () => { plugins(); chats(); projects(); clearResultCache() }
 }

@@ -50,12 +50,12 @@ export interface ProviderRoutingPort {
  * disclosure, revision or destination change invalidates deployment approval. */
 export function connectionDigest(connection: MemoryConnection): string {
   return createHash('sha256').update(JSON.stringify([connection.id, connection.revision, connection.adapter, connection.endpoint, connection.location,
-    connection.scope, connection.namespaceRef, connection.credentialRef, connection.runtimeId ?? null, [...connection.destinations].sort((a, b) => a.purpose.localeCompare(b.purpose))])).digest('hex')
+    connection.scope, connection.namespaceRef, connection.credentialRef, connection.runtimeId ?? null, connection.localServer ?? false, connection.contribution ?? null, [...connection.destinations].sort((a, b) => a.purpose.localeCompare(b.purpose))])).digest('hex')
 }
 function jobDigest(job: OutboxJob): string {
   const binding = job.binding, operation = job.operation
   return createHash('sha256').update(JSON.stringify([
-    [binding.id, binding.scope, binding.adapter, binding.adapterVersion, binding.namespaceRef, binding.connectionRef, binding.policyRevision, binding.enabled, binding.writesCertified],
+    [binding.id, binding.scope, binding.adapter, binding.adapterVersion, binding.namespaceRef, binding.connectionRef, binding.policyRevision, binding.enabled, binding.writesCertified, binding.cleanupOnly ?? false],
     [operation.id, operation.bindingId, operation.scope, operation.canonicalId, operation.revision, operation.policyRevision, operation.operation, operation.attempts, operation.reconciliationAttempts ?? 0],
     job.record ? Object.keys(job.record).sort().map(key => [key, job.record![key as keyof typeof job.record]]) : null,
   ])).digest('hex')
@@ -80,7 +80,7 @@ export async function resolveProviderRoute(job: OutboxJob, reconciliation: boole
   const checkLease = (): void => {
     signal.throwIfAborted()
     if (port.lease().id !== lease.id || port.lease().projectId !== lease.projectId || !binding.enabled || !binding.writesCertified
-      || job.operation.bindingId !== binding.id || job.operation.scope !== binding.scope || job.operation.policyRevision !== binding.policyRevision
+      || binding.cleanupOnly && operation !== 'delete' || job.operation.bindingId !== binding.id || job.operation.scope !== binding.scope || job.operation.policyRevision !== binding.policyRevision
       || binding.scope !== 'global' && binding.scope !== `project:${lease.projectId}`) throw new Error('SCOPE_CHANGED: refresh the active provider binding before routing memory.')
   }
   checkLease()

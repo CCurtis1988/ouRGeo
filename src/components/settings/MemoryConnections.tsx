@@ -4,6 +4,8 @@ import { useProjectStore } from '@/store/project'
 import { useContextStore } from '@/store/context'
 import type { MemoryAdapter, ProcessingDestination, ProcessingPurpose, PublicMemoryConnection } from '@/lib/context/providers/connections'
 import type { ProviderActivationStatus } from '@/lib/context/providers/activation'
+import type { ProviderMigrationStatus } from '@/lib/context/providers/migration'
+import type { PublicProviderContribution } from '@/lib/context/providers/contributions'
 
 const purposes: ProcessingPurpose[] = ['storage', 'embeddings', 'reranking', 'extraction', 'reflection', 'telemetry', 'sync']
 export function MemoryConnections(): React.ReactElement {
@@ -14,6 +16,8 @@ export function MemoryConnections(): React.ReactElement {
   const personalMemoryAvailable = useContextStore(state => state.personalMemoryAvailable)
   const [connections, setConnections] = useState<PublicMemoryConnection[]>([])
   const [activation, setActivation] = useState<ProviderActivationStatus[]>([])
+  const [migrations, setMigrations] = useState<ProviderMigrationStatus[]>([])
+  const [contributions, setContributions] = useState<PublicProviderContribution[]>([])
   const [adapter, setAdapter] = useState<MemoryAdapter>('hindsight')
   const [label, setLabel] = useState('')
   const [endpoint, setEndpoint] = useState('')
@@ -31,10 +35,12 @@ export function MemoryConnections(): React.ReactElement {
     const request = ++listing.current
     setConnections([])
     setActivation([])
+    setMigrations([])
+    setContributions([])
     setToken('')
     setError('')
-    if (ready && personalMemoryAvailable) void Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus()]).then(
-      ([connections, status]) => { if (current && listing.current === request) { setConnections(connections); setActivation(status) } },
+    if (ready && personalMemoryAvailable) void Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus(), window.electronAPI.context.memoryMigrations(), window.electronAPI.context.providerContributions()]).then(
+      ([connections, status, migrations, contributions]) => { if (current && listing.current === request) { setConnections(connections); setActivation(status); setMigrations(migrations); setContributions(contributions) } },
       () => { if (current && listing.current === request) setError('Connection settings are unavailable. Restore protected storage and retry.') })
     return () => { current = false }
   }, [workspaceEpoch, ready, personalMemoryAvailable, providerRevision])
@@ -47,11 +53,11 @@ export function MemoryConnections(): React.ReactElement {
       await action()
       if (useProjectStore.getState().workspaceEpoch === epoch) {
         const request = ++listing.current
-        const [connections, status] = await Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus()])
-        if (useProjectStore.getState().workspaceEpoch === epoch && listing.current === request) { setConnections(connections); setActivation(status) }
+        const [connections, status, migrations, contributions] = await Promise.all([window.electronAPI.context.connections(), window.electronAPI.context.activationStatus(), window.electronAPI.context.memoryMigrations(), window.electronAPI.context.providerContributions()])
+        if (useProjectStore.getState().workspaceEpoch === epoch && listing.current === request) { setConnections(connections); setActivation(status); setMigrations(migrations); setContributions(contributions) }
       }
-    } catch {
-      if (useProjectStore.getState().workspaceEpoch === epoch) setError('The connection operation failed. Check its endpoint, authentication and protected storage, then retry.')
+    } catch (error) {
+      if (useProjectStore.getState().workspaceEpoch === epoch) setError(error instanceof Error ? error.message : 'The connection operation failed. Check its endpoint, authentication and protected storage, then retry.')
     } finally {
       setBusy(--pending.current > 0)
       if (useProjectStore.getState().workspaceEpoch === epoch) setToken('')
@@ -61,10 +67,33 @@ export function MemoryConnections(): React.ReactElement {
     <summary className="cursor-pointer">Mnemosyne and Hindsight connections</summary>
     <p className="text-geo-muted mt-2">The built-in manager remains active. Deployment review is required before enabling memory updates; testing reachability grants no access. Activation reviews this scope and future committed updates. Testing sends no chat or memory content. A local server may use remote processing.</p>
     {!personalMemoryAvailable && <p className="text-geo-muted mt-1">Restore protected memory storage to save connections and authentication.</p>}
+    <button className="text-geo-accent mt-2" disabled={busy} onClick={() => void act(async () => undefined)}>Refresh provider settings</button>
+    {contributions.length > 0 && <section aria-label="Plugin memory profiles" data-ourgeo-id="context.pluginProviders" className="mt-3 border border-geo-border rounded p-2">
+      <h4 className="font-medium">Plugin memory profiles</h4>
+      <p className="text-geo-muted">Enabling a plugin offers its profiles here. Stage the corresponding runtime below, then separately review each scope. Existing memories stay local until selected for import or migration.</p>
+      {contributions.map(item => <div key={`${item.pluginId}:${item.id}`} className="border-t border-geo-border mt-2 pt-2">
+        <p>{item.label} · {item.pluginId} · {item.profileId}</p>
+        {!item.available ? <p className="text-geo-muted">This profile has no host-reviewed implementation on this platform. Update ouRGeo or choose an available profile.</p> : (['global', ...(projectId ? ['project'] : [])] as Array<'global' | 'project'>).map(scope => <button key={scope} className="text-geo-accent mr-3 mt-1" disabled={busy} onClick={() => void act(async () => {
+          const lease = await window.electronAPI.context.lease()
+          const preview = await window.electronAPI.context.previewContributedProvider({ pluginId: item.pluginId, id: item.id, manifestSha256: item.manifestSha256 }, scope, lease.id)
+          await window.electronAPI.context.activateProvider(preview.ref)
+        })}>Review {item.label} for {scope === 'global' ? 'About you' : 'this project'}</button>)}
+      </div>)}
+    </section>}
+    {migrations.length > 0 && <section aria-label="Memory provider migrations" data-ourgeo-id="context.providerMigrations" className="mt-3 border border-geo-border rounded p-2">
+      <h4 className="font-medium">Provider migrations</h4>
+      <button className="text-geo-accent mt-1" disabled={busy} onClick={() => void act(async () => undefined)}>Refresh migration progress</button>
+      {migrations.map(migration => <div key={migration.id} className="border-t border-geo-border mt-2 pt-2">
+        <p>{migration.scope === 'global' ? 'About you' : 'This project'} · {migration.state} · {migration.copiedCount}/{migration.selectedCount} copied · {migration.removedCount}/{migration.oldCopyCount} old copies removed</p>
+        <p className="text-geo-muted">{migration.recovery}</p>
+        {migration.state === 'ready' && <><button className="text-geo-accent mr-3" disabled={busy} onClick={() => void act(async () => { const lease = await window.electronAPI.context.lease(); await window.electronAPI.context.finishMemoryMigration(migration.id, 'retain', lease.id) })}>Keep old-provider copies</button><button className="text-geo-accent" disabled={busy} onClick={() => void act(async () => { const lease = await window.electronAPI.context.lease(); await window.electronAPI.context.finishMemoryMigration(migration.id, 'delete', lease.id) })}>Review removal of old-provider copies</button></>}
+        {['copying', 'ready', 'cleaning'].includes(migration.state) && <button className="text-geo-accent ml-3" disabled={busy} onClick={() => void act(async () => { const lease = await window.electronAPI.context.lease(); await window.electronAPI.context.cancelMemoryMigration(migration.id, lease.id) })}>Cancel migration and pause processing</button>}
+      </div>)}
+    </section>}
     {connections.map(connection => <div key={connection.id} className="border-t border-geo-border mt-2 pt-2">
-      <p>{connection.label} · {connection.adapter} · {connection.location === 'managed-local' ? 'On this device' : connection.location === 'loopback' ? 'Your server, loopback' : 'Your server or hosted service'} · {connection.scope === 'global' ? 'About you' : 'This project'}</p>
+      <p>{connection.label} · {connection.adapter} · {connection.localServer ? 'On this device, authenticated local server' : connection.location === 'managed-local' ? 'On this device' : connection.location === 'loopback' ? 'Your server, loopback' : 'Your server or hosted service'} · {connection.scope === 'global' ? 'About you' : 'This project'}</p>
       <p className="text-geo-muted break-words">{connection.endpoint}</p>
-      <p className="text-geo-muted">{connection.state} · {connection.location === 'managed-local' ? 'experimental Linux lexical profile' : 'certification pending'} · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
+      <p className="text-geo-muted">{connection.state} · {connection.location === 'managed-local' || connection.localServer ? 'experimental Linux lexical profile' : 'certification pending'} · authentication {connection.authenticated ? 'stored in protected storage' : 'not stored'}</p>
       <p className="text-geo-muted">Memory updates: {activation.find(item => item.connectionId === connection.id)?.state ?? 'review-required'}</p>
       {activation.find(item => item.connectionId === connection.id)?.state === 'review-required' && <p className="text-geo-muted">Review of this exact deployment, isolation, derivative deletion, processing destinations and billing is required.</p>}
       {['ready', 'paused'].includes(activation.find(item => item.connectionId === connection.id)?.state ?? '') && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(async () => {
@@ -73,6 +102,16 @@ export function MemoryConnections(): React.ReactElement {
         await window.electronAPI.context.activateProvider(preview.ref)
       })}>Review activation of future memory updates</button>}
       {activation.find(item => item.connectionId === connection.id)?.state === 'active' && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(() => window.electronAPI.context.pauseProvider(connection.id))}>Pause memory updates</button>}
+      {activation.find(item => item.connectionId === connection.id)?.state === 'active' && <button className="text-geo-accent mr-2" disabled={busy} onClick={() => void act(async () => { const lease = await window.electronAPI.context.lease(); await window.electronAPI.context.useBuiltinMemory(connection.id, lease.id) })}>Use built-in memory instead</button>}
+      {['ready', 'paused'].includes(activation.find(item => item.connectionId === connection.id)?.state ?? '') && activation.some(item => item.connectionId !== connection.id && item.state === 'active') && <MemoryImportSelection connection={connection} disabled={busy} migration review={async ids => {
+        let accepted = false, failed = false
+        await act(async () => {
+          try { const lease = await window.electronAPI.context.lease(); const preview = await window.electronAPI.context.previewMemoryMigration(connection.id, ids, lease.id); accepted = await window.electronAPI.context.activateProvider(preview.ref) }
+          catch (error) { failed = true; throw error }
+        })
+        if (failed) throw new Error('Refresh the current selection and retry the migration.')
+        return accepted
+      }} />}
       {activation.find(item => item.connectionId === connection.id)?.state === 'active' && <MemoryImportSelection connection={connection} disabled={busy} review={async ids => {
         let accepted = false, failed = false
         await act(async () => {

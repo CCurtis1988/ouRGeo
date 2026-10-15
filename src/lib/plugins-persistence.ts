@@ -15,6 +15,9 @@ export interface PluginPrefs {
   /** id → enabled. Absent means "never decided", which reads as disabled:
    *  a plugin that arrives on disk has not been consented to yet. */
   enabled: Record<string, boolean>
+  /** Last explicitly approved permission set. New permissions on an update
+   * require re-enabling; an old enabled flag cannot grant context sharing. */
+  permissionGrants?: Record<string, string[]>
   /**
    * The plugin whose `activate` was running when this file was last written.
    *
@@ -41,6 +44,9 @@ export async function loadPluginPrefs(): Promise<PluginPrefs> {
   const data = await store.read<Partial<PluginPrefs>>()
   return {
     enabled: (data.enabled && typeof data.enabled === 'object') ? data.enabled as Record<string, boolean> : {},
+    permissionGrants: data.permissionGrants && typeof data.permissionGrants === 'object' && !Array.isArray(data.permissionGrants)
+      ? Object.fromEntries(Object.entries(data.permissionGrants).filter(([id]) => /^[a-z][a-z0-9-]{0,63}$/.test(id)).map(([id, grants]) => [id, Array.isArray(grants) && grants.length <= 16 && grants.every(grant => typeof grant === 'string') ? grants : []]))
+      : {},
     activating: typeof data.activating === 'string' ? data.activating : null,
     // Reconstructed field by field rather than spread, so a hand-edited file
     // cannot smuggle in a key nothing reads. That is also why every field has
