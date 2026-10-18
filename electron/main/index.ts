@@ -1,3 +1,4 @@
+import { PROJECT_FILES_SCHEME } from './project-files/ipc'
 import './context/acceptance-profile'
 import {
   app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
@@ -14,7 +15,7 @@ import { registerContextHandlers, stopContextProviders } from './context/ipc'
 import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
 import { registerHealthHandlers } from './health-check'
 import { registerDataPreflightHandlers } from './data-preflight'
-import { setupIpcHandlers } from './ipc'
+import { setupIpcHandlers, projectOpensPending, cleanupProjectOpens } from './ipc'
 import { registerAiProxy } from './ai-proxy'
 import { registerLocalNetwork } from './local-network'
 import { registerClaudeCliHandlers } from './claude-cli'
@@ -134,7 +135,7 @@ function createWindow(): void {
 // Must run before the app is ready: Electron only accepts privilege
 // declarations while the protocol registry is still open. This is what makes
 // `ourgeo-model://` a secure origin that `fetch` will read a stream from.
-protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES])
+protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES, PROJECT_FILES_SCHEME])
 
 app.whenReady().then(async () => {
   registerLocalNetwork(ipcMain, () => rBridge.port)
@@ -300,6 +301,11 @@ app.on('will-quit', (event) => {
   if (pluginServicesRunning()) {
     event.preventDefault()
     void stopPluginServices().finally(() => app.quit())
+    return
+  }
+  if (projectOpensPending()) {
+    event.preventDefault()
+    void cleanupProjectOpens().catch(error => console.error('Temporary project-open cleanup failed:', error)).finally(() => app.quit())
     return
   }
   killAllTerminals()

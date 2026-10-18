@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 /** What `account:status` reports without touching the network. */
 interface AccountStatus {
@@ -36,6 +36,35 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  projectFiles: {
+    pathForFile: (file: File): string => webUtils.getPathForFile(file),
+    catalogue: (lease: string) => ipcRenderer.invoke('projectFiles:catalogue', lease),
+    add: (lease: string, paths?: string[]) => ipcRenderer.invoke('projectFiles:add', lease, paths),
+    linkFolder: (lease: string, path?: string, name?: string) => ipcRenderer.invoke('projectFiles:linkFolder', lease, path, name),
+    createFolder: (lease: string, name: string, parentPath?: string, label?: string) => ipcRenderer.invoke('projectFiles:createFolder', lease, name, parentPath, label),
+    relinkFolder: (id: string, lease: string, path?: string) => ipcRenderer.invoke('projectFiles:relinkFolder', id, lease, path),
+    rescanFolders: (ids: string[] | undefined, lease: string) => ipcRenderer.invoke('projectFiles:rescanFolders', ids, lease),
+    forgetFolder: (id: string, lease: string) => ipcRenderer.invoke('projectFiles:forgetFolder', id, lease),
+    renameLinkedFolder: (id: string, name: string, lease: string) => ipcRenderer.invoke('projectFiles:renameLinkedFolder', id, name, lease),
+    update: (id: string, revision: string, changes: Partial<Pick<import('../../src/lib/project-files').ProjectFileEntry, 'name' | 'folder' | 'role' | 'userDescription'>>, lease: string) => ipcRenderer.invoke('projectFiles:update', id, revision, changes, lease),
+    replace: (id: string, revision: string, lease: string) => ipcRenderer.invoke('projectFiles:replace', id, revision, lease),
+    remove: (ids: string[], lease: string) => ipcRenderer.invoke('projectFiles:remove', ids, lease),
+    undo: (lease: string) => ipcRenderer.invoke('projectFiles:undo', lease),
+    reindex: (ids: string[] | undefined, lease: string) => ipcRenderer.invoke('projectFiles:reindex', ids, lease),
+    read: (id: string, revision: string, lease: string, location?: import('../../src/lib/project-files').ProjectFileLocation, offset?: number) => ipcRenderer.invoke('projectFiles:read', id, revision, lease, location, offset),
+    preview: (id: string, revision: string, lease: string, location?: import('../../src/lib/project-files').ProjectFileLocation, options?: { includeHidden?: boolean }) => ipcRenderer.invoke('projectFiles:preview', id, revision, lease, location, options),
+    search: (query: string, lease: string) => ipcRenderer.invoke('projectFiles:search', query, lease),
+    exportFile: (id: string, revision: string, lease: string) => ipcRenderer.invoke('projectFiles:exportFile', id, revision, lease),
+    cancel: (operationId: string, lease: string) => ipcRenderer.invoke('projectFiles:cancel', operationId, lease),
+    discard: (lease: string) => ipcRenderer.invoke('projectFiles:discard', lease),
+    recoverIntoCopy: (id: string, lease: string) => ipcRenderer.invoke('projectFiles:recoverIntoCopy', id, lease),
+    setIncludeHidden: (id: string, revision: string, enabled: boolean, lease: string) => ipcRenderer.invoke('projectFiles:setIncludeHidden', id, revision, enabled, lease),
+    onChanged: (callback: () => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('projectFiles:changed', handler)
+      return () => ipcRenderer.removeListener('projectFiles:changed', handler)
+    },
+  },
   context: {
     onRetentionChanged: (callback: () => void) => {
       const handler = (): void => callback()
@@ -209,8 +238,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tempEnvPath: (): Promise<string> => ipcRenderer.invoke('project:tempEnvPath'),
     pack: (bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] }> =>
       ipcRenderer.invoke('project:pack', bundlePath, projectJson, envRDataPath),
-    unpack: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; identityForked?: boolean; contextWarnings: string[]; authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths: string[] }> =>
-      ipcRenderer.invoke('project:unpack', bundlePath)
+    unpack: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings: string[]; authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths: string[] }> =>
+      ipcRenderer.invoke('project:unpack', bundlePath),
+    releaseOpen: (token: string): Promise<void> => ipcRenderer.invoke('project:releaseOpen', token)
   },
   file: {
     read: (filePath: string): Promise<string> => ipcRenderer.invoke('file:read', filePath),

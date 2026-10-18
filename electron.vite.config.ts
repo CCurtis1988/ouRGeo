@@ -20,7 +20,7 @@ export default defineConfig({
     }],
     build: {
       lib: {
-        entry: { index: resolve('electron/main/index.ts'), 'context-worker': resolve('electron/main/context/worker.ts'), 'context-backup-inspection': resolve('electron/main/context/backup-inspection-worker.ts') }
+        entry: { index: resolve('electron/main/index.ts'), 'context-worker': resolve('electron/main/context/worker.ts'), 'context-backup-inspection': resolve('electron/main/context/backup-inspection-worker.ts'), 'project-file-extract': resolve('electron/main/project-files/extract-worker.ts'), 'project-bundle-worker': resolve('electron/main/project-files/bundle-worker.ts') }
       }
     }
   },
@@ -34,6 +34,11 @@ export default defineConfig({
   },
   renderer: {
     root: resolve('src'),
+    server: {
+      // The main process routes localhost HTTP through IPv4 loopback. Use the
+      // same address here so IPv6-first DNS cannot put Vite on ::1 instead.
+      host: '127.0.0.1'
+    },
     build: {
       rollupOptions: {
         input: resolve('src/index.html')

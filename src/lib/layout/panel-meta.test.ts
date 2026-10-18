@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   BUILTIN_PANEL_INFO, multiInstancePanels, panelInfo, panelMaxInstances, resolvePanelName,
 } from './panel-meta'
-import { defaultLayout, movePanel, normalize, zoneOf, type PanelMeta } from './model'
+import { defaultLayout, movePanel, normalize, zoneOf, setZoneMode, setActivePanel, type PanelMeta } from './model'
 
 // Which panels ouRGeo will draw twice is a product decision, not an accident of
 // a `maxInstances` field, and it is the one thing in this registry a user can
@@ -11,6 +11,32 @@ import { defaultLayout, movePanel, normalize, zoneOf, type PanelMeta } from './m
 // fixture would happily go on passing after the shipped answer changed.
 
 const PANELS = [...BUILTIN_PANEL_INFO] as PanelMeta[]
+
+describe('Project Files placement', () => {
+  it('joins the Console and Terminal tabs without taking focus', () => {
+    const layout = defaultLayout(PANELS)
+    expect(layout.zones.bottom.order).toEqual(['console', 'terminal', 'projectFiles'])
+    expect(layout.zones.bottom.active).toBe('console')
+    expect(layout.zones.bottom.mode).toBe('tabs')
+  })
+  it('migrates beside a moved Console while preserving its split and active panel', () => {
+    const oldPanels = PANELS.filter(panel => panel.id !== 'projectFiles')
+    let old = movePanel(defaultLayout(oldPanels), 'console', 'left')
+    old = setZoneMode(setActivePanel(old, 'console'), 'left', 'split')
+    const next = normalize(old, PANELS)
+    expect(zoneOf(next, 'projectFiles')).toBe('left')
+    expect(next.zones.left.mode).toBe('split')
+    expect(next.zones.left.active).toBe('console')
+    expect(next.zones.left.order.indexOf('projectFiles')).toBe(next.zones.left.order.indexOf('console') + 1)
+  })
+  it('keeps a deliberately moved or closed file pane where it was saved', () => {
+    const moved = movePanel(defaultLayout(PANELS), 'projectFiles', 'right')
+    moved.open.projectFiles = false
+    const next = normalize(moved, PANELS)
+    expect(zoneOf(next, 'projectFiles')).toBe('right')
+    expect(next.open.projectFiles).toBe(false)
+  })
+})
 
 describe('the panels that may exist more than once', () => {
   it('is the code editor, and nothing else', () => {

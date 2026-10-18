@@ -296,6 +296,17 @@ the whole analysis.
   local database files; a bundle cannot grant access to unrelated absolute paths.
   Moving a bundle keeps its identity. Opening a duplicate offers the existing
   identity or an independent copy with new project and memory IDs.
+- **Project Files.** Keep reports, PDF standards, figure examples, Word documents
+  and spreadsheets inside a saved project, or link folders whose originals stay
+  on disk. Create or link multiple folders, label and rescan them, or forget a
+  link while keeping its disk contents. The movable Project Files pane starts
+  beside R console and Terminal. Import once, add descriptions and attach selected
+  files or ranges to chat; the assistant searches and reads relevant evidence
+  through the existing context system. Embedded originals are recoverable between
+  saves and travel with the project; linked files stay external and can be
+  relinked on another device. Local indexing does not require a model call.
+  Read the [Project Files guide](docs/project-files.md) for supported contents,
+  visual-model capability, privacy, recovery and project-version compatibility.
 - **No telemetry, no account, no cloud dependency.**
 
 ## Theming

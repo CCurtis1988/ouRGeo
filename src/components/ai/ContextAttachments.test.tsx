@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ContextSource } from '@/lib/context/types'
 
 const mocks = vi.hoisted(() => ({ sources: vi.fn(), snapshot: vi.fn(), project: { workspaceEpoch: 7 }, privacy: { exclusionsLoaded: true, excluded: [] as string[] }, editor: { activeTabId: 'tab', tabs: [{ id: 'tab', content: '# Intro\nhello\n# Method\n```{r}\nx <- 1\n```', viewMode: 'code' }] }, spatial: { selectedLayerId: 'layer', layers: [{ id: 'layer', envName: '.GlobalEnv', name: 'roads' }] } }))
+const library = vi.hoisted(() => ({ catalogue: { projectId: 'project', files: [] as { id: string; name: string; status: string }[] }, add: vi.fn(), queue: { requests: [] }, show: vi.fn() }))
+vi.mock('@/store/project-files', () => ({ useProjectFilesStore: Object.assign((select: (state: typeof library) => unknown) => select(library), { getState: () => library }) }))
+vi.mock('@/lib/project-files-ui', () => ({ openProjectFiles: library.show }))
+vi.mock('@/lib/project-file-ai', () => ({ useProjectFileAttachmentQueue: Object.assign((select: (state: typeof library.queue) => unknown) => select(library.queue), { setState: vi.fn() }) }))
 vi.mock('@/store/spatial', () => ({ useSpatialStore: { getState: () => mocks.spatial } }))
 vi.mock('@/store/editor', () => ({ useEditorStore: { getState: () => mocks.editor } }))
 vi.mock('@/store/project', () => ({ useProjectStore: { getState: () => mocks.project } }))
@@ -15,9 +19,22 @@ import { ContextAttachments } from './ContextAttachments'
 
 const read = vi.fn()
 const document: ContextSource = { id: 'document:tab', kind: 'document', scope: 'workspace', title: 'Analysis.qmd', summary: '', revision: 'unsaved:8', trust: 'user', read }
-beforeEach(() => { vi.clearAllMocks(); mocks.privacy.exclusionsLoaded = true; mocks.privacy.excluded = []; mocks.editor.tabs[0].viewMode = 'code'; mocks.editor.tabs[0].content = '# Intro\nhello\n# Method\n```{r}\nx <- 1\n```'; mocks.sources.mockReturnValue([document]) })
+beforeEach(() => { vi.clearAllMocks(); library.catalogue.files = []; library.add.mockResolvedValue([]); mocks.privacy.exclusionsLoaded = true; mocks.privacy.excluded = []; mocks.editor.tabs[0].viewMode = 'code'; mocks.editor.tabs[0].content = '# Intro\nhello\n# Method\n```{r}\nx <- 1\n```'; mocks.sources.mockReturnValue([document]) })
 
 describe('context attachment composer', () => {
+  it('keeps a large import in the project and asks explicitly which files to attach', async () => {
+    library.add.mockImplementation(async () => {
+      library.catalogue.files = Array.from({ length: 4 }, (_, index) => ({ id: `file-${index}`, name: `Report ${index}.pdf`, status: 'searchable' }))
+      return library.catalogue.files.map(file => file.id)
+    })
+    const change = vi.fn()
+    render(<ContextAttachments value={[]} onChange={change} disabled={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add files' }))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('4 files added to the project. Choose which files to attach'))
+    expect(screen.getByLabelText('Project file attachments')).toBeInTheDocument()
+    expect(change).not.toHaveBeenCalled()
+    expect(library.catalogue.files).toHaveLength(4)
+  })
   it('lets a large current document recover through an explicit small range instead of a smaller file', () => {
     mocks.editor.tabs[0].content = 'x'.repeat(2_000_000) + '\n# Relevant\ncurrent text'
     const change = vi.fn()

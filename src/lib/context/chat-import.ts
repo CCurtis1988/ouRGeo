@@ -1,3 +1,4 @@
+import { parseProjectFileCitation, projectFileCitation } from '@/lib/project-file-citations'
 import type { AiChat, AiProvider, ChatMessage } from '@/store/ai'
 import { importConversationMemories } from './conversation-memory'
 import { restoreUsage } from './usage'
@@ -29,6 +30,12 @@ export function importChats(input: unknown, portable = false): AiChat[] {
       if (characters > 50_000_000) return []
       messageIds.add(message.id)
       const restored: ChatMessage = { id: message.id, role: message.role as ChatMessage['role'], content: message.content, timestamp: message.timestamp }
+      if (Array.isArray(message.projectFileReferences)) restored.projectFileReferences = message.projectFileReferences.slice(0, 3).flatMap(value => {
+        const item = object(value)
+        if (!item || typeof item.title !== 'string') return []
+        const reference = parseProjectFileCitation(projectFileCitation(item as unknown as import('@/lib/project-file-citations').ProjectFileCitation))
+        return reference ? [{ ...reference, title: item.title.slice(0, 200) }] : []
+      })
       for (const key of ['toolCalls', 'toolResults'] as const) {
         if (message[key] === undefined) continue
         const items = message[key]

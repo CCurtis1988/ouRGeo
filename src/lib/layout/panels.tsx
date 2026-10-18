@@ -15,6 +15,7 @@ import { SpatialEditor } from '@/components/spatial/SpatialEditor'
 import { PlottingPanel } from '@/components/plotting/PlottingPanel'
 import { AiChatPanel } from '@/components/ai/AiChatPanel'
 import { HelpPanel } from '@/components/help/HelpPanel'
+import { ProjectFilesPanel } from '@/components/project/ProjectFilesPanel'
 import { pluginPanelRender, type PanelRender } from './panel-render'
 import { basePanelId } from './instances'
 import type { PanelId } from './model'
@@ -26,6 +27,7 @@ const BUILTIN_RENDERERS: Record<PanelId, PanelRender> = {
   editor: () => <CodeEditor />,
   console: () => <Console />,
   terminal: () => <TerminalPanel />,
+  projectFiles: () => <ProjectFilesPanel />,
   plots: () => <PlottingPanel />,
   spatial: () => <SpatialEditor />,
   ai: () => <AiChatPanel />,

@@ -19,7 +19,7 @@ import { useSessionStore } from '@/store/session'
 import { useSpatialStore } from '@/store/spatial'
 import { rClient } from '@/lib/r-client'
 import type { AiTool, ToolCall } from '@/lib/ai-client'
-import { sendMessage, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, requiresApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
+import { sendMessage, imageCapability, getContextSize, resolveContextSize, fetchLocalContextSize, localCtxOverride, PROVIDER_LABELS, isLocalProvider, localBaseUrl, localApiKey, requiresApiKey, EXECUTE_R_TOOL } from '@/lib/ai-client'
 import { WEB_TOOLS, WEB_TOOL_NAMES, runWebTool, describeWebCall } from '@/lib/ai-web-tools'
 import { buildContextContract, buildContextScopeCard } from '@/lib/context/compiler'
 import { compactToolSchemas, initialToolExposure } from '@/lib/context/tools'
@@ -42,6 +42,9 @@ import { environmentSourceId } from '@/lib/context/source-identity'
 import { memoryRelevance } from '@/lib/context/preferences'
 import { rememberIntent, forgetIntent, isForgetRequest, projectInstruction } from '@/lib/context/memory-intent'
 import { useProjectStore } from '@/store/project'
+import { projectFileAvailable } from '@/lib/project-file-availability'
+import { useProjectFilesStore } from '@/store/project-files'
+import { projectFileContentHits } from '@/lib/context/sources/project-files'
 import { ContextInspector } from './ContextInspector'
 import { MemoryLibrary } from './MemoryLibrary'
 import { ContextAttachments } from './ContextAttachments'
@@ -51,6 +54,7 @@ import { DOC_TOOLS, DOC_TOOL_NAMES, runDocTool, describeDocCall } from '@/lib/ai
 import { UI_TOOLS, UI_TOOL_NAMES, runUiTool, describeUiCall } from '@/lib/ai-ui-tools'
 import { actionCallInCode, actionCodeRefusal } from '@/lib/ai-actions/action-code-guard'
 import { cn } from '@/lib/utils'
+const NO_ATTACHMENTS: StagedAttachment[] = []
 
 // ── Token usage bar ────────────────────────────────────────────────────────
 function TokenBar({ used, total }: { used: number; total: number }) {
@@ -120,8 +124,11 @@ export function AiChatPanel(): React.ReactElement {
   const setEffort = useContextStore(s => s.setEffort)
   const memoryNotice = useContextStore(s => s.notice)
   const [memoryOpen, setMemoryOpen] = useState(false)
-  const [attachments, setAttachments] = useState<StagedAttachment[]>([])
   const workspaceEpoch = useProjectStore(s => s.workspaceEpoch)
+  const attachmentIdentity = `${activeChat?.id}:${workspaceEpoch}`
+  const [attachmentState, setAttachmentState] = useState<{ identity: string; items: StagedAttachment[] }>(() => ({ identity: attachmentIdentity, items: [] }))
+  const attachments = attachmentState.identity === attachmentIdentity ? attachmentState.items : NO_ATTACHMENTS
+  const setAttachments = useCallback((items: StagedAttachment[]) => setAttachmentState({ identity: attachmentIdentity, items }), [attachmentIdentity])
   const [input, setInput] = useState('')
   const [modelPopupOpen, setModelPopupOpen] = useState(false)
   const [autopilotDialogOpen, setAutopilotDialogOpen] = useState(false)
@@ -145,7 +152,10 @@ export function AiChatPanel(): React.ReactElement {
   const { suggestions } = useAutocomplete(input, allEnvNames)
 
   useEffect(() => { init(); initKeys(); void useContextStore.getState().init() }, [init, initKeys])
-  useEffect(() => { setAttachments([]) }, [activeChat?.id, workspaceEpoch])
+  // A queued pane attachment can stage while the assistant first mounts. The
+  // parent reset must preserve that child's newly bound selection, rather than
+  // erase it after showing a misleading "staged" notice.
+  useEffect(() => { setAttachmentState(state => state.identity === attachmentIdentity ? state : { identity: attachmentIdentity, items: [] }) }, [attachmentIdentity])
 
   // Resolve the context window for the token bar / usage reporting. For local
   // providers this probes the server (llama.cpp /props, vLLM max_model_len) and
@@ -223,6 +233,35 @@ export function AiChatPanel(): React.ReactElement {
         if (!useContextStore.getState().exclusionsLoaded) return
         yield* workspaceSourceScan(kinds, bindR, query)
       },
+      image: async (source, ref, location) => {
+        const capability = await imageCapability(provider, currentModel, local ? localBaseUrl(provider, keys) : undefined, local ? localApiKey(provider, keys) : undefined, ac.signal)
+        if (!current()) throw new Error('SCOPE_CHANGED')
+        if (capability !== 'supported') return { limitation: `${PROVIDER_LABELS[provider]} / ${currentModel} image capability is ${capability}. Select Ollama gemma4:e2b in the model selector (the currently qualified visual path); the file remains available as metadata.` }
+        const file = source.projectFile!
+        const readRendition = async () => {
+          if (!current()) throw new Error('SCOPE_CHANGED')
+          const lease = await window.electronAPI.context.lease()
+          const preview = await window.electronAPI.projectFiles.preview(file.id, source.revision, lease.id, location)
+          if (!current()) throw new Error('SCOPE_CHANGED')
+          if (preview.kind === 'pdf' && preview.url && location?.kind === 'pdf') {
+            const { renderProjectPdfPage } = await import('@/lib/pdf-page')
+            return renderProjectPdfPage(preview.url, location.page, ac.signal)
+          }
+          if (preview.kind !== 'image' || !preview.url || !preview.width || !preview.height) throw new Error('Image not inspected: this rendition is unavailable. Open its preview and select a supported image.')
+          return { dataUrl: preview.url, width: preview.width, height: preview.height, complete: preview.imageComplete !== false }
+        }
+        const rendition = await readRendition()
+        return { ref, sourceId: source.id, revision: source.revision, title: source.title, width: rendition.width, height: rendition.height, complete: rendition.complete, estimatedTokens: 8192, materialise: async () => (await readRendition()).dataUrl }
+      },
+      contentSearch: async (query, signal) => {
+        signal.throwIfAborted()
+        if (!project.projectId || !useContextStore.getState().exclusionsLoaded || hasColumnExclusions()) return []
+        const lease = await window.electronAPI.context.lease()
+        if (!current()) throw new Error('SCOPE_CHANGED')
+        const hits = await window.electronAPI.projectFiles.search(query, lease.id)
+        signal.throwIfAborted()
+        return projectFileContentHits(project.projectId, hits)
+      },
       recall: async (input, signal) => {
         signal.throwIfAborted()
         const id = crypto.randomUUID()
@@ -273,7 +312,7 @@ export function AiChatPanel(): React.ReactElement {
     if (webAccessEnabled) tools.push(...WEB_TOOLS)
     // Field descriptions are useful on expansion; the compact first schema
     // preserves types and required fields without carrying a catalogue.
-    const compactTools = compactToolSchemas(initialToolExposure(tools, contextSize, route.documents))
+    const compactTools = compactToolSchemas(initialToolExposure(tools, contextSize, route.documents), { projectFiles: useProjectFilesStore.getState().catalogue.files.length > 0 })
     const outputReservation = Math.min(4000, Math.floor(contextSize / (contextSize < 8192 ? 8 : 4)))
     const memory = useContextStore.getState()
     const originalHistory = disclosureDialogue(useAiStore.getState().chats.find(c => c.id === chatId)?.messages ?? [userMsg], disclosureExclusions(memory.excluded, hasColumnExclusions()), memory.exclusionsLoaded)
@@ -394,6 +433,16 @@ export function AiChatPanel(): React.ReactElement {
     const prior = disclosureDialogue(useAiStore.getState().chats.find(c => c.id === chatId)?.messages.filter(m => m.id !== userMsg.id) ?? [], disclosureExclusions(memory.excluded, hasColumnExclusions()), memory.exclusionsLoaded)
     const conversationMessages = [...prior, { ...userMsg, content: sessionContext && provider !== 'claude-cli' ? `${userMsg.content}\n\n${sessionContext}` : userMsg.content }]
 
+    const stopChangedFiles = useProjectFilesStore.subscribe(state => {
+      if (!current() || ac.signal.aborted) return
+      const selected = broker.trace.selected.filter(evidence => evidence.sourceId.startsWith('project-file:'))
+      if (!selected.length) return
+      const revisions = new Map(state.catalogue.files.filter(file => projectFileAvailable(file, state.catalogue)).map(file => [file.id, file.revision]))
+      if (selected.some(evidence => revisions.get(evidence.sourceId.slice(evidence.sourceId.lastIndexOf(':') + 1)) !== evidence.revision)) {
+        setSendError('A project file used by this response changed or was removed. The response was stopped; attach its current version and send again.')
+        useAiStore.getState().cancelStream()
+      }
+    })
     let openAiMessages: import('@/store/ai').OpenAiAssistantMessage[] | undefined
     try {
       const lease = await window.electronAPI.context.lease()
@@ -413,6 +462,7 @@ export function AiChatPanel(): React.ReactElement {
         localApiKey: local ? localApiKey(provider, keys) : undefined,
         ollamaContextSize: provider === 'ollama' ? localCtxOverride(provider, keys) ?? undefined : undefined,
         contextSize,
+        imageEvidence: () => broker.images,
         messages: conversationMessages,
         systemPrompt,
         sessionContext: provider === 'claude-cli' && sessionContext ? sessionContext : undefined,
@@ -424,6 +474,7 @@ export function AiChatPanel(): React.ReactElement {
           if (!usageAuthority) throw new Error('Prepare numeric invocation accounting before sending.')
           await useContextStore.getState().prepareTraceUsage(broker.trace, provider, outputReservation, usageAuthority)
           if (!current() || ac.signal.aborted) throw new Error('SCOPE_CHANGED')
+          broker.validateSend()
         },
         prepareInvocation: payload => broker.prepareInvocation(payload),
         archiveToolResult: output => broker.archiveResult(output, 'Earlier tool result'),
@@ -474,6 +525,7 @@ export function AiChatPanel(): React.ReactElement {
       // and the same fix.
       finalizeStream(useAiStore.getState().streamingContent, openAiMessages)
     } finally {
+      stopChangedFiles()
       // Settle numeric accounting in its original scope even after cancellation
       // or a project switch; transcript attachment still needs the live workspace.
       await useContextStore.getState().recordTraceUsage(broker.trace, provider, true, usageAuthority)
@@ -485,7 +537,7 @@ export function AiChatPanel(): React.ReactElement {
       }
     }
   }, [provider, currentModel, keys, effort, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
-      appendStreamChunk, finalizeStream, setTokenUsage, addConsoleEntry])
+      appendStreamChunk, finalizeStream, setTokenUsage, addConsoleEntry, setAttachments])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -520,6 +572,11 @@ export function AiChatPanel(): React.ReactElement {
       role: 'user' as const,
       content: text,
       timestamp: Date.now(),
+      projectFileReferences: attachments.flatMap(item => {
+        const file = useProjectFilesStore.getState().catalogue.files.find(file => item.sourceId.endsWith(`:${file.id}`))
+        const projectId = useProjectStore.getState().projectId
+        return file && projectId ? [{ projectId, id: file.id, revision: item.revision, title: file.name, location: item.location }] : []
+      }),
     }
     addMessage(userMsg)
     setInput('')

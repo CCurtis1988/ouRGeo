@@ -1,3 +1,5 @@
+import { rebindProjectFileReferences } from '@/lib/project-file-citations'
+import { useProjectFilesStore } from '@/store/project-files'
 // Project workflow: save/load a portable `.ourgeoproj` bundle (R env snapshot +
 // full ouRGeo UI state) and manage the temp scratch project. The bundle zip is
 // packed/unpacked in the Electron main process (see electron/main/ipc.ts); this
@@ -274,6 +276,7 @@ async function packProjectToPath(path: string): Promise<boolean> {
   const draft = useContextStore.getState().projectContext
   const context = original.projectId !== projectId ? forkProjectContext(draft, projectId) : draft
   const manifest = buildManifest(name, databases, projectId, context)
+  if (original.projectId && original.projectId !== projectId && manifest.ui.chats) manifest.ui.chats = rebindProjectFileReferences(manifest.ui.chats, original.projectId, projectId)
 
   const { useColumnDisclosureStore } = await import('@/store/column-disclosure')
   const forkColumns = original.projectId === projectId ? null : { ...useColumnDisclosureStore.getState().selections }
@@ -287,6 +290,7 @@ async function packProjectToPath(path: string): Promise<boolean> {
   const store = useProjectStore.getState()
   store.setCurrent(name, path)
   useProjectStore.setState({ projectId })
+  if (original.projectId && original.projectId !== projectId) useAiStore.setState(state => ({ chats: rebindProjectFileReferences(state.chats, original.projectId!, projectId) }))
   if (original.projectId !== projectId) {
     // Save As opens an independent privacy/provider scope. Exclusions from
     // the original project are local settings, not inherited bundle content.
@@ -306,7 +310,10 @@ async function packProjectToPath(path: string): Promise<boolean> {
   await useContextStore.getState().refreshExclusions()
   if (useContextStore.getState().projectContext === draft) {
     useContextStore.setState({ projectContext: context, committedRevision: context.revision })
-    store.clearDirty()
+    const files = await window.electronAPI.projectFiles.catalogue(savedLease.id)
+    if (files.revision === files.savedRevision) store.clearDirty()
+    else store.markDirty()
+    await useProjectFilesStore.getState().refresh()
   } else {
     if (original.projectId !== projectId) useContextStore.setState({ projectContext: forkProjectContext(useContextStore.getState().projectContext, projectId) })
     store.markDirty()
@@ -358,8 +365,17 @@ async function openProjectFromPath(path: string): Promise<boolean> {
   let authorisedDatabasePaths: string[] = []
   const contextWarnings: string[] = []
   let identityForked = false
+  let openToken: string | undefined
+  const releaseOpen = async (): Promise<void> => {
+    if (!openToken) return
+    const token = openToken
+    openToken = undefined
+    try { await window.electronAPI.project.releaseOpen(token) }
+    catch (error) { useSessionStore.getState().addConsoleEntry('info', `Temporary project-open files could not be removed: ${String(error)}. They will be retried when ouRGeo closes.`) }
+  }
   try {
     const unpacked = await window.electronAPI.project.unpack(path)
+    openToken = unpacked.openToken
     manifest = JSON.parse(unpacked.projectJson) as ProjectManifest
     envRDataPath = unpacked.envRDataPath
     authorisedFileLinks = unpacked.authorisedFileLinks ?? []
@@ -367,94 +383,97 @@ async function openProjectFromPath(path: string): Promise<boolean> {
     identityForked = unpacked.identityForked === true
     contextWarnings.push(...(unpacked.contextWarnings ?? []))
   } catch (err) {
+    await releaseOpen()
     if (String(err).includes('PROJECT_OPEN_CANCELLED')) return false
     useSessionStore.getState().addConsoleEntry('error', `Failed to open project: ${String(err)}`)
     return false
   }
 
-  const name = baseName(path)
-  // Switch to the named project up-front so the gated session autosave leaves
-  // temp's session.json untouched while we hydrate this bundle's code tabs.
-  useAiStore.getState().cancelStream()
-  useProjectStore.setState({ projectId: typeof manifest.projectId === 'string' && /^[a-f0-9-]{36}$/i.test(manifest.projectId) ? manifest.projectId : null })
-  useProjectStore.getState().setCurrent(name, path)
-  useContextStore.getState().loadProject()
-  // Clear the previous scope before waiting for R/keyring recovery. Otherwise
-  // a responsive chat could disclose old chats/buffers under the new UUID.
-  clearWorkspaceStores()
-  resetToBlankScratch()
-  applyProjectChats(manifest.ui)
-  const loadedChats = useAiStore.getState().chats
-  let context = validateProjectContext(manifest.context, useProjectStore.getState().projectId)
-  const committedRevision = context.revision
-  const projectLease = await window.electronAPI.context.lease()
   try {
-    const allowed = new Set(await window.electronAPI.context.filterDeleted(context.memories.map(m => m.id)))
-    context = { ...context, memories: context.memories.filter(m => allowed.has(m.id)) }
-    const projectId = useProjectStore.getState().projectId
-    const recovered = projectId ? await window.electronAPI.context.recoverProject(projectId, committedRevision, projectLease.id) : null
-    if (recovered && recovered.revision > committedRevision) {
-      context = validateProjectContext(recovered, projectId)
-      contextWarnings.push('Recovered unsaved project memory. Save the project to commit it, or discard the recovered edits.')
-    }
-  } catch (error) {
-    // Failure to check newer tombstones is not permission to resurrect old data.
-    context = { version: 1, revision: context.revision, memories: [] }
-    contextWarnings.push(`Project memory unavailable: ${String(error)}. Restore protected storage and reopen the original bundle.`)
-  }
-  useContextStore.getState().loadProject(context, committedRevision, projectLease.id)
-
-  await withDirtySuppressed(async () => {
+    const name = baseName(path)
+    // Switch to the named project up-front so the gated session autosave leaves
+    // temp's session.json untouched while we hydrate this bundle's code tabs.
+    useAiStore.getState().cancelStream()
+    useProjectStore.setState({ projectId: typeof manifest.projectId === 'string' && /^[a-f0-9-]{36}$/i.test(manifest.projectId) ? manifest.projectId : null })
+    useProjectStore.getState().setCurrent(name, path)
+    useContextStore.getState().loadProject()
+    // Clear the previous scope before waiting for R/keyring recovery. Otherwise
+    // a responsive chat could disclose old chats/buffers under the new UUID.
+    clearWorkspaceStores()
+    resetToBlankScratch()
+    applyProjectChats(manifest.ui)
+    const loadedChats = useAiStore.getState().chats
+    let context = validateProjectContext(manifest.context, useProjectStore.getState().projectId)
+    const committedRevision = context.revision
+    const projectLease = await window.electronAPI.context.lease()
     try {
-      await retryOnNetworkError(() => rClient.sessionReset())
-    } catch {
-      // R may be unavailable — still hydrate the UI.
-    }
-    for (const warning of contextWarnings) useSessionStore.getState().addConsoleEntry('info', warning)
-
-    // Load the R env BEFORE applying UI state, so a spatial layer's backing R
-    // object already exists when the editor renders it.
-    if (envRDataPath) {
-      try {
-        const res = await retryOnNetworkError(() => rClient.envLoad(envRDataPath as string, '.GlobalEnv'))
-        // What comes back is what the panel should treat as NOT the user's own
-        // — for a bundle written with excludeSystem that is normally nothing,
-        // and for one written before ouRGeo knew its own helpers, just those.
-        // It is not "the things this file restored": flagging those hid the
-        // entire environment a project had just loaded. See handle_env_load.
-        if (res.rdataLoadedNames?.length) {
-          useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', res.rdataLoadedNames)
-        }
-      } catch (err) {
-        useSessionStore.getState().addConsoleEntry('error', `Failed to load environment: ${String(err)}`)
+      const allowed = new Set(await window.electronAPI.context.filterDeleted(context.memories.map(m => m.id)))
+      context = { ...context, memories: context.memories.filter(m => allowed.has(m.id)) }
+      const projectId = useProjectStore.getState().projectId
+      const recovered = projectId ? await window.electronAPI.context.recoverProject(projectId, committedRevision, projectLease.id) : null
+      if (recovered && recovered.revision > committedRevision) {
+        context = validateProjectContext(recovered, projectId)
+        contextWarnings.push('Recovered unsaved project memory. Save the project to commit it, or discard the recovered edits.')
       }
+    } catch (error) {
+      // Failure to check newer tombstones is not permission to resurrect old data.
+      context = { version: 1, revision: context.revision, memories: [] }
+      contextWarnings.push(`Project memory unavailable: ${String(error)}. Restore protected storage and reopen the original bundle.`)
     }
+    useContextStore.getState().loadProject(context, committedRevision, projectLease.id)
 
-    try {
-      const databases = Array.isArray(manifest.databases) ? manifest.databases : []
-      const allowed = databases.filter(database => authorisedDatabasePaths.includes(database.filePath))
-      if (allowed.length < databases.length) useSessionStore.getState().addConsoleEntry('info', 'Imported database paths were not opened automatically. Choose the database files on this device to reconnect them.')
-      await reconnectDatabases(allowed)
-    } catch (err) {
-      useSessionStore.getState().addConsoleEntry('error', `Database reconnect failed: ${String(err)}`)
-    }
+    await withDirtySuppressed(async () => {
+      try {
+        await retryOnNetworkError(() => rClient.sessionReset())
+      } catch {
+        // R may be unavailable — still hydrate the UI.
+      }
+      for (const warning of contextWarnings) useSessionStore.getState().addConsoleEntry('info', warning)
 
-    await applyUiState(manifest.ui, authorisedFileLinks)
-    // Refresh panels after env load + DB reconnect so they reflect the rebound
-    // proxies and restored objects.
-    await refreshRPanels()
-    await pruneStaleObjectTabs()
-    // Raster map layers reference session-scoped server registrations —
-    // re-register them against the just-restored env objects.
-    await rehydrateRasterLayers()
-  })
+      // Load the R env BEFORE applying UI state, so a spatial layer's backing R
+      // object already exists when the editor renders it.
+      if (envRDataPath) {
+        try {
+          const res = await retryOnNetworkError(() => rClient.envLoad(envRDataPath as string, '.GlobalEnv'))
+          // What comes back is what the panel should treat as NOT the user's own
+          // — for a bundle written with excludeSystem that is normally nothing,
+          // and for one written before ouRGeo knew its own helpers, just those.
+          // It is not "the things this file restored": flagging those hid the
+          // entire environment a project had just loaded. See handle_env_load.
+          if (res.rdataLoadedNames?.length) {
+            useEnvironmentStore.getState().addRdataLoadedNames('.GlobalEnv', res.rdataLoadedNames)
+          }
+        } catch (err) {
+          useSessionStore.getState().addConsoleEntry('error', `Failed to load environment: ${String(err)}`)
+        }
+      }
 
-  const store = useProjectStore.getState()
-  store.clearDirty()
-  if (identityForked || context.revision !== committedRevision || useAiStore.getState().chats !== loadedChats) store.markDirty()
-  persistRecents(store.pushRecent({ name, path }))
-  useSessionStore.getState().addConsoleEntry('info', `Project loaded: ${name}`)
-  return true
+      try {
+        const databases = Array.isArray(manifest.databases) ? manifest.databases : []
+        const allowed = databases.filter(database => authorisedDatabasePaths.includes(database.filePath))
+        if (allowed.length < databases.length) useSessionStore.getState().addConsoleEntry('info', 'Imported database paths were not opened automatically. Choose the database files on this device to reconnect them.')
+        await reconnectDatabases(allowed)
+      } catch (err) {
+        useSessionStore.getState().addConsoleEntry('error', `Database reconnect failed: ${String(err)}`)
+      }
+
+      await applyUiState(manifest.ui, authorisedFileLinks)
+      // Refresh panels after env load + DB reconnect so they reflect the rebound
+      // proxies and restored objects.
+      await refreshRPanels()
+      await pruneStaleObjectTabs()
+      // Raster map layers reference session-scoped server registrations —
+      // re-register them against the just-restored env objects.
+      await rehydrateRasterLayers()
+    })
+
+    const store = useProjectStore.getState()
+    store.clearDirty()
+    if (identityForked || context.revision !== committedRevision || useAiStore.getState().chats !== loadedChats) store.markDirty()
+    persistRecents(store.pushRecent({ name, path }))
+    useSessionStore.getState().addConsoleEntry('info', `Project loaded: ${name}`)
+    return true
+  } finally { await releaseOpen() }
 }
 
 /** Prompt for a bundle and load it. Returns false if cancelled. */

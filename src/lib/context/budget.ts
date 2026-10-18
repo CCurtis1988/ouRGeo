@@ -1,13 +1,17 @@
 /** Conservative fallback, including non-Latin text and serialisation wrappers.
  * This is an estimate, not a tokenizer or a billing receipt. */
 export function estimateTokens(value: unknown): number {
-  const text = typeof value === 'string' ? value : JSON.stringify(value) ?? ''
+  let images = 0
+  const text = typeof value === 'string' ? value : JSON.stringify(value, (key, item) => {
+    if (key === 'images' && Array.isArray(item) && item.every(image => typeof image === 'string' && /^[A-Za-z0-9+/=]+$/.test(image))) { images += item.length; return item.map(() => '[transient image bytes]') }
+    return item
+  }) ?? ''
   let latin = 0, other = 0
   for (const char of text) {
     if (char.codePointAt(0)! < 128) latin++
     else other += char.length
   }
-  return Math.ceil(latin / 3 + other) + 16
+  return Math.ceil(latin / 3 + other) + 16 + images * 8192
 }
 
 export function boundedText(text: string, tokens: number): { text: string; complete: boolean } {

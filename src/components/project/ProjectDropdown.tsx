@@ -11,6 +11,7 @@ import {
   newProject,
 } from '@/lib/project-persistence'
 import { confirmUnsaved } from './UnsavedChangesDialog'
+import { openProjectFiles } from '@/lib/project-files-ui'
 
 // R connection status → the small dot color on the dropdown trigger (this
 // replaces the old standalone "R Connected" indicator).
@@ -105,6 +106,7 @@ export function ProjectDropdown(): React.ReactElement {
           <MenuItem icon={<SaveAll className="w-3.5 h-3.5" />} label="Save As…" onClick={onSaveAs} />
           <MenuItem icon={<FilePlus className="w-3.5 h-3.5" />} label="New" onClick={onNew} />
           <MenuItem icon={<FolderOpen className="w-3.5 h-3.5" />} label="Load…" onClick={onLoad} />
+          <button type="button" data-ourgeo-id="project.files" onClick={() => { setOpen(false); openProjectFiles() }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left text-foreground hover:bg-white/5"><FolderOpen className="w-3.5 h-3.5 text-geo-muted" />Project Files</button>
 
           <div className="h-px bg-geo-border my-1" />
           <p className="px-3 py-1 text-[10px] uppercase tracking-wider text-geo-muted">Recent Projects</p>

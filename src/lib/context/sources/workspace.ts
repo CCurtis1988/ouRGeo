@@ -30,6 +30,10 @@ import { disclosedColumns, disclosedSchema, schemaColumns } from '../column-disc
 
 import { folderSources, folderSourceScan } from '../folder-sources'
 import { schemaRevision } from '../schema-revision'
+import { projectFileSources } from './project-files'
+import { useProjectFilesStore } from '@/store/project-files'
+
+const librarySources = (): ContextSource[] => projectFileSources(useProjectFilesStore.getState().catalogue, window.electronAPI.projectFiles, async () => (await window.electronAPI.context.lease()).id)
 
 const consoleIndex = new ConsoleIndex()
 const documentIndex = new DocumentDescriptorIndex({ tabs: () => useEditorStore.getState().tabs, epoch: () => useProjectStore.getState().workspaceEpoch, snapshot: snapshotDocument, available: () => !hasColumnExclusions() })
@@ -93,6 +97,7 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
     }
   }
   if (wants('document')) {
+    sources.push(...librarySources())
     sources.push(...pluginContextSources())
     if (includeFolders) sources.push(...folderSources(window.electronAPI.context))
     for (const tab of useEditorStore.getState().tabs.filter(t => !t.type || t.type === 'code')) {
@@ -150,6 +155,7 @@ export function* workspaceSourceScan(kinds?: ContextKind[], beforeEnvironmentRea
   yield* workspaceSources(localKinds, false)
   if (!kinds || kinds.includes('environment')) yield* environmentIndex.scan(beforeEnvironmentRead, query)
   if ((!kinds || kinds.includes('document')) && !hasColumnExclusions()) {
+    yield* librarySources()
     yield* pluginContextSources()
     yield* documentIndex.scan(query)
     yield* folderSourceScan(window.electronAPI.context)

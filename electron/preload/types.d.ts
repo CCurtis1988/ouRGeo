@@ -307,10 +307,12 @@ declare global {
         openProject(): Promise<string | null>
         saveProject(defaultName?: string): Promise<string | null>
       }
+      projectFiles: import('../../src/lib/project-files').ProjectFileApi
       project: {
         tempEnvPath(): Promise<string>
         pack(bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] } | void>
-        unpack(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; identityForked?: boolean; contextWarnings?: string[]; authorisedFileLinks?: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths?: string[] }>
+        unpack(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings?: string[]; authorisedFileLinks?: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths?: string[] }>
+        releaseOpen(token: string): Promise<void>
       }
       file: {
         read(filePath: string): Promise<string>

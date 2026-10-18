@@ -7,6 +7,7 @@ export interface ContextAttachment {
   sourceId: string
   revision: string
   workspaceEpoch: number
+  location?: import('@/lib/project-files').ProjectFileLocation
   range?: DocumentRange
 }
 export interface StagedAttachment extends ContextAttachment {

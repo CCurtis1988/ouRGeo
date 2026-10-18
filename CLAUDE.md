@@ -424,6 +424,103 @@ source()d functions).
   `app:confirm-quit` — code/.R tabs are always flushed regardless of choice.
 - Recent projects (max 5) persist in `recent-projects.json` (never deleted).
 
+### Embedded Project Files (1.16.23)
+
+`electron/main/project-files/` owns original-file staging, catalogue journals,
+scoped reads, protected derived indexes and streaming project archives. A named
+saved project is required before importing. The pane (`ProjectFilesPanel`) shares
+the Console/Terminal tab group initially and follows ordinary remembered layout;
+the project menu restores a hidden pane. Renderer state is a catalogue mirror,
+not ownership of bytes or running jobs. Chat attachments hold portable references;
+the broker resolves current bytes under its existing scope/exclusion/budget checks.
+
+The first saved library upgrades `project.json` to manifest version 2, with
+`files/catalogue.json` and content-hash-addressed original blobs. Legacy v1 readers
+reject v2, preventing their packer from silently stripping embedded originals.
+The new reader keeps v1 support. Display names/logical folders never become archive
+paths. Packing/unpacking/verification runs in a bounded worker and reads entries
+incrementally using pinned yauzl/yazl. A staged save verifies all referenced
+original hashes before atomic publication; a destination changed outside the app
+requires Save As. If R is unavailable, preserve the last committed R snapshot
+rather than dropping it during a file-library save. Later edits stay dirty.
+Open workspaces have main-owned opaque receipts. The renderer releases one after
+R loading and UI hydration, including failure paths; it cannot request recursive
+deletion of an arbitrary path. Failed opens and normal shutdown also clean those
+temporary copies, so repeated opens do not retain complete R snapshots in userData.
+
+Pending originals and catalogue edits are durable project content, separate from
+discardable derived previews/indexes. Recovery binds to project identity and base
+archive signature. A conflicting draft remains recoverable into an independent
+copy. Save As carries library identities into a new project namespace and rebinds
+portable citations; it revokes live context/transport handles. Never put encoded
+file/image bodies in persisted chat/project JSON.
+
+PDF.js supplies PDF text/pages; a bounded OOXML adapter preserves DOCX structural
+locations and XLSX raw/type/formula/format metadata using fast-xml-parser/numfmt.
+Parser children receive only the managed original and runtime code through Node
+filesystem permissions, a scrubbed environment, disabled network entry points and
+heap/RSS/time/output limits. They never follow Office external relationships or
+run scripts, macros or formula recalculation. Hidden workbook content is excluded
+unless explicitly enabled under protected local policy. Full-text bodies persist
+encrypted under the existing safeStorage-backed key and remain local.
+
+Project-file source descriptors participate in ordinary discovery; a local content
+search callback additionally finds passages absent from descriptions. Typed page,
+section, cell and line reads retain source revision, coverage, bounded continuation
+and clickable citations. Absence from a partial index is not proof of absence.
+The read buffer's offset domain stays fixed through continuation; source coverage
+and the existence of another page are separate facts. CSV source line spans are
+physical file lines, not generated row descriptions. Workbook ranges must filter
+source cells and their titles, not only their formatted body strings.
+
+Image evidence is transient and materialised immediately before provider dispatch.
+The initial qualified route is native Ollama `gemma4:e2b`; other routes remain
+unsupported/unknown until verified. Token reservations are separate from base64
+length and reported usage. PDF human/model renditions share a bounded PDF.js canvas
+helper and bundled worker. A host-authorised custom scheme streams original PDFs;
+it requires current project lease and revision and grants no arbitrary path access.
+Revisions/revocations reset retained provider context and cancel affected turns.
+
+User guidance is in `docs/project-files.md`, the requirements in
+`docs/project-files-spec.md`, and measured qualification/deferred platform checks
+in `docs/project-files-implementation.md`. Native Windows/macOS verification is
+deferred; Linux evidence does not qualify their locking/packaging/keyring behaviour.
+
+### Linked project folders (1.16.24)
+
+Project Files combines **In project** originals with **Linked folders**. The
+linked-folder library shares previews, user metadata, source IDs, attachments,
+exclusions and evidence budgets with embedded files. Its files stay on disk;
+linking and rescanning build the local catalogue and encrypted derived index.
+Generated metadata never establishes that a whole file was read. Oversized or
+unsupported assets remain discoverable as metadata with explicit read limits.
+
+Folder references and relative file metadata are portable; canonical roots and
+their filesystem identity are protected local grants. A bundle cannot authorise
+an arbitrary path on the machine opening it. Relink explicitly authorises a local
+root; trusted Save As can carry currently authorised roots into its new identity.
+Changed/missing roots and files revoke old evidence until a valid rescan/relink.
+Readers recheck containment, ignore rules and file identity. Parsers, image
+decoders, exports and PDF streaming use verified immutable snapshots when needed,
+so a source changing during a read cannot substitute new bytes under an old ref.
+
+Linked catalogues use schema 2 and project manifest 3. Older writers reject the
+new manifest rather than strip the references or silently embed external bytes.
+Only embedded hashes become archive blobs; external byte sizes do not count as
+the portable bundle's original-byte payload. Existing v1/v2 projects still open.
+
+Forget removes the reference, local authority and derived retrieval access. It
+never deletes the directory or its contents. Removing an individual linked item
+hides it from the project, rather than deleting its external source. The assistant
+has registry actions to list, link, create, rename, rescan, relink and forget;
+link/create/relink/forget default to confirmation, and model actions require
+explicit paths rather than opening invisible native pickers. Physical creation
+creates one new directory beneath an existing parent and never overwrites one.
+The legacy settings folder sources remain temporary, workspace-scoped text access.
+
+See `docs/linked-project-folders-spec.md` and the Project Files guide for the
+workflow. Native Windows/macOS checks remain deferred.
+
 ## Moving an object between panels (`src/lib/spatial-link.ts`)
 
 The Environment panel, the data viewer and the Spatial Editor show the same R

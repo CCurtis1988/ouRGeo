@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.16.22",
+  "version": "1.16.24",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -57,6 +57,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "esbuild-wasm": "^0.25.12",
+    "fast-xml-parser": "5.11.2",
     "flatbush": "^4.6.2",
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
@@ -64,6 +65,8 @@
     "lucide-react": "^0.441.0",
     "maplibre-gl": "^4.7.1",
     "monaco-editor": "0.55.1",
+    "numfmt": "3.2.6",
+    "pdfjs-dist": "6.4.299",
     "react": "^18.3.0",
     "react-colorful": "^5.6.1",
     "react-dom": "^18.3.0",
@@ -76,6 +79,8 @@
     "tailwind-merge": "^2.5.0",
     "tar": "7.5.22",
     "unified": "^11.0.5",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -89,6 +94,8 @@
     "@types/node": "^20.16.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.0",
     "electron": "^41.0.2",
@@ -146,7 +153,7 @@
       ],
       "category": "public.app-category.developer-tools",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant’s message box."
+        "NSMicrophoneUsageDescription": "ouRGeo uses the microphone only when you press the microphone button, to transcribe what you say into the AI assistant\u2019s message box."
       }
     },
     "win": {

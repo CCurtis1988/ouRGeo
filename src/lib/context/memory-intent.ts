@@ -31,10 +31,15 @@ export function projectInstruction(text: string): { statement: string; scope: 'p
  * deletion. Ambiguity is resolved in the library, never by a model-selected ID. */
 export function isForgetRequest(text: string): boolean {
   const command = text.trim().replace(politePrefix, '')
+  // Forgetting a folder link is a project operation with its own confirmation.
+  // The broad memory verb otherwise opens the memory library before the model
+  // can perform the explicitly requested folder action.
+  if (/^forget\s+(?!(?:(?:my|the|this|that|global|project)\s+){0,3}(?:memory|preference|decision)\b)(?:[^\r\n.!?]{0,200}\bfolder\s+(?:link|reference)\b|(?:(?:the|this|that)\s+)?linked\s+folder\b)/i.test(command)) return false
   return /^(?:forget\s+|(?:remove|delete)\s+(?:my\s+)?(?:memory|preference|decision)\s+)/i.test(command)
 }
 
 export function forgetIntent(text: string, records: MemoryRecord[]): MemoryRecord | null {
+  if (!isForgetRequest(text)) return null
   const command = text.trim().replace(politePrefix, '')
   const request = /^forget\s+([\s\S]+)|^(?:remove|delete)\s+(?:my\s+)?(?:memory|preference|decision)\s+(?:about|for|that)?\s*([\s\S]+)/i.exec(command)
   if (!request) return null

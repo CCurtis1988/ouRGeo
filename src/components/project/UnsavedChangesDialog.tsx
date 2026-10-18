@@ -34,7 +34,11 @@ export function confirmUnsaved(): Promise<UnsavedChoice> {
 
 async function choose(choice: UnsavedChoice): Promise<void> {
   if (choice === 'discard') {
-    try { await useContextStore.getState().discardProjectDraft() }
+    try {
+      const lease = await window.electronAPI.context.lease()
+      await window.electronAPI.projectFiles.discard(lease.id)
+      await useContextStore.getState().discardProjectDraft()
+    }
     catch (error) {
       useContextStore.setState({ error: `Could not discard the memory recovery journal: ${String(error)}. Try again before closing.` })
       return
@@ -65,7 +69,7 @@ export function UnsavedChangesDialog(): React.ReactElement {
           <div className="px-5 py-4">
             <p className="text-xs text-geo-muted leading-relaxed">
               <span className="text-foreground font-medium">{projectName}</span> has unsaved
-              changes to the R environment, workspace or project memory. Save them before continuing?
+              changes to the R environment, workspace, project files or project memory. Save them before continuing?
             </p>
             <p className="text-[11px] text-geo-muted mt-2">
               Your open scripts and scratch tabs are always kept regardless of this choice.

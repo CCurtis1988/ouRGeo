@@ -23,6 +23,7 @@
     "src/lib/session-scoped-files.ts",
     "src/lib/health-policy.ts",
     "src/lib/context/types.ts",
+    "src/lib/project-files.ts",
     "src/lib/context/providers/contributions.ts",
     "src/lib/context/skills.ts",
     "src/lib/context/sources/plugin.ts",

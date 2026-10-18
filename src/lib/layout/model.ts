@@ -115,6 +115,9 @@ export interface PanelMeta {
   defaultZone: ZoneId
   /** Order within the default zone when the layout is first built. */
   defaultOrder: number
+  /** When a new panel joins an existing workspace, follow this panel's zone.
+   * Saved placements always win; this applies only to a previously unseen id. */
+  defaultBeside?: PanelId
   defaultOpen: boolean
   /** Share of its zone relative to its siblings, when nobody has dragged
    *  anything. Omit it: 1 is what makes panels open evenly. */
@@ -484,8 +487,13 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
   //    it, so one that is not in the file is one that was removed.
   for (const p of panels) {
     if (placed.has(p.id)) continue
-    next.zones[p.defaultZone].order.push(p.id)
-    next.zones[p.defaultZone].weights[p.id] = p.defaultWeight ?? DEFAULT_WEIGHT
+    const zone = p.defaultBeside ? zoneOfIn(next, p.defaultBeside) ?? p.defaultZone : p.defaultZone
+    const order = next.zones[zone].order
+    if (p.defaultBeside) {
+      const sibling = order.includes('terminal') && p.defaultBeside === 'console' ? 'terminal' : p.defaultBeside
+      order.splice(order.indexOf(sibling) + 1, 0, p.id)
+    } else order.push(p.id)
+    next.zones[zone].weights[p.id] = p.defaultWeight ?? DEFAULT_WEIGHT
     if (next.open[p.id] === undefined) next.open[p.id] = p.defaultOpen
     placed.add(p.id)
   }

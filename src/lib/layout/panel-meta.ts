@@ -60,6 +60,7 @@ const BUILTIN: PanelInfo[] = [
   // says `open.terminal: false`, and step 3 of `normalize` opens it on load
   // rather than stranding it.
   { id: 'terminal', label: 'Terminal', storeKey: 'terminal', essential: true, hostsTabs: true, min: 80, defaultZone: 'bottom', defaultOrder: 1, defaultOpen: true },
+  { id: 'projectFiles', label: 'Project Files', hostsTabs: true, min: 120, defaultZone: 'bottom', defaultBeside: 'console', defaultOrder: 2, defaultOpen: true },
   { id: 'plots', label: 'Plots', storeKey: 'plots', min: 240, defaultZone: 'right', defaultOrder: 0, defaultOpen: false },
   { id: 'spatial', label: 'Spatial Editor', storeKey: 'spatial', min: 300, defaultZone: 'right', defaultOrder: 1, defaultOpen: false },
   { id: 'ai', label: 'AI Assistant', storeKey: 'ai', min: 280, defaultZone: 'right', defaultOrder: 2, defaultOpen: false },

@@ -39,7 +39,7 @@ import {
 } from '@/lib/layout-persistence'
 import { buildLayoutFile, layoutFileName, parseLayoutFile } from '@/lib/layout/layout-file'
 import { loadTerminalPreferences } from '@/lib/terminal-preferences-persistence'
-import { alignTerminalMode } from '@/lib/terminal/placement'
+import { startupLayout } from '@/lib/layout/startup'
 import { useEnvironmentStore } from './environment'
 import { usePackagesStore } from './packages'
 import { useDatabaseStore } from './database'
@@ -219,20 +219,9 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       const [stored, presets, dragEnabled, terminal] = await Promise.all([
         loadLayout(), loadPresets(), loadDragEnabled(), loadTerminalPreferences(),
       ])
-      // The terminal's placement is the one preference that arranges a ZONE
-      // rather than a panel, and it has to be applied HERE, before the first
-      // render — not from the panel, and not from an effect afterwards. A
-      // stored layout whose bottom strip is `split` (every layout written
-      // before the terminal shipped) would otherwise mount the Terminal panel
-      // for one frame, and mounting it spawns a shell: `terminal.list()` came
-      // back with a pty nobody had asked for on a launch that never showed a
-      // terminal. `alignTerminalMode` never MOVES the panel, and `front` is
-      // false so a launch never comes up with the shell over the console.
-      const base = alignTerminalMode(
-        normalize(stored ?? defaultLayout(panelInfoList()), panelInfoList()),
-        terminal.placement,
-        false,
-      )
+      // Resolve this before mounting panels. A stored split is deliberate,
+      // including layouts older than Terminal; fresh layouts use its setting.
+      const base = startupLayout(stored, panelInfoList(), terminal.placement)
       set({ layout: base, presets, dragEnabled, loaded: true })
       // Restore, then hand ownership back: every subsequent change flows
       // feature store → mirror. Panels that opened themselves while the file

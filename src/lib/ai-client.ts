@@ -1,3 +1,4 @@
+import { ollamaImageMessage, type ContextImageEvidence, type ImageCapability } from '@/lib/context/images'
 import type { AiProvider, ChatMessage, OpenAiAssistantMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
 import type { ConsoleEntry } from '@/store/session'
@@ -583,6 +584,7 @@ export function resolveContextSize(
 
 // ── Send message to provider ───────────────────────────────────────────────
 export interface SendOptions {
+  imageEvidence?: () => readonly ContextImageEvidence[]
   /** Optional bound for short diagnostics and other small responses. */
   prepareInvocation?: (payload: unknown) => void
   beforeInvocation?: (payload: unknown, estimatedInput: number, window: number) => void
@@ -673,6 +675,16 @@ const overflowRetries = new WeakSet<SendOptions>()
 /** Retry the rejected inference, never the turn or its already executed tools.
  * A stream accepted by the provider is outside this recovery path. */
 export async function requestInvocation(opts: SendOptions, messages: unknown[], protocol: ToolProtocol, payload: () => unknown, request: () => Promise<ProxyResponse>): Promise<ProxyResponse> {
+  const images = opts.imageEvidence?.() ?? []
+  if (images.length) {
+    if (opts.provider !== 'ollama') throw new Error('Image not inspected: this model transport is not qualified for visual evidence. Select a supported Ollama vision model.')
+    for (const image of images) {
+      if (messages.some(message => message && typeof message === 'object' && String((message as Record<string, unknown>).content).startsWith(`Visual evidence ${image.ref}:`))) continue
+      const data = await image.materialise()
+      opts.signal?.throwIfAborted()
+      messages.push(ollamaImageMessage(image, data))
+    }
+  }
   compactInvocation(opts, messages, protocol, payload)
   checkInvocation(opts, payload())
   await opts.beforeDispatch?.()
@@ -698,6 +710,21 @@ export async function requestInvocation(opts: SendOptions, messages: unknown[], 
 export function reportInvocationUsage(opts: SendOptions, value: unknown, protocol: UsageProtocol, scope: UsageReport['scope'] = 'invocation', attempt = 0): void {
   const usage = normaliseUsage(value, protocol)
   if (usage) opts.onInvocationUsage?.({ ...usage, invocation: 1, scope, attempt })
+}
+
+export async function imageCapability(provider: AiProvider, model: string, localUrl?: string, apiKey?: string, signal?: AbortSignal): Promise<ImageCapability> {
+  if (provider !== 'ollama') return 'unknown'
+  try {
+    const response = await proxyFetch(`${(localUrl || 'http://localhost:11434').replace(/\/$/, '')}/api/show`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) }, body: JSON.stringify({ model }), signal })
+    if (!response.ok) return 'unknown'
+    const data = await response.json() as { capabilities?: unknown }
+    if (!Array.isArray(data.capabilities)) return 'unknown'
+    if (!data.capabilities.includes('vision')) return 'unsupported'
+    // Exact native image serialisation and a real synthetic visual task have
+    // been qualified on this combination. A server's capability claim alone
+    // does not certify another model's image behaviour.
+    return model === 'gemma4:e2b' ? 'supported' : 'unknown'
+  } catch { signal?.throwIfAborted(); return 'unknown' }
 }
 
 export async function sendMessage(opts: SendOptions): Promise<string> {

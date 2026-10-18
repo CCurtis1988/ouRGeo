@@ -1,10 +1,14 @@
 import React, { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, X, ChevronDown, ChevronRight, Terminal } from 'lucide-react'
 import type { ChatMessage } from '@/store/ai'
 import { cn } from '@/lib/utils'
+import { parseProjectFileCitation, projectFileCitation } from '@/lib/project-file-citations'
+import { useProjectFilesStore } from '@/store/project-files'
+import { useProjectStore } from '@/store/project'
+import { openProjectFiles } from '@/lib/project-files-ui'
 
 interface Props {
   message: ChatMessage
@@ -83,6 +87,17 @@ function ToolCallBlock({ code, result }: { code: string; result?: string }) {
   )
 }
 
+function ProjectFileLink({ href, children }: { href: string; children: React.ReactNode }): React.ReactElement {
+  const citation = parseProjectFileCitation(href)
+  const catalogue = useProjectFilesStore(state => state.catalogue)
+  const projectId = useProjectStore(state => state.projectId)
+  const [notice, setNotice] = useState(false)
+  if (!citation) return <span>{children}</span>
+  const file = catalogue.files.find(file => file.id === citation.id)
+  const issue = projectId !== citation.projectId ? 'Another project' : !file ? 'File removed' : file.revision !== citation.revision ? 'Earlier version' : null
+  return <span><button type="button" className="text-geo-accent hover:underline" onClick={() => issue ? setNotice(!notice) : openProjectFiles(citation.id, citation.location)}>{children}{issue ? ` (${issue})` : ''}</button>{notice && <span role="status" className="block text-geo-muted">{issue === 'Another project' ? 'Open the project containing this reference to view it.' : 'The original version is unavailable. This citation has not been redirected.'}{file && projectId === citation.projectId && <button type="button" className="ml-2 text-geo-accent" onClick={() => openProjectFiles(file.id)}>Open current file</button>}</span>}</span>
+}
+
 export function AiChatMessage({ message, isStreaming, streamingContent }: Props): React.ReactElement {
   const isUser = message.role === 'user'
   const content = isStreaming ? streamingContent ?? '' : message.content
@@ -107,11 +122,13 @@ export function AiChatMessage({ message, isStreaming, streamingContent }: Props)
             : 'bg-geo-panel border border-geo-border text-foreground'
         )}
       >
+        {message.projectFileReferences?.map(reference => <div key={`${reference.id}:${reference.revision}`} className="mb-1 text-[11px]"><ProjectFileLink href={projectFileCitation(reference)}>{reference.title}</ProjectFileLink></div>)}
         {isUser ? (
           <p className="whitespace-pre-wrap">{content}</p>
         ) : (
           <div className="prose-ai">
             <ReactMarkdown
+              urlTransform={url => parseProjectFileCitation(url) ? url : defaultUrlTransform(url)}
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight]}
               components={{
@@ -158,7 +175,7 @@ export function AiChatMessage({ message, isStreaming, streamingContent }: Props)
                 ),
                 th: ({ children }) => <th className="border border-geo-border px-2 py-1 bg-geo-bg text-left font-medium">{children}</th>,
                 td: ({ children }) => <td className="border border-geo-border px-2 py-1">{children}</td>,
-                a: ({ href, children }) => (
+                a: ({ href, children }) => href && parseProjectFileCitation(href) ? <ProjectFileLink href={href}>{children}</ProjectFileLink> : (
                   <a href={href} target="_blank" rel="noreferrer" className="text-geo-accent hover:underline">{children}</a>
                 ),
               }}

@@ -44,6 +44,7 @@ export interface ChatMessage {
   toolResults?: { id: string; output: string }[]
   timestamp: number
   contextTrace?: import('@/lib/context/types').ContextTrace
+  projectFileReferences?: (import('@/lib/project-file-citations').ProjectFileCitation & { title: string })[]
 }
 
 /**

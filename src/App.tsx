@@ -1,3 +1,5 @@
+import { initProjectFileAiInvalidation } from '@/lib/project-file-ai'
+import { initProjectFiles } from '@/store/project-files'
 import React, { useEffect, useRef } from 'react'
 import { EditorLayout } from './components/layout/EditorLayout'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
@@ -276,6 +278,8 @@ function MainApp(): React.ReactElement {
     const cleanupPlotPopoutSync = setupPlotPopoutSync()
     const cleanupWorkspaceAutosave = setupWorkspaceAutosave()
     const cleanupProjectTracking = setupProjectTracking()
+    initProjectFileAiInvalidation()
+    initProjectFiles()
 
     // Auto-reconnect when R restarts (e.g. after hibernation or crash)
     const cleanupRestarted = window.electronAPI.r.onRestarted(() => {

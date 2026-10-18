@@ -135,6 +135,27 @@ const FIXED_TARGETS: UiTarget[] = [
 
   // Project.
   { id: 'project.dropdown', label: 'Project menu', where: 'top toolbar, far right' },
+  { id: 'project.files', label: 'Project Files', where: 'Project menu' },
+  { id: 'projectFiles.panel', label: 'Project Files pane', where: 'Console and Terminal tab group by default' },
+  { id: 'projectFiles.add', label: 'Add files', where: 'Project Files pane header' },
+  { id: 'projectFiles.search', label: 'Search project files', where: 'Project Files pane header' },
+  { id: 'projectFiles.menu', label: 'Project files actions', where: 'Project Files pane header' },
+  { id: 'projectFiles.reindex', label: 'Reindex project files', where: 'Project Files pane actions menu' },
+  { id: 'projectFiles.attach', label: 'Attach to chat', where: 'Project Files file details' },
+  { id: 'projectFiles.linkedFolders', label: 'Linked folders', where: 'Project Files pane header' },
+  { id: 'projectFiles.linkedFoldersDialog', label: 'Linked folders manager', where: 'the Linked folders dialog' },
+  { id: 'projectFiles.linkFolder', label: 'Link folder…', where: 'Linked folders dialog, top actions' },
+  { id: 'projectFiles.createFolder', label: 'Create linked folder…', where: 'Linked folders dialog, top actions' },
+  { id: 'projectFiles.newFolderName', label: 'New folder name', where: 'Linked folders dialog, create form' },
+  { id: 'projectFiles.createFolderConfirm', label: 'Choose parent and create folder…', where: 'Linked folders dialog, create form' },
+  { id: 'projectFiles.rescanFolders', label: 'Rescan linked folders', where: 'Linked folders dialog, top actions' },
+  { id: 'projectFiles.rescanFolder', label: 'Rescan folder', where: 'a linked folder card in the Linked folders dialog' },
+  { id: 'projectFiles.relinkFolder', label: 'Relink folder…', where: 'a linked folder card in the Linked folders dialog' },
+  { id: 'projectFiles.renameLinkedFolder', label: 'Save folder label', where: 'a linked folder card in the Linked folders dialog' },
+  { id: 'projectFiles.forgetFolder', label: 'Forget link…', where: 'a linked folder card in the Linked folders dialog' },
+  { id: 'projectFiles.forgetFolderConfirm', label: 'Forget linked folder', where: 'the linked folder removal confirmation' },
+  { id: 'ai.addFiles', label: 'Add files', where: 'AI Assistant attachment selector' },
+  { id: 'ai.chooseProjectFiles', label: 'Choose project files', where: 'AI Assistant attachment selector' },
 ]
 
 /**

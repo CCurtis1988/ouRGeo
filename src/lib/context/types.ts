@@ -31,6 +31,8 @@ export interface ContextSource {
   read: (signal?: AbortSignal) => Promise<string> | string
   /** Open buffers can slice a bounded span without copying the whole document. */
   readRange?: (range: DocumentRange, signal?: AbortSignal) => Promise<string> | string
+  projectFile?: { projectId: string; id: string; mediaType: string; coverage: string; metadataOnly?: boolean }
+  readLocated?: (location: import('../project-files').ProjectFileLocation | undefined, offset: number, signal?: AbortSignal) => Promise<import('../project-files').ProjectFileRead>
 }
 
 export interface ContextEvidence {
@@ -44,6 +46,8 @@ export interface ContextEvidence {
   content: string
   estimatedTokens: number
   completeness: 'complete' | 'partial'
+  location?: import('../project-files').ProjectFileLocation
+  citation?: string
   delivery?: 'selected' | 'sent' | 'acknowledged' | 'uncertain'
 }
 

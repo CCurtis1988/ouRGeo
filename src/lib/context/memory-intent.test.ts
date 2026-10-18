@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rememberIntent, forgetIntent, projectInstruction } from './memory-intent'
+import { rememberIntent, forgetIntent, isForgetRequest, projectInstruction } from './memory-intent'
 import type { MemoryRecord } from './types'
 
 const record = (statement: string, scope: 'project' | 'global' = 'global'): MemoryRecord => ({ id: crypto.randomUUID(), revision: 1, scope, projectId: scope === 'project' ? crypto.randomUUID() : null, category: 'preference', statement, evidence: [], assertion: 'user-declared', createdAt: '2026-10-06T00:00:00Z', updatedAt: '2026-10-06T00:00:00Z', status: 'active', supersedes: [] })
@@ -42,6 +42,17 @@ describe('host-owned durable-memory intent', () => {
     expect(forgetIntent('Forget metric units', [global, project])).toBeNull()
     expect(forgetIntent('Forget metric units in this project', [global, project])?.id).toBe(project.id)
     expect(forgetIntent('Forget all preferences', [global])).toBeNull()
+  })
+  it('routes explicit folder-link forgetting to the assistant without losing genuine memory requests', () => {
+    for (const command of ['Forget the Agent folder link and preserve its files.', 'Please forget this linked folder.', 'Forget the linked folder reference Reports.']) {
+      expect(isForgetRequest(command)).toBe(false)
+      expect(forgetIntent(command, [record(command)])).toBeNull()
+    }
+    expect(isForgetRequest('Forget my preference for linked folder names.')).toBe(true)
+    expect(isForgetRequest('Forget the memory about the Agent folder link.')).toBe(true)
+    expect(isForgetRequest('Forget my global preference for folder references.')).toBe(true)
+    expect(isForgetRequest('Forget metric units')).toBe(true)
+    expect(isForgetRequest('Please delete my memory about folder links')).toBe(true)
   })
 })
 

@@ -1,17 +1,17 @@
+import { registerProjectFiles, projectFileLibrary } from './project-files/ipc'
+import { bundleTask } from './project-files/bundle-client'
+import { ProjectOpenWorkspaces } from './project-files/open-workspaces'
 import { IpcMain, dialog, app, shell, powerSaveBlocker, clipboard } from 'electron'
-import { readFile, writeFile, readdir, stat, unlink } from 'fs/promises'
-import { existsSync, readdirSync, realpathSync, mkdtempSync } from 'fs'
-import { join, dirname } from 'path'
+import { readFile, writeFile, readdir, stat, unlink, mkdtemp, rm } from 'fs/promises'
+import { existsSync, readdirSync, realpathSync } from 'fs'
+import { join } from 'path'
 import { randomUUID } from 'node:crypto'
-import { rename } from 'node:fs/promises'
 import { validateProjectContext, forkProjectContext } from '../../src/lib/context/memory-schema'
 import { contextLease, activateContextProject } from './context/scope'
 import { savedProjectDraft, requireContextOwner, registerProjectMemory, savedFileLinks, projectFileLinks, projectLocation, savedProjectLocation } from './context/ipc'
 import { duplicateProjectLocation } from './context/project-location'
 import { authorisedDatabaseLinks } from './context/file-links'
-import { tmpdir } from 'os'
 import { execFileSync } from 'child_process'
-import AdmZip from 'adm-zip'
 import { rBridge } from './r-bridge'
 import {
   openPlotWindow,
@@ -21,6 +21,11 @@ import {
   type PlotPopoutState
 } from './plot-window'
 import { openWidgetWindow } from './widget-window'
+
+let projectOpenWorkspaces: ProjectOpenWorkspaces | undefined
+export const projectOpensPending = (): boolean => projectOpenWorkspaces?.pending === true
+export const cleanupProjectOpens = async (): Promise<void> => { await projectOpenWorkspaces?.dispose() }
+
 
 const R_CONFIG_FILE = 'r-config.json'
 
@@ -138,6 +143,9 @@ export function detectRInstallations(configuredPath: string | null): { path: str
 }
 
 export function setupIpcHandlers(ipcMain: IpcMain): void {
+  registerProjectFiles(ipcMain)
+  const openWorkspaces = projectOpenWorkspaces = new ProjectOpenWorkspaces(app.getPath('userData'))
+  ipcMain.handle('project:releaseOpen', async (event, token: string) => { requireContextOwner(event); await openWorkspaces.release(token, event.sender.id) })
 
   /**
    * Read the system clipboard, for the terminal's Ctrl+Shift+V.
@@ -332,23 +340,31 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
       requireContextOwner(_evt)
       const lease = contextLease()
       const contextWarnings: string[] = []
-      const zip = new AdmZip()
       const manifest = JSON.parse(projectJson)
       const committedContext = validateProjectContext(manifest.context, manifest.projectId ?? null)
-      if (manifest.context) {
-        const context = committedContext
-        zip.addFile('context/project-memory.jsonl', Buffer.from(context.memories.map(record => JSON.stringify(record)).join('\n'), 'utf8'))
-        manifest.context = { version: 1, revision: context.revision }
+      const memory = manifest.context ? committedContext.memories.map(record => JSON.stringify(record)).join('\n') : undefined
+      if (manifest.context) manifest.context = { version: 1, revision: committedContext.revision }
+      const service = projectFileLibrary(), snapshot = service.snapshot()
+      const work = await mkdtemp(join(app.getPath('userData'), 'project-save-'))
+      let result: { signature: string; retainedEnvironment: boolean; durabilityWarning?: string }
+      try {
+        result = await service.bundleOperation('Writing and verifying project', signal => bundleTask('save', {
+          destination: bundlePath, manifest: JSON.stringify(manifest), memory,
+          envPath: envRDataPath && existsSync(envRDataPath) ? envRDataPath : null,
+          previousBundle: snapshot.previousBundle,
+          expectedSignature: snapshot.previousBundle === bundlePath ? snapshot.signature : undefined,
+          library: snapshot.library, blobDir: snapshot.blobDir, upgrade: snapshot.upgraded,
+        }, work, signal))
+      } finally {
+        try { await rm(work, { recursive: true, force: true }) }
+        catch (error) { contextWarnings.push(`Temporary project save files could not be removed: ${String(error)}. The saved project and working draft are retained.`) }
       }
-      zip.addFile('project.json', Buffer.from(JSON.stringify(manifest), 'utf-8'))
-      if (envRDataPath && existsSync(envRDataPath)) {
-        zip.addLocalFile(envRDataPath, '', 'environment.RData')
+      if (result.durabilityWarning) contextWarnings.push(result.durabilityWarning)
+      if (result.retainedEnvironment) contextWarnings.push('R was unavailable: the last saved R environment snapshot was retained. Project files and other current state were saved.')
+      if (contextLease().id === lease.id && typeof manifest.projectId === 'string') {
+        try { await service.committed(snapshot, manifest.projectId, bundlePath, result.signature, snapshot.upgraded || snapshot.library.files.length > 0, !result.durabilityWarning) }
+        catch (error) { contextWarnings.push(`Project saved, but its local file journal could not be committed: ${String(error)}. Reopen the saved project before further edits.`) }
       }
-      // Publish only a complete bundle. A failed write must preserve the last save.
-      const staged = join(dirname(bundlePath), `.ourgeo-save-${randomUUID()}.tmp`)
-      zip.writeZip(staged)
-      try { await rename(staged, bundlePath) }
-      catch (error) { try { await unlink(staged) } catch { /* preserve original failure */ }; throw error }
       if (envRDataPath) {
         try { await unlink(envRDataPath) } catch { /* temp may already be gone */ }
       }
@@ -377,80 +393,84 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
     const generation = ++projectOpenGeneration
     const priorLease = contextLease().id
     const contextWarnings: string[] = []
-    const zip = new AdmZip(bundlePath)
-    const projectEntry = zip.getEntry('project.json')
-    if (!projectEntry || projectEntry.header.size > 50_000_000) throw new Error('Project manifest is missing or exceeds the import limit. Restore a valid bundle or export a smaller project.')
-    const manifest = JSON.parse(zip.readAsText('project.json'))
-    if (!manifest || manifest.version !== 1 || !manifest.ui || typeof manifest.ui !== 'object' || Array.isArray(manifest.ui)) throw new Error('Project manifest is unsupported. Restore a valid bundle or open it with a compatible ouRGeo version.')
-    const memory = zip.getEntry('context/project-memory.jsonl')
-    if (memory) {
-      if (memory.header.size > 50_000_000) throw new Error('Project memory exceeds the import limit. Export a smaller selection.')
-      const lines = zip.readAsText(memory).split('\n').filter(Boolean)
-      if (lines.length > 10000) throw new Error('Project has too many memories. Export a smaller selection.')
-      manifest.context = { ...manifest.context, memories: lines.map(line => JSON.parse(line)) }
-    }
-    let projectJson = JSON.stringify(manifest)
-    let envRDataPath: string | null = null
-    const envEntry = zip.getEntry('environment.RData')
-    let projectId = typeof manifest.projectId === 'string' && /^[a-f0-9-]{36}$/i.test(manifest.projectId) ? manifest.projectId : null
-    let identityForked = false
-    if (projectId) {
-      let previous: string | null = null
-      try { previous = await projectLocation(projectId) }
-      catch (error) { contextWarnings.push(`The local project identity registry is unavailable: ${String(error)}. External project memory must remain disconnected until protected storage is restored.`) }
-      if (await duplicateProjectLocation(previous, bundlePath)) {
-        const choice = await dialog.showMessageBox({ type: 'question', title: 'Project identity already exists', message: 'Two bundles have the same project identity.', detail: `Existing location: ${previous}\nOpening: ${bundlePath}\n\nOpen as this project preserves its identity. Open as a copy creates independent project memory with snapshot lineage and no external memory binding. Save the copy to commit its new identity.`, buttons: ['Open as this project', 'Open as a copy', 'Cancel'], defaultId: 1, cancelId: 2 })
+    const opened = await openWorkspaces.create(_evt.sender.id)
+    try {
+      return await openWorkspaces.run(opened.token, async () => {
+        const unpacked = await bundleTask('open', bundlePath, opened.path, opened.signal)
+        // Validate all original bytes before the renderer resets R or adopts an
+        // imported project identity. Unknown entries cannot be silently discarded.
+        const manifest = unpacked.manifest as { version: number; projectId?: string; context: import('../../src/lib/context/types').ProjectContext; ui: { session?: { tabs?: { filePath?: string }[] } }; databases?: { filePath: string }[] }
+        if (unpacked.memory) {
+          const lines = unpacked.memory.split('\n').filter(Boolean)
+          if (lines.length > 10000) throw new Error('Project has too many memories. Export a smaller selection.')
+          manifest.context = { ...manifest.context, memories: lines.map(line => JSON.parse(line)) }
+        }
+        let projectJson = JSON.stringify(manifest)
+        const envRDataPath = unpacked.envPath
+        let projectId = typeof manifest.projectId === 'string' && /^[a-f0-9-]{36}$/i.test(manifest.projectId) ? manifest.projectId : null
+        let identityForked = false
+        if (projectId) {
+          let previous: string | null = null
+          try { previous = await projectLocation(projectId) }
+          catch (error) { contextWarnings.push(`The local project identity registry is unavailable: ${String(error)}. External project memory must remain disconnected until protected storage is restored.`) }
+          if (await duplicateProjectLocation(previous, bundlePath)) {
+            const choice = await dialog.showMessageBox({ type: 'question', title: 'Project identity already exists', message: 'Two bundles have the same project identity.', detail: `Existing location: ${previous}\nOpening: ${bundlePath}\n\nOpen as this project preserves its identity. Open as a copy creates independent project memory with snapshot lineage and no external memory binding. Save the copy to commit its new identity.`, buttons: ['Open as this project', 'Open as a copy', 'Cancel'], defaultId: 1, cancelId: 2 })
+            if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED')
+            if (choice.response === 2) throw new Error('PROJECT_OPEN_CANCELLED')
+            identityForked = choice.response === 1
+          }
+        }
+        let authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[] = []
+        if (projectId && (manifest.ui?.session?.tabs?.some((tab: { filePath?: string }) => tab?.filePath) || manifest.databases?.length)) {
+          try { authorisedFileLinks = await projectFileLinks(projectId) }
+          catch (error) { contextWarnings.push(`Local editor file links are unavailable: ${String(error)}. Use bundled buffers and choose Save As to link local files.`) }
+        }
+        manifest.context = validateProjectContext(manifest.context, projectId)
+        // A committed memory export without project identity has no certified
+        // namespace. Legacy bundles still open; new drafts live under their lease.
+        if (!projectId && manifest.context.memories.length) {
+          manifest.context.memories = []
+          contextWarnings.push('Imported memory has no project identity and was excluded. The original bundle is unchanged; save an identified project before importing its memory.')
+        }
+        if (projectId && manifest.context?.memories?.length) {
+          try {
+            const allowed = new Set(await registerProjectMemory(projectId, manifest.context.memories.map((memory: { id: string }) => memory.id)))
+            const excluded = manifest.context.memories.length - allowed.size
+            manifest.context.memories = manifest.context.memories.filter((memory: { id: string }) => allowed.has(memory.id))
+            if (excluded) contextWarnings.push(`${excluded} imported memories were excluded because they were forgotten or belong to another scope. The original bundle is unchanged.`)
+          } catch (error) {
+            manifest.context.memories = []
+            contextWarnings.push(`Project memory is unavailable: ${String(error)}. The original bundle is unchanged; restore protected storage and reopen it.`)
+          }
+        }
+        if (identityForked) {
+          projectId = randomUUID()
+          manifest.projectId = projectId
+          manifest.context = forkProjectContext(manifest.context, projectId)
+          // Forgotten original IDs were filtered before the fork. Generating new
+          // IDs must not turn a copy into a way to resurrect a deleted statement.
+          await registerProjectMemory(projectId, manifest.context.memories.map((memory: { id: string }) => memory.id))
+          contextWarnings.push('Opened as an independent project copy. Save to commit its new identity; external memory connections and source exclusions are not inherited.')
+        }
+        projectJson = JSON.stringify(manifest)
+        if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED: another workspace transition superseded this open.')
+        if (projectId) {
+          try { await savedProjectLocation(projectId, bundlePath) }
+          catch (error) { contextWarnings.push(`Project opened, but its local identity registry could not be updated: ${String(error)}. Restore protected storage before connecting external project memory.`) }
+        }
         if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED')
-        if (choice.response === 2) throw new Error('PROJECT_OPEN_CANCELLED')
-        identityForked = choice.response === 1
-      }
+        opened.signal.throwIfAborted()
+      if (projectId) await projectFileLibrary().activate(projectId, bundlePath, unpacked.library, unpacked.blobDir, unpacked.signature, manifest.version >= 2)
+        activateContextProject(projectId)
+        try { await rm(unpacked.blobDir, { recursive: true, force: true }) }
+        catch (error) { contextWarnings.push(`Project opened, but temporary file copies could not be removed: ${String(error)}. Managed originals are intact.`) }
+        return { projectJson, envRDataPath, openToken: opened.token, identityForked, contextWarnings, authorisedFileLinks, authorisedDatabasePaths: authorisedDatabaseLinks(manifest.databases, authorisedFileLinks) }
+      })
+    } catch (error) {
+      try { await openWorkspaces.release(opened.token, _evt.sender.id) }
+      catch (cleanupError) { console.error('Temporary project-open cleanup failed:', cleanupError) }
+      throw error
     }
-    let authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[] = []
-    if (projectId && (manifest.ui?.session?.tabs?.some((tab: { filePath?: string }) => tab?.filePath) || manifest.databases?.length)) {
-      try { authorisedFileLinks = await projectFileLinks(projectId) }
-      catch (error) { contextWarnings.push(`Local editor file links are unavailable: ${String(error)}. Use bundled buffers and choose Save As to link local files.`) }
-    }
-    manifest.context = validateProjectContext(manifest.context, projectId)
-    // A committed memory export without project identity has no certified
-    // namespace. Legacy bundles still open; new drafts live under their lease.
-    if (!projectId && manifest.context.memories.length) {
-      manifest.context.memories = []
-      contextWarnings.push('Imported memory has no project identity and was excluded. The original bundle is unchanged; save an identified project before importing its memory.')
-    }
-    if (projectId && manifest.context?.memories?.length) {
-      try {
-        const allowed = new Set(await registerProjectMemory(projectId, manifest.context.memories.map((memory: { id: string }) => memory.id)))
-        const excluded = manifest.context.memories.length - allowed.size
-        manifest.context.memories = manifest.context.memories.filter((memory: { id: string }) => allowed.has(memory.id))
-        if (excluded) contextWarnings.push(`${excluded} imported memories were excluded because they were forgotten or belong to another scope. The original bundle is unchanged.`)
-      } catch (error) {
-        manifest.context.memories = []
-        contextWarnings.push(`Project memory is unavailable: ${String(error)}. The original bundle is unchanged; restore protected storage and reopen it.`)
-      }
-    }
-    if (identityForked) {
-      projectId = randomUUID()
-      manifest.projectId = projectId
-      manifest.context = forkProjectContext(manifest.context, projectId)
-      // Forgotten original IDs were filtered before the fork. Generating new
-      // IDs must not turn a copy into a way to resurrect a deleted statement.
-      await registerProjectMemory(projectId, manifest.context.memories.map((memory: { id: string }) => memory.id))
-      contextWarnings.push('Opened as an independent project copy. Save to commit its new identity; external memory connections and source exclusions are not inherited.')
-    }
-    projectJson = JSON.stringify(manifest)
-    if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED: another workspace transition superseded this open.')
-    if (envEntry) {
-      const outDir = mkdtempSync(join(tmpdir(), 'ourgeo-proj-'))
-      zip.extractEntryTo(envEntry, outDir, false, true)
-      envRDataPath = join(outDir, 'environment.RData')
-    }
-    if (projectId) {
-      try { await savedProjectLocation(projectId, bundlePath) }
-      catch (error) { contextWarnings.push(`Project opened, but its local identity registry could not be updated: ${String(error)}. Restore protected storage before connecting external project memory.`) }
-    }
-    if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED')
-    activateContextProject(projectId)
-    return { projectJson, envRDataPath, identityForked, contextWarnings, authorisedFileLinks, authorisedDatabasePaths: authorisedDatabaseLinks(manifest.databases, authorisedFileLinks) }
   })
 
   // File read/write for R scripts

@@ -15,7 +15,8 @@ export function ContextFolders({ api, lease }: { api: FolderContextApi; lease: s
     finally { setBusy(false) }
   }
   return <section aria-label="Folder context sources" className="space-y-2 border-t border-geo-border pt-3">
-    <h4 className="text-sm font-medium text-foreground">Folder sources</h4>
+    <h4 className="text-sm font-medium text-foreground">Temporary folder sources</h4>
+    <p className="text-xs text-foreground">For folders that belong to a saved project, use Linked folders in Project Files. These temporary sources provide access for this workspace only.</p>
     <p className="text-xs text-geo-muted">Choose folders for this workspace. UTF-8 text files below 1 MB are searchable; symlinks, credential files and ignored paths are excluded. File changes remove cached excerpts until you refresh. Access ends when you switch workspace or close the app.</p>
     <button type="button" disabled={busy || !lease} onClick={() => void run(() => api.chooseContextFolder(lease))} className="rounded border border-geo-border px-2 py-1 text-xs text-foreground disabled:opacity-50">Choose folder…</button>
     {catalogue.folders.map(folder => <div key={folder.id} className="flex flex-wrap items-center gap-2 text-xs text-foreground">
