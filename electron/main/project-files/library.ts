@@ -5,7 +5,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'nod
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { setImmediate } from 'node:timers/promises'
-import type { ProjectFileCatalogue, ProjectFileEntry, ProjectFileExtraction, ProjectFileHit, ProjectFileImportResult, ProjectFileLocation, ProjectFileOperation, ProjectFilePreview, ProjectFileRead, ProjectLinkedFolder } from '../../../src/lib/project-files'
+import type { ProjectFileAnalysisInput, ProjectFileCatalogue, ProjectFileEntry, ProjectFileExtraction, ProjectFileHit, ProjectFileImportResult, ProjectFileLocation, ProjectFileOperation, ProjectFilePreview, ProjectFileRead, ProjectLinkedFolder } from '../../../src/lib/project-files'
 import { EMPTY_PROJECT_FILES, PROJECT_FILE_LIMITS } from '../../../src/lib/project-files'
 import { emptyLibrary, validateLibrary, type PortableLibrary } from './catalogue'
 import { syncDirectory } from './durability'
@@ -189,7 +189,7 @@ export class ProjectFileLibrary {
               if (old && old.storage?.fingerprint === discovered.fingerprint && old.sha256 === discovered.sha256 && old.bytes === discovered.bytes) { if (old.sha256 && !state.cache.has(indexId(old))) toIndex.push(old.id); return old }
               const now = new Date().toISOString(), name = basename(discovered.relativePath).slice(0, 240), large = !discovered.sha256
               const file: ProjectFileEntry = { ...(old ?? {}), id: old?.id ?? randomUUID(), name: old?.name ?? name, originalName: name, folder: old?.folder ?? (dirname(discovered.relativePath) === '.' ? '' : dirname(discovered.relativePath).slice(0, 500)), role: old?.role ?? 'reference', userDescription: old?.userDescription ?? '', generatedDescription: large ? `Linked asset, ${discovered.bytes} bytes. Metadata only; exceeds the 100 MiB content limit.` : `${projectFileMediaType(name)} · linked file`, sha256: discovered.sha256, bytes: discovered.bytes, mediaType: projectFileMediaType(name), revision: '', importedAt: old?.importedAt ?? now, updatedAt: now, status: large ? 'stored' : 'queued', coverage: large ? 'Metadata only. The original remains in the linked folder; no document contents indexed.' : 'Not yet indexed', saved: false, ...(old?.userDescription ? { descriptionNeedsReview: true } : {}), storage: { kind: 'linked', folderId: id, relativePath: discovered.relativePath, fingerprint: discovered.fingerprint } }
-              delete file.issue; this.bump(state, file); if (file.sha256) toIndex.push(file.id); return file
+              delete file.issue; delete file.aiDescription; this.bump(state, file); if (file.sha256) toIndex.push(file.id); return file
             })
             const changed = previous.size !== files.length || files.some(file => previous.get(file.storage!.relativePath) !== file)
             const replacements = new Map(files.map(file => [file.id, file]))
@@ -396,6 +396,7 @@ export class ProjectFileLibrary {
       if (changes.userDescription !== undefined) { if (typeof changes.userDescription !== 'string' || changes.userDescription.length > 4000 || changes.userDescription.includes('\0')) throw new Error('Keep the description below 4,000 characters.'); next.userDescription = changes.userDescription; next.descriptionNeedsReview = false }
       const previous = clone(state.draft)
       this.bump(state, next); state.draft.files = state.draft.files.map(f => f.id === id ? next : f)
+      if (next.aiDescription?.revision === file.revision) next.aiDescription = { ...next.aiDescription, revision: next.revision }
       try { await this.persist(state) } catch (error) { state.draft = previous; throw error }
       this.changed(); return this.catalogue(lease)
     })
@@ -410,7 +411,7 @@ export class ProjectFileLibrary {
         const result = await this.copyOriginal(state, path, controller.signal)
         if (state.draft.files.filter(file => !file.storage).reduce((sum, f) => sum + (f.id === id ? 0 : f.bytes), result.bytes) > PROJECT_FILE_LIMITS.totalBytes) throw new Error('The replacement exceeds the embedded library size limit.')
         const previous = clone(state.draft)
-        Object.assign(file, { sha256: result.hash, bytes: result.bytes, originalName: result.name, mediaType: projectFileMediaType(result.name), status: 'queued', coverage: 'Not yet indexed', generatedDescription: '', descriptionNeedsReview: !!file.userDescription, includeHidden: false }); delete file.issue
+        Object.assign(file, { sha256: result.hash, bytes: result.bytes, originalName: result.name, mediaType: projectFileMediaType(result.name), status: 'queued', coverage: 'Not yet indexed', generatedDescription: '', descriptionNeedsReview: !!file.userDescription, includeHidden: false }); delete file.issue; delete file.aiDescription
         this.bump(state, file)
         try { await this.persist(state) } catch (error) { state.draft = previous; throw error }
         this.changed()
@@ -502,6 +503,24 @@ export class ProjectFileLibrary {
     } finally { key.fill(0) }
     state.pendingIndex ??= new Set(); state.pendingIndex.add(id); this.resumeIndex(state)
     return this.catalogue(lease)
+  }
+  async setAnalysis(id: string, revision: string, analysis: ProjectFileAnalysisInput, lease: string): Promise<ProjectFileCatalogue> {
+    const state = this.guard(lease)!
+    const bounded = (value: unknown, limit: number, required = true): value is string => typeof value === 'string' && value.length <= limit && !value.includes('\0') && (!required || !!value.trim())
+    if (!analysis || typeof analysis !== 'object' || !bounded(analysis.text, 2000) || !bounded(analysis.provider, 40) || !bounded(analysis.model, 200) || !bounded(analysis.coverage, 500, false)) throw new Error('Keep the AI description within 2,000 characters, provider within 40, model within 200 and coverage within 500 characters.')
+    await this.original(id, revision, lease)
+    return this.serial(async () => {
+      this.current(state); this.guard(lease); const file = this.entry(state, id, revision)
+      if (file.storage) await this.original(id, revision, lease)
+      this.current(state); this.entry(state, id, revision)
+      const previous = clone(state.draft)
+      file.aiDescription = { text: analysis.text.trim(), revision: file.revision, provider: analysis.provider.trim(), model: analysis.model.trim(), createdAt: new Date().toISOString(), coverage: analysis.coverage }
+      // A derived description changes discovery metadata, not the authoritative
+      // source revision. Otherwise completing a description invalidates itself.
+      this.bump(state)
+      try { await this.persist(state) } catch (error) { state.draft = previous; throw error }
+      this.changed(); return this.catalogue(lease)
+    })
   }
   private resumeIndex(state: State): void {
     if (this.active !== state || this.lease().projectId !== state.projectId || state.operation || !state.pendingIndex?.size) return

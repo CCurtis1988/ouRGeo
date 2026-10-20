@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 import { PDFPagePreview } from './PDFPagePreview'
 import { TablePreview } from './TablePreview'
 import { LinkedFoldersDialog } from './LinkedFoldersDialog'
+import { useFileAnalysisJobs } from '@/lib/project-file-auto-analysis'
+import { projectFileDescription } from '@/lib/project-file-description'
 
 const CONTROL = 'rounded border border-geo-border bg-geo-bg px-2 py-1 text-xs text-foreground placeholder:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-geo-accent'
 const BUTTON = `${CONTROL} hover:bg-geo-panel disabled:opacity-50 disabled:cursor-not-allowed`
@@ -87,6 +89,7 @@ function FileDetails({ file, narrow, back, run }: { file: ProjectFileEntry; narr
         <label className="col-span-2 text-xs space-y-1">Your description<textarea aria-label="File description" className={`${CONTROL} w-full resize-y min-h-16`} value={description} onChange={e => setDescription(e.target.value)} placeholder="Explain what this file is useful for" /></label>
       </div>
       {file.generatedDescription && <p className="text-xs text-foreground"><span className="font-medium">Generated description: </span>{file.generatedDescription}</p>}
+      {file.aiDescription && <div className="rounded border border-geo-border p-2 text-xs space-y-1" aria-label="AI-generated description"><p className="font-medium">AI-generated description{file.aiDescription.revision !== file.revision ? ' · Outdated' : ''}</p><p>{file.aiDescription.text}</p><p>{file.aiDescription.provider} / {file.aiDescription.model} · {new Date(file.aiDescription.createdAt).toLocaleString()}</p><p>{file.aiDescription.coverage} Verify against the original.</p></div>}
       <button type="button" className={BUTTON} disabled={!changed || !name.trim()} onClick={() => run(() => store.update(file.id, { name: name.trim(), userDescription: description, folder: folder.trim(), role }))}>Save details</button>
       <div className="space-y-1">
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={exclusionsLoaded && !excluded && access.available} onChange={() => run(() => useContextStore.getState().exclude(sourceId, 'project', projectId))} disabled={!projectId || !exclusionsLoaded || !access.available} />Available to the assistant</label>
@@ -121,6 +124,7 @@ function FileDetails({ file, narrow, back, run }: { file: ProjectFileEntry; narr
 export function ProjectFilesPanel(): React.ReactElement {
   const panel = usePanelId('projectFiles'), drawsTabs = usePanelDrawsTabs(panel)
   const store = useProjectFilesStore()
+  const analysisJobs = useFileAnalysisJobs()
   const projectPath = useProjectStore(s => s.path)
   const exclusions = useContextStore(s => s.excluded)
   const filters = store.filters, setFilters = store.setFilters
@@ -207,6 +211,7 @@ export function ProjectFilesPanel(): React.ReactElement {
       </div>
       {(actionError || store.error || store.notice || store.catalogue.notice) && <p className="px-3 py-1 text-xs text-foreground border-b border-geo-border whitespace-pre-wrap" role={actionError || store.error ? 'alert' : 'status'}>{actionError || store.error || store.notice || store.catalogue.notice}</p>}
       {operation && <div className="flex items-center gap-2 px-3 py-1 text-xs border-b border-geo-border" role="status"><span>{operation.label} · {operation.completed}/{operation.total}</span><progress aria-label={operation.label} value={operation.completed} max={operation.total || 1} className="flex-1" />{operation.cancellable && <button className={BUTTON} type="button" onClick={() => run(store.cancel)}>Cancel</button>}</div>}
+      {(analysisJobs.running || analysisJobs.pending > 0 || analysisJobs.error) && <div className="flex flex-wrap items-center gap-2 px-3 py-1 text-xs border-b border-geo-border text-foreground" role={analysisJobs.error ? 'alert' : 'status'}><span className="break-words">{analysisJobs.error || `AI descriptions: ${analysisJobs.running || 'Waiting for local indexing'} · ${analysisJobs.pending} queued`}</span>{(analysisJobs.running || analysisJobs.pending > 0) && <button type="button" className={BUTTON} onClick={analysisJobs.cancel} data-ourgeo-id="projectFiles.cancelAnalysis">Cancel AI descriptions</button>}{analysisJobs.error && <button type="button" className={BUTTON} onClick={() => useFileAnalysisJobs.setState({ error: null })}>Dismiss</button>}</div>}
       <div className="flex flex-1 min-h-0">
         {(!narrow || !details) && <div className={cn('flex flex-col min-h-0 min-w-0', details ? 'w-1/2 border-r border-geo-border' : 'flex-1')}>
           <div className="flex gap-1 px-2 py-1 border-b border-geo-border overflow-x-auto flex-shrink-0 [&>select]:shrink-0 [&>select]:max-w-40 [&>button]:shrink-0 [&>button]:whitespace-nowrap">
@@ -228,8 +233,8 @@ export function ProjectFilesPanel(): React.ReactElement {
                   {virtual.getVirtualItems().map(row => { const file = files[row.index]; return <div key={file.id} id={`project-file-${file.id}`} role="option" aria-selected={store.selected.includes(file.id)} aria-setsize={files.length} aria-posinset={row.index + 1} onClick={event => choose(file.id, event.shiftKey, multiple || event.ctrlKey || event.metaKey)} onDoubleClick={() => store.select([file.id])}
                     className={cn('absolute left-0 top-0 w-full grid items-center gap-x-3 px-3 border-b border-geo-border cursor-pointer text-xs', !narrow && !details ? 'grid-cols-[minmax(100px,1fr)_64px_minmax(100px,1fr)_128px]' : 'grid-cols-[minmax(100px,1fr)_minmax(80px,.7fr)]', store.selected.includes(file.id) ? 'bg-geo-bg outline outline-1 -outline-offset-1 outline-geo-accent' : 'hover:bg-geo-bg')}
                     style={{ height: row.size, transform: `translateY(${row.start}px)` }}>
-                    <div className="min-w-0"><div className="truncate font-medium">{store.selected.includes(file.id) ? '✓ ' : ''}{file.name}{file.storage && <span className="ml-1 font-normal">· Linked</span>}</div><div className="truncate text-foreground">{file.userDescription || file.generatedDescription || file.folder || fileType(file)}</div></div>
-                    {!narrow && !details && <><span className="truncate">{fileType(file)}</span><span className="truncate">{file.userDescription || file.generatedDescription || 'No description'}</span></>}
+                    <div className="min-w-0"><div className="truncate font-medium">{store.selected.includes(file.id) ? '✓ ' : ''}{file.name}{file.storage && <span className="ml-1 font-normal">· Linked</span>}</div><div className="truncate text-foreground">{projectFileDescription(file) || file.folder || fileType(file)}</div></div>
+                    {!narrow && !details && <><span className="truncate">{fileType(file)}</span><span className="truncate">{projectFileDescription(file) || 'No description'}</span></>}
                     <div className="min-w-0"><div className="truncate">{FILE_STATUS_LABELS[file.status]}</div><div className="truncate">{excludedIds.has(file.id) ? 'Unavailable to assistant' : !file.saved ? 'Not saved' : file.storage ? 'External original' : fileType(file)}</div></div>
                   </div> })}
                 </div>

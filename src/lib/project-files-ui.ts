@@ -1,6 +1,7 @@
 import { useLayoutStore } from '@/store/layout'
 import { useProjectFilesStore } from '@/store/project-files'
 import type { ProjectFileEntry, ProjectFileLocation, ProjectFileRole, ProjectFileStatus, ProjectLinkedFolder } from './project-files'
+import { projectFileDescription } from './project-file-description'
 
 export function openProjectFiles(id?: string, location?: ProjectFileLocation): void {
   const layout = useLayoutStore.getState()
@@ -39,14 +40,14 @@ export function fileType(file: ProjectFileEntry): string {
 export function visibleProjectFiles(files: ProjectFileEntry[], filters: ProjectFileFilters, excluded: Set<string>): ProjectFileEntry[] {
   const query = filters.search.trim().toLocaleLowerCase()
   const value = (file: ProjectFileEntry): string => filters.sort === 'type' ? fileType(file)
-    : filters.sort === 'description' ? file.userDescription || file.generatedDescription
+    : filters.sort === 'description' ? projectFileDescription(file)
       : filters.sort === 'status' ? FILE_STATUS_LABELS[file.status] : file.name
   return files.filter(file => (!filters.role || file.role === filters.role)
     && (!filters.status || file.status === filters.status)
     && (!filters.folder || file.folder === filters.folder)
     && (!filters.location || (filters.location === 'embedded' ? !file.storage : file.storage?.folderId === filters.location))
     && (!filters.availability || excluded.has(file.id) === (filters.availability === 'excluded'))
-    && (!query || [file.name, file.folder, file.userDescription, file.generatedDescription].join(' ').toLocaleLowerCase().includes(query)))
+    && (!query || [file.name, file.folder, projectFileDescription(file), file.generatedDescription].join(' ').toLocaleLowerCase().includes(query)))
     .sort((a, b) => (value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: 'base' }) || a.id.localeCompare(b.id)) * (filters.descending ? -1 : 1))
 }
 

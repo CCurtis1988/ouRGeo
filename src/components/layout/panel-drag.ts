@@ -1,3 +1,4 @@
+import { usePanelDragStore } from '@/store/panelDrag'
 import type React from 'react'
 import { useLayoutStore } from '@/store/layout'
 import type { PanelId, ZoneId } from '@/lib/layout/model'
@@ -9,32 +10,8 @@ import type { PanelId, ZoneId } from '@/lib/layout/model'
 // buttons, and importing it from `Zone.tsx` would have the zone and its tabs
 // importing each other.
 
-/**
- * Start moving a panel, on mouse events rather than HTML5 drag-and-drop.
- *
- * It WAS drag-and-drop: `draggable` on the grip, `onDrop` on the zones. The
- * drop logic was right and is unchanged — but the gesture never reached it.
- * Pressing the grip and dragging did nothing at all, which is the worst way for
- * a control to fail: the tooltip says "Move Environment", the cursor says grab,
- * and the panel sits where it is. The Contents list in the spatial editor has
- * always reordered layers on plain mouse events, in this same app, so that is
- * the pattern to follow rather than a second attempt at native dnd.
- *
- * The 4px threshold is what keeps a plain CLICK from entering drag mode — the
- * tab-strip buttons carry this handler as well as an onClick, and without it
- * every click on a tab would flash the drop targets across the whole window.
- *
- * **The drop is committed HERE, not in the zone that was dropped on**, and that
- * is not a stylistic choice. Each zone's overlay used to end the drag itself:
- * every one of them heard the mouseup, the one holding the slot moved the
- * panel, the rest cleared the drag. But React flushes a state update from a
- * discrete native event SYNCHRONOUSLY, so the first zone to hear the mouseup —
- * the left one, always, since effects register in tree order — cleared the drag
- * mid-dispatch, unmounted every overlay, and took the remaining listeners with
- * it. The zone actually under the cursor never ran. The gesture worked
- * perfectly when the mouseup was synthesized from a script, because that update
- * was merely batched; only a real one from a human hand failed.
- */
+/** One gesture owns the drop. Committing from target overlays lets an earlier
+ * mouseup listener unmount the real destination before it can handle the drop. */
 export function startPanelDrag(
   panel: PanelId, setDrag: (p: PanelId | null) => void,
 ): (e: React.MouseEvent) => void {
@@ -44,23 +21,47 @@ export function startPanelDrag(
     const x0 = e.clientX, y0 = e.clientY
     let started = false
 
+    const previousCursor = document.body.style.cursor
+    const previousSelect = document.body.style.userSelect
+    const cleanup = (): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('blur', onCancel)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousSelect
+    }
     const onMove = (ev: MouseEvent): void => {
       if (started) return
       if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) < 4) return
       started = true
+      document.body.style.cursor = 'grabbing'
+      document.body.style.userSelect = 'none'
       setDrag(panel)
     }
+    const onCancel = (): void => { cleanup(); setDrag(null) }
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') { event.preventDefault(); onCancel() } }
     const onUp = (ev: MouseEvent): void => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      if (started) {
-        const slot = slotUnder(ev.clientX, ev.clientY)
-        if (slot) useLayoutStore.getState().movePanel(panel, slot.zone, slot.index)
+      cleanup()
+      if (started && useLayoutStore.getState().dragEnabled) {
+        const element = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
+        const target = element?.closest<HTMLElement>('[data-drop-panel]')?.dataset.dropPanel
+        if (target && target !== panel) usePanelDragStore.getState().offer({ panel, target, x: ev.clientX, y: ev.clientY, layout: useLayoutStore.getState().layout })
+        else {
+          const slot = slotUnder(ev.clientX, ev.clientY)
+          if (slot) useLayoutStore.getState().movePanel(panel, slot.zone, slot.index)
+        }
+        // A completed drag must not also activate its original tab on click.
+        const suppress = (event: MouseEvent): void => { event.preventDefault(); event.stopPropagation() }
+        window.addEventListener('click', suppress, { capture: true, once: true })
+        window.setTimeout(() => window.removeEventListener('click', suppress, true), 0)
       }
       setDrag(null)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('blur', onCancel)
   }
 }
 

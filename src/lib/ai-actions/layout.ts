@@ -112,11 +112,31 @@ export const layoutActions: UiAction[] = [
   },
 
   {
+    id: 'layout:dockPanel', group: 'layout', tier: 'always',
+    summary: 'Arrange a visible panel relative to another: left/right (vertical split), top/bottom (horizontal split), or tab group. Only the target group changes; surrounding panes retain their arrangement.',
+    params: [
+      { name: 'panel', type: 'enum', valuesAt: panelIds, lenient: true, required: true, description: 'Visible panel to move.' },
+      { name: 'target', type: 'enum', valuesAt: panelIds, lenient: true, required: true, description: 'Visible panel to dock with.' },
+      { name: 'placement', type: 'enum', values: ['left', 'right', 'top', 'bottom', 'tab'], required: true, description: 'Which side receives the moved panel, or tab to join the target group.' },
+    ],
+    run: args => {
+      const panel = resolvePanel(argStr(args, 'panel')), target = resolvePanel(argStr(args, 'target'))
+      if (!panel || !target) return fail(unknownPanel(!panel ? argStr(args, 'panel') : argStr(args, 'target')))
+      const layout = useLayoutStore.getState().layout
+      if (panel.id === target.id) return fail('Choose two different panels to arrange.')
+      if (!layout.open[panel.id] || !layout.open[target.id]) return fail('Open both panels before docking them together.')
+      const placement = argStr(args, 'placement') as import('@/lib/layout/dock-tree').DockPlacement
+      useLayoutStore.getState().dockPanel(panel.id, target.id, placement)
+      return ok(`Arranged ${panel.label} with ${target.label}.`, summary())
+    },
+  },
+
+  {
     id: 'layout:setPanelSize',
     group: 'layout',
     tier: 'always',
     summary:
-      'Give one panel a percentage of its zone — width in a side-by-side zone, height in a ' +
+      'Give one panel a percentage of its zone or nearest split group — width in a side-by-side group, height in a ' +
       'stacked one. The other panels there keep their proportions relative to each other. ' +
       'Panels sharing a zone start off equal (two take half each, three a third each), so this ' +
       'is only needed when the user wants one of them bigger.',
@@ -127,7 +147,7 @@ export const layoutActions: UiAction[] = [
       },
       {
         name: 'percent', type: 'number', required: true,
-        description: 'Share of its zone, 2–98. Not pixels — a zone divides in proportion.',
+        description: 'Share of its zone or nearest split group, 2–98. Not pixels.',
       },
     ],
     run: (args) => {

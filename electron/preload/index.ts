@@ -1,3 +1,4 @@
+import type { AppUpdateStatus, UpdatePreferences, InstallerFormat } from '../../src/lib/app-updates'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 /** What `account:status` reports without touching the network. */
@@ -36,6 +37,18 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  themeBackgrounds: {
+    list: () => ipcRenderer.invoke('themeBackgrounds:list'),
+    link: (themeId: string) => ipcRenderer.invoke('themeBackgrounds:link', themeId),
+    rescan: (id: string) => ipcRenderer.invoke('themeBackgrounds:rescan', id),
+    relink: (id: string) => ipcRenderer.invoke('themeBackgrounds:relink', id),
+    forget: (id: string) => ipcRenderer.invoke('themeBackgrounds:forget', id),
+    onChanged: (callback: () => void) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('themeBackgrounds:changed', handler)
+      return () => ipcRenderer.removeListener('themeBackgrounds:changed', handler)
+    },
+  },
   projectFiles: {
     pathForFile: (file: File): string => webUtils.getPathForFile(file),
     catalogue: (lease: string) => ipcRenderer.invoke('projectFiles:catalogue', lease),
@@ -59,6 +72,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     discard: (lease: string) => ipcRenderer.invoke('projectFiles:discard', lease),
     recoverIntoCopy: (id: string, lease: string) => ipcRenderer.invoke('projectFiles:recoverIntoCopy', id, lease),
     setIncludeHidden: (id: string, revision: string, enabled: boolean, lease: string) => ipcRenderer.invoke('projectFiles:setIncludeHidden', id, revision, enabled, lease),
+    setAnalysis: (id: string, revision: string, analysis: import('../../src/lib/project-files').ProjectFileAnalysisInput, lease: string) => ipcRenderer.invoke('projectFiles:setAnalysis', id, revision, analysis, lease),
     onChanged: (callback: () => void) => {
       const handler = (): void => callback()
       ipcRenderer.on('projectFiles:changed', handler)
@@ -360,6 +374,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isModerator: (): Promise<boolean> => ipcRenderer.invoke('store:isModerator'),
   },
 
+  updates: {
+    quit: (): Promise<void> => ipcRenderer.invoke('updates:quit'),
+    status: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('updates:status'),
+    check: (mode: 'startup' | 'manual'): Promise<AppUpdateStatus> => ipcRenderer.invoke('updates:check', mode),
+    preferences: (patch: Partial<UpdatePreferences>): Promise<AppUpdateStatus> => ipcRenderer.invoke('updates:preferences', patch),
+    open: (destination: InstallerFormat | 'downloads' | 'notes'): Promise<void> => ipcRenderer.invoke('updates:open', destination),
+  },
   app: {
     getDataPath: (): Promise<string> => ipcRenderer.invoke('app:getDataPath'),
     onUiZoom: (callback: (direction: 'in' | 'out') => void) => {
@@ -458,7 +479,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // abort().
     start: (
       req: {
-        prompt: string; systemPrompt: string; model: string; sessionId: string
+        prompt: string; systemPrompt: string; model: string; effort?: string; sessionId: string
         resume: boolean
         tools: { name: string; description: string; inputSchema: unknown }[]
         cwd: string

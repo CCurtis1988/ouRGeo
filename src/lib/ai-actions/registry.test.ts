@@ -258,10 +258,18 @@ describe('highlight targets', () => {
     const text = readFileSync(file, 'utf8')
     // Skip the overlay's own selector, which interpolates the id it is looking for.
     for (const m of text.matchAll(/data-ourgeo-id="([^"${}]+)"/g)) attributes.add(m[1])
+    // Shared task controls render both document and image variants. Only
+    // literal ternary branches count; arbitrary interpolated selectors do not.
+    for (const m of text.matchAll(/data-ourgeo-id=\{[^{}]*\?\s*['"]([^'"]+)['"]\s*:\s*['"]([^'"]+)['"]\s*\}/g)) {
+      attributes.add(m[1]); attributes.add(m[2])
+    }
   }
 
   const layoutSource = readFileSync(join(SRC, 'components', 'layout', 'EditorLayout.tsx'), 'utf8')
   const generated = new Set(BUILTIN_TOOLBAR.map((b) => b.targetId))
+  const paneDropSource = readFileSync(join(SRC, 'components', 'layout', 'PaneDropDialog.tsx'), 'utf8')
+  // These four placement buttons are rendered from the selected split axis.
+  if (paneDropSource.includes('data-ourgeo-id={`layout.drop.${side}`}')) for (const side of ['left', 'right', 'top', 'bottom']) generated.add(`layout.drop.${side}`)
 
   it('renders the attribute for every toolbar button from the registry', () => {
     // The one line that makes `generated` true of the running app. Without it

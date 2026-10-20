@@ -115,11 +115,55 @@ Previously transmitted content cannot be recalled from a provider.
 | PNG, JPEG and WebP | Bounded image previews and metadata. Actual visual interpretation requires a qualified model connection. |
 | Other or password-protected files | Originals can be stored/exported. Status explains when indexing or preview is unavailable. |
 
-The first qualified visual route is **Ollama with gemma4:e2b**. Other model routes
-show an unsupported or unverified image capability rather than silently dropping
-image evidence. ouRGeo does not change models automatically. Large images/PDF pages
+Native **Ollama vision models** support image interpretation when the server
+explicitly reports vision capability. Other provider transports currently report
+unsupported or unverified image capability. ouRGeo does not change models
+automatically. Large images/PDF pages
 use bounded renditions and may omit fine detail or annotations; inspect the original
 when fidelity matters. Text retrieval remains usable with text-only models.
+
+## Choose models for file tasks
+
+Open **Settings → AI Assistant → File analysis models**. Document analysis and
+image interpretation each have their own provider/model choice. **Use assistant
+model** preserves the usual chat workflow. Choose a separate model and **Apply**
+to use a specialist without changing the model at the top of the chat pane.
+Task models share the connections and credentials configured under **Provider &
+model**; these selectors do not change those connections or store another key.
+The **Available models** list is shared with chat: it includes your saved/custom
+chat choices, models used by other chats, Claude subscription aliases, eligible
+ChatGPT subscription models, API models and models discovered on configured local
+servers. Discovery happens automatically; **Refresh available models** checks
+again. Select an existing model or enter a custom ID. Claude and ChatGPT reuse
+their existing sign-in; no second registration is needed. The same model ID on
+an API provider and a subscription remains a separate connection choice.
+
+A separate document model analyses the bounded excerpts retrieved for your
+question. The assistant receives both the original excerpt and a labelled
+interpretation, with the original citation. A separate image model receives the
+selected image or one selected PDF page; the chat assistant receives its textual
+findings. It can therefore use a text-only model while a vision model interprets
+the image. Image selection currently supports native Ollama vision models.
+
+Imports and rescans still extract/index locally. Optionally enable **Generate AI
+descriptions on import and rescan** to add catalogue descriptions for supported
+new, changed or undescribed files. This is off by default. Jobs run one at a time,
+using the corresponding document/image selection, and may incur model usage.
+For documents they inspect the first bounded indexed excerpt, not every page.
+Opening a project or enabling the option alone does not analyse the existing
+library. Reindex files or rescan linked folders to request missing descriptions.
+
+AI descriptions show their model, date and coverage in file details. They never
+overwrite **Your description** or the local extraction description. Save the
+project to retain them in its bundle. Current descriptions are reused when the
+source and model are unchanged; changed source revisions invalidate them. These
+descriptions aid discovery and are not evidence that a whole document was read.
+
+The pane shows background progress, errors and **Cancel AI descriptions**.
+Changing task settings, revoking source access, switching project or disabling
+automatic descriptions stops affected work. A failed selected model produces an
+error; it does not silently fall back to the assistant. Separate model calls use
+the existing usage accounting and estimated chat-budget controls.
 
 **Partly searchable** identifies incomplete coverage. Descriptions help locate a
 file but do not establish what every page or cell says. The assistant should read

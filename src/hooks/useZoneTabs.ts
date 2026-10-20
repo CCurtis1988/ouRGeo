@@ -1,3 +1,4 @@
+import { panelTabGroup } from '@/lib/layout/dock-tree'
 import { useLayoutStore } from '@/store/layout'
 import { openPanels, zoneOf, zoneHostsTabs, type PanelId, type ZoneId } from '@/lib/layout/model'
 import { panelInfoList } from '@/lib/layout/panel-meta'
@@ -12,7 +13,7 @@ import { panelInfoList } from '@/lib/layout/panel-meta'
 export function useZoneHostsTabs(zone: ZoneId | null): boolean {
   const layout = useLayoutStore((s) => s.layout)
   if (!zone) return false
-  if (layout.zones[zone].mode !== 'tabs') return false
+  if (layout.zones[zone].tree || layout.zones[zone].mode !== 'tabs') return false
   return zoneHostsTabs(layout, zone, panelInfoList())
 }
 
@@ -27,6 +28,11 @@ export function usePanelDrawsTabs(panel: PanelId): boolean {
   const layout = useLayoutStore((s) => s.layout)
   const zone = zoneOf(layout, panel)
   const hosted = useZoneHostsTabs(zone)
+  if (zone && layout.zones[zone].tree) {
+    const group = panelTabGroup(layout.zones[zone].tree!, panel)
+    const ids = group?.panels.filter(id => layout.open[id]) ?? []
+    return ids.length > 1 && ids.every(id => panelInfoList().find(info => info.id === id.split('#')[0])?.hostsTabs)
+  }
   if (!zone || !hosted) return false
   return openPanels(layout, zone).length > 1
 }

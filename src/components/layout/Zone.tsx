@@ -1,3 +1,4 @@
+import { dockPanels, resizeDockTree, type DockNode } from '@/lib/layout/dock-tree'
 // One zone of the workspace, rendered from the layout model.
 //
 // This replaces three near-identical ~24-line IIFEs in EditorLayout that
@@ -18,7 +19,7 @@ import { useLayoutStore } from '@/store/layout'
 import { useSessionStore } from '@/store/session'
 import { useContentDragStore, type ContentKind } from '@/store/contentDrag'
 import { usePanelDragStore } from '@/store/panelDrag'
-import { startPanelDrag, slotUnder } from './panel-drag'
+import { startPanelDrag } from './panel-drag'
 import { ZoneTabs } from './ZoneTabs'
 import { useZoneHostsTabs } from '@/hooks/useZoneTabs'
 import { addPanelInstance, instancesOf, removalSummary, removePanelInstance } from '@/lib/panel-instances'
@@ -46,7 +47,7 @@ interface Props {
 }
 
 export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | null {
-  const drag = usePanelDragStore((s) => s.panel)
+  const moving = usePanelDragStore(s => s.panel)
   const beginDrag = usePanelDragStore((s) => s.begin)
   const endDrag = usePanelDragStore((s) => s.end)
   const setDrag = (p: PanelId | null): void => { if (p) beginDrag(p); else endDrag() }
@@ -73,8 +74,10 @@ export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | nul
         state.mode === 'tabs' ? 'flex-col' : isRow ? 'flex-row' : 'flex-col',
         zone === 'center' ? 'flex-1' : 'flex-shrink-0',
       )}
+      data-pane-group={!state.tree && state.mode === 'tabs' ? state.order.join(',') : undefined}
       style={zone === 'center' ? undefined : sizeStyle(zone, state.size, maxSize)}
     >
+      {state.tree ? <DockGroup node={state.tree} path={[]} zone={zone} layout={layout} dragEnabled={dragEnabled} setDrag={setDrag} /> : <>
       {state.mode === 'tabs' && !hosted && (
         <ZoneTabs
           zone={zone}
@@ -106,7 +109,8 @@ export function Zone({ zone, layout, maxSize }: Props): React.ReactElement | nul
         )
       })}
 
-      {drag && <DropTargets zone={zone} ids={ids} isRow={isRow} />}
+      </>}
+      {!state.tree && state.mode === 'tabs' && moving && moving !== shown[0] && <div data-drop-panel={shown[0]} className="absolute inset-0 z-30 cursor-grabbing border-2 border-transparent hover:border-geo-accent hover:bg-geo-accent/5" />}
     </div>
   )
 }
@@ -135,6 +139,7 @@ function PanelSlot(
 ): React.ReactElement {
   const focusedPanel = useLayoutStore((s) => s.focusedPanel)
   const drag = useContentDragStore((s) => s.drag)
+  const moving = usePanelDragStore(s => s.panel)
   const kind = dockKind(def.id)
   const siblings = kind
     ? panelInstanceIds(ZONE_IDS.flatMap((z) => layout.zones[z].order), basePanelId(def.id))
@@ -160,6 +165,7 @@ function PanelSlot(
       {showGrip && <PanelGrip def={def} setDrag={setDrag} />}
       <PanelIdContext.Provider value={def.id}>{children}</PanelIdContext.Provider>
       {accepting && <ContentDropTarget label={def.label} kind={drag!.kind} />}
+      {moving && moving !== def.id && <div data-drop-panel={def.id} className="absolute inset-0 z-30 cursor-grabbing border-2 border-transparent hover:border-geo-accent hover:bg-geo-accent/5" />}
     </div>
   )
 }
@@ -309,7 +315,7 @@ function PanelGrip(
       <div
         onMouseDown={startPanelDrag(def.id, setDrag)}
         onContextMenu={(e) => { e.preventDefault(); setMenuAt({ x: e.clientX, y: e.clientY }) }}
-        title={`Move ${def.label} — drag into another zone, or right-click for more`}
+        title={`Move ${def.label} — drag over another pane to arrange, or right-click for more`}
         data-ourgeo-id={`panel.grip.${def.id}`}
         className="absolute top-0 right-0 z-20 h-4 w-4 flex items-center justify-center
           cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100
@@ -430,63 +436,47 @@ export function EmptyZoneTarget({ zone }: { zone: ZoneId }): React.ReactElement 
   )
 }
 
-/**
- * While a panel is being dragged, every zone shows insertion slots — and does
- * nothing else. The slots are hit-tested by `startPanelDrag`, from their
- * `data-drop-zone` attributes; all this tracks is which one to light up.
- *
- * An overlay rather than handlers on the panels themselves: a panel's own
- * content (the map, Monaco) swallows pointer events and would never see the
- * drop. The overlay only exists during a drag, so nothing intercepts a click
- * the rest of the time.
- *
- * Each zone hit-tests for itself, from the window's mousemove — which is why
- * no shared "where is the pointer" state is needed anywhere. Every mounted
- * overlay sees the mouseup; only the one holding the slot under the cursor
- * moves anything.
- */
-function DropTargets(
-  { zone, ids, isRow }: { zone: ZoneId; ids: PanelId[]; isRow: boolean },
-): React.ReactElement {
-  const [over, setOver] = React.useState<number | null>(null)
-  const slots = ids.length + 1
-
-  React.useEffect(() => {
-    const onMove = (e: MouseEvent): void => {
-      const slot = slotUnder(e.clientX, e.clientY)
-      setOver(slot && slot.zone === zone ? slot.index : null)
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [zone])
-
-  return (
-    <div
-      className={cn(
-        'absolute inset-0 z-30 flex cursor-grabbing',
-        // The zone lights up as a whole, because the thing being chosen is
-        // WHICH ZONE — the slot within it is the fine adjustment, and with
-        // only a hairline to look for the gesture read as doing nothing.
-        'ring-1 ring-inset ring-geo-accent/30 bg-geo-accent/5',
-        isRow ? 'flex-row' : 'flex-col',
-      )}
-    >
-      {Array.from({ length: slots }, (_, i) => (
-        <div
-          key={i}
-          data-drop-zone={zone}
-          data-drop-index={i}
-          className="flex-1 flex items-center justify-center"
-        >
-          <div
-            className={cn(
-              'transition-colors rounded-full',
-              isRow ? 'w-1 h-full' : 'h-1 w-full',
-              over === i ? 'bg-geo-accent' : 'bg-geo-accent/0',
-            )}
-          />
-        </div>
-      ))}
+/** Pane-local groups let a drop change only its target, rather than turning
+ * every neighbour when a zone used to have a single direction. */
+function DockGroup({ node, path, zone, layout, dragEnabled, setDrag }: {
+  node: DockNode; path: number[]; zone: ZoneId; layout: LayoutState; dragEnabled: boolean; setDrag: (panel: PanelId | null) => void
+}): React.ReactElement | null {
+  const moving = usePanelDragStore(state => state.panel)
+  if (!dockPanels(node).some(id => layout.open[id])) return null
+  const slot = (id: PanelId, tabbed: boolean): React.ReactElement | null => {
+    const def = panelInfo(id), Render = panelRender(id)
+    return def && Render ? <PanelSlot key={id} def={def} layout={layout} tabbed={tabbed} style={{ flex: '1 1 0%' }} showGrip={!tabbed && dragEnabled} setDrag={setDrag}><PanelContent render={Render} label={def.label} /></PanelSlot> : null
+  }
+  if (node.kind === 'panel') return slot(node.panel, false)
+  if (node.kind === 'tabs') {
+    const ids = node.panels.filter(id => layout.open[id]), active = ids.includes(node.active) ? node.active : ids[0]
+    const hosted = ids.length > 1 && ids.every(id => panelInfo(id)?.hostsTabs)
+    return <div className="relative flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden" data-pane-group={node.panels.join(',')}>
+      {ids.length > 1 && !hosted && <ZoneTabs zone={zone} panels={ids} activePanel={active} className="h-6 bg-geo-bg border-b border-geo-border overflow-x-auto" />}
+      {slot(active, ids.length > 1)}
+      {moving && moving !== active && <div data-drop-panel={active} className="absolute inset-0 z-30 cursor-grabbing border-2 border-transparent hover:border-geo-accent hover:bg-geo-accent/5" />}
     </div>
-  )
+  }
+  const visible = node.children.map((child, index) => ({ child, index })).filter(({ child }) => dockPanels(child).some(id => layout.open[id]))
+  return <div className={cn('flex flex-1 min-w-0 min-h-0 overflow-hidden', node.axis === 'row' ? 'flex-row' : 'flex-col')} data-pane-split={node.axis}>
+    {visible.map(({ child, index }, position) => <React.Fragment key={index}>
+      {position > 0 && <DockDivider zone={zone} path={path} before={visible[position - 1].index} after={index} axis={node.axis === 'row' ? 'x' : 'y'} />}
+      <div style={{ flex: `${node.weights[index] ?? 1} 1 0%` }} className="flex min-w-0 min-h-0 overflow-hidden"><DockGroup node={child} path={[...path, index]} zone={zone} layout={layout} dragEnabled={dragEnabled} setDrag={setDrag} /></div>
+    </React.Fragment>)}
+  </div>
+}
+function DockDivider({ zone, path, before, after, axis }: { zone: ZoneId; path: number[]; before: number; after: number; axis: 'x' | 'y' }): React.ReactElement {
+  const transform = useLayoutStore(state => state.transform)
+  return <div role="separator" aria-label="Resize pane split" aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
+    onDoubleClick={() => useLayoutStore.getState().evenPanels(zone)}
+    className={cn('shrink-0 bg-geo-border hover:bg-geo-accent/50', axis === 'x' ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize')}
+    onMouseDown={event => {
+      const el = event.currentTarget, first = el.previousElementSibling?.getBoundingClientRect(), second = el.nextElementSibling?.getBoundingClientRect()
+      if (!first || !second) return
+      const size = axis === 'x' ? first.width : first.height, total = size + (axis === 'x' ? second.width : second.height)
+      startDragResize({ axis, from: size, min: Math.min(64, total / 4), max: total - Math.min(64, total / 4), direction: 1, onResize: value => transform(layout => {
+        const tree = layout.zones[zone].tree
+        return tree ? { ...layout, zones: { ...layout.zones, [zone]: { ...layout.zones[zone], tree: resizeDockTree(tree, path, before, after, value / total) } } } : layout
+      }) })(event)
+    }} />
 }

@@ -79,6 +79,7 @@ export function registerProjectFiles(ipc: IpcMain): void {
   register('discard', service.discard.bind(service))
   register('recoverIntoCopy', service.recoverIntoCopy.bind(service))
   register('setIncludeHidden', service.setIncludeHidden.bind(service))
+  register('setAnalysis', service.setAnalysis.bind(service))
   register('read', (id: string, revision: string, lease: string, location?: ProjectFileLocation, offset?: number) => service.read(id, revision, lease, location, offset))
   register('search', service.search.bind(service))
   register('preview', async (id: string, revision: string, lease: string, location?: ProjectFileLocation, options?: { includeHidden?: boolean }): Promise<ProjectFilePreview> => {

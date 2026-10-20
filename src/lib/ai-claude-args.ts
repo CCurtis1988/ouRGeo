@@ -41,6 +41,7 @@ export interface ClaudeRunSpec {
    *  model an alias resolves to is the user's plan's business, and the
    *  `result` event reports what actually answered. */
   model: string
+  effort?: string
   /** Conversation continuity is the CLI's: a uuid we mint on the first turn
    *  and resume on every one after. */
   sessionId: string
@@ -106,6 +107,8 @@ export function buildClaudeArgs(spec: ClaudeRunSpec): string[] {
     '--setting-sources', '',
     '--strict-mcp-config',
   ]
+
+  if (spec.effort && ['low', 'medium', 'high', 'xhigh', 'max'].includes(spec.effort)) args.push('--effort', spec.effort)
 
   if (spec.mcpConfigFile) {
     args.push('--mcp-config', spec.mcpConfigFile)

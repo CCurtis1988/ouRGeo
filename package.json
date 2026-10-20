@@ -1,6 +1,7 @@
 {
   "name": "ourgeo",
-  "version": "1.16.24",
+  "version": "1.16.35",
+  "desktopName": "ourgeo.desktop",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",
   "author": "ouRGeo Contributors",
@@ -138,6 +139,8 @@
       }
     ],
     "linux": {
+      "icon": "build/icons",
+      "desktop": { "entry": { "StartupWMClass": "ourgeo" } },
       "target": [
         "AppImage",
         "deb"
@@ -148,6 +151,7 @@
       "description": "An open-source desktop spatial IDE that wraps R's spatial ecosystem (sf, terra, ggplot2, tmap) in a dark-mode GUI. Requires R to be installed on the system."
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg"
       ],
@@ -157,6 +161,7 @@
       }
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]

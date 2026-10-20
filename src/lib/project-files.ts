@@ -20,6 +20,8 @@ export type ProjectFileLocation =
   | { kind: 'sheet'; sheet: string; range?: string }
   | { kind: 'image' }
 export interface ProjectFileSection { title: string; location: ProjectFileLocation; text: string }
+export interface ProjectFileAnalysis { text: string; revision: string; provider: string; model: string; createdAt: string; coverage: string }
+export type ProjectFileAnalysisInput = Pick<ProjectFileAnalysis, 'text' | 'provider' | 'model' | 'coverage'>
 export interface ProjectFileExtraction {
   version: string
   status: ProjectFileStatus
@@ -50,6 +52,7 @@ export interface ProjectFileEntry {
   descriptionNeedsReview?: boolean
   includeHidden?: boolean
   storage?: { kind: 'linked'; folderId: string; relativePath: string; fingerprint: string }
+  aiDescription?: ProjectFileAnalysis
 }
 export interface ProjectFileOperation { id: string; label: string; completed: number; total: number; cancellable: boolean }
 export interface ProjectFileCatalogue {
@@ -100,6 +103,7 @@ export interface ProjectFileApi {
   discard(lease: string): Promise<ProjectFileCatalogue>
   recoverIntoCopy(id: string, lease: string): Promise<ProjectFileCatalogue>
   setIncludeHidden(id: string, revision: string, enabled: boolean, lease: string): Promise<ProjectFileCatalogue>
+  setAnalysis(id: string, revision: string, analysis: ProjectFileAnalysisInput, lease: string): Promise<ProjectFileCatalogue>
   linkFolder(lease: string, path?: string, name?: string): Promise<ProjectFileCatalogue>
   createFolder(lease: string, name: string, parentPath?: string, label?: string): Promise<ProjectFileCatalogue>
   rescanFolders(ids: string[] | undefined, lease: string): Promise<ProjectFileCatalogue>

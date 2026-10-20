@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron'
+import { APP_ICON_PATH } from './app-icon'
 
 let widgetWindow: BrowserWindow | null = null
 
@@ -12,6 +13,7 @@ export function openWidgetWindow(id: string, port: number): void {
   }
 
   widgetWindow = new BrowserWindow({
+    icon: APP_ICON_PATH,
     width: 900,
     height: 700,
     minWidth: 400,

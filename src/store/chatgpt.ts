@@ -10,12 +10,16 @@ interface ChatGptState {
   act: (action: () => Promise<unknown>) => Promise<void>
 }
 let generation = 0
+let refreshing: { generation: number; promise: Promise<void> } | undefined
 export const useChatGptStore = create<ChatGptState>((set) => ({
   status: null, models: [], loading: false, error: null,
-  refresh: async () => {
+  refresh: () => {
+    // Chat, provider settings and document tasks share one signed-in account.
+    // Their simultaneous catalogue reads must not start competing refreshes.
+    if (refreshing?.generation === generation) return refreshing.promise
     const current = ++generation
     set({ loading: true })
-    try {
+    const promise = (async () => { try {
       const api = window.electronAPI?.chatgpt
       if (!api) throw new Error('ChatGPT sign-in is available in the ouRGeo desktop app.')
       const status = await api.status()
@@ -25,7 +29,9 @@ export const useChatGptStore = create<ChatGptState>((set) => ({
       if (current === generation) set({ models, loading: false })
     } catch (e) {
       if (current === generation) set({ loading: false, models: [], error: e instanceof Error ? e.message : String(e) })
-    }
+    } })().finally(() => { if (refreshing?.generation === current) refreshing = undefined })
+    refreshing = { generation: current, promise }
+    return promise
   },
   act: async (action) => {
     ++generation

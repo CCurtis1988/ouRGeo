@@ -15,7 +15,7 @@ import {
   EDITOR_MONACO_THEME, buildMonacoTheme, resolveCodeTheme, resolveMarkdownTheme,
   CODE_THEMES, MARKDOWN_THEMES,
 } from '@/lib/editor-themes'
-import { sceneBackdropStyle } from '@/lib/themeScenes'
+import { ThemeBackground } from './ThemeBackground'
 import { saveSessionDebounced } from '@/lib/session-persistence'
 import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
@@ -416,17 +416,9 @@ export function CodeEditor(): React.ReactElement {
   const markdownThemeId = useThemeStore((s) => s.markdownTheme)
   const uiScale = useThemeStore((s) => s.uiScale)
 
-  // Faint, grey-scaled themed scene painted behind the editor text — or the
-  // backdrop image a user theme supplies, at whatever opacity it asks for.
-  // `themeRevision` is in the deps because editing the ACTIVE theme in the
-  // Theme Studio changes the artwork without changing its id.
+  // A stable id can change underneath Theme Studio's debounced edits. Monaco
+  // still follows this revision; background playback observes it independently.
   const themeRevision = useThemeStore((s) => s.revision)
-  const artStyle = useMemo(
-    // `themeRevision` is a signal, not a value the closure reads — the lint
-    // rule cannot see that `sceneBackdropStyle` reaches into a live registry.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    () => sceneBackdropStyle(themeId), [themeId, themeRevision],
-  )
 
   // Get or create a Monaco model for a tab
   const getOrCreateModel = useCallback((
@@ -1198,10 +1190,7 @@ export function CodeEditor(): React.ReactElement {
               editor. The scoped `.ourgeo-editor-canvas` class makes Monaco's own
               background transparent so this shows through beneath the code. */}
           <div className="absolute inset-0 bg-geo-panel" />
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={artStyle}
-          />
+          <ThemeBackground themeId={themeId} />
           <div className="absolute inset-0 ourgeo-editor-canvas">
           <MonacoEditor
             height="100%"

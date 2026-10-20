@@ -3,6 +3,7 @@ import { useProjectStore } from './project'
 import { useSessionStore } from './session'
 import { EMPTY_PROJECT_FILES, type ProjectFileCatalogue, type ProjectFileEntry, type ProjectFileLocation, type ProjectFilePreview } from '@/lib/project-files'
 import type { ProjectFileFilters } from '@/lib/project-files-ui'
+import { requestProjectFileAnalysis } from '@/lib/project-file-analysis-events'
 
 export const INITIAL_PROJECT_FILE_FILTERS: ProjectFileFilters = { search: '', role: '', status: '', availability: '', folder: '', location: '', sort: 'name', descending: false }
 
@@ -104,6 +105,11 @@ function entry(id: string): ProjectFileEntry {
   return file
 }
 
+function analyseFiles(ids: string[], expectedEpoch: number): void {
+  const project = useProjectStore.getState()
+  if (project.projectId && project.phase === 'ready' && project.workspaceEpoch === expectedEpoch) requestProjectFileAnalysis({ projectId: project.projectId, workspaceEpoch: project.workspaceEpoch, ids })
+}
+
 function previewAuthority(file: ProjectFileEntry, catalogue: ProjectFileCatalogue): string {
   const folder = catalogue.linkedFolders?.find(folder => folder.id === file.storage?.folderId)
   return JSON.stringify([file.revision, file.storage?.fingerprint, folder?.status, folder?.path])
@@ -145,6 +151,7 @@ export const useProjectFilesStore = create<ProjectFilesState>((set, get) => ({
     }, (before, after) => { const added = after.files.filter(file => !before.files.some(previous => previous.id === file.id)).length; return added ? `Added ${added} ${added === 1 ? 'file' : 'files'} to the project. Save the project to include them in its bundle.` : undefined })
     if (useProjectStore.getState().workspaceEpoch !== epoch) return []
     if (ids.length) get().select(ids, undefined, false)
+    analyseFiles(ids, epoch)
     return ids
   },
   select: (selected, location, detailsOpen = true) => {
@@ -175,9 +182,11 @@ export const useProjectFilesStore = create<ProjectFilesState>((set, get) => ({
     const revision = entry(id).revision
     return withCatalogue(lease => window.electronAPI.projectFiles.update(id, revision, changes, lease), (before, after) => after.revision !== before.revision ? `Updated details for ${after.files.find(file => file.id === id)?.name ?? 'a project file'}.` : undefined)
   },
-  replace: id => {
+  replace: async id => {
+    const epoch = useProjectStore.getState().workspaceEpoch
     const revision = entry(id).revision
-    return withCatalogue(lease => window.electronAPI.projectFiles.replace(id, revision, lease), (_before, after) => after.files.find(file => file.id === id)?.revision !== revision ? `Replaced ${after.files.find(file => file.id === id)?.name ?? 'a project file'}.` : undefined)
+    await withCatalogue(lease => window.electronAPI.projectFiles.replace(id, revision, lease), (_before, after) => after.files.find(file => file.id === id)?.revision !== revision ? `Replaced ${after.files.find(file => file.id === id)?.name ?? 'a project file'}.` : undefined)
+    if (get().catalogue.files.some(file => file.id === id && file.revision !== revision)) analyseFiles([id], epoch)
   },
   remove: async ids => {
     const epoch = useProjectStore.getState().workspaceEpoch
@@ -189,7 +198,11 @@ export const useProjectFilesStore = create<ProjectFilesState>((set, get) => ({
     await withCatalogue(lease => window.electronAPI.projectFiles.undo(lease), (before, after) => after.files.length > before.files.length ? `Restored ${after.files.length - before.files.length} removed project files.` : undefined)
     if (epoch === useProjectStore.getState().workspaceEpoch) set({ undoAvailable: false })
   },
-  reindex: ids => withCatalogue(lease => window.electronAPI.projectFiles.reindex(ids, lease), before => { const count = before.files.filter(file => !ids || ids.includes(file.id)).length; return count ? `Requested reindexing for ${count} ${count === 1 ? 'file' : 'files'}.` : undefined }),
+  reindex: async ids => {
+    const epoch = useProjectStore.getState().workspaceEpoch
+    await withCatalogue(lease => window.electronAPI.projectFiles.reindex(ids, lease), before => { const count = before.files.filter(file => !ids || ids.includes(file.id)).length; return count ? `Requested reindexing for ${count} ${count === 1 ? 'file' : 'files'}.` : undefined })
+    analyseFiles(get().catalogue.files.filter(file => !ids || ids.includes(file.id)).map(file => file.id), epoch)
+  },
   exportFile: async id => {
     const epoch = useProjectStore.getState().workspaceEpoch, file = entry(id)
     const lease = await window.electronAPI.context.lease()
@@ -219,21 +232,32 @@ export const useProjectFilesStore = create<ProjectFilesState>((set, get) => ({
     return withCatalogue(lease => window.electronAPI.projectFiles.setIncludeHidden(id, revision, enabled, lease), () => `${enabled ? 'Included' : 'Excluded'} hidden workbook contents for the assistant on this device; reindexing requested.`)
   },
   linkFolder: async (path, name) => {
+    const epoch = useProjectStore.getState().workspaceEpoch
     if (!await ensureNamedProject()) return
+    const previous = new Set(get().catalogue.files.map(file => file.id))
     await withCatalogue(lease => window.electronAPI.projectFiles.linkFolder(lease, path, name), (before, after) => {
       const count = (after.linkedFolders?.length ?? 0) - (before.linkedFolders?.length ?? 0)
       return count > 0 ? `Linked ${count} ${count === 1 ? 'folder' : 'folders'}. Originals remain outside the project bundle.` : undefined
     })
+    analyseFiles(get().catalogue.files.filter(file => !previous.has(file.id)).map(file => file.id), epoch)
   },
   createFolder: async (name, parentPath, label) => {
     if (!await ensureNamedProject()) return
     await withCatalogue(lease => window.electronAPI.projectFiles.createFolder(lease, name, parentPath, label), (before, after) => (after.linkedFolders?.length ?? 0) > (before.linkedFolders?.length ?? 0) ? `Created and linked folder ${label || name}. Originals remain outside the project bundle.` : undefined)
   },
-  rescanFolders: ids => withCatalogue(lease => window.electronAPI.projectFiles.rescanFolders(ids, lease), before => {
+  rescanFolders: async ids => {
+    const epoch = useProjectStore.getState().workspaceEpoch
+    await withCatalogue(lease => window.electronAPI.projectFiles.rescanFolders(ids, lease), before => {
     const count = (before.linkedFolders ?? []).filter(folder => !ids || ids.includes(folder.id)).length
     return count ? `Rescanned ${count} linked ${count === 1 ? 'folder' : 'folders'}. Changed files are indexed separately.` : undefined
-  }),
+    })
+    analyseFiles(get().catalogue.files.filter(file => file.storage && (!ids || ids.includes(file.storage.folderId))).map(file => file.id), epoch)
+  },
   forgetFolder: id => withCatalogue(lease => window.electronAPI.projectFiles.forgetFolder(id, lease), (before, after) => before.linkedFolders?.some(folder => folder.id === id) && !after.linkedFolders?.some(folder => folder.id === id) ? 'Forgot the linked folder. Files on disk are kept.' : undefined),
-  relinkFolder: (id, path) => withCatalogue(lease => window.electronAPI.projectFiles.relinkFolder(id, lease, path), (_before, after) => after.linkedFolders?.find(folder => folder.id === id)?.status === 'ready' ? 'Relinked the folder on this device and rescanned its files.' : undefined),
+  relinkFolder: async (id, path) => {
+    const epoch = useProjectStore.getState().workspaceEpoch
+    await withCatalogue(lease => window.electronAPI.projectFiles.relinkFolder(id, lease, path), (_before, after) => after.linkedFolders?.find(folder => folder.id === id)?.status === 'ready' ? 'Relinked the folder on this device and rescanned its files.' : undefined)
+    analyseFiles(get().catalogue.files.filter(file => file.storage?.folderId === id).map(file => file.id), epoch)
+  },
   renameLinkedFolder: (id, name) => withCatalogue(lease => window.electronAPI.projectFiles.renameLinkedFolder(id, name, lease), (before, after) => before.linkedFolders?.find(folder => folder.id === id)?.name !== after.linkedFolders?.find(folder => folder.id === id)?.name ? `Renamed the linked folder label to ${name}. Its directory on disk is unchanged.` : undefined),
 }))

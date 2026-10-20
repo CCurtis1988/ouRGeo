@@ -1,3 +1,4 @@
+import { thinkingWire, type ThinkingSelection } from '@/lib/ai-thinking'
 import { ollamaImageMessage, type ContextImageEvidence, type ImageCapability } from '@/lib/context/images'
 import type { AiProvider, ChatMessage, OpenAiAssistantMessage } from '@/store/ai'
 import type { REnvironmentInfo } from '@/lib/r-client'
@@ -584,6 +585,8 @@ export function resolveContextSize(
 
 // ── Send message to provider ───────────────────────────────────────────────
 export interface SendOptions {
+  /** Frozen for a turn, including tool follow-ups; omitted preserves provider defaults. */
+  thinking?: ThinkingSelection
   imageEvidence?: () => readonly ContextImageEvidence[]
   /** Optional bound for short diagnostics and other small responses. */
   prepareInvocation?: (payload: unknown) => void
@@ -720,10 +723,10 @@ export async function imageCapability(provider: AiProvider, model: string, local
     const data = await response.json() as { capabilities?: unknown }
     if (!Array.isArray(data.capabilities)) return 'unknown'
     if (!data.capabilities.includes('vision')) return 'unsupported'
-    // Exact native image serialisation and a real synthetic visual task have
-    // been qualified on this combination. A server's capability claim alone
-    // does not certify another model's image behaviour.
-    return model === 'gemma4:e2b' ? 'supported' : 'unknown'
+    // Native Ollama serialisation is shared across vision models. Capability
+    // discovery gates pixels; the user's task selection chooses the model.
+    // A successful transport does not establish interpretation accuracy.
+    return 'supported'
   } catch { signal?.throwIfAborted(); return 'unknown' }
 }
 
@@ -800,7 +803,10 @@ function ssePayload(line: string): string | null {
 
 // ── Anthropic ─────────────────────────────────────────────────────────────
 interface AnthropicBlock {
-  type: 'text' | 'tool_use'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
+  thinking?: string
+  signature?: string
+  data?: string
   text?: string
   id?: string
   name?: string
@@ -810,6 +816,8 @@ interface AnthropicBlock {
 
 /** Re-encode a streamed block for the assistant turn we echo back. */
 function anthropicBlockToWire(b: AnthropicBlock): Record<string, unknown> | null {
+  if (b.type === 'thinking') return { type: b.type, thinking: b.thinking ?? '', signature: b.signature ?? '' }
+  if (b.type === 'redacted_thinking') return { type: b.type, data: b.data }
   if (b.type === 'text') {
     return b.text?.trim() ? { type: 'text', text: b.text } : null
   }
@@ -829,6 +837,11 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
     system: systemPrompt,
     messages: apiMessages,
     stream: true,
+  }
+  const effort = thinkingWire(opts.thinking)
+  if (opts.thinking?.capability.protocol === 'anthropic' && typeof effort === 'string') {
+    body.output_config = { effort }
+    if (opts.thinking.capability.adaptive) body.thinking = { type: 'adaptive' }
   }
   if (useTools) body.tools = anthropicTools(tools)
 
@@ -865,8 +878,8 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
       let evt: {
         type?: string
         index?: number
-        content_block?: { type?: string; id?: string; name?: string }
-        delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string }
+        content_block?: { type?: string; id?: string; name?: string; thinking?: string; signature?: string; data?: string }
+        delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string; thinking?: string; signature?: string }
         usage?: Record<string, unknown> & { output_tokens?: number }
         message?: { usage?: Record<string, unknown> & { input_tokens: number } }
       }
@@ -880,6 +893,8 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
         const cb = evt.content_block
         if (cb?.type === 'tool_use') {
           byIndex.set(evt.index, { type: 'tool_use', id: cb.id, name: cb.name, json: '' })
+        } else if (cb?.type === 'thinking' || cb?.type === 'redacted_thinking') {
+          byIndex.set(evt.index, { type: cb.type, thinking: cb.thinking ?? '', signature: cb.signature ?? '', data: cb.data })
         } else if (cb?.type === 'text') {
           byIndex.set(evt.index, { type: 'text', text: '' })
         }
@@ -889,6 +904,10 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
           fullText += evt.delta.text
           onChunk(evt.delta.text)
           if (block) block.text = (block.text ?? '') + evt.delta.text
+        } else if (evt.delta?.type === 'thinking_delta' && block) {
+          block.thinking = (block.thinking ?? '') + (evt.delta.thinking ?? '')
+        } else if (evt.delta?.type === 'signature_delta' && block) {
+          block.signature = (block.signature ?? '') + (evt.delta.signature ?? '')
         } else if (evt.delta?.type === 'input_json_delta' && block) {
           block.json = (block.json ?? '') + (evt.delta.partial_json ?? '')
         }
@@ -912,6 +931,7 @@ async function sendAnthropic(opts: SendOptions): Promise<string> {
 
   for (;;) {
     const { blocks, stopReason } = await streamTurn()
+    if (stopReason === 'max_tokens') throw new Error('The model reached its output limit before finishing. Ask for a smaller task, or lower Thinking effort if available, then retry.')
     const toolUses = blocks.filter((b) => b.type === 'tool_use')
     if (!useTools || stopReason !== 'tool_use' || toolUses.length === 0) break
 
@@ -960,6 +980,8 @@ async function sendOpenAICompatible(
     stream_options: { include_usage: true },
     ...(opts.maxOutputTokens ? { [opts.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: opts.maxOutputTokens } : {}),
   }
+  const effort = thinkingWire(opts.thinking)
+  if (opts.thinking?.capability.protocol === 'openai' && typeof effort === 'string') body.reasoning_effort = effort
   if (useTools) body.tools = openAiTools(tools)
 
   let fullText = ''
@@ -1025,6 +1047,7 @@ async function sendOpenAICompatible(
       }
     })
 
+    if (finishReason === 'length') throw new Error('The model reached its output limit before finishing. Ask for a smaller task, or lower Thinking effort if available, then retry.')
     const calls = Object.values(toolCallBuffers)
     if (finishReason === 'tool_calls' && onToolCall && calls.length > 0) {
       // Append the assistant message carrying tool_calls, then one tool message per call
@@ -1069,6 +1092,11 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
     systemInstruction: { parts: [{ text: systemPrompt }] },
     ...(opts.maxOutputTokens ? { generationConfig: { maxOutputTokens: opts.maxOutputTokens } } : {}),
   }
+  const effort = thinkingWire(opts.thinking)
+  const protocol = opts.thinking?.capability.protocol
+  if (effort !== undefined && (protocol === 'google-level' || protocol === 'google-budget')) {
+    body.generationConfig = { ...(body.generationConfig as object ?? {}), thinkingConfig: protocol === 'google-level' ? { thinkingLevel: effort } : { thinkingBudget: effort } }
+  }
   if (useTools) body.tools = geminiTools(tools)
 
   let fullText = ''
@@ -1087,6 +1115,7 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
     }
 
     const pendingFunctionCalls: { name: string; args: Record<string, unknown> }[] = []
+    const modelParts: Record<string, unknown>[] = []
 
     await readLineStream(res.body!, (line) => {
       const raw = ssePayload(line)
@@ -1094,7 +1123,7 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
       let chunk: {
         candidates?: {
           content?: {
-            parts?: { text?: string; functionCall?: { name: string; args: Record<string, unknown> } }[]
+            parts?: { text?: string; thought?: boolean; thoughtSignature?: string; functionCall?: { name: string; args: Record<string, unknown> } }[]
           }
         }[]
         usageMetadata?: Record<string, unknown> & { totalTokenCount: number }
@@ -1106,7 +1135,8 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
         reportInvocationUsage(opts, chunk.usageMetadata, 'google')
       }
       for (const part of chunk.candidates?.[0]?.content?.parts ?? []) {
-        if (part.text) {
+        modelParts.push(part)
+        if (part.text && !part.thought) {
           fullText += part.text
           onChunk(part.text)
         }
@@ -1115,7 +1145,7 @@ async function sendGoogle(opts: SendOptions): Promise<string> {
     })
 
     if (pendingFunctionCalls.length > 0 && onToolCall) {
-      contents.push({ role: 'model', parts: pendingFunctionCalls.map((fc) => ({ functionCall: fc })) })
+      contents.push({ role: 'model', parts: modelParts })
       const functionResponses = []
       for (const fc of pendingFunctionCalls) {
         const result = await onToolCall({ id: fc.name, name: fc.name, input: fc.args ?? {} })
@@ -1151,6 +1181,8 @@ async function sendOllama(opts: SendOptions): Promise<string> {
     ...(opts.testConnection ? { think: false, options: { num_ctx: 4096, num_predict: opts.maxOutputTokens ?? 512 } }
       : { options: { num_predict: opts.maxOutputTokens ?? 4000, ...(opts.ollamaContextSize ? { num_ctx: opts.ollamaContextSize } : {}) } }),
   }
+  const effort = thinkingWire(opts.thinking)
+  if (!opts.testConnection && opts.thinking?.capability.protocol === 'ollama' && effort !== undefined) body.think = effort
   if (hasTools) body.tools = openAiTools(tools)
 
   let fullText = ''
@@ -1351,6 +1383,7 @@ async function runClaudeCli(opts: SendOptions, resume: boolean): Promise<string>
         prompt,
         systemPrompt,
         model: model || 'sonnet',
+        effort: opts.thinking?.capability.protocol === 'claude-cli' ? String(thinkingWire(opts.thinking) ?? '') || undefined : undefined,
         sessionId: opts.claudeSessionId ?? crypto.randomUUID(),
         resume,
         tools,

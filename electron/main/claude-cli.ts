@@ -139,6 +139,7 @@ interface StartRequest {
   prompt: string
   systemPrompt: string
   model: string
+  effort?: string
   sessionId: string
   resume: boolean
   tools: McpToolDef[]
@@ -241,6 +242,7 @@ export function registerClaudeCliHandlers(ipcMain: IpcMain): void {
         binary: install.path,
         systemPromptFile: promptFile,
         model: req.model,
+        effort: req.effort,
         sessionId: req.sessionId,
         resume: req.resume,
         mcpConfigFile,

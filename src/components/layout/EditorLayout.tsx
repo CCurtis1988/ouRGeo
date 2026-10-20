@@ -1,7 +1,10 @@
+import { AppUpdateDialog } from '@/components/settings/AppUpdateDialog'
+import { PaneDropDialog } from './PaneDropDialog'
 import React, { useCallback, useEffect, useRef } from 'react'
 import { Settings } from 'lucide-react'
 import { SettingsDialog } from '../settings/SettingsDialog'
 import { ThemeStudioDialog } from '../settings/ThemeStudioDialog'
+import { ThemeBackgroundDialog } from '../settings/ThemeBackgroundSettings'
 import { PluginManagerDialog } from '../settings/PluginManagerDialog'
 import { PluginStoreDialog } from '../plugins/PluginStoreDialog'
 import { PluginSubmitDialog } from '../plugins/PluginSubmitDialog'
@@ -337,6 +340,10 @@ export function EditorLayout(): React.ReactElement {
         open={openDialog === 'theme-studio'}
         onOpenChange={dialogToggle('theme-studio')}
       />
+      <ThemeBackgroundDialog
+        open={openDialog === 'theme-backgrounds'}
+        onOpenChange={dialogToggle('theme-backgrounds')}
+      />
       {/* Reads its own visibility from the ui store: it is opened both from
           Settings and from the microphone in the AI panel, and a prop chain
           from either would leave the other unable to show it. */}
@@ -371,6 +378,8 @@ export function EditorLayout(): React.ReactElement {
       {/* Above every panel, so a tab dragged between two editors is not clipped
           by the one it is leaving. */}
       <ContentDragLabel />
+      <PaneDropDialog />
+      <AppUpdateDialog />
     </div>
   )
 }

@@ -32,7 +32,7 @@ export async function loadLayout(): Promise<LayoutState | null> {
   const data = await store.read<PersistShape>()
   const raw = data.layout as LayoutState | undefined
   if (!raw || typeof raw !== 'object') return null
-  if (raw.version !== LAYOUT_VERSION) return null
+  if (raw.version !== 1 && raw.version !== LAYOUT_VERSION) return null
   if (!raw.zones || !raw.open) return null
   return raw
 }

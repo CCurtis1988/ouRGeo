@@ -1,3 +1,4 @@
+import { zoneDockTree, normaliseDockTree, dockShare, setDockShare, describeDockTree, dockPanels, removeDockPanel, dockBeside, activeDockPanel, evenDockTree, type DockNode, type DockPlacement } from './dock-tree'
 // The workspace layout, as data.
 //
 // Panel sizes used to be five `useState`s inside EditorLayout and panel
@@ -13,17 +14,11 @@
 //
 // ── The shape, and what it gives up ────────────────────────────────────────
 //
-// Four zones, each an ordered list of panels sharing one axis. NOT a nested
-// split tree: a tree is the fully general model, but every operation on it
-// becomes recursive, `normalize` becomes hard to reason about, and — the
-// deciding argument — an assistant driving it has to describe a path through
-// the tree rather than name a zone. "Put the map on the left" has to keep
-// working when a local model says it.
-//
-// The cost is one arrangement the old hand-written layout had: Help sitting
-// *above* the plot/map/chat row inside the right column. That was a special
-// case written out three times; here Help is simply another panel in the right
-// zone. Set the zone to `tabs` and it gets the full height back.
+// Four named zones keep coarse placement easy for the assistant. Optional pane
+// trees inside them allow local mixed-axis splits and tab groups. Flat order is
+// still authoritative membership; trees are normalised against it, and the AI
+// names the target pane rather than describing a recursive path. Version-one
+// layouts need no invented grouping: they retain their original axis and mode.
 //
 // ── Inside a zone: shares, not pixels ──────────────────────────────────────
 //
@@ -75,6 +70,8 @@ export type ZoneAxis = 'row' | 'col'
 export type ZoneMode = 'split' | 'tabs'
 
 export interface ZoneState {
+  /** Optional pane-local splits/tab groups; flat order remains zone membership. */
+  tree?: DockNode
   /** Px along the zone's OUTER axis — width for left/right, height for bottom.
    *  Ignored for `center`, which is always flex-1. */
   size: number
@@ -159,7 +156,7 @@ export interface PanelMeta {
 /** Bumped when a stored layout can no longer be read. `loadLayout` starts
  *  fresh rather than guessing, because a half-understood layout is worse than
  *  the default one. */
-export const LAYOUT_VERSION = 1
+export const LAYOUT_VERSION = 2
 
 const MIN_ZONE_SIZE = 120
 const MAX_ZONE_SIZE = 2000
@@ -257,6 +254,7 @@ function cloneZone(z: ZoneState): ZoneState {
     order: [...z.order],
     weights: { ...z.weights },
     active: z.active,
+    ...(z.tree ? { tree: z.tree } : {}),
   }
 }
 
@@ -288,7 +286,9 @@ export function movePanel(
   const next = clone(layout)
   for (const z of ZONE_IDS) {
     next.zones[z].order = next.zones[z].order.filter((p) => p !== panel)
+    if (next.zones[z].tree) next.zones[z].tree = removeDockPanel(next.zones[z].tree!, panel) ?? undefined
   }
+  delete next.zones[zone].tree
   const order = next.zones[zone].order
   const at = index === undefined ? order.length : Math.max(0, Math.min(index, order.length))
   order.splice(at, 0, panel)
@@ -326,6 +326,7 @@ export function setZoneSize(layout: LayoutState, zone: ZoneId, size: number): La
 export function shareOf(layout: LayoutState, panel: PanelId): number {
   const zone = zoneOf(layout, panel)
   if (!zone || !isOpen(layout, panel)) return 0
+  if (layout.zones[zone].tree) return dockShare(layout.zones[zone].tree!, panel, layout.open)
   const open = openPanels(layout, zone)
   const total = open.reduce((n, p) => n + weightOf(layout, zone, p), 0)
   return total > 0 ? weightOf(layout, zone, panel) / total : 0
@@ -345,6 +346,11 @@ function weightOf(layout: LayoutState, zone: ZoneId, panel: PanelId): number {
 export function setPanelShare(layout: LayoutState, panel: PanelId, share: number): LayoutState {
   const zone = zoneOf(layout, panel)
   if (!zone) return layout
+  if (layout.zones[zone].tree) {
+    const next = clone(layout)
+    next.zones[zone].tree = setDockShare(next.zones[zone].tree!, panel, share, next.open)
+    return next
+  }
   const others = openPanels(layout, zone).filter((p) => p !== panel)
   // Alone in its zone it already fills it, and the arithmetic below would
   // divide by zero to say so.
@@ -380,6 +386,7 @@ export function splitPanels(
 export function evenPanels(layout: LayoutState, zone: ZoneId): LayoutState {
   const next = clone(layout)
   for (const p of next.zones[zone].order) next.zones[zone].weights[p] = DEFAULT_WEIGHT
+  if (next.zones[zone].tree) next.zones[zone].tree = evenDockTree(next.zones[zone].tree!)
   return next
 }
 
@@ -393,18 +400,23 @@ export function evenPanels(layout: LayoutState, zone: ZoneId): LayoutState {
  */
 export function forgetWeights(layout: LayoutState): LayoutState {
   const next = clone(layout)
-  for (const z of ZONE_IDS) next.zones[z].weights = {}
+  for (const z of ZONE_IDS) {
+    next.zones[z].weights = {}
+    if (next.zones[z].tree) next.zones[z].tree = evenDockTree(next.zones[z].tree!)
+  }
   return next
 }
 
 export function setZoneMode(layout: LayoutState, zone: ZoneId, mode: ZoneMode): LayoutState {
   const next = clone(layout)
+  delete next.zones[zone].tree
   next.zones[zone].mode = mode
   return next
 }
 
 export function setZoneAxis(layout: LayoutState, zone: ZoneId, axis: ZoneAxis): LayoutState {
   const next = clone(layout)
+  delete next.zones[zone].tree
   next.zones[zone].axis = axis
   return next
 }
@@ -432,6 +444,7 @@ export function setActivePanel(layout: LayoutState, panel: PanelId): LayoutState
   if (!zone) return layout
   const next = clone(layout)
   next.zones[zone].active = panel
+  if (next.zones[zone].tree) next.zones[zone].tree = activeDockPanel(next.zones[zone].tree!, panel)
   next.open[panel] = true
   return next
 }
@@ -552,6 +565,14 @@ export function normalize(layout: LayoutState, panels: PanelMeta[]): LayoutState
     }
   }
 
+  for (const z of ZONE_IDS) {
+    const zone = next.zones[z]
+    if (zone.tree) {
+      zone.tree = normaliseDockTree(zone.tree, zone.order, next.open, zone.axis)
+      if (zone.tree) zone.order = dockPanels(zone.tree)
+    }
+  }
+
   // 7. The toolbar lists are just ids; de-duplicate them so a repeated entry
   //    cannot render the same button twice. Ids that name nothing are left
   //    alone deliberately — `resolveToolbar` ignores them, and dropping them
@@ -576,6 +597,7 @@ export function dropPanel(layout: LayoutState, panel: PanelId): LayoutState {
   const next = clone(layout)
   for (const z of ZONE_IDS) {
     next.zones[z].order = next.zones[z].order.filter((p) => p !== panel)
+    if (next.zones[z].tree) next.zones[z].tree = removeDockPanel(next.zones[z].tree!, panel) ?? undefined
     delete next.zones[z].weights[panel]
     if (next.zones[z].active === panel) next.zones[z].active = null
   }
@@ -626,6 +648,10 @@ export function describeLayout(
         : label(p)
     })
     const size = z === 'center' ? 'fills the rest' : `${Math.round(zone.size)}px`
+    if (zone.tree) {
+      lines.push(`${ZONE_LABELS[z]} — ${size}, pane groups: ${describeDockTree(zone.tree, label, layout.open)}`)
+      continue
+    }
     const how = zone.mode === 'tabs'
       ? `tabbed, showing ${zone.active ? label(zone.active) : 'nothing'}`
       : zone.axis === 'row' ? 'side by side' : 'stacked'
@@ -634,4 +660,25 @@ export function describeLayout(
   const missing = panels.filter((p) => !layout.open[p.id]).map((p) => label(p.id))
   if (missing.length > 0) lines.push(`Closed: ${missing.join(', ')}.`)
   return lines.join('\n')
+}
+
+/** Dock only the requested panes. Opposite-axis splits nest locally so existing
+ * neighbours keep their arrangement; an existing target tab group stays intact. */
+export function dockPanel(layout: LayoutState, panel: PanelId, target: PanelId, placement: DockPlacement): LayoutState {
+  const zone = zoneOf(layout, target)
+  if (!zone || !zoneOf(layout, panel) || panel === target || !layout.open[panel] || !layout.open[target]) return layout
+  const next = clone(layout)
+  for (const z of ZONE_IDS) {
+    const original = next.zones[z]
+    if (z !== zone && !original.order.includes(panel)) continue
+    const tree = removeDockPanel(zoneDockTree(original), panel)
+    original.order = original.order.filter(id => id !== panel)
+    original.tree = tree ?? undefined
+  }
+  const destination = next.zones[zone]
+  destination.tree = dockBeside(destination.tree!, target, panel, placement)
+  destination.order = dockPanels(destination.tree)
+  destination.active = panel
+  next.open[panel] = true
+  return next
 }

@@ -11,6 +11,14 @@ describe('portable project catalogue validation', () => {
     expect(catalogue.files[0]).not.toHaveProperty('localPath')
     expect(catalogue.files[0]).not.toHaveProperty('extraAuthority')
   })
+  it('roundtrips optional AI provenance while stripping injected authority fields', () => {
+    const entry = fixtureEntry({ aiDescription: { text: 'Derived summary', revision: fixtureEntry().revision, provider: 'ollama', model: 'document-model', createdAt: '2026-10-17T00:00:00.000Z', coverage: 'First paragraph only.' } })
+    const input = { ...entry, aiDescription: { ...entry.aiDescription!, path: '/private/authority', allowRead: true } }
+    const catalogue = validateLibrary({ version: 1, revision: 2, files: [input] })
+    expect(catalogue.files[0].aiDescription).toEqual(entry.aiDescription)
+    expect(catalogue.files[0].aiDescription).not.toHaveProperty('path')
+    expect(() => validateLibrary({ version: 1, revision: 2, files: [{ ...entry, aiDescription: { ...entry.aiDescription, text: 'x'.repeat(2001) } }] })).toThrow('AI file-description metadata')
+  })
   it.each([
     { version: 3, revision: 0, files: [] },
     { version: 1, revision: -1, files: [] },

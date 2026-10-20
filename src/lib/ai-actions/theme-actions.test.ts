@@ -45,7 +45,7 @@ beforeEach(() => {
   useThemeStore.setState({
     current: 'dark', codeTheme: 'dark', markdownTheme: 'dark', revision: 0,
   })
-  vi.stubGlobal('document', { documentElement: { style: { setProperty: vi.fn(), removeProperty: vi.fn() }, classList: { toggle: vi.fn() } } })
+  vi.stubGlobal('document', { documentElement: { dataset: {}, style: { setProperty: vi.fn(), removeProperty: vi.fn() }, classList: { toggle: vi.fn() } } })
   vi.stubGlobal('window', {
     electronAPI: {
       app: { getDataPath: vi.fn(async () => '/data') },

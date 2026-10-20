@@ -1,3 +1,4 @@
+import { thinkingWire } from '@/lib/ai-thinking'
 import type { OpenAiAssistantMessage } from '@/store/ai'
 import { requestInvocation, reportInvocationUsage, type SendOptions } from '@/lib/ai-client'
 import { proxyFetch } from '@/lib/ai-proxy-fetch'
@@ -38,6 +39,7 @@ export async function sendChatGptSubscription(opts: SendOptions): Promise<string
         model: opts.model, instructions: opts.systemPrompt, input, store: false, stream: true,
         ...(opts.maxOutputTokens ? { max_output_tokens: opts.maxOutputTokens } : {}),
         include: ['reasoning.encrypted_content'],
+        ...(opts.thinking?.capability.protocol === 'openai' && thinkingWire(opts.thinking) !== undefined ? { reasoning: { effort: thinkingWire(opts.thinking) } } : {}),
         ...(tools.length ? { tools: [{ type: 'namespace', name: 'ourgeo', description: 'Tools for the live ouRGeo session.',
           tools: tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.inputSchema, strict: false })),
         }] } : {}),

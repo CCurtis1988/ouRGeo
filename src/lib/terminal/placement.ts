@@ -1,3 +1,4 @@
+import { panelTabGroup } from '../layout/dock-tree'
 // Where the Terminal panel goes, and what the setting actually does.
 //
 // The default is "a tab in the R console's pane", and the setting swaps it for
@@ -22,7 +23,7 @@
 // render, and not from `normalize`.
 
 import {
-  movePanel, setZoneMode, setActivePanel, zoneOf,
+  movePanel, dockPanel, setZoneMode, setActivePanel, zoneOf,
   type LayoutState, type PanelId, type ZoneId,
 } from '../layout/model'
 import type { TerminalPlacement } from '../terminal-preferences-persistence'
@@ -49,6 +50,7 @@ const modeFor = (placement: TerminalPlacement): 'tabs' | 'split' =>
  */
 export function placeTerminal(layout: LayoutState, placement: TerminalPlacement): LayoutState {
   const zone = terminalHomeZone(layout)
+  if (layout.zones[zone].tree && layout.open[CONSOLE_PANEL] && layout.open[TERMINAL_PANEL]) return dockPanel(layout, TERMINAL_PANEL, CONSOLE_PANEL, placement === 'tab' ? 'tab' : 'right')
   const order = layout.zones[zone].order
   const after = order.indexOf(CONSOLE_PANEL)
   // Directly after the console, so the tab strip reads "R console | Terminal"
@@ -91,7 +93,7 @@ export function alignTerminalMode(
   const want = modeFor(placement)
   const show = (l: LayoutState): LayoutState =>
     (front && placement === 'tab' ? setActivePanel(l, TERMINAL_PANEL) : l)
-  if (layout.zones[zone].mode === want) return show(layout)
+  if (layout.zones[zone].tree || layout.zones[zone].mode === want) return show(layout)
   return show(setZoneMode(layout, zone, want))
 }
 
@@ -101,5 +103,10 @@ export function alignTerminalMode(
 export function terminalIsPlaced(layout: LayoutState, placement: TerminalPlacement): boolean {
   const zone = zoneOf(layout, TERMINAL_PANEL)
   if (!zone || zone !== zoneOf(layout, CONSOLE_PANEL)) return false
+  const tree = layout.zones[zone].tree
+  if (tree) {
+    const grouped = !!panelTabGroup(tree, TERMINAL_PANEL)?.panels.includes(CONSOLE_PANEL)
+    return placement === 'tab' ? grouped : !grouped
+  }
   return layout.zones[zone].mode === (placement === 'tab' ? 'tabs' : 'split')
 }

@@ -58,6 +58,22 @@ rather than shipped.
 
 ### Three-process model
 
+Desktop artwork comes from the official website logo, preserved in
+`build/logo-source.png`. `scripts/build-app-icons.mjs` produces PNG/ICO/ICNS
+and Linux launcher sizes, rendering the original RGB through `logo-mask.png`
+to make the exterior transparent without erasing white snow or text. Only the
+cutout's alpha is used; its edited RGB is discarded to preserve the artwork.
+Committed outputs avoid a build-time image-tool or
+network dependency. Explicit Builder platform paths cover executable/installer,
+Finder/Dock and desktop launcher icons. Vite emits `icon.png` beside the main
+bundle because build resources are not automatically runtime files.
+`electron/main/app-icon.ts` supplies this path to all three BrowserWindow
+constructors; macOS also sets the Dock icon for development. Linux's default
+`--class=ourgeo`, `desktopName` and desktop `StartupWMClass` agree with the
+installed launcher. This does not rename the app or move its existing user-data
+directory. There is no separate Tray feature. See `build/README.md` for artwork
+provenance and regeneration.
+
 ```
 Electron Main Process  (electron/main/)
   ├── r-bridge.ts     — Spawns Rscript, captures port from stdout, auto-restarts on crash
@@ -520,6 +536,52 @@ The legacy settings folder sources remain temporary, workspace-scoped text acces
 
 See `docs/linked-project-folders-spec.md` and the Project Files guide for the
 workflow. Native Windows/macOS checks remain deferred.
+
+### File-analysis task models (1.16.25)
+
+`ai-task-models.json` stores device-local document/image selections and the
+optional import/rescan AI-description preference, off by default. Null follows
+the assistant. Explicit selections never mutate the active chat or its provider
+connection. Invalid destinations and persistence failures remain actionable;
+there is no silent fallback to another provider. Strict read-back verification
+surfaces failures hidden by the ordinary JSON helper's best-effort writes.
+
+On-demand project-file reads pass only their bounded authorised excerpt to the
+document specialist, retaining original text and exact citations alongside its
+labelled interpretation. An image specialist receives transient typed pixels and
+returns labelled text to the main assistant; a text-only chat can use this route.
+Native Ollama image serialisation is qualified at the transport level and gated
+by each selected model's reported vision capability, rather than a single model
+name. Other image transports remain unsupported/unknown. Interpretation accuracy
+is model-dependent; transport capability is not proof of correctness.
+
+`runFileAnalysis` offers no tools, history or resumed sessions. It resolves the
+target's own context, validates scope/source policy before and after preparation,
+dispatch and response, and accounts with a separate main-owned inference
+authority bound to the actual provider/model. It never overwrites the assistant's
+trace or context occupancy. Stop, project switches, source revocation and task
+configuration changes invalidate in-flight work.
+
+Optional background descriptions originate from explicit renderer import/rescan/
+reindex events. Hydration, reopening and enabling the preference do not enqueue a
+library. The serial, cancellable queue waits for local extraction, honours source
+exclusions, reuses unchanged revision/model descriptions and persists separate
+AI provenance through `setAnalysis`. Descriptions cover the first bounded text
+excerpt or selected image only. User descriptions and local extraction metadata
+remain authoritative separate fields; stale AI descriptions are not used for
+discovery. Originals and schema versions are unchanged.
+
+In 1.16.26, `useAiModelCatalogue` shares one live catalogue between chat, provider
+settings and file-task settings. It merges saved per-provider choices, chat/task
+custom IDs, built-in aliases and discovered models without another registration
+store. Model IDs deduplicate within a provider, preserving distinct API and
+subscription destinations. Local discovery coalesces requests per connection and
+refuses late results from replaced URLs/keys; credentials remain private volatile
+request identity, never catalogue state. ChatGPT refresh coalesces simultaneous
+status/model reads through the existing account store. Explicit account actions
+invalidate that in-flight generation; an old account response cannot replace the
+new account's catalogue. Task selection never calls sign-in, adds an account,
+changes a CLI path or mutates the active chat.
 
 ## Moving an object between panels (`src/lib/spatial-link.ts`)
 
@@ -1396,6 +1458,41 @@ These announced patches have explicit entries in `versionHistory.ts`;
 The website generates its notes from this array and stamps its docs with the
 package version. Published installer versions are tracked separately until
 new binaries are uploaded.
+
+### Application updates (`app-updates.ts`)
+
+The main process owns update checking, preferences and browser destinations.
+The official download page publishes active installer cards independently of
+source-release notes; comparing the source version would offer releases that
+have no binary. `src/lib/app-updates.ts` parses only official `download.php`
+installer cards, selects the installation's format and architecture, and compares
+numeric stable versions. Existing unsuffixed assets are x64. ARM and unavailable
+platforms receive no incompatible installer. Debian installations keep `.deb`;
+other Linux builds use AppImage. Ahead-of-release builds are never downgraded.
+
+`electron/main/app-updates.ts` fetches the catalogue with a 12-second timeout and
+1 MiB body limit, then verifies newer installers with HEAD. No binary is fetched
+until the user opens its browser download. Renderer IPC accepts an offered
+format or a fixed official page destination, never an arbitrary URL. This is a
+guided installer hand-off: the distribution has no signed auto-update feed,
+and the app never runs installers or replaces itself. Keep publishing enabled
+download cards only when the corresponding installer is available.
+
+`AppUpdateController` checks once, three seconds after startup; development
+builds and opted-out installations make no startup request. Current, offline
+and unavailable checks remain quiet. An available update waits for other
+dialogs, project restoration and drag gestures. The sibling `AppUpdateDialog`
+offers download guidance, save, normal window close, later and per-version skip.
+Closing uses `BrowserWindow.close()`, preserving the existing unsaved-project
+prompt and flush; it must never call `confirmQuit` or destroy the window.
+Settings → Updates offers manual checking even when automatic checking is off
+or a version was skipped. Source checkouts get development-workflow guidance.
+
+`app-updates.json` is a device preference, kept across sessions and outside
+projects. Its main-process writes are serialised and atomically renamed, with
+failures surfaced to the renderer. The renderer's `createJsonFileStore` cannot
+own this file because the network authority must honour the setting before
+checking. See `docs/app-updates.md` and its validation report.
 
 ### Installation health check (`health-check.ts`, `r/health-check.R`)
 
@@ -2371,10 +2468,10 @@ Legacy variants carry their original `basedOn` scene/basemap identity. Heaven's
 painted backdrop uses 30% opacity with slightly softened contrast/saturation so
 clouds and architecture remain visible against its light editor surface.
 
-- **App theme** (`src/lib/themes.ts`, ten painted themes and ten legacy variants) owns the interface:
+- **App theme** (`src/lib/themes.ts`, ten painted themes, thirteen Field themes and ten legacy variants) owns the interface:
   the `--geo-*` custom properties, the basemap, the scene art, and — crucially —
   the editor's `colors` block.
-- **Code theme** and **markdown theme** (`src/lib/editor-themes.ts`, 26 and 16)
+- **Code theme** and **markdown theme** (`src/lib/editor-themes.ts`, 39 and 29)
   own token colours and nothing else. **Switching either can never move the
   editor background or the artwork behind it** — the palettes carry no
   background at all, `buildMonacoTheme` reads its `colors` block only from the
@@ -2425,6 +2522,99 @@ theme instead of being GitHub-dark under every app theme — and the
 `.ourgeo-visual .ProseMirror` heading/link/quote/inline-code colours. Chunk
 chrome (`.ourgeo-chunk-*`, `.ourgeo-vchunk-{head,run,out}`) deliberately stays on
 `--geo-*`: it is chrome, not syntax.
+
+### Background galleries and linked image folders
+
+**Field collection** adds all thirteen `ourgeo-website` palettes under stable
+`field-<slug>` IDs. Names and website hues stay recognisable; the prefix keeps
+the existing Forest and its saved backgrounds intact. `field-themes.ts` holds
+the palette and syntax adaptations: website colours are raised/darkened only
+where contrast needs it, including the worst white/black pixel under the
+editor's 18%/35% dark/light Field photo layer. Primary filled controls need the website's dark
+ink on dark-theme accents; Field-derived `--geo-on-accent`, hover and error
+ink rules adapt older `text-white` controls without recolouring existing themes.
+`applyTheme` derives contrast from the current fills, follows `basedOn` for
+Studio copies, and clears that treatment when leaving the family. Membership
+and inherited ink are separate: copies remain in the custom collection.
+Colour maths lives in the dependency-free `theme-colors.ts`, re-exported by
+`custom-themes.ts`, so applying colours cannot import the Studio/registry cycle.
+Eight dark themes and five light
+themes each have their own matching code/Markdown defaults and basemap.
+
+Field artwork is six distinct photographic nature scenes per theme, with
+1600 × 900 WebP originals and 320 × 180 thumbnails. Full prompts/provenance
+live in `gallery/field-prompts.json`; `field-theme-scenes.ts` supplies their
+titles. These galleries have no bundled animation: the user will render those
+later. Gallery base resolution includes every shipped non-legacy theme, so a
+Field theme or its custom derivative cannot silently inherit Dark's paintings
+and GIF. The picker uses bundled thumbnails and four keyboard-accessible
+collection tabs: Illustrated, Legacy, Field collection and Custom. It follows
+theme switches from the assistant; Studio uses matching collapsible groups. Code/Markdown labels append
+“· Field” to distinguish palettes with names such as Forest.
+
+**Settings → Appearance → Background images…** opens a sibling dialog through
+`ui.ts`, like Theme Studio: nesting it inside Settings would put a second Radix
+focus trap under Settings' own. Selections apply immediately and belong to the
+current app theme. At least one image remains selected; two or more start a
+slideshow in selection order, with a per-theme 5–3,600 second interval.
+
+- `theme-backgrounds.ts` enumerates the authored original, five additional
+  paintings and the original's ambient GIF. URL-only Vite imports keep the
+  gallery available offline without decoding it all. Smaller bundled
+  thumbnails and a shared IntersectionObserver defer offscreen image work.
+  Legacy/custom themes retain their own original and offer their base theme's
+  gallery as extras; parent cycles fall back to Dark. User selection never
+  mutates shipped theme definitions, Theme Studio artwork or picker icons.
+- `store/theme-backgrounds.ts` owns selections/timing in the separate,
+  device-local `theme-backgrounds.json`. Strict parsing and read-back after
+  the shared serialised writer distinguish a failed save from a remembered
+  choice. A damaged file has an explicit reset path instead of silently
+  pretending the defaults were the user's choices.
+- `theme-background-playback.ts` owns one workspace clock. Editor mounts
+  subscribe to the same current/previous frames, so changing tabs or splitting
+  panes cannot restart or desynchronise the slideshow. Only current/next
+  selected images preload; a 650 ms crossfade holds at most two displayed
+  layers. Visibility pauses automatic changes; reduced motion also replaces
+  GIFs with first-frame posters. Async bitmap decoding supplies posters for
+  linked/custom animations without mounting an animating thumbnail. All linked
+  photos also get 480-pixel thumbnails through the same two-job decode queue;
+  CSS sizing alone still decoded every 24 MP original at full size. JPEGs use
+  their decoder's EXIF orientation before canvas sizing. Other validated raster
+  dimensions can be resized at decode time. Thumbnail/poster caches stay
+  separate, and revoked sources cannot recreate URLs after cancellation.
+- `electron/main/theme-backgrounds/` holds image-folder capabilities, separate
+  from project/context grants. Main owns native pickers, canonical roots and
+  atomic rollback-capable persistence in `theme-background-folders.json`.
+  Dedicated `ourgeo-theme-image:` URLs contain opaque IDs, never paths.
+  Requests recheck root/file identity, containment, single-link regular files,
+  byte limits and raster headers. No SVG/HTML, symlink or hard-link imports.
+  Header checks cap images at 8 MiB/24 MP; scans are bounded to 200 images,
+  2,000 entries, 100 subdirectories, six levels and 15 seconds. Warnings name
+  omissions and the recovery move. Folder links never grant AI file access.
+- Link/rescan refreshes metadata. Relative-path IDs preserve selections across
+  replacement and relinking; revision URLs invalidate stale pixels. Missing
+  images retain their choices but are skipped, with the original as fallback.
+  Explicit forget revokes URLs and removes its selections without touching
+  originals. Folder links and slideshow preferences stay on this device;
+  exporting a custom theme still embeds only its authored artwork.
+
+The art and prompt set live in `src/assets/themes/gallery/`; original paintings
+remain unchanged. `scripts/build-theme-loops.mjs` records reproducible loop
+encoding. See `docs/theme-backgrounds.md` for the user workflow and
+`docs/theme-backgrounds-validation.md` for test evidence.
+
+**GIF frame counts are not a visibility check.** The initial 1.6-pixel ripples
+had different decoded frames, but scaled to less than half a pixel in the
+208-pixel preview and became barely visible at editor opacity. Some moving
+regions were completely outside a narrow editor's centred cover crop. The
+encoder now uses broader central water/cloud motion and restrained lighting,
+checks preview/editor/portrait/grayscale pixel differences, and stages complete
+files before atomic replacement. Glow arithmetic is explicitly clipped: FFmpeg
+`geq` wraps values outside 0–255, producing dark flashes in bright highlights.
+`scripts/check-theme-gif-motion.mjs` compares actual compositor captures with
+unchanging poster controls; canvas extraction and URL assertions cannot prove
+an image visibly animates. Single-animation summaries say "looping animation",
+while reduced motion explicitly identifies a still frame.
 
 ### The Theme Studio (v1.10)
 
@@ -2547,14 +2737,12 @@ request.
   `setZoneSize`, `setZoneMode`, `normalize` — every operation returns a new
   layout, so a caller can *preview* a move (which is what the drag indicator
   does) without committing. Tested with no DOM, like `computeMdEdit`.
-- **NOT a nested split tree.** A tree is the general model, but every operation
-  becomes recursive, `normalize` becomes hard to reason about, and — deciding
-  argument — an assistant driving it would have to describe a path through the
-  tree rather than name a zone. "Put the map on the left" has to keep working
-  when a local model says it. The cost is one arrangement the old layout had:
-  Help sitting *above* the plot/map/chat row. That was a special case written
-  out three times; Help is now a panel in the right zone like any other, and
-  `tabs` mode gives it the full height back.
+- **Four named zones with optional pane-local trees.** Coarse placement stays
+  simple for the assistant; `layout:dockPanel` names a source, target and side
+  instead of a recursive path. `dock-tree.ts` handles local mixed-axis splits
+  and tabs. Flat `order` remains canonical membership, and bounded normalisation
+  prunes missing/duplicate leaves, repairs active tabs and restores missing
+  members. Layout version 2 accepts version-one flat layouts unchanged on load.
 - **`normalize` carries the invariants**, and they are the safety story: the
   editor is never homeless (a layout that lost it puts it back in `center`) and
   never closed; a panel is never in two zones (two placements means two MapLibre
@@ -2598,20 +2786,27 @@ request.
   arrangement, and those persist as before. A *preset* keeps its shares —
   applying one is a deliberate in-session act, and "restore that arrangement"
   means all of it.
-- **The panel grip drags on mouse events, not HTML5 drag-and-drop**
-  (`Zone.tsx`). It was dnd, and pressing the grip did nothing at all — the
-  worst way for a control to fail, since the tooltip and the cursor both say it
-  should work. Two things were wrong and only one was the dnd: **the drop was
-  committed by the zone that was dropped on**, and every zone's overlay heard
-  the mouseup. React flushes a state update from a discrete native event
-  SYNCHRONOUSLY, so the first zone to hear it — the left one, always, because
-  effects register in tree order — cleared the drag mid-dispatch, unmounted
-  every overlay and took the remaining listeners with it. The zone under the
-  cursor never ran. It worked perfectly from a script, because a synthesized
-  event's update is merely batched: only a real hand could fail it. The drop
-  now happens in `startPanelDrag`, once, hit-testing `data-drop-zone`
-  attributes; the overlays only light up. Same pattern as the Contents list's
-  layer reorder, which has always worked.
+- **Pane docking uses one mouse gesture owner** (`panel-drag.ts`). Four pixels
+  distinguish a drag from a click. A target pane's border highlights; mouseup
+  records a proposal rather than moving anything. `PaneDropDialog` offers icon
+  choices for Vertical, Horizontal or Tab group; split choices cover the target
+  with two clickable sections. Radix traps focus and supports outside/Escape
+  cancellation. No mutation occurs before the final choice. Pending proposals
+  are invalidated by any layout change or disabling dragging. Empty-zone drops
+  commit directly. Mouseup lives in one owner so another overlay cannot clear
+  the drag before the actual destination hears it. Escape/window blur clean up
+  in-flight listeners, cursor and selection state. Document tab dragging remains
+  separate in `content-drag.ts`.
+- **Groups are local.** A split wraps the target pane/tab group; joining tabs
+  retains existing tabs and activates the moved pane. Splits of either axis can
+  nest, their dividers resize locally, and closing/removing a pane collapses empty
+  branches. `ZoneTabs` resolves the panel's group; Console/Terminal host the strip
+  only when every member opts in, avoiding duplicate headers. `describeLayout`
+  reports the tree, and panel sizing uses the nearest split. Explicit zone-level
+  mode/axis/placement operations flatten their destination zone deliberately.
+  Session weights still reset on reopen; topology and tab membership persist in
+  `layout.json`, presets and project layouts. Existing layouts need no migration
+  of their original placement, dimensions or mode.
 - **An empty zone is a drop target only while dragging** (`EmptyZoneTarget`).
   A zone with no panels renders as nothing, which is right until you drag the
   last panel out of one — the column then has no pixels, and a panel could be
@@ -4047,3 +4242,40 @@ Schema revisions bind scope/runtime/execution, shape and column disclosure.
 Learning cached column names or receiving a late inventory replacement is not an
 R mutation; including those cache fields in the revision caused a false stale
 failure during the new transport's actual historical-join acceptance scenario.
+
+### Theme collection navigation and image visibility (1.16.30)
+
+`theme-collections.ts` classifies app themes into Illustrated, Legacy, Field
+collection and Custom; custom origin wins over inherited collection flags.
+Appearance uses keyboard-navigable tabs and Theme Studio uses collapsible groups
+with the selected collection open. Syntax palettes retain their own organisation.
+`ThemeBackgroundVisibility` shares the per-theme optional `imageStrength` in
+`theme-backgrounds.json`. Slider changes use a transient Zustand preview across
+all panes and commit on release/blur/unmount; serialised writes preserve other
+preferences and a slow save must not clear a newer preview. Explicit overrides
+map 0–100 directly to opacity with no image filter; absence restores authored
+presentation. Visibility is excluded from the slideshow clock signature. Light
+Field defaults are 35%, with syntax ink contrast checked at that blend bound.
+
+### Requested thinking effort (1.16.31)
+
+`ai-thinking.ts` keeps a conservative provider/model capability allowlist; an
+OpenAI-compatible endpoint does not qualify a model’s reasoning parameters.
+Native Ollama discovers exact values/default from `/api/show`, falling back to
+older advertised thinking capability. Discovery is scoped to the connection and
+ignores stale replies. Unknown models have no control. `ThinkingEffortControl`
+shows only qualified choices, disables while streaming, and remembers each
+provider/model pair through the serialised `ai-thinking.json` preference store.
+These device preferences do not enter project archives or register new accounts.
+
+`runTurn` freezes the selected setting after initialisation. Context retrieval’s
+existing effort setting stays independent. Before compiling evidence it reserves
+output room for requested hosted reasoning (up to 32,768 tokens and a quarter of
+the context window); a manual Gemini thinking budget also reserves reply space.
+Provider default changes neither the payload nor the existing output allowance.
+Each transport encodes its own control: Chat Completions `reasoning_effort`,
+Responses `reasoning.effort`, Claude `output_config.effort` and adaptive thinking
+where supported, Claude Code `--effort`, Gemini `thinkingConfig`, Ollama `think`.
+Signed thinking blocks/signatures must be echoed unchanged within tool loops,
+never exposed as answer text or persisted as visible chat. Truncated hosted tool
+calls are refused before any action is executed.

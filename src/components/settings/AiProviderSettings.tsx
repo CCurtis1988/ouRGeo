@@ -5,15 +5,14 @@ import { SecretField, UrlField } from './fields'
 import { ClaudeCliSettings } from './ClaudeCliSettings'
 import { ChatGptSettings } from './ChatGptSettings'
 import { useChatGptStore } from '@/store/chatgpt'
+import { useAiModelCatalogue } from '@/hooks/useAiModelCatalogue'
 import {
-  PROVIDER_MODELS,
   LOCAL_PROVIDERS,
   LOCAL_PROVIDER_MAP,
   isLocalProvider,
   localBaseUrl,
   localApiKey,
   localCtxKeyId,
-  fetchLocalModels,
   fetchLocalContextSize,
 } from '@/lib/ai-client'
 
@@ -92,9 +91,7 @@ export function AiProviderSettings(): React.ReactElement {
   const chatGpt = useChatGptStore()
   const subscription = provider === 'openai-subscription'
 
-  const [localModels, setLocalModels] = useState<string[]>([])
-  const [localError, setLocalError] = useState<string | null>(null)
-  const [localLoading, setLocalLoading] = useState(false)
+  const catalogue = useAiModelCatalogue(provider, currentModel)
   const [detectedCtx, setDetectedCtx] = useState<number | null>(null)
 
   useEffect(() => { init(); initKeys() }, [init, initKeys])
@@ -102,19 +99,6 @@ export function AiProviderSettings(): React.ReactElement {
   // Resolved URL/key for the active local provider (recompute when the user edits them)
   const resolvedUrl = local ? localBaseUrl(provider, keys) : ''
   const resolvedKey = local ? localApiKey(provider, keys) : ''
-
-  useEffect(() => {
-    if (!local) { setLocalError(null); setLocalModels([]); return }
-    let cancelled = false
-    setLocalLoading(true)
-    fetchLocalModels(provider, resolvedUrl, resolvedKey).then(({ models, error }) => {
-      if (cancelled) return
-      setLocalModels(models)
-      setLocalError(error ?? null)
-      setLocalLoading(false)
-    })
-    return () => { cancelled = true }
-  }, [provider, local, resolvedUrl, resolvedKey])
 
   // Probe the server's real context window (shown as the override placeholder)
   useEffect(() => {
@@ -127,8 +111,7 @@ export function AiProviderSettings(): React.ReactElement {
   }, [provider, local, resolvedUrl, resolvedKey, currentModel])
 
   const cloudDef = CLOUD_PROVIDERS.find((p) => p.id === provider)
-  const models = local ? localModels : PROVIDER_MODELS[provider]
-  const modelIds = subscription ? chatGpt.models.map((m) => m.id) : models
+  const modelIds = catalogue.models.map(choice => choice.id)
 
   useEffect(() => {
     if (subscription && chatGpt.models.length && !chatGpt.models.some((m) => m.id === currentModel)) {
@@ -210,17 +193,18 @@ export function AiProviderSettings(): React.ReactElement {
             {currentModel && !modelIds.includes(currentModel) && !subscription && (
               <option value={currentModel}>{currentModel}</option>
             )}
-            {modelIds.map((m) => <option key={m} value={m}>{subscription ? chatGpt.models.find((entry) => entry.id === m)?.label : m}</option>)}
+            {catalogue.models.map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
           </select>
         ) : subscription ? (
           <p className="text-[11px] text-geo-muted">{chatGpt.loading ? 'Fetching ChatGPT models…' : 'Sign in and enable ChatGPT plan usage to load eligible models.'}</p>
-        ) : local && localLoading ? (
+        ) : local && catalogue.loading ? (
           <p className="text-[11px] text-geo-muted">Connecting to {localMeta?.label}…</p>
-        ) : local && localError ? (
-          <p className="text-[11px] text-geo-error">{localError}</p>
+        ) : local && catalogue.error ? (
+          <p className="text-[11px] text-geo-error">{catalogue.error}</p>
         ) : (
           <p className="text-[11px] text-geo-muted">Loading…</p>
         )}
+        {modelIds.length > 0 && catalogue.error && <p className="text-[11px] text-geo-error">{catalogue.error}</p>}
       </div>
     </div>
   )

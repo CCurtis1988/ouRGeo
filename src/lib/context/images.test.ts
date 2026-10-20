@@ -8,10 +8,10 @@ vi.mock('@/lib/ai-proxy-fetch', () => ({ proxyFetch: connection.request }))
 
 const evidence = (): ContextImageEvidence => ({ ref: 'ctx_image', sourceId: 'project-file:p:f', revision: 'v1', title: 'Example', width: 800, height: 600, complete: false, estimatedTokens: IMAGE_TOKEN_RESERVATION, materialise: vi.fn(async () => 'data:image/png;base64,QUJD') })
 describe('transient image dispatch', () => {
-  it('enables only the actually qualified model and distinguishes unknown from unsupported capability', async () => {
+  it('uses the selected native Ollama vision model and distinguishes unknown from unsupported capability', async () => {
     connection.request.mockResolvedValue({ ok: true, json: async () => ({ capabilities: ['completion', 'vision'] }) })
     expect(await imageCapability('ollama', 'gemma4:e2b')).toBe('supported')
-    expect(await imageCapability('ollama', 'another-vision-model')).toBe('unknown')
+    expect(await imageCapability('ollama', 'another-vision-model')).toBe('supported')
     connection.request.mockResolvedValue({ ok: true, json: async () => ({ capabilities: ['completion'] }) })
     expect(await imageCapability('ollama', 'gemma4:e2b')).toBe('unsupported')
     expect(await imageCapability('anthropic', 'unqualified')).toBe('unknown')

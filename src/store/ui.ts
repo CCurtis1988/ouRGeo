@@ -29,7 +29,9 @@ export type DialogId =
   | 'toolbox'
   | 'settings'
   | 'health-check'
+  | 'app-update'
   | 'theme-studio'
+  | 'theme-backgrounds'
   | 'plugins'
   | 'plugin-store'
   | 'plugin-submit'
@@ -53,8 +55,8 @@ export type DialogId =
   | 'export-code-ggplot'
 
 export const DIALOG_IDS: DialogId[] = [
-  'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'plugins', 'plugin-store', 'plugin-submit',
-  'recording', 'voice-model', 'health-check',
+  'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'theme-backgrounds', 'plugins', 'plugin-store', 'plugin-submit',
+  'recording', 'voice-model', 'health-check', 'app-update',
   'map-contents', 'map-settings', 'select-menu', 'symbology', 'raster-symbology',
   'labeling', 'basemap', 'legend-settings', 'north-arrow-settings', 'save-edits',
   'export-menu', 'export-image', 'export-code-tmap', 'export-code-ggplot',
@@ -67,7 +69,9 @@ export const DIALOG_LABELS: Record<DialogId, string> = {
   'toolbox': 'Toolbox',
   'settings': 'Settings',
   'health-check': 'Health check',
+  'app-update': 'ouRGeo updates',
   'theme-studio': 'Theme Studio',
+  'theme-backgrounds': 'Theme backgrounds',
   'plugins': 'Plugins',
   'plugin-store': 'Plugin Store',
   'plugin-submit': 'Publish to the plugin store',

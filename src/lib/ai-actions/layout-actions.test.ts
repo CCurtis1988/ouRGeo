@@ -288,3 +288,13 @@ describe('layout:setPanelDrag', () => {
     expect(useLayoutStore.getState().dragEnabled).toBe(true)
   })
 })
+
+it('docks a panel beside another through validated arguments without changing the remaining zones', async () => {
+  useLayoutStore.getState().setPanelOpen('console', true)
+  const before = useLayoutStore.getState().layout.zones.left
+  const result = await run('layout:dockPanel', { panel: 'console', target: 'editor', placement: 'right' })
+  expect(result).toContain('Arranged')
+  const after = useLayoutStore.getState().layout
+  expect(after.zones.center.tree?.kind).toBe('split')
+  expect(after.zones.left).toEqual(before)
+})

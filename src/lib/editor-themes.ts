@@ -30,6 +30,7 @@
 // emitted token against the trie for exactly this reason.
 
 import { THEMES, BUILTIN_THEME_LIST, type ThemeDef } from './themes'
+import { FIELD_SYNTAX } from './field-themes'
 
 /** One Monaco theme name, redefined whenever any of the three inputs change.
  *  Monaco's `defineTheme` re-applies live when it replaces the active theme, so
@@ -255,9 +256,9 @@ const LEGACY: Record<string, LegacyFive> = {
 // TRUE/NA, `%>%` and roxygen tags fell through to VS Code's base theme and
 // rendered as plain identifiers. Deriving them is a deliberate small change.
 function portCode(t: ThemeDef): SyntaxPalette {
-  const L = LEGACY[t.id]
+  const L = LEGACY[t.id] ?? FIELD_SYNTAX[t.id]
   return {
-    id: t.id, label: t.label, isDark: t.isDark,
+    id: t.id, label: t.collection === 'field' ? `${t.label} · Field` : t.label, isDark: t.isDark,
     fg: t.editorChrome.fg,
     comment: L.cmt, keyword: L.kw, constant: L.num, string: L.str, number: L.num,
     operator: t.editorChrome.fg, fn: L.fn, tag: L.kw,
@@ -266,11 +267,11 @@ function portCode(t: ThemeDef): SyntaxPalette {
 }
 
 function portMarkdown(t: ThemeDef): MarkdownPalette {
-  const L = LEGACY[t.id]
+  const L = LEGACY[t.id] ?? FIELD_SYNTAX[t.id]
   return {
-    id: t.id, label: t.label, isDark: t.isDark,
+    id: t.id, label: t.collection === 'field' ? `${t.label} · Field` : t.label, isDark: t.isDark,
     text: t.editorChrome.fg,
-    heading: L.kw, emphasis: t.editorChrome.fg, link: t.editorChrome.accent,
+    heading: L.kw, emphasis: t.editorChrome.fg, link: t.collection === 'field' ? L.kw : t.editorChrome.accent,
     code: L.str, quote: L.cmt, meta: L.cmt, html: L.kw, escape: L.num,
   }
 }

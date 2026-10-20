@@ -20,6 +20,7 @@ import {
   useCustomThemeStore, exportThemes, importThemesFromFile,
 } from '@/store/custom-themes'
 import { useThemeStore } from '@/store/theme'
+import { APP_THEME_COLLECTIONS, appThemeCollection, type AppThemeCollection } from '@/lib/theme-collections'
 import { SystemThemeEditor } from './theme-studio/SystemThemeEditor'
 import { CodeThemeEditor, MarkdownThemeEditor } from './theme-studio/PaletteEditor'
 import { ThemePreview, type PreviewInput } from './theme-studio/ThemePreview'
@@ -111,19 +112,19 @@ function NewThemeForm({ kind, onCreate, onCancel }: {
   const templates = useMemo(() => {
     if (kind === 'system') {
       return [
-        ...BUILTIN_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false })),
-        ...custom.system.map((t) => ({ id: t.id, label: t.label, mine: true })),
+        ...BUILTIN_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false, group: appThemeCollection(t) })),
+        ...custom.system.map((t) => ({ id: t.id, label: t.label, mine: true, group: 'custom' as const })),
       ]
     }
     if (kind === 'code') {
       return [
-        ...CODE_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false })),
-        ...custom.code.map((t) => ({ id: t.id, label: t.label, mine: true })),
+        ...CODE_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false, group: 'builtin' as const })),
+        ...custom.code.map((t) => ({ id: t.id, label: t.label, mine: true, group: 'custom' as const })),
       ]
     }
     return [
-      ...MARKDOWN_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false })),
-      ...custom.markdown.map((t) => ({ id: t.id, label: t.label, mine: true })),
+      ...MARKDOWN_THEME_LIST.map((t) => ({ id: t.id, label: t.label, mine: false, group: 'builtin' as const })),
+      ...custom.markdown.map((t) => ({ id: t.id, label: t.label, mine: true, group: 'custom' as const })),
     ]
   }, [kind, custom.system, custom.code, custom.markdown])
 
@@ -149,18 +150,11 @@ function NewThemeForm({ kind, onCreate, onCancel }: {
           className="bg-geo-panel border border-geo-border rounded px-1.5 py-1
             text-[11px] text-foreground outline-none focus:border-geo-accent"
         >
-          <optgroup label="Built in">
-            {templates.filter((t) => !t.mine).map((t) => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </optgroup>
-          {templates.some((t) => t.mine) && (
-            <optgroup label="Yours">
-              {templates.filter((t) => t.mine).map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
+          {(kind === 'system' ? APP_THEME_COLLECTIONS : [{ id: 'builtin', label: 'Built in' }, { id: 'custom', label: 'Custom' }]).map(group => (
+            <optgroup key={group.id} label={group.label}>
+              {templates.filter(t => t.group === group.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </optgroup>
-          )}
+          ))}
         </select>
       </label>
       <label className="flex flex-col gap-1">
@@ -221,10 +215,17 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
   const [creating, setCreating] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [openCollections, setOpenCollections] = useState<Record<AppThemeCollection, boolean>>({ illustrated: true, legacy: false, field: false, custom: false })
 
   const selectedId = selected[kind]
   const select = (id: string | null): void =>
     setSelected((s) => ({ ...s, [kind]: id }))
+
+  useEffect(() => {
+    if (!open || kind !== 'system') return
+    const collection = appThemeCollection(THEMES[selectedId ?? activeSystem])
+    setOpenCollections(previous => previous[collection] ? previous : { ...previous, [collection]: true })
+  }, [open, kind, selectedId, activeSystem, custom.system])
 
   // ── The draft, and the debounced commit ────────────────────────────────
   // `draft` is the only thing the form writes to. A timer pushes it into the
@@ -560,7 +561,16 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
                   />
                 )}
 
-                <div>
+                {kind === 'system' ? APP_THEME_COLLECTIONS.map(group => {
+                  const entries = group.id === 'custom' ? mine : builtin.filter(theme => appThemeCollection(THEMES[theme.id]) === group.id)
+                  return <details key={group.id} open={openCollections[group.id]} onToggle={event => {
+                    const expanded = event.currentTarget.open
+                    setOpenCollections(previous => previous[group.id] === expanded ? previous : { ...previous, [group.id]: expanded })
+                  }} className="rounded border border-geo-border px-1 py-0.5">
+                    <summary className="cursor-pointer px-1 py-1.5 text-[11px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-geo-accent">{group.label}</summary>
+                    {entries.length ? entries.map(theme => <ThemeRow key={theme.id} label={theme.label} selected={selectedId === theme.id} active={activeId === theme.id} locked={group.id !== 'custom'} swatches={theme.swatches} icon={theme.icon} onClick={() => { select(theme.id); setNotice(null) }} />) : <p className="px-2 py-2 text-[10px] leading-snug text-geo-muted">No custom themes yet. Choose New to copy an existing theme, or Import to add one.</p>}
+                  </details>
+                }) : <><div>
                   <div className="text-[10px] uppercase tracking-wider text-geo-muted px-2 py-1">
                     Your themes
                   </div>
@@ -600,16 +610,7 @@ export function ThemeStudioDialog({ open, onOpenChange }: {
                     />
                   ))}
                 </div>
-                {kind === 'system' && (
-                  <details className="border-t border-geo-border pt-2">
-                    <summary className="cursor-pointer text-xs text-geo-muted px-2 py-1">Legacy themes</summary>
-                    {builtin.filter(t => t.legacy).map(t => (
-                      <ThemeRow key={t.id} label={t.label} selected={selectedId === t.id}
-                        active={activeId === t.id} locked swatches={t.swatches} icon={t.icon}
-                        onClick={() => { select(t.id); setNotice(null) }} />
-                    ))}
-                  </details>
-                )}
+                </>}
               </div>
             </div>
 

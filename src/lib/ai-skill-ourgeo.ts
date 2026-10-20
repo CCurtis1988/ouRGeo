@@ -114,6 +114,8 @@ This is not a sandbox and you should not describe it as one — R's \`system()\`
 
 **Top toolbar**, left to right: Toggle Environment, Toggle Packages, Open File (Ctrl+O), Save (Ctrl+S), Save As, Load Data, Toggle Database Connections, Data Connector, Toolbox, AI Assistant, Record Console, Toggle Spatial Editor, Toggle Plotting Preview, Help. Settings is pinned far right, next to the project menu. A toggled-on panel's button turns blue.
 
+**Desktop identity** — ouRGeo uses the website's mountain-and-compass logo in launchers, taskbars, the macOS Dock and pop-out windows. The circular badge has a transparent exterior. Packaged icons update when a new build is installed; an existing pinned shortcut may retain an operating-system icon cache until it is refreshed or pinned again. There is no separate system-tray menu.
+
 **Environment panel** — objects in the R session, grouped by environment, with class, size and a preview. Search filters. Clicking a data frame, matrix or vector opens it in the Data Viewer; clicking a function opens it in the function editor. Right-click an object for remove / rename / copy / move, or an environment for export / copy / rename / delete.
 
 An environment the user creates lives in \`.GlobalEnv\` (its objects are \`myenv$x\`) and is listed BESIDE it by default; **Show** in its right-click menu lists it as a row inside \`.GlobalEnv\` instead \u2014 one or the other, never both, and a display choice only. Every environment is \`new.env(parent = .GlobalEnv)\`; ouRGeo offers no other kind.
@@ -121,6 +123,8 @@ An environment the user creates lives in \`.GlobalEnv\` (its objects are \`myenv
 R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.GlobalEnv\` \u2014 so once \`x\` is in \`env2\`, \`x * a\` at the prompt is an error and the ways in are \`env2$x\`, \`with(env2, x * a)\` or \`eval(quote(x * a), env2)\`. **Work in this environment** (its right-click menu, or \`env:workIn\`) points the console AND every tool at it, so \`x * a\` works directly; \`.GlobalEnv\` stays visible through it because it is the environment's parent, and new objects are created there rather than in \`.GlobalEnv\`. The prompt shows the environment while it is not \`.GlobalEnv\`, and the switch echoes the R for it \u2014 \`evalq({ \u2026 }, env2)\` \u2014 which is also how to do the same thing in a script or a chunk. Objects carry **Copy To** (same name, another environment, original kept) beside **Move To**. The eye in the header decides what the panel shows *and* what it can act on: hiding non-user objects leaves \`.GlobalEnv\` and the user's own environments, and that is exactly what **Move To** offers; turning it off offers the whole session. **Export** writes an \`.RData\` file (ouRGeo's own functions are never in it); **Load** reads one back.
 
 **Which model is answering** — Settings → AI Assistant → Provider & model. Cloud providers (Anthropic, OpenAI, Gemini) take an API key; local servers (Ollama, LM Studio, llama.cpp and friends) take a URL. There is also **Claude subscription (Claude Code)**, which takes neither: ouRGeo runs the \`claude\` command-line tool the user installed and signed in to, so the answer comes from their Claude plan rather than an API balance and ouRGeo never sees a credential. It needs Claude Code installed and \`claude auth login\` run once; the settings row shows which binary was found and who it is signed in as. On that provider your tools arrive over MCP and are listed as \`mcp__ourgeo__\u2026\` — same tools, same switches. It is a few seconds slower to first token because a process starts per answer, and its usage counts against the user's Claude plan limits.
+
+**Thinking effort** — the AI Assistant footer shows a Thinking selector only for qualified models. It changes the requested model reasoning, independently of Context retrieval effort. Choices are saved per provider/model on this device and apply to new messages, including tool follow-ups. Provider default omits the override. Higher levels can take longer and use more tokens; provider policies may cap actual effort. Gemini 2.5 exposes a thinking-token budget instead of invented effort levels. Native Ollama controls come from the configured server’s model metadata. Unknown models and unqualified compatible endpoints have no control. This affects assistant turns; document/image analysis retains its independent model settings. Highlight \`ai.thinkingEffort\` when visible.
 
 **OpenAI subscription (ChatGPT)** is another provider in Settings → AI Assistant → Provider & model. Continue with ChatGPT opens browser authorisation for ouRGeo to use the user's eligible plan and subscription credits. Select an account/workspace and an eligible model; Manage usage and credits opens ChatGPT Settings → Usage. API billing stays a separately selected provider. This OpenAI flow is in preview and account/workspace eligibility applies. The existing tool switches and permission tiers still apply. Tokens remain in the main process, are saved only with a secure OS keyring, and never enter a project. Voice transcription uses its own configured service. If ChatGPT completes without a final answer or the stream ends early, the panel shows an error and keeps any partial text. Retry or select another eligible model in Settings → AI Assistant → Provider & model; request IDs, when supplied, help diagnose provider failures.
 
@@ -143,6 +147,8 @@ R resolves a name OUTWARDS \u2014 never into an environment sitting in \`.Global
 **Help panel** — R documentation in-app and offline: search, back/forward, package pages and vignettes. Typing \`?something\` in the console opens it here.
 
 **Settings** — grouped sections in the left navigation; on narrow windows use the section selector at the top. Appearance includes app/code/markdown themes, interface scale and **Theme Studio**. Workspace includes panel dragging, saved arrangements and Restore default arrangement. R Backend, Spatial Editor, Basemaps and Data API Keys have separate sections. **AI Assistant** has separate pages for Memory Library, Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced. Start at Memory Library to add, correct or forget memories; use Provider & model to change the assistant connection.
+
+**Application updates** — Settings → Updates checks the official website for a compatible published installer and controls automatic startup checks. Installed builds quietly check at startup and offer a dialog only for a newer installer; current or offline checks stay quiet. The user can download, save their project, close normally, and follow platform-specific installation steps, or choose Remind me next time / Skip this version. Downloads open in the user's browser; ouRGeo does not run installers automatically. Source checkouts do not prompt at startup and use their normal development update workflow. You can open the dialog with \`ui:openDialog\`, dialog \`app-update\`, or point at \`settings.checkUpdates\`; let the user choose whether to download and install.
 
 A user theme is a first-class theme: \`ui:theme\` / \`ui:codeTheme\` / \`ui:markdownTheme\` take its id like any other. Call \`theme:list\` to find out which ones exist — the parameter enums resolve live, but a listing is cheaper than a guess.`,
 
@@ -268,8 +274,16 @@ linked files remain discoverable as metadata only; their contents are not indexe
 or readable by context_read. Use project:rescanFolders after external edits.
 
 An image or visual:true with one PDF page requests typed visual evidence.
-The qualified image path is native Ollama gemma4:e2b; other model/transport
-combinations remain unsupported or unknown until qualified. "Image not inspected"
+Native Ollama models that report vision capability support images; other
+transports remain unsupported or unknown. Settings → AI Assistant → File analysis
+models selects independent document/image destinations without changing chat.
+Separate document analysis returns labelled interpretation alongside the original
+excerpt; separate image interpretation returns textual findings, not pixels, to
+the chat model. Treat all interpretations as derived claims, verify against the
+original and retain exact source citations. Imports/rescans stay local unless the
+user enables optional AI descriptions; those describe bounded excerpts only and
+never overwrite user descriptions. No model silently substitutes for a failed
+selected destination. "Image not inspected"
 means metadata only; never infer appearance from a caption. Rendition dimensions,
 completeness and estimated image budget appear in Context. File availability,
 attachment selection and actual model delivery are separate states.
@@ -516,13 +530,35 @@ They are independent, and the separation is the whole design.
 | **Code theme** | syntax colours only — R in .R files, and every embedded language in an .Rmd chunk | \`ui:codeTheme\` |
 | **Markdown theme** | prose colours only — headings, links, quotes, inline code, in Source and Visual mode | \`ui:markdownTheme\` |
 
-The painted app themes appear first in Settings → Appearance. Original looks remain selectable in the **Legacy themes** section, collapsed by default, using ids such as \`legacy-heaven\`.
+Settings → Appearance has four tabs: **Illustrated**, **Legacy**, **Field collection** and **Custom**. Theme Studio uses matching collapsible groups; custom copies belong to Custom regardless of their source. Field adds the website's Dev, Slate, Basalt, Forest, Trout, High Alpine, Wood, Sextant, Glacier, Field Notes, Rainproof, Albany and Linen: eight dark and five light themes, each with six realistic nature photographs and matching code/Markdown defaults. Their stable ids are \`field-<website-slug>\`, for example \`field-trout\`, \`field-high-alpine\` and \`field-field-notes\`. Existing \`forest\` stays in Illustrated; website Forest is \`field-forest\`. Field galleries contain stills; animations will be supplied separately. **Background visibility** in Appearance or the gallery previews and saves 0–100% per theme; 100% uses original colours, 0% hides the image, and **Theme default** restores the authored look without changing selection/timing. Light Field defaults are 35%. Highlight targets include \`themeBackgrounds.visibility\` and \`themeBackgrounds.resetVisibility\`. Collection highlight targets are \`settings.fieldThemes\` and \`settings.illustratedThemes\`. Original looks remain in the **Legacy** tab, using ids such as \`legacy-heaven\`.
 
 **A code or markdown theme carries token colours and NOTHING else.** It has no background of its own; the surface the text sits on belongs to the app theme. So switching a syntax palette can never move the editor background or the scene art, and a palette is only legible in combination with some app theme's surface — which is why \`theme:inspect\` reports contrast against the app theme currently in use.
 
-Ten app themes, 26 code palettes and 16 markdown palettes ship. Each app theme names the code and markdown palettes it starts with; **switching the app theme resets both to those defaults**, because a dark syntax palette on a white background is not a coherent look. The user departs from the default afterwards, per app theme.
+Twenty-three current app themes plus ten legacy looks, 39 code palettes and 29 markdown palettes ship. Each app theme names the code and markdown palettes it starts with; **switching the app theme resets both to those defaults**, because a dark syntax palette on a white background is not a coherent look. The user departs from the default afterwards, per app theme.
 
 ## Switching
+
+**Background images…** in Settings → Appearance opens the current app theme's
+gallery (\`ui:highlight\` target \`settings.themeBackgrounds\`). Each painted
+theme has six still images and a looping GIF of its original artwork. One
+selected image stays fixed; several form a slideshow with a per-theme 5–3,600
+second interval. GIF badges identify animations; previews are still until played.
+Reduced motion keeps GIFs and slideshows still. Legacy/custom themes keep their
+own original and offer a related gallery too.
+The summary identifies a single GIF as a looping animation. Selecting it starts
+the editor animation automatically when motion is enabled; Play GIF preview
+controls only the gallery preview. Still thumbnails are intentional. Slideshow
+timing changes images, while a GIF retains its own loop timing.
+
+The user can link image folders from that dialog, select their images, rescan
+after edits, locate moved folders or forget links without deleting their files.
+PNG/JPEG/WebP/GIF up to 8 MiB and 24 megapixels are supported; a scan is bounded
+to 200 images and six subfolder levels. Missing selections are retained for
+relinking and skipped, falling back to the original if none are available.
+These are device-only background preferences, separate from authored theme
+images, portable theme exports, project files and AI context grants. Do not
+call \`theme:setImage\` to change gallery selections, or open native pickers
+through an assistant action. Teach this workflow using the gallery controls.
 
 \`ui:theme\`, \`ui:codeTheme\` and \`ui:markdownTheme\` take **any installed theme** — the ones that ship and the ones you or the user built, including one created a moment ago. Their option lists are resolved when you call them, not when ouRGeo was built, so a new theme is switchable immediately. They accept the theme's **id or its name** ("my-half-life-2" and "Half-Life 2" both work).
 
@@ -934,7 +970,7 @@ Four zones. **left**, **centre**, **right**, **bottom**. Each holds an ordered l
 
 Any panel can go in any zone — the editor, the console, the map, the plots, the chat, Help, the Environment, Packages, Databases — and a plugin's panel is an ordinary panel from the moment it registers.
 
-By hand, the user drags the small grip in a panel's top-right corner (it appears on hover) and drops it on the zone they want; every zone shows insertion slots while a drag is in progress, and an empty zone appears as a dashed strip along its edge. **Settings → Workspace** holds the same ground: the switch for those grips, the list of saved arrangements (apply, export, delete), Import, and Restore default arrangement.
+By hand, the user drags the small grip in a panel’s top-right corner (it appears on hover). Hovering over another pane highlights its border. Release to choose Vertical (left/right), Horizontal (top/bottom), or Tab group. Splits preview two clickable sections; nothing changes until a section is chosen. Escape or Cancel abandons the move. Existing tab groups are preserved and a tab can be dragged out individually. Empty zones still appear as dashed strips for direct drops. **Settings → Workspace** holds the same ground: the switch for those grips, the list of saved arrangements (apply, export, delete), Import, and Restore default arrangement.
 
     layout:setPanelDrag  enabled=false
 
@@ -944,16 +980,19 @@ turns the grips off. It removes the GESTURE only — the arrangement is untouche
 
     layout:describe
 
-It says where every panel is, how big each zone is, and what is closed. The user may already have the arrangement they are asking for, and "put the map on the left" from someone whose map is closed is a different request from one whose map is open.
+It says where every panel is, how big each zone is, and what is closed, including local split directions and tab groups. The user may already have the arrangement they are asking for, and "put the map on the left" from someone whose map is closed is a different request from one whose map is open.
 
 ## Moving and sizing
 
     layout:movePanel     panel=spatial zone=left
+    layout:dockPanel     panel=console target=editor placement=bottom
     layout:setPanelSize  panel=spatial percent=70
     layout:evenPanels    zone=left
     layout:setZoneSize   zone=right size=500
     layout:setZoneMode   zone=right mode=tabs
     layout:reset
+
+\`layout:dockPanel\` arranges two visible panes by name: placement left/right, top/bottom, or tab. Only the target group changes; neighbours remain arranged. Use it for local splits and tab groups. \`layout:setPanelSize\` sizes the nearest split group in these layouts. Explicit zone mode/axis changes flatten that zone’s groups.
 
 \`layout:movePanel\` also **opens** the panel — being asked to move something and leaving it invisible is not the request.
 

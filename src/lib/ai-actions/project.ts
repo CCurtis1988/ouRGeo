@@ -18,6 +18,7 @@ import { useContextStore } from '@/store/context'
 import { hasColumnExclusions } from '@/store/column-disclosure'
 import { projectFileSourceId, type ProjectFileEntry, type ProjectFileRole, type ProjectLinkedFolder } from '@/lib/project-files'
 import { openProjectFiles } from '@/lib/project-files-ui'
+import { projectFileDescription } from '@/lib/project-file-description'
 import { projectFileAvailable } from '@/lib/project-file-availability'
 import { validProjectFileLocation } from '@/lib/project-file-citations'
 
@@ -151,8 +152,8 @@ export const projectActions: UiAction[] = [
       const query = argStr(args, 'query').toLocaleLowerCase(), folder = argStr(args, 'folder'), folderId = argStr(args, 'folderId'), role = argStr(args, 'role'), status = argStr(args, 'status')
       const offset = argNum(args, 'offset', 0), limit = argNum(args, 'limit', 20)
       if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) return fail('Choose a non-negative integer offset and a limit from 1 to 50.')
-      const matching = files.filter(file => (!query || `${file.name} ${file.userDescription} ${file.generatedDescription}`.toLocaleLowerCase().includes(query)) && (!folder || file.folder === folder) && (!folderId || file.storage?.folderId === folderId) && (!role || file.role === role) && (!status || file.status === status)).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
-      const entries = matching.slice(offset, offset + limit).map(file => ({ id: file.id, sourceId: projectFileSourceId(project.projectId!, file.id), name: file.name, revision: file.revision, folder: file.folder, role: file.role, status: file.status, description: (file.userDescription || file.generatedDescription).slice(0, 400), coverage: file.coverage.slice(0, 300), storage: file.storage ? { kind: 'linked', folderId: file.storage.folderId, relativePath: file.storage.relativePath, readable: file.sha256.length > 0 } : { kind: 'embedded' }, saved: file.saved }))
+      const matching = files.filter(file => (!query || `${file.name} ${projectFileDescription(file)} ${file.generatedDescription}`.toLocaleLowerCase().includes(query)) && (!folder || file.folder === folder) && (!folderId || file.storage?.folderId === folderId) && (!role || file.role === role) && (!status || file.status === status)).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+      const entries = matching.slice(offset, offset + limit).map(file => ({ id: file.id, sourceId: projectFileSourceId(project.projectId!, file.id), name: file.name, revision: file.revision, folder: file.folder, role: file.role, status: file.status, description: projectFileDescription(file).slice(0, 400), coverage: file.coverage.slice(0, 300), storage: file.storage ? { kind: 'linked', folderId: file.storage.folderId, relativePath: file.storage.relativePath, readable: file.sha256.length > 0 } : { kind: 'embedded' }, saved: file.saved }))
       return ok('Authorised project-file metadata only. A missing keyword match does not prove a file is absent; omit filters to browse. Use context_search with group project-files to search extracted contents.', JSON.stringify({ entries, total: matching.length, nextOffset: offset + entries.length < matching.length ? offset + entries.length : null }))
     }),
   },

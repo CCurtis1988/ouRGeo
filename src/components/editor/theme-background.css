@@ -1,0 +1,12 @@
+@keyframes ourgeo-background-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ourgeo-background-enter {
+  animation: ourgeo-background-enter 650ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ourgeo-background-enter { animation: none; }
+}

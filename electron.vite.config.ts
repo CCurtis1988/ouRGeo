@@ -14,6 +14,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin(), {
       name: 'context-runtime-bridge',
       generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'icon.png', source: readFileSync(resolve('build/icon.png')) })
         this.emitFile({ type: 'asset', fileName: 'mnemosyne-sidecar.py', source: readFileSync(resolve('electron/main/context/mnemosyne-sidecar.py')) })
         for (const fileName of ['hindsight-local-server.py', 'hindsight-gateway.py', 'hindsight-retention.py']) this.emitFile({ type: 'asset', fileName, source: readFileSync(resolve('electron/main/context', fileName)) })
       }

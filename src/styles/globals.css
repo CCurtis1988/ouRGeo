@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Website palettes pair pale natural accents with dark ink. Older controls
+   still name text-white; adapt those filled controls only for this collection. */
+:root[data-geo-theme-inks="field"] .bg-geo-accent.text-white {
+  color: hsl(var(--geo-on-accent));
+}
+:root[data-geo-theme-inks="field"] .bg-geo-accent.text-white:hover {
+  /* Inline controls historically used /80 while Button used accent-hover.
+     Keep the actual fill paired with its ink, including edited Studio copies. */
+  background-color: hsl(var(--geo-accent-hover));
+  color: hsl(var(--geo-on-accent-hover));
+}
+:root[data-geo-theme-inks="field"] .bg-geo-error.text-white {
+  color: hsl(var(--geo-on-error));
+}
+:root[data-geo-theme-inks="field"] .bg-geo-error.text-white:hover {
+  background-color: hsl(var(--geo-error-hover));
+  color: hsl(var(--geo-on-error-hover));
+}
+
 @layer base {
   :root {
     /* ouRGeo theme tokens — Dark theme defaults (overridden at runtime by applyTheme()) */

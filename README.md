@@ -1,6 +1,6 @@
 # ouRGeo
 
-Current version: **1.16.16**. Release history: **1.16.0** managed plugin services,
+Current version: **1.16.35**. Release history: **1.16.0** managed plugin services,
 **1.16.1** ChatGPT plan usage, **1.16.2** complete subscription replies, and
 **1.16.3** guided installation health checks.
 
@@ -23,6 +23,19 @@ the whole analysis.
 ---
 
 ## What it does
+
+- **Consistent desktop branding.** The website's ouRGeo logo identifies the app
+  in launchers, taskbars, the macOS Dock and pop-out windows. Platform icons
+  include sizes for standard and high-resolution displays, with transparent
+  corners so only the circular badge appears.
+
+- **Guided application updates.** Installed builds check for a newer compatible
+  installer shortly after startup. Current installations and offline checks stay
+  quiet. When an update is available, download it from the official website,
+  save your work, and follow the steps for your system. Choose **Remind me next
+  time** or **Skip this version** to keep working. **Settings → Updates** offers
+  a manual check and a switch for automatic checks. Source checkouts do not
+  prompt at startup. See [Application updates](docs/app-updates.md).
 
 - **A guided health check.** A dismissible welcome appears on first launch;
   **Settings → Health check** runs it again whenever needed. It checks R,
@@ -129,7 +142,12 @@ the whole analysis.
   like without losing the last, and switch back to any of them from the header.
   Save the session as a project and its conversations are kept with it and
   travel inside the `.ourgeoproj`; in the scratch workspace they last until you
-  quit, like everything else there.
+  quit, like everything else there. The assistant’s **Thinking** selector appears
+  for models with supported effort controls. Choose a level (or a thinking-token
+  budget for Gemini 2.5), or leave **Provider default**. Choices are remembered
+  per provider/model and apply to new messages; higher effort can take longer and
+  use more tokens. The separate **Context** setting controls evidence retrieval.
+  See [thinking controls](docs/ai-thinking.md) for provider support.
 - **Large-session navigation.** Long document tab strips and console histories
   render the visible range while keeping every document and output entry.
   Scroll back to earlier output, or use **Copy all console output** in the console
@@ -231,9 +249,14 @@ the whole analysis.
   name, export and import them as `.ourgeolayout.json` files, and restore the
   shipped default in one click. Turn on **Drag panels to rearrange them** and
   each panel grows a small grip in its top-right corner: drag it to drop the
-  panel into another zone, or right-click it for that panel's menu. Panels
-  sharing a zone share it equally — two take half each, three a third each —
-  until you drag a divider; double-click one to even them out again.
+  panel over another pane to highlight its border. Release to choose a vertical
+  split (left/right), horizontal split (top/bottom) or tab group. For a split,
+  click the section where the moved pane belongs; Escape or Cancel leaves the
+  arrangement unchanged. Splits can nest without rearranging neighbours, and
+  tab drops join existing groups. Empty zones remain direct drop targets.
+  Drag dividers to resize; double-click one to even out the zone again. Pane
+  groups are remembered in saved arrangements and when reopening ouRGeo.
+  Right-click a grip for its panel menu.
 - **Two code editors.** Open a second one for two documents side by side, each
   with its own tabs. Add it in Settings → Workspace, drag tabs between the two,
   and remove the extra when you are done — **removing never closes a document**, they move to the editor that
@@ -305,6 +328,10 @@ the whole analysis.
   through the existing context system. Embedded originals are recoverable between
   saves and travel with the project; linked files stay external and can be
   relinked on another device. Local indexing does not require a model call.
+  Choose separate document-analysis and image-interpretation models in AI
+  settings, with optional AI descriptions on import/rescan.
+  Chat and document analysis share model choices and existing sign-ins, including
+  custom models; no separate provider registration is needed.
   Read the [Project Files guide](docs/project-files.md) for supported contents,
   visual-model capability, privacy, recovery and project-version compatibility.
 - **No telemetry, no account, no cloud dependency.**
@@ -322,6 +349,35 @@ Three independent axes, all in **Settings → Appearance**:
 The separation is a guarantee, not a convenience: a code or markdown palette
 carries token colours and *nothing else*, so switching one can never move the
 editor background or the scene art behind it.
+
+**Background images…** beneath the app themes opens a per-theme gallery: six
+paintings and a peaceful looping GIF for each painted theme. Select one image
+for a fixed background or several for a slideshow, with your own switching
+interval. Link image folders to add pictures from your device, then rescan,
+locate or forget those links without changing their files. GIF badges and still
+thumbnails make animations easy to identify; reduced motion keeps backgrounds
+still. Legacy and custom themes keep their original artwork and offer the
+related gallery as extra choices. See the [background guide](docs/theme-backgrounds.md)
+for folder limits, recovery and portability.
+
+The **Field collection** tab adds the website's 13 palettes: Dev, Slate,
+Basalt, Forest, Trout, High Alpine, Wood, Sextant, Glacier, Field Notes,
+Rainproof, Albany and Linen. Each has six distinct, realistic nature
+photographs with weathered rock, timber, water and field textures. Eight
+themes are dark and five are light; each includes matching code and Markdown
+colours. These galleries contain still photographs, ready for future rendered
+animations. The existing Forest remains in **Illustrated**.
+
+**Background visibility** in Appearance and the gallery previews changes live,
+from 0% (fully faded) to 100% (original image colours). Each theme remembers its
+own value; **Theme default** restores its authored look. Light Field themes
+start at 35% for clearer photographs. Settings organises themes into
+**Illustrated**, **Legacy**, **Field collection** and **Custom** tabs; Theme
+Studio uses the same four collapsible groups.
+
+GIFs play continuously when selected, with motion designed to remain visible
+in the preview and narrow editor panes. Picker thumbnails stay still; use
+**Play GIF preview** to watch the animation before closing the gallery.
 
 **Settings → Appearance → Theme Studio…** opens the editor. Every theme starts
 as a copy of one that already works — pick the closest and change what you like:

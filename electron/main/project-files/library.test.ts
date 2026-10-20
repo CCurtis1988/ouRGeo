@@ -144,6 +144,58 @@ describe('project-owned file library', () => {
     const read = await h.library.read(revised.id, revised.revision, h.scope.id)
     expect(read.text).toContain('Revised clearance: 22 metres')
   })
+  it('stores revision-bound AI descriptions as separate metadata without changing the source revision', async () => {
+    const h = await harness(); await h.library.add([h.path], h.scope.id); await h.settled()
+    let entry = h.library.catalogue(h.scope.id).files[0]
+    await h.library.update(entry.id, entry.revision, { userDescription: 'User-authored description', role: 'standard' }, h.scope.id)
+    entry = h.library.catalogue(h.scope.id).files[0]
+    const previous = h.library.catalogue(h.scope.id)
+    const result = await h.library.setAnalysis(entry.id, entry.revision, { text: 'AI-derived report outline.', provider: 'ollama', model: 'document-model', coverage: 'First source line only.', revision: 'forged', createdAt: '1900-01-01' } as never, h.scope.id)
+    expect(result.revision).toBe(previous.revision + 1)
+    expect(result.files[0]).toMatchObject({ revision: entry.revision, userDescription: 'User-authored description', generatedDescription: entry.generatedDescription, role: 'standard', aiDescription: { text: 'AI-derived report outline.', revision: entry.revision, provider: 'ollama', model: 'document-model', coverage: 'First source line only.' } })
+    expect(result.files[0].aiDescription!.createdAt).not.toBe('1900-01-01')
+    const createdAt = result.files[0].aiDescription!.createdAt
+    await h.library.reindex([entry.id], h.scope.id)
+    expect(h.library.catalogue(h.scope.id).files[0].aiDescription).toMatchObject({ revision: entry.revision, createdAt })
+    await h.library.update(entry.id, entry.revision, { name: 'Renamed reference' }, h.scope.id)
+    const renamed = h.library.catalogue(h.scope.id).files[0]
+    expect(renamed.aiDescription).toMatchObject({ text: 'AI-derived report outline.', revision: renamed.revision, createdAt })
+    const snapshot = h.library.snapshot()
+    await h.library.committed(snapshot, h.scope.projectId!, join(h.directory, 'project.ourgeoproj'), 'analysis-saved-signature', true)
+    const reopened = h.make()
+    await reopened.activate(h.scope.projectId!, join(h.directory, 'project.ourgeoproj'), snapshot.library, snapshot.blobDir, 'analysis-saved-signature', true)
+    expect(reopened.catalogue(h.scope.id).files[0].aiDescription).toEqual(renamed.aiDescription)
+    await h.settled(reopened)
+  })
+  it.each([
+    { text: 'x'.repeat(2001), provider: 'ollama', model: 'model', coverage: '' },
+    { text: 'Description', provider: 'x'.repeat(41), model: 'model', coverage: '' },
+    { text: 'Description', provider: 'ollama', model: 'x'.repeat(201), coverage: '' },
+    { text: 'Description', provider: 'ollama', model: 'model', coverage: 'x'.repeat(501) },
+    { text: 'bad\0text', provider: 'ollama', model: 'model', coverage: '' }
+  ])('rejects out-of-bounds AI description metadata %#', async analysis => {
+    const h = await harness(); await h.library.add([h.path], h.scope.id); await h.settled()
+    const entry = h.library.catalogue(h.scope.id).files[0], revision = h.library.catalogue(h.scope.id).revision
+    await expect(h.library.setAnalysis(entry.id, entry.revision, analysis, h.scope.id)).rejects.toThrow('2,000 characters')
+    expect(h.library.catalogue(h.scope.id).revision).toBe(revision)
+    expect(h.library.catalogue(h.scope.id).files[0].aiDescription).toBeUndefined()
+  })
+  it('requires a named current project and source revision for AI descriptions, and clears them on replacement', async () => {
+    const scratch = await harness(false), analysis = { text: 'A report summary', provider: 'ollama', model: 'document-model', coverage: 'One line.' }
+    await expect(scratch.library.setAnalysis('missing', 'missing', analysis, scratch.scope.id)).rejects.toThrow('Save project')
+    const h = await harness(); await h.library.add([h.path], h.scope.id); await h.settled()
+    let entry = h.library.catalogue(h.scope.id).files[0]
+    await h.library.setAnalysis(entry.id, entry.revision, analysis, h.scope.id)
+    const old = entry.revision
+    await h.library.update(entry.id, entry.revision, { name: 'Current report' }, h.scope.id)
+    entry = h.library.catalogue(h.scope.id).files[0]
+    await expect(h.library.setAnalysis(entry.id, old, analysis, h.scope.id)).rejects.toThrow('STALE_REFERENCE')
+    h.scope.id = 'renewed-lease'
+    await expect(h.library.setAnalysis(entry.id, entry.revision, analysis, 'lease-1')).rejects.toThrow('SCOPE_CHANGED')
+    const replacement = join(h.directory, 'replacement.md'); await writeFile(replacement, 'Changed original')
+    await h.library.replace(entry.id, entry.revision, replacement, h.scope.id); await h.settled()
+    expect(h.library.catalogue(h.scope.id).files[0].aiDescription).toBeUndefined()
+  })
   it('searches extracted contents and returns stable revision and location evidence', async () => {
     const h = await harness(); await h.library.add([h.path], h.scope.id); await h.settled()
     const hits = await h.library.search('clearance', h.scope.id)

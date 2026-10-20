@@ -1,5 +1,6 @@
 import { SettingsPages } from './SettingsPages'
 import { AiProviderSettings } from './AiProviderSettings'
+import { AiTaskModelSettings } from './AiTaskModelSettings'
 import { Switch } from '@/components/ui/switch'
 import { useContextStore } from '@/store/context'
 import { ContextFolders } from './ContextFolders'
@@ -48,6 +49,7 @@ export function ContextMemorySettings(): React.ReactElement {
     <SettingsPages label="AI assistant settings" initialPage="library" pages={[
       { id: 'library', title: 'Memory Library', headingPlacement: 'content', description: 'Add, review and organise your personal, project and conversation memories. Also available below the assistant conversation.', content: <MemoryLibrary placement="settings" /> },
       { id: 'provider', title: 'Provider & model', description: 'Choose your assistant, connection and model.', content: <AiProviderSettings /> },
+      { id: 'file-analysis', title: 'File analysis models', description: 'Choose separate models for project documents and images, and optional background descriptions.', content: <AiTaskModelSettings /> },
       { id: 'learning', title: 'Learning & context', description: 'Choose how much context the assistant retrieves and when it remembers information.', content: <div className="space-y-3 rounded-lg border border-geo-border bg-geo-bg/40 p-4">
     <label className="flex items-center justify-between text-xs">Context effort
       <select aria-label="Default context effort" value={effort} onChange={e => setEffort(e.target.value as ContextEffort)} className="bg-geo-bg border border-geo-border rounded p-1">

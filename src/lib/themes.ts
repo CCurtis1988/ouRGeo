@@ -1,3 +1,6 @@
+import { FIELD_THEME_LIST } from './field-themes'
+import { hslTripleToHex, hexToHslTriple, contrastRatio, luminance, shade } from './theme-colors'
+
 export interface ThemeDef {
   id: string
   label: string
@@ -17,6 +20,9 @@ export interface ThemeDef {
   palette: { accent: string; error: string; success: string; muted: string }
   vars: Record<string, string>
   swatches: [string, string, string]
+  /** Named shipped collections keep different art directions easy to browse. */
+  collection?: 'field'
+  description?: string
 
   // ── User themes ────────────────────────────────────────────────────────
   // Everything below is absent on the shipped themes and present on themes
@@ -177,6 +183,7 @@ const ORIGINAL_THEMES: Record<string, ThemeDef> = {
 const BUILTIN: Record<string, ThemeDef> = {
   ...ORIGINAL_THEMES,
   heaven: { ...ORIGINAL_THEMES.heaven, backgroundOpacity: 0.30 },
+  ...Object.fromEntries(FIELD_THEME_LIST.map(theme => [theme.id, theme])),
   ...Object.fromEntries(Object.values(ORIGINAL_THEMES).map(theme => [
     `legacy-${theme.id}`,
     { ...theme, id: `legacy-${theme.id}`, label: `${theme.label} (Legacy)`, legacy: true as const, basedOn: theme.id },
@@ -231,6 +238,28 @@ export function applyTheme(id: string): void {
   const root = document.documentElement
   for (const [k, v] of Object.entries(t.vars)) {
     root.style.setProperty(k, v)
+  }
+  // Keep collection membership separate from inherited button treatment: a
+  // Studio copy lives with custom themes but keeps readable labels after edits.
+  root.dataset.geoThemeCollection = t.collection ?? ''
+  let ancestor: ThemeDef | undefined = t
+  const seen = new Set<string>()
+  while (ancestor && ancestor.collection !== 'field' && !seen.has(ancestor.id)) {
+    seen.add(ancestor.id)
+    ancestor = ancestor.basedOn ? THEMES[ancestor.basedOn] : undefined
+  }
+  const fieldInk = ancestor?.collection === 'field'
+  root.dataset.geoThemeInks = fieldInk ? 'field' : ''
+  const errorHover = hexToHslTriple(shade(hslTripleToHex(t.vars['--geo-error']), t.isDark ? 0.08 : -0.08))
+  if (fieldInk) root.style.setProperty('--geo-error-hover', errorHover)
+  else root.style.removeProperty('--geo-error-hover')
+  for (const fill of ['accent', 'accent-hover', 'error', 'error-hover']) {
+    const key = `--geo-on-${fill}`
+    if (!fieldInk) { root.style.removeProperty(key); continue }
+    const background = hslTripleToHex(fill === 'error-hover' ? errorHover : t.vars[`--geo-${fill}`])
+    const candidate = hslTripleToHex(t.vars['--geo-on-accent'] ?? t.vars[t.isDark ? '--geo-bg' : '--geo-panel'])
+    const ink = contrastRatio(candidate, background) >= 4.5 ? candidate : luminance(background) > 0.179 ? '#000000' : '#ffffff'
+    root.style.setProperty(key, hexToHslTriple(ink))
   }
   root.classList.toggle('dark', t.isDark)
 

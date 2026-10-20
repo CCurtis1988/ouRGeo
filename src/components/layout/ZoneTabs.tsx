@@ -1,3 +1,4 @@
+import { panelTabGroup } from '@/lib/layout/dock-tree'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { useLayoutStore } from '@/store/layout'
@@ -23,9 +24,11 @@ interface Props {
   /** Set when a panel is drawing its own zone's tabs. */
   panel?: PanelId
   className?: string
+  panels?: PanelId[]
+  activePanel?: PanelId
 }
 
-export function ZoneTabs({ zone, panel, className }: Props): React.ReactElement | null {
+export function ZoneTabs({ zone, panel, className, panels, activePanel }: Props): React.ReactElement | null {
   const layout = useLayoutStore((s) => s.layout)
   const setActivePanel = useLayoutStore((s) => s.setActivePanel)
   const dragEnabled = useLayoutStore((s) => s.dragEnabled)
@@ -34,9 +37,10 @@ export function ZoneTabs({ zone, panel, className }: Props): React.ReactElement 
 
   const z = zone ?? (panel ? zoneOf(layout, panel) : null)
   if (!z) return null
-  const ids = openPanels(layout, z)
+  const group = panel && layout.zones[z].tree ? panelTabGroup(layout.zones[z].tree!, panel) : null
+  const ids = (panels ?? group?.panels ?? openPanels(layout, z)).filter(id => layout.open[id])
   if (ids.length === 0) return null
-  const active = layout.zones[z].active ?? ids[0]
+  const active = activePanel ?? group?.active ?? layout.zones[z].active ?? ids[0]
 
   const setDrag = (p: PanelId | null): void => { if (p) beginDrag(p); else endDrag() }
 
@@ -45,6 +49,7 @@ export function ZoneTabs({ zone, panel, className }: Props): React.ReactElement 
       className={cn('flex items-center gap-px flex-shrink-0', className)}
       data-ourgeo-id={`zone.tabs.${z}`}
       role="tablist"
+      aria-label="Pane group"
     >
       {ids.map((id) => {
         const def = panelInfo(id)
@@ -53,7 +58,16 @@ export function ZoneTabs({ zone, panel, className }: Props): React.ReactElement 
           <button
             key={id}
             role="tab"
+            data-pane-tab={id}
             aria-selected={id === active}
+            tabIndex={id === active ? 0 : -1}
+            onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              event.preventDefault()
+              const index = event.key === 'Home' ? 0 : event.key === 'End' ? ids.length - 1 : (ids.indexOf(id) + (event.key === 'ArrowLeft' ? -1 : 1) + ids.length) % ids.length
+              setActivePanel(ids[index])
+              requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-pane-tab="${CSS.escape(ids[index])}"]`)?.focus())
+            }}
             onMouseDown={dragEnabled ? startPanelDrag(id, setDrag) : undefined}
             onClick={() => setActivePanel(id)}
             className={cn(

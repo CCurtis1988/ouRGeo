@@ -65,7 +65,7 @@ export function parseLayoutFile(text: string): ParsedLayoutFile {
     if (what) return { ok: false, error: `That is ${what}, not a workspace layout.` }
     // ouRGeo's own layout.json — one arrangement, no name of its own.
     const live = (data as { layout?: LayoutState }).layout
-    if (live && live.version === LAYOUT_VERSION && live.zones) {
+    if (live && (live.version === 1 || live.version === LAYOUT_VERSION) && live.zones) {
       return { ok: true, presets: [{ name: 'Imported layout', layout: live }] }
     }
     return { ok: false, error: 'That file is not an ouRGeo layout.' }
@@ -86,7 +86,7 @@ export function parseLayoutFile(text: string): ParsedLayoutFile {
   const presets: LayoutPresetFile[] = []
   for (const raw of env.presets as LayoutPresetFile[]) {
     if (!raw || typeof raw.name !== 'string' || !raw.layout || typeof raw.layout !== 'object') continue
-    if (raw.layout.version !== LAYOUT_VERSION) continue
+    if (raw.layout.version !== 1 && raw.layout.version !== LAYOUT_VERSION) continue
     presets.push({ name: raw.name.trim() || 'Imported layout', layout: raw.layout })
   }
   if (presets.length === 0) {

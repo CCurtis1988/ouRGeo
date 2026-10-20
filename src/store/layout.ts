@@ -24,7 +24,7 @@
 
 import { create } from 'zustand'
 import {
-  defaultLayout, normalize, movePanel, reorderPanel, dropPanel, setPanelOpen as setOpenIn,
+  defaultLayout, normalize, dockPanel, movePanel, reorderPanel, dropPanel, setPanelOpen as setOpenIn,
   setZoneSize as setZoneSizeIn, setPanelShare as setPanelShareIn,
   splitPanels as splitPanelsIn, evenPanels as evenPanelsIn,
   setZoneMode as setZoneModeIn, setZoneAxis as setZoneAxisIn,
@@ -143,6 +143,7 @@ interface LayoutStoreState {
   setPanelOpen: (panel: PanelId, open: boolean) => void
   togglePanel: (panel: PanelId) => void
   movePanel: (panel: PanelId, zone: ZoneId, index?: number) => void
+  dockPanel: (panel: PanelId, target: PanelId, placement: import('@/lib/layout/dock-tree').DockPlacement) => void
   reorderPanel: (panel: PanelId, index: number) => void
   setZoneSize: (zone: ZoneId, size: number) => void
   /** Give one panel `share` (0–1) of its zone, the rest keeping their
@@ -254,6 +255,7 @@ export const useLayoutStore = create<LayoutStoreState>((set, get) => {
       PANEL_STORES[basePanelId(panel)]?.setOpen(true)
     },
 
+    dockPanel: (panel, target, placement) => apply(l => dockPanel(l, panel, target, placement)),
     reorderPanel: (panel, index) => apply((l) => reorderPanel(l, panel, index)),
     setZoneSize: (zone, size) => apply((l) => setZoneSizeIn(l, zone, size)),
     setPanelShare: (panel, share) => apply((l) => setPanelShareIn(l, panel, share)),

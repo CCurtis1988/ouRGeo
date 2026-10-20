@@ -1,3 +1,4 @@
+import type { LayoutState } from '@/lib/layout/model'
 // A panel in mid-air between two zones.
 //
 // This was a `useState` in `EditorLayout`, passed down to every `Zone` as a
@@ -19,7 +20,11 @@
 import { create } from 'zustand'
 import type { PanelId } from '@/lib/layout/model'
 
+export interface PendingPaneDrop { panel: PanelId; target: PanelId; x: number; y: number; layout: LayoutState }
 interface PanelDragState {
+  pending: PendingPaneDrop | null
+  offer: (drop: PendingPaneDrop) => void
+  cancel: () => void
   /** The panel being dragged, or null. Drop targets light up on this. */
   panel: PanelId | null
   begin: (panel: PanelId) => void
@@ -27,7 +32,10 @@ interface PanelDragState {
 }
 
 export const usePanelDragStore = create<PanelDragState>((set) => ({
+  pending: null,
+  offer: pending => set({ pending }),
+  cancel: () => set({ panel: null, pending: null }),
   panel: null,
-  begin: (panel) => set({ panel }),
+  begin: (panel) => set({ panel, pending: null }),
   end: () => set({ panel: null }),
 }))

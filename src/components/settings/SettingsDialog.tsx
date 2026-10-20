@@ -1,13 +1,16 @@
+import { AppUpdateSettings } from './AppUpdateDialog'
 import React, { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal, Store, HeartPulse,
+  SquareTerminal, Store, HeartPulse, ArrowUpCircle,
 } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
 import { APP_VERSION } from './versionHistory'
 import { ThemePicker } from './ThemePicker'
+import { ThemeBackgroundSettings } from './ThemeBackgroundSettings'
+import { ThemeBackgroundVisibility } from './ThemeBackgroundVisibility'
 import { CodeThemePicker, MarkdownThemePicker } from './EditorThemePicker'
 import { RVersionPicker } from './RVersionPicker'
 import { InitialExtentPicker } from './InitialExtentPicker'
@@ -191,12 +194,15 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
         <button className="rounded border border-geo-border px-3 py-2 text-xs text-foreground hover:bg-geo-bg" onClick={() => useUiStore.getState().showDialog('health-check')}>Run health check…</button>
       </>,
     },
+    { title: 'Updates', group: 'Application', icon: ArrowUpCircle, description: 'Published installers and update reminders', content: <AppUpdateSettings /> },
     {
       title: 'Appearance', group: 'Application', icon: Palette,
       description: 'Theme and visual style',
       content: <>
         <SubLabel>App Theme</SubLabel>
         <ThemePicker />
+        <ThemeBackgroundSettings />
+        <ThemeBackgroundVisibility />
         <ThemeStudioLink />
         <SubLabel className="mt-5">Code Editor Theme</SubLabel>
         <p className="text-[11px] text-geo-muted mb-2 leading-relaxed">

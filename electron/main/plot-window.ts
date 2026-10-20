@@ -1,6 +1,7 @@
 import { BrowserWindow, type WebContents } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { APP_ICON_PATH } from './app-icon'
 
 /**
  * Snapshot of the main window's plot store that the popout mirrors. The main
@@ -36,6 +37,7 @@ export function openPlotWindow(state: PlotPopoutState, owner?: WebContents): voi
   }
 
   plotWindow = new BrowserWindow({
+    icon: APP_ICON_PATH,
     width: 800,
     height: 600,
     minWidth: 480,

@@ -167,3 +167,7 @@ Primary dependency/runtime references:
 [numfmt](https://github.com/borgar/numfmt),
 [Node permissions](https://nodejs.org/api/permissions.html), and
 [Electron ASAR support](https://www.electronjs.org/docs/latest/tutorial/asar-archives).
+
+
+Independent model routing and optional AI descriptions have a separate
+[implementation and native validation record](file-analysis-models-implementation.md).

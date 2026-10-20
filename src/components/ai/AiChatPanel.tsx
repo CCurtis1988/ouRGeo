@@ -1,3 +1,7 @@
+import { ThinkingEffortControl } from '@/components/ai/ThinkingEffortControl'
+import { useThinkingCapability } from '@/hooks/useThinkingCapability'
+import { useAiThinkingStore } from '@/store/ai-thinking'
+import { thinkingKey, thinkingOutputReservation } from '@/lib/ai-thinking'
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Zap, ZapOff, Plus, Send, Square, ChevronDown, Globe, GlobeLock, SlidersHorizontal,
@@ -44,6 +48,8 @@ import { rememberIntent, forgetIntent, isForgetRequest, projectInstruction } fro
 import { useProjectStore } from '@/store/project'
 import { projectFileAvailable } from '@/lib/project-file-availability'
 import { useProjectFilesStore } from '@/store/project-files'
+import { useAiTaskModelsStore } from '@/store/ai-task-models'
+import { runFileAnalysis } from '@/lib/file-analysis'
 import { projectFileContentHits } from '@/lib/context/sources/project-files'
 import { ContextInspector } from './ContextInspector'
 import { MemoryLibrary } from './MemoryLibrary'
@@ -117,6 +123,7 @@ export function AiChatPanel(): React.ReactElement {
 
   const keys = useApiKeysStore((s) => s.keys)
   const initKeys = useApiKeysStore((s) => s.init)
+  const thinkingCapability = useThinkingCapability(provider, currentModel, provider === 'ollama' ? localBaseUrl(provider, keys) : undefined, provider === 'ollama' ? localApiKey(provider, keys) : undefined)
   const environments = useEnvironmentStore((s) => s.environments)
   const addConsoleEntry = useSessionStore((s) => s.addConsoleEntry)
 
@@ -152,6 +159,14 @@ export function AiChatPanel(): React.ReactElement {
   const { suggestions } = useAutocomplete(input, allEnvNames)
 
   useEffect(() => { init(); initKeys(); void useContextStore.getState().init() }, [init, initKeys])
+  useEffect(() => {
+    void useAiTaskModelsStore.getState().init().catch(error => setSendError(String(error)))
+    return useAiTaskModelsStore.subscribe((state, previous) => {
+      // The first turn awaits hydration before capturing its routes. Initial
+      // settings loading must not cancel that same waiting turn.
+      if (previous.initialized && state.revision !== previous.revision && useAiStore.getState().isStreaming) useAiStore.getState().cancelStream()
+    })
+  }, [])
   // A queued pane attachment can stage while the assistant first mounts. The
   // parent reset must preserve that child's newly bound selection, rather than
   // erase it after showing a misleading "staged" notice.
@@ -217,13 +232,19 @@ export function AiChatPanel(): React.ReactElement {
     }
     if (!chatId || ac.signal.aborted) return
     await useContextStore.getState().waitForReady(ac.signal)
+    await useAiTaskModelsStore.getState().init()
+    await useAiThinkingStore.getState().init()
+    const thinking = thinkingCapability ? { capability: thinkingCapability, value: useAiThinkingStore.getState().selections[thinkingKey(provider, currentModel)] ?? 'default' } : undefined
     if (useAiStore.getState().activeChatId !== chatId || useProjectStore.getState().workspaceEpoch !== project.workspaceEpoch || ac.signal.aborted) return
     const policyRevision = useContextStore.getState().policyRevision
+    const taskModels = useAiTaskModelsStore.getState()
+    const taskRevision = taskModels.revision
     const current = (): boolean => useAiStore.getState().activeChatId === chatId
       && useAiStore.getState().provider === provider && useAiStore.getState().currentModel() === currentModel
       && useProjectStore.getState().workspaceEpoch === project.workspaceEpoch
       && useProjectStore.getState().projectId === project.projectId
       && useContextStore.getState().policyRevision === policyRevision
+      && useAiTaskModelsStore.getState().revision === taskRevision
       && (!usesR || (useSessionStore.getState().rPort === rPort && useSessionStore.getState().rGeneration === rGeneration))
     let usageAuthority: string | undefined
     const broker: ContextBroker = new ContextBroker({
@@ -233,10 +254,19 @@ export function AiChatPanel(): React.ReactElement {
         if (!useContextStore.getState().exclusionsLoaded) return
         yield* workspaceSourceScan(kinds, bindR, query)
       },
+      documentAnalysis: taskModels.selections.document ? async (source, evidence) => {
+        const target = taskModels.selections.document!
+        addConsoleEntry('info', `Document analysis: ${PROVIDER_LABELS[target.provider]} / ${target.model} (selected excerpt).`, 'ai')
+        const analysis = await runFileAnalysis({ task: 'document', target, identity: broker.trace.identity, question: text, evidence, signal: ac.signal, current,
+          validate: async () => { broker.validateSend(); await source.readLocated!(evidence.location, 0, ac.signal); broker.validateSend() } })
+        return { text: analysis, model: `${PROVIDER_LABELS[target.provider]} / ${target.model}` }
+      } : undefined,
       image: async (source, ref, location) => {
-        const capability = await imageCapability(provider, currentModel, local ? localBaseUrl(provider, keys) : undefined, local ? localApiKey(provider, keys) : undefined, ac.signal)
+        const target = taskModels.selections.image ?? { provider, model: currentModel }
+        const imageLocal = isLocalProvider(target.provider)
+        const capability = await imageCapability(target.provider, target.model, imageLocal ? localBaseUrl(target.provider, keys) : undefined, imageLocal ? localApiKey(target.provider, keys) : undefined, ac.signal)
         if (!current()) throw new Error('SCOPE_CHANGED')
-        if (capability !== 'supported') return { limitation: `${PROVIDER_LABELS[provider]} / ${currentModel} image capability is ${capability}. Select Ollama gemma4:e2b in the model selector (the currently qualified visual path); the file remains available as metadata.` }
+        if (capability !== 'supported') return { limitation: `${PROVIDER_LABELS[target.provider]} / ${target.model} image capability is ${capability}. Choose an Ollama vision-capable model under Settings → AI Assistant → File analysis models; the file remains available as metadata.` }
         const file = source.projectFile!
         const readRendition = async () => {
           if (!current()) throw new Error('SCOPE_CHANGED')
@@ -251,7 +281,13 @@ export function AiChatPanel(): React.ReactElement {
           return { dataUrl: preview.url, width: preview.width, height: preview.height, complete: preview.imageComplete !== false }
         }
         const rendition = await readRendition()
-        return { ref, sourceId: source.id, revision: source.revision, title: source.title, width: rendition.width, height: rendition.height, complete: rendition.complete, estimatedTokens: 8192, materialise: async () => (await readRendition()).dataUrl }
+        const image = { ref, sourceId: source.id, revision: source.revision, title: source.title, width: rendition.width, height: rendition.height, complete: rendition.complete, estimatedTokens: 8192, materialise: async () => (await readRendition()).dataUrl }
+        if (!taskModels.selections.image) return image
+        addConsoleEntry('info', `Image interpretation: ${PROVIDER_LABELS[target.provider]} / ${target.model}.`, 'ai')
+        const interpretation = await runFileAnalysis({ task: 'image', target, identity: broker.trace.identity, question: text,
+          evidence: { ref, sourceId: source.id, revision: source.revision, title: source.title, kind: source.kind, scope: source.scope, reason: 'Selected image interpretation', content: `Selected ${source.title} at ${JSON.stringify(location ?? { kind: 'image' })}; ${rendition.width} × ${rendition.height} pixels.`, estimatedTokens: 100, completeness: rendition.complete ? 'complete' : 'partial', location },
+          image, signal: ac.signal, current, validate: async () => { broker.validateSend(); await source.readLocated!(location, 0, ac.signal); broker.validateSend() } })
+        return { interpretation, model: `${PROVIDER_LABELS[target.provider]} / ${target.model}`, complete: rendition.complete }
       },
       contentSearch: async (query, signal) => {
         signal.throwIfAborted()
@@ -313,7 +349,7 @@ export function AiChatPanel(): React.ReactElement {
     // Field descriptions are useful on expansion; the compact first schema
     // preserves types and required fields without carrying a catalogue.
     const compactTools = compactToolSchemas(initialToolExposure(tools, contextSize, route.documents), { projectFiles: useProjectFilesStore.getState().catalogue.files.length > 0 })
-    const outputReservation = Math.min(4000, Math.floor(contextSize / (contextSize < 8192 ? 8 : 4)))
+    const outputReservation = thinkingOutputReservation(Math.min(4000, Math.floor(contextSize / (contextSize < 8192 ? 8 : 4))), contextSize, thinking)
     const memory = useContextStore.getState()
     const originalHistory = disclosureDialogue(useAiStore.getState().chats.find(c => c.id === chatId)?.messages ?? [userMsg], disclosureExclusions(memory.excluded, hasColumnExclusions()), memory.exclusionsLoaded)
     const pinIds = [...memory.globals, ...memory.projectContext.memories].filter(record => record.status === 'active' && record.pinned && (record.scope === 'global' || (project.path && record.projectId === project.projectId))).map(record => `memory:${record.id}`)
@@ -457,6 +493,7 @@ export function AiChatPanel(): React.ReactElement {
       const fullContent = await sendMessage({
         provider,
         model: currentModel,
+        thinking,
         apiKey,
         localUrl: local ? localBaseUrl(provider, keys) : undefined,
         localApiKey: local ? localApiKey(provider, keys) : undefined,
@@ -536,7 +573,7 @@ export function AiChatPanel(): React.ReactElement {
           ? { ...chat, messages: attachTurnTrace(chat.messages, userMsg.id, broker.trace) } : chat) }))
       }
     }
-  }, [provider, currentModel, keys, effort, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
+  }, [provider, currentModel, keys, thinkingCapability, effort, autoPilotEnabled, webAccessEnabled, terminalEnabled, contextSize,
       appendStreamChunk, finalizeStream, setTokenUsage, addConsoleEntry, setAttachments])
 
   const handleSend = useCallback(async () => {
@@ -776,6 +813,7 @@ export function AiChatPanel(): React.ReactElement {
           </select>
           <button className="rounded border border-geo-border px-2 py-1 hover:border-geo-accent hover:text-foreground" onClick={() => setMemoryOpen(v => !v)} aria-expanded={memoryOpen}>Memory Library</button>
         </div>
+        <ThinkingEffortControl provider={provider} model={currentModel} capability={thinkingCapability} disabled={isStreaming} />
         {activeChat && <ContextUsageSummary chats={usageChats} chatId={activeChat.id} projectId={usageProjectId} />}
         {memoryOpen && <MemoryLibrary />}
         <ContextAttachments key={`${activeChat?.id}:${workspaceEpoch}`} value={attachments} onChange={setAttachments} disabled={isStreaming} />

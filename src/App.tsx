@@ -1,5 +1,7 @@
+import { AppUpdateController } from '@/components/settings/AppUpdateController'
 import { initProjectFileAiInvalidation } from '@/lib/project-file-ai'
 import { initProjectFiles } from '@/store/project-files'
+import { startProjectFileAutoAnalysis } from '@/lib/project-file-auto-analysis'
 import React, { useEffect, useRef } from 'react'
 import { EditorLayout } from './components/layout/EditorLayout'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
@@ -37,6 +39,8 @@ import { useCustomThemeStore } from './store/custom-themes'
 import { applyTheme } from './lib/themes'
 import { applyEditorTheme } from './lib/editor-themes'
 import { useThemeStore, applyUiScale } from './store/theme'
+import { useThemeBackgroundStore } from './store/theme-backgrounds'
+import { startThemeBackgroundPlayback } from './lib/theme-background-playback'
 import { loadSpatialSettings } from './lib/spatial-settings-persistence'
 import { useSpatialSettingsStore } from './store/spatialSettings'
 import { loadMarkdownSettings } from './lib/markdown-settings-persistence'
@@ -174,6 +178,10 @@ function MainApp(): React.ReactElement {
         markdownTheme,
         uiScale: savedScale,
       })
+      // Background choices are device preferences, restored after custom theme
+      // definitions. A damaged gallery config must never prevent app startup.
+      try { await useThemeBackgroundStore.getState().init() }
+      catch (error) { console.warn('[Theme backgrounds] Restore failed:', error) }
 
       // Load spatial editor settings
       const {
@@ -280,6 +288,7 @@ function MainApp(): React.ReactElement {
     const cleanupProjectTracking = setupProjectTracking()
     initProjectFileAiInvalidation()
     initProjectFiles()
+    const cleanupFileAnalysis = startProjectFileAutoAnalysis()
 
     // Auto-reconnect when R restarts (e.g. after hibernation or crash)
     const cleanupRestarted = window.electronAPI.r.onRestarted(() => {
@@ -339,6 +348,7 @@ function MainApp(): React.ReactElement {
       cleanupPlotPopoutSync()
       cleanupWorkspaceAutosave()
       cleanupProjectTracking()
+      cleanupFileAnalysis()
       cleanupRestarted()
       cleanupResume?.()
       cleanupBeforeQuit()
@@ -348,8 +358,25 @@ function MainApp(): React.ReactElement {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return <>
+    <ThemeBackgroundLifecycle />
     <ErrorBoundary><EditorLayout /><UnsavedChangesDialog /></ErrorBoundary>
     {/* A map/compositor render failure must not unmount an active repair. */}
     <ErrorBoundary><HealthCheckDialog /></ErrorBoundary>
+    <AppUpdateController />
   </>
+}
+
+function ThemeBackgroundLifecycle(): null {
+  useEffect(() => {
+    const stop = startThemeBackgroundPlayback()
+    // This read need not wait for R/session restoration. The main startup path
+    // awaits the same coalesced promise after registering custom themes, so a
+    // remembered gallery selection is ready when its app theme is applied.
+    void useThemeBackgroundStore.getState().init().catch(error => console.warn('[Theme backgrounds] Restore failed:', error))
+    const refresh = (): void => { void useThemeBackgroundStore.getState().refreshFolders().catch(error => console.warn('[Theme image folders] Refresh failed:', error)) }
+    refresh()
+    const unsubscribe = window.electronAPI.themeBackgrounds.onChanged(refresh)
+    return () => { stop(); unsubscribe() }
+  }, [])
+  return null
 }

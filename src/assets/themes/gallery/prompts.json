@@ -1,0 +1,356 @@
+{
+  "generator": "Built-in image_gen",
+  "style": "Cinematic anime film background painting with lifelike materials. Existing paintings are retained. Each loop animates its theme's original painting with subtle local reflection, cloud or light motion; scripts/build-theme-loops.mjs records deterministic GIF encoding and seamless endpoint verification.",
+  "images": [
+    {
+      "theme": "dark",
+      "index": 1,
+      "label": "Moonlit observatory",
+      "file": "dark-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo Dark theme background gallery, Moonlit Observatory. Create one wide 16:9 cinematic anime film background painting with lifelike materials. A solitary elegant stone astronomical observatory on a rocky promontory above a broad serene alpine valley lake, luminous crescent moon, silver moonlight, layered slate-blue mountains and distant pines. Charcoal navy #0f1117, restrained sapphire #4493f8 and silver #ededed. Sophisticated fine painterly detail, volumetric atmospheric depth, tranquil contemplative mood. Rich detail at edges, quiet subdued central midtones suitable behind a code editor. Full bleed landscape, no borders, no typography, no logos, no watermark, no people. This is a distinct landscape painting, not a UI mockup. Save and return the generated image's local path."
+    },
+    {
+      "theme": "dark",
+      "index": 2,
+      "label": "Silverwater gorge",
+      "file": "dark-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo dark theme background gallery, Silverwater gorge. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A narrow deep canyon at night with cascading silver waterfalls, a stone footbridge at the upper left, moonlight on mist and slate cliffs. Palette: charcoal navy #0f1117, restrained sapphire #4493f8 and silver #ededed. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "dark",
+      "index": 3,
+      "label": "Quiet harbour",
+      "file": "dark-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo dark theme background gallery, Quiet harbour. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An old coastal harbour under the crescent moon, a small lighthouse on a far headland, dark ocean reflecting the stars, weathered wooden boats near the edge. Palette: charcoal navy #0f1117, restrained sapphire #4493f8 and silver #ededed. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "dark",
+      "index": 4,
+      "label": "Mountain railway",
+      "file": "dark-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo dark theme background gallery, Mountain railway. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An elegant railway viaduct curving around a mountain valley at night, a tiny warmly lit train, pine forests and distant snow peaks under stars. Palette: charcoal navy #0f1117, restrained sapphire #4493f8 and silver #ededed. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "dark",
+      "index": 5,
+      "label": "Night garden",
+      "file": "dark-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo dark theme background gallery, Night garden. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A secluded walled botanical garden at night, blue hydrangeas, quiet ornamental pond, stone arches and silver moonlight, architecture framed at the edges. Palette: charcoal navy #0f1117, restrained sapphire #4493f8 and silver #ededed. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "bespin",
+      "index": 1,
+      "label": "Amber skyport",
+      "file": "bespin-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo bespin theme background gallery, Amber skyport. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An immense elegant floating skyport with copper airship moorings, terraced towers and illuminated landing platforms above a luminous amber cloud ocean at sunset. Palette: warm espresso #231a10, amber #f4a83a and parchment #dac9a5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "bespin",
+      "index": 2,
+      "label": "Cloud gardens",
+      "file": "bespin-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo bespin theme background gallery, Cloud gardens. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: Lush suspended gardens surrounding a small copper domed pavilion, elegant bridges over sunset clouds, warm amber light and distant floating city spires. Palette: warm espresso #231a10, amber #f4a83a and parchment #dac9a5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "bespin",
+      "index": 3,
+      "label": "Golden observatory",
+      "file": "bespin-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo bespin theme background gallery, Golden observatory. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A slender brass and pale stone observatory hovering above a golden cloud sea, great circular celestial instruments silhouetted at the margins, sun near the horizon. Palette: warm espresso #231a10, amber #f4a83a and parchment #dac9a5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "bespin",
+      "index": 4,
+      "label": "Highland citadel",
+      "file": "bespin-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo bespin theme background gallery, Highland citadel. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An ornate cliffside citadel of sandstone and weathered copper emerging above amber cloud banks, warm lanterns and graceful flying buttresses. Palette: warm espresso #231a10, amber #f4a83a and parchment #dac9a5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "bespin",
+      "index": 5,
+      "label": "Cloudsea archipelago",
+      "file": "bespin-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo bespin theme background gallery, Cloudsea archipelago. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A broad aerial panorama of floating rocky islands carrying elegant tiny copper villages, winding waterfalls vanishing into the amber clouds below. Palette: warm espresso #231a10, amber #f4a83a and parchment #dac9a5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "neonLights",
+      "index": 1,
+      "label": "Rain station",
+      "file": "neonLights-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo neonLights theme background gallery, Rain station. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A rain-soaked elevated railway platform in a futuristic Japanese city at night, cyan illuminated rails and magenta panels without letters, distant towers and steam. Palette: black #0d0d0d, electric cyan #00ffff and hot pink #ff0066. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "neonLights",
+      "index": 2,
+      "label": "Electric canal",
+      "file": "neonLights-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo neonLights theme background gallery, Electric canal. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A quiet narrow canal beneath futuristic city bridges at night, cyan and hot pink reflections across dark water, dense elegant buildings and light mist. Palette: black #0d0d0d, electric cyan #00ffff and hot pink #ff0066. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "neonLights",
+      "index": 3,
+      "label": "Rooftop sanctuary",
+      "file": "neonLights-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo neonLights theme background gallery, Rooftop sanctuary. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A tranquil futuristic rooftop garden at night overlooking a dense neon metropolis, wet stone paving, bamboo and cyan magenta light bars without lettering. Palette: black #0d0d0d, electric cyan #00ffff and hot pink #ff0066. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "neonLights",
+      "index": 4,
+      "label": "Neon arcade",
+      "file": "neonLights-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo neonLights theme background gallery, Neon arcade. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A deep rain-slick covered arcade in a futuristic Japanese city, closed glass shopfronts and abstract blank cyan magenta panels, realistic reflections and steam, no people. Palette: black #0d0d0d, electric cyan #00ffff and hot pink #ff0066. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "neonLights",
+      "index": 5,
+      "label": "Skyline after rain",
+      "file": "neonLights-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo neonLights theme background gallery, Skyline after rain. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A panoramic futuristic city skyline across a dark rain-rippled bay, electric cyan and magenta windows, layered skyscrapers and low clouds. Palette: black #0d0d0d, electric cyan #00ffff and hot pink #ff0066. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "forest",
+      "index": 1,
+      "label": "Fern ravine",
+      "file": "forest-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo forest theme background gallery, Fern ravine. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A mossy emerald ravine with a clear winding stream, enormous ferns, weathered stone stepping stones and ancient cedar roots, warm shafts of morning light. Palette: deep green #0b1a0d, fern #3d8f42 and sage #d4e8d5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "forest",
+      "index": 2,
+      "label": "Canopy refuge",
+      "file": "forest-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo forest theme background gallery, Canopy refuge. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A beautifully crafted wooden reading pavilion nestled high among ancient cedar trees, winding canopy walkways, misty emerald forest depth and warm sunlight. Palette: deep green #0b1a0d, fern #3d8f42 and sage #d4e8d5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "forest",
+      "index": 3,
+      "label": "Woodland falls",
+      "file": "forest-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo forest theme background gallery, Woodland falls. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A secluded multilevel waterfall tumbling over mossy dark rocks into a quiet emerald pool, enormous trees framing the edges, luminous green mist. Palette: deep green #0b1a0d, fern #3d8f42 and sage #d4e8d5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "forest",
+      "index": 4,
+      "label": "Misty grove",
+      "file": "forest-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo forest theme background gallery, Misty grove. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A cathedral-like grove of giant redwoods, low swirling morning mist, delicate ferns and a quiet curving path illuminated by shafts of golden sunlight. Palette: deep green #0b1a0d, fern #3d8f42 and sage #d4e8d5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "forest",
+      "index": 5,
+      "label": "Meadow at dawn",
+      "file": "forest-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo forest theme background gallery, Meadow at dawn. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A tranquil woodland meadow with native wildflowers, a clear creek and delicate fallen log bridge, emerald forest margins and warm dawn haze. Palette: deep green #0b1a0d, fern #3d8f42 and sage #d4e8d5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "midnightDream",
+      "index": 1,
+      "label": "Starlit sanctuary",
+      "file": "midnightDream-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo midnightDream theme background gallery, Starlit sanctuary. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A graceful pale stone sanctuary at the edge of a mountain lake, lavender nebula and luminous Milky Way, violet alpine peaks reflected in the water. Palette: midnight indigo #060619, violet #9966e6 and pale lavender #dde0f5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "midnightDream",
+      "index": 2,
+      "label": "Nebula desert",
+      "file": "midnightDream-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo midnightDream theme background gallery, Nebula desert. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: Undulating dark violet desert dunes under an immense delicate lavender nebula, tiny stars and slender crescent moon, silver blue sand ripples. Palette: midnight indigo #060619, violet #9966e6 and pale lavender #dde0f5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "midnightDream",
+      "index": 3,
+      "label": "Celestial arch",
+      "file": "midnightDream-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo midnightDream theme background gallery, Celestial arch. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An ancient natural stone arch framing a distant lavender Milky Way above violet mountains, quiet reflecting pool and pale luminous flowers at the edges. Palette: midnight indigo #060619, violet #9966e6 and pale lavender #dde0f5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "midnightDream",
+      "index": 4,
+      "label": "Dream orchard",
+      "file": "midnightDream-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo midnightDream theme background gallery, Dream orchard. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A peaceful orchard of pale lavender flowering trees on a hillside, a small still lake and distant violet peaks beneath a deep indigo star-filled sky. Palette: midnight indigo #060619, violet #9966e6 and pale lavender #dde0f5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "midnightDream",
+      "index": 5,
+      "label": "Moonlit islands",
+      "file": "midnightDream-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo midnightDream theme background gallery, Moonlit islands. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A chain of misty violet islands and quiet waterfalls under a magnificent lavender starfield and luminous crescent moon, reflected stars on still water. Palette: midnight indigo #060619, violet #9966e6 and pale lavender #dde0f5. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "candyAddiction",
+      "index": 1,
+      "label": "Crystal lagoon",
+      "file": "candyAddiction-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo candyAddiction theme background gallery, Crystal lagoon. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A rich whimsical candy lagoon of translucent raspberry syrup, sculptural spun sugar coral and lavender crystalline candy formations beneath luminous twilight clouds. Palette: plum #18091f, raspberry pink #ff1a66, pastel lavender #f0d5f7 and restrained mint accents. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "candyAddiction",
+      "index": 2,
+      "label": "Sugar conservatory",
+      "file": "candyAddiction-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo candyAddiction theme background gallery, Sugar conservatory. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An elegant glasslike sugar conservatory surrounded by raspberry and violet candy gardens, arched peppermint paths and fine crystalline translucent textures. Palette: plum #18091f, raspberry pink #ff1a66, pastel lavender #f0d5f7 and restrained mint accents. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "candyAddiction",
+      "index": 3,
+      "label": "Raspberry canyon",
+      "file": "candyAddiction-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo candyAddiction theme background gallery, Raspberry canyon. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A sweeping canyon of raspberry and plum sugar rock with a glossy pink syrup river, delicate spun-sugar bridges and softly luminous lavender clouds. Palette: plum #18091f, raspberry pink #ff1a66, pastel lavender #f0d5f7 and restrained mint accents. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "candyAddiction",
+      "index": 4,
+      "label": "Confection village",
+      "file": "candyAddiction-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo candyAddiction theme background gallery, Confection village. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A tiny refined confectionery village of sculptural violet sugar houses and raspberry glass windows beside a pink syrup stream, whimsical yet exquisitely rendered. Palette: plum #18091f, raspberry pink #ff1a66, pastel lavender #f0d5f7 and restrained mint accents. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "candyAddiction",
+      "index": 5,
+      "label": "Lavender candy dunes",
+      "file": "candyAddiction-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo candyAddiction theme background gallery, Lavender candy dunes. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A serene landscape of rolling lavender sugar dunes and raspberry crystal spires, a luminous pink sky with cotton candy clouds, restrained mint details. Palette: plum #18091f, raspberry pink #ff1a66, pastel lavender #f0d5f7 and restrained mint accents. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "heaven",
+      "index": 1,
+      "label": "Skyward gardens",
+      "file": "heaven-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo heaven theme background gallery, Skyward gardens. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A tranquil pale stone garden terrace floating above luminous white clouds, graceful arches draped in delicate greenery, clear airy blue morning sky. Palette: soft white #f0f8ff, clear sky blue #1a6fc7 and restrained blue-gray #2a3d57, suitable for a light theme. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "heaven",
+      "index": 2,
+      "label": "Cloud cathedral",
+      "file": "heaven-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo heaven theme background gallery, Cloud cathedral. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A distant elegant cathedral of pale stone and glass rising from a vast soft white cloud sea, gentle golden morning rays and endless blue horizon. Palette: soft white #f0f8ff, clear sky blue #1a6fc7 and restrained blue-gray #2a3d57, suitable for a light theme. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "heaven",
+      "index": 3,
+      "label": "Sunlit colonnade",
+      "file": "heaven-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo heaven theme background gallery, Sunlit colonnade. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A graceful open-air marble colonnade along the edge of white clouds, delicate hanging flowers and blue sky, luminous soft morning light. Palette: soft white #f0f8ff, clear sky blue #1a6fc7 and restrained blue-gray #2a3d57, suitable for a light theme. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "heaven",
+      "index": 4,
+      "label": "Celestial coast",
+      "file": "heaven-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo heaven theme background gallery, Celestial coast. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A tranquil pale blue ocean meeting a vast sea of white clouds, ivory cliffs and a distant graceful lighthouse, airy morning sun through soft mist. Palette: soft white #f0f8ff, clear sky blue #1a6fc7 and restrained blue-gray #2a3d57, suitable for a light theme. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "heaven",
+      "index": 5,
+      "label": "Cloudwater falls",
+      "file": "heaven-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo heaven theme background gallery, Cloudwater falls. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: Floating pale stone islands with gentle luminous waterfalls descending into an endless soft white cloud sea, airy blue sky and elegant tiny gardens. Palette: soft white #f0f8ff, clear sky blue #1a6fc7 and restrained blue-gray #2a3d57, suitable for a light theme. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "volcanic",
+      "index": 1,
+      "label": "Obsidian river",
+      "file": "volcanic-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo volcanic theme background gallery, Obsidian river. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A winding incandescent orange lava river through fractured glossy obsidian cliffs, distant volcanic peaks at dusk, smoke glowing warmly from below and delicate embers. Palette: black brown #130a05, incandescent orange #ff6600 and cream #e0c9b0. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "volcanic",
+      "index": 2,
+      "label": "Caldera observatory",
+      "file": "volcanic-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo volcanic theme background gallery, Caldera observatory. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A dramatic stone research observatory perched above a vast glowing volcanic caldera, tiny windows at the edge, smoky black mountains and orange lava far below. Palette: black brown #130a05, incandescent orange #ff6600 and cream #e0c9b0. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "volcanic",
+      "index": 3,
+      "label": "Basalt coast",
+      "file": "volcanic-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo volcanic theme background gallery, Basalt coast. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A stark coastline of hexagonal basalt columns, glowing lava spilling into the dark sea, luminous steam plumes and soft orange dusk over the horizon. Palette: black brown #130a05, incandescent orange #ff6600 and cream #e0c9b0. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "volcanic",
+      "index": 4,
+      "label": "Ember canyon",
+      "file": "volcanic-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo volcanic theme background gallery, Ember canyon. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An immense dark basalt canyon with subtle glowing orange fissures and a narrow lava waterfall, dense ash haze and molten reflections at the margins. Palette: black brown #130a05, incandescent orange #ff6600 and cream #e0c9b0. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "volcanic",
+      "index": 5,
+      "label": "Fireglass plain",
+      "file": "volcanic-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo volcanic theme background gallery, Fireglass plain. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A wide obsidian plain scattered with glossy volcanic glass, distant erupting cone illuminating amber smoke, thin flowing lava channels under a deep dusk sky. Palette: black brown #130a05, incandescent orange #ff6600 and cream #e0c9b0. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "arctic",
+      "index": 1,
+      "label": "Aurora harbour",
+      "file": "arctic-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo arctic theme background gallery, Aurora harbour. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A small isolated red-roofed polar research harbour at the edge of a dark blue fjord, sculptural icebergs and cyan emerald aurora overhead, delicate stars. Palette: deep navy #0b1520, icy cyan #29c4e6 and pale ice #d4ecf7. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "arctic",
+      "index": 2,
+      "label": "Glacier cathedral",
+      "file": "arctic-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo arctic theme background gallery, Glacier cathedral. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: An immense sculptural blue glacier cavern opening onto a tranquil arctic fjord, translucent ice ribs, moonlight and delicate cyan aurora in the distance. Palette: deep navy #0b1520, icy cyan #29c4e6 and pale ice #d4ecf7. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "arctic",
+      "index": 3,
+      "label": "Polar observatory",
+      "file": "arctic-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo arctic theme background gallery, Polar observatory. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A small elegant polar observatory on a snowy ridge above an immense frozen blue valley, sweeping cyan green aurora and distant snow mountains. Palette: deep navy #0b1520, icy cyan #29c4e6 and pale ice #d4ecf7. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "arctic",
+      "index": 4,
+      "label": "Iceberg passage",
+      "file": "arctic-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo arctic theme background gallery, Iceberg passage. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A serene passage between sculptural blue icebergs, still dark water reflecting cyan emerald aurora, distant snowy peaks and clear delicate stars. Palette: deep navy #0b1520, icy cyan #29c4e6 and pale ice #d4ecf7. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "arctic",
+      "index": 5,
+      "label": "Snowlight falls",
+      "file": "arctic-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo arctic theme background gallery, Snowlight falls. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A partly frozen waterfall flowing between snow-covered cliffs into a quiet blue pool, sculptural icicles and pale cyan aurora under a polar night sky. Palette: deep navy #0b1520, icy cyan #29c4e6 and pale ice #d4ecf7. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "retroTerminal",
+      "index": 1,
+      "label": "Phosphor archive",
+      "file": "retroTerminal-1.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo retroTerminal theme background gallery, Phosphor archive. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A atmospheric vintage computing archive at night, long rows of tactile beige computer terminals with green phosphor glow, dark server racks and subtle dust in light shafts. Palette: near-black green #030f03, green phosphor #00ff00 and soft green #66cc66. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "retroTerminal",
+      "index": 2,
+      "label": "Night control room",
+      "file": "retroTerminal-2.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo retroTerminal theme background gallery, Night control room. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A deserted vintage spaceflight control room at night, curved CRT monitors glowing green without readable text, mechanical consoles and dark receding architecture. Palette: near-black green #030f03, green phosphor #00ff00 and soft green #66cc66. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "retroTerminal",
+      "index": 3,
+      "label": "Signal station",
+      "file": "retroTerminal-3.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo retroTerminal theme background gallery, Signal station. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A vintage remote radio and computing station beside a large night window, glowing green CRT at the right edge, tactile knobs and cables, forest visible beyond. Palette: near-black green #030f03, green phosphor #00ff00 and soft green #66cc66. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "retroTerminal",
+      "index": 4,
+      "label": "Quiet workstation",
+      "file": "retroTerminal-4.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo retroTerminal theme background gallery, Quiet workstation. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A beautifully worn vintage beige computer workstation by a rain-streaked window at night, green phosphor glow, mechanical keyboard and abstract screen marks without readable letters. Palette: near-black green #030f03, green phosphor #00ff00 and soft green #66cc66. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    },
+    {
+      "theme": "retroTerminal",
+      "index": 5,
+      "label": "Mainframe corridor",
+      "file": "retroTerminal-5.webp",
+      "prompt": "Use case: stylized-concept. Asset type: ouRGeo retroTerminal theme background gallery, Mainframe corridor. Create one wide 16:9 landscape, premium anime film background painting blended with lifelike physically convincing materials and cinematic light. Scene: A cinematic corridor of vintage mainframe cabinets and tape reels at night, restrained green status lamps and a single glowing green terminal at the edge, quiet dark centre. Palette: near-black green #030f03, green phosphor #00ff00 and soft green #66cc66. Rich depth, sophisticated fine painterly detail, atmospheric perspective and elegant immersive composition. Quiet subdued central tones for readable code overlay, dramatic details at edges, clear visual identity at thumbnail size. Full bleed, no borders, no text, no logos, no watermarks, no characters, no UI. A distinct polished landscape painting. Save the generated image and return its local path."
+    }
+  ]
+}

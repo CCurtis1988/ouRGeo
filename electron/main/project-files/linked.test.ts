@@ -140,6 +140,9 @@ describe('linked folder authority and project lifecycle', () => {
     let entry = h.library.catalogue(h.scope.id).files[0]
     await h.library.update(entry.id, entry.revision, { role: 'standard', userDescription: 'User interpretation', name: 'Client standard' }, h.scope.id)
     entry = h.library.catalogue(h.scope.id).files[0]
+    await h.library.setAnalysis(entry.id, entry.revision, { text: 'Earlier AI summary', provider: 'ollama', model: 'document-model', coverage: 'Earlier source only.' }, h.scope.id)
+    await h.library.rescanFolders(undefined, h.scope.id); await h.idle()
+    expect(h.library.catalogue(h.scope.id).files[0].aiDescription?.text).toBe('Earlier AI summary')
     await writeFile(path, 'NEW_CLEARANCE_42')
     await expect(h.library.read(entry.id, entry.revision, h.scope.id)).rejects.toThrow()
     expect(await h.library.search('Old requirement', h.scope.id)).toEqual([])
@@ -147,6 +150,7 @@ describe('linked folder authority and project lifecycle', () => {
     const current = h.library.catalogue(h.scope.id).files[0]
     expect(current).toMatchObject({ id: entry.id, name: 'Client standard', role: 'standard', userDescription: 'User interpretation', descriptionNeedsReview: true })
     expect(current.revision).not.toBe(entry.revision)
+    expect(current.aiDescription).toBeUndefined()
     await expect(h.library.read(entry.id, entry.revision, h.scope.id)).rejects.toThrow('STALE_REFERENCE')
     expect((await h.library.read(current.id, current.revision, h.scope.id)).text).toContain('NEW_CLEARANCE_42')
   })

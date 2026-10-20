@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildLayoutFile, parseLayoutFile, layoutFileName, LAYOUT_FILE_VERSION } from './layout-file'
-import { defaultLayout, LAYOUT_VERSION, type LayoutState } from './model'
+import { defaultLayout, type LayoutState } from './model'
 import { panelInfoList } from './panel-meta'
 
 const layout = (): LayoutState => defaultLayout(panelInfoList())
@@ -57,7 +57,7 @@ describe('a workspace layout as a file', () => {
   })
 
   it('drops an arrangement from an older layout version, and says so', () => {
-    const stale = { ...layout(), version: LAYOUT_VERSION - 1 }
+    const stale = { ...layout(), version: 0 }
     const parsed = parseLayoutFile(buildLayoutFile([{ name: 'Old', layout: stale }]))
     expect(parsed.ok).toBe(false)
     if (!parsed.ok) expect(parsed.error).toMatch(/different version/)
@@ -72,4 +72,10 @@ describe('a workspace layout as a file', () => {
     expect(layoutFileName('Mapping & Writing')).toBe('mapping-writing')
     expect(layoutFileName('   ')).toBe('layout')
   })
+})
+
+it('accepts version-one flat arrangements for migration without forgetting placement', () => {
+  const old = { ...layout(), version: 1 }
+  const parsed = parseLayoutFile(buildLayoutFile([{ name: 'Old arrangement', layout: old }]))
+  expect(parsed.ok && parsed.presets[0].layout.zones).toEqual(old.zones)
 })

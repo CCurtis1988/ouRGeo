@@ -1,3 +1,4 @@
+import type { AppUpdateStatus, UpdatePreferences, InstallerFormat } from '../../src/lib/app-updates'
 /** Mirror of the main window's current plot selection, sent to the popout. */
 interface PlotPopoutState {
   dataUrl: string | null
@@ -308,6 +309,7 @@ declare global {
         saveProject(defaultName?: string): Promise<string | null>
       }
       projectFiles: import('../../src/lib/project-files').ProjectFileApi
+      themeBackgrounds: import('../../src/lib/theme-backgrounds-types').ThemeBackgroundFolderApi
       project: {
         tempEnvPath(): Promise<string>
         pack(bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] } | void>
@@ -421,6 +423,13 @@ declare global {
         cacheWrite(id: string, key: string, code: string): Promise<void>
         esbuildWasm(): Promise<string>
       }
+      updates: {
+        quit(): Promise<void>
+        status(): Promise<AppUpdateStatus>
+        check(mode: 'startup' | 'manual'): Promise<AppUpdateStatus>
+        preferences(patch: Partial<UpdatePreferences>): Promise<AppUpdateStatus>
+        open(destination: InstallerFormat | 'downloads' | 'notes'): Promise<void>
+      }
       app: {
         getDataPath(): Promise<string>
         onUiZoom(callback: (direction: 'in' | 'out') => void): void
@@ -479,6 +488,7 @@ declare global {
             prompt: string
             systemPrompt: string
             model: string
+            effort?: string
             sessionId: string
             resume: boolean
             tools: { name: string; description: string; inputSchema: unknown }[]

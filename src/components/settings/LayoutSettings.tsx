@@ -137,7 +137,9 @@ function PanelDragToggle(): React.ReactElement {
       description={
         <>
           Puts a small grip in each panel’s top-right corner: drag it to drop the
-          panel into another zone, or right-click it for that panel’s menu. The
+          panel over another pane, then choose a vertical split, horizontal split or
+          tab group. Select a section to finish a split; Escape cancels. Drop in
+          an empty zone to move there, or right-click the grip for its menu. The
           arrangement itself is unaffected either way — this list, and the
           assistant, can rearrange the workspace with the grips off.
         </>

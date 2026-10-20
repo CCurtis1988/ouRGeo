@@ -1,4 +1,7 @@
+import { registerAppUpdates } from './app-updates'
+import { APP_ICON_PATH } from './app-icon'
 import { PROJECT_FILES_SCHEME } from './project-files/ipc'
+import { registerThemeBackgrounds, THEME_BACKGROUNDS_SCHEME } from './theme-backgrounds/ipc'
 import './context/acceptance-profile'
 import {
   app, BrowserWindow, shell, ipcMain, powerMonitor, protocol, session, systemPreferences,
@@ -54,6 +57,7 @@ let quitConfirmed = false
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
+    icon: APP_ICON_PATH,
     width: 1000,
     height: 700,
     minWidth: 600,
@@ -135,9 +139,14 @@ function createWindow(): void {
 // Must run before the app is ready: Electron only accepts privilege
 // declarations while the protocol registry is still open. This is what makes
 // `ourgeo-model://` a secure origin that `fetch` will read a stream from.
-protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES, PROJECT_FILES_SCHEME])
+protocol.registerSchemesAsPrivileged([VOICE_MODEL_SCHEME_PRIVILEGES, PROJECT_FILES_SCHEME, THEME_BACKGROUNDS_SCHEME])
+
+// Match the installed .desktop entry so Linux groups running windows with the
+// branded launcher, including when Chromium uses a Wayland application id.
+if (process.platform === 'linux' && !app.commandLine.hasSwitch('class')) app.commandLine.appendSwitch('class', 'ourgeo')
 
 app.whenReady().then(async () => {
+  if (process.platform === 'darwin') app.dock?.setIcon(APP_ICON_PATH)
   registerLocalNetwork(ipcMain, () => rBridge.port)
   // Session creation precedes BrowserWindow preferences. Disable its dictionary
   // service too: window-level spellcheck=false alone still downloads Hunspell.
@@ -190,7 +199,9 @@ app.whenReady().then(async () => {
 
   setupIpcHandlers(ipcMain)
   registerContextHandlers(ipcMain, () => mainWindow?.webContents)
+  registerThemeBackgrounds(ipcMain)
   registerHealthHandlers(ipcMain)
+  registerAppUpdates(ipcMain)
   registerDataPreflightHandlers(ipcMain)
   registerAiProxy(ipcMain)
   registerClaudeCliHandlers(ipcMain)

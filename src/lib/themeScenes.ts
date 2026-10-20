@@ -17,6 +17,19 @@ const BUILTIN_ART: Readonly<Record<string, string>> = {
   volcanic: new URL('../assets/themes/volcanic.webp', import.meta.url).href,
   arctic: new URL('../assets/themes/arctic.webp', import.meta.url).href,
   retroTerminal: new URL('../assets/themes/retroTerminal.webp', import.meta.url).href,
+  'field-dev': new URL('../assets/themes/field-dev.webp', import.meta.url).href,
+  'field-slate': new URL('../assets/themes/field-slate.webp', import.meta.url).href,
+  'field-basalt': new URL('../assets/themes/field-basalt.webp', import.meta.url).href,
+  'field-forest': new URL('../assets/themes/field-forest.webp', import.meta.url).href,
+  'field-trout': new URL('../assets/themes/field-trout.webp', import.meta.url).href,
+  'field-high-alpine': new URL('../assets/themes/field-high-alpine.webp', import.meta.url).href,
+  'field-wood': new URL('../assets/themes/field-wood.webp', import.meta.url).href,
+  'field-sextant': new URL('../assets/themes/field-sextant.webp', import.meta.url).href,
+  'field-glacier': new URL('../assets/themes/field-glacier.webp', import.meta.url).href,
+  'field-field-notes': new URL('../assets/themes/field-field-notes.webp', import.meta.url).href,
+  'field-rainproof': new URL('../assets/themes/field-rainproof.webp', import.meta.url).href,
+  'field-albany': new URL('../assets/themes/field-albany.webp', import.meta.url).href,
+  'field-linen': new URL('../assets/themes/field-linen.webp', import.meta.url).href,
 }
 
 export interface ScenePalette {
