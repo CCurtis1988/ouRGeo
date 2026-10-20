@@ -1,5 +1,4 @@
 import { useEditorStore, type TabState } from '@/store/editor'
-import { useProjectStore } from '@/store/project'
 import { getDataPath } from '@/lib/persistence'
 
 export interface SessionData {
@@ -11,8 +10,6 @@ export interface SessionData {
    *  is why it is optional rather than defaulted. */
   activeByPanel?: Record<string, string | null>
 }
-
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 async function getSessionPath(): Promise<string> {
   return `${await getDataPath()}/session.json`
@@ -59,7 +56,12 @@ export async function applySessionData(data: SessionData, options: { portable?: 
     } else if (tab.filePath) {
       try {
         const diskContent = await window.electronAPI.file.read(tab.filePath)
-        restoredTabs.push({ ...tab, content: diskContent, savedContent: diskContent, isDirty: false })
+        // Unsaved edits are project content (docs/project-persistence-spec.md
+        // §1.1): they come back as edits against the file as it is NOW, so
+        // the tab is dirty exactly when the two differ.
+        restoredTabs.push(tab.isDirty && typeof tab.content === 'string'
+          ? { ...tab, savedContent: diskContent, isDirty: tab.content !== diskContent }
+          : { ...tab, content: diskContent, savedContent: diskContent, isDirty: false })
       } catch {
         // File no longer exists — keep the tab with its last known content
         restoredTabs.push({ ...tab, filePath: null, isDirty: true })
@@ -85,62 +87,16 @@ export async function applySessionData(data: SessionData, options: { portable?: 
   return true
 }
 
-export async function saveSession(): Promise<void> {
-  // session.json holds the TEMP project's code tabs only. While a named project
-  // is active its code tabs live in the .ourgeoproj bundle, so we leave temp's
-  // scratch here untouched — that's what lets temp's scratch survive a switch to
-  // another project and be there again when ouRGeo relaunches into temp.
-  if (useProjectStore.getState().path !== null) return
+/**
+ * Scratch's documents before drafts existed. Read once, when scratch has no
+ * draft yet, so an upgrade does not lose the tabs a user left open; scratch's
+ * documents are written to its draft from then on (lib/project-draft.ts).
+ */
+export async function loadLegacySession(): Promise<SessionData | null> {
   try {
-    await window.electronAPI.file.write(await getSessionPath(), JSON.stringify(buildSessionData()))
-  } catch (err) {
-    console.warn('[Session] Failed to save:', err)
-  }
-}
-
-export function saveSessionDebounced(): void {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(saveSession, 2000)
-}
-
-export function saveSessionImmediate(): void {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveSession()
-}
-
-export async function loadSession(): Promise<boolean> {
-  try {
-    const raw = await window.electronAPI.file.read(await getSessionPath())
-    return await applySessionData(JSON.parse(raw) as SessionData)
+    const data = JSON.parse(await window.electronAPI.file.read(await getSessionPath())) as SessionData
+    return Array.isArray(data.tabs) ? data : null
   } catch {
-    // No session file or parse error — use defaults
-    return false
-  }
-}
-
-export function setupSessionAutosave(): () => void {
-  const unsub = useEditorStore.subscribe((state, prevState) => {
-    if (state.tabs !== prevState.tabs || state.activeTabId !== prevState.activeTabId) {
-      // Content changes get debounced, structural changes save immediately
-      const tabsChanged =
-        state.tabs.length !== prevState.tabs.length ||
-        state.activeTabId !== prevState.activeTabId
-      if (tabsChanged) {
-        saveSessionImmediate()
-      } else {
-        saveSessionDebounced()
-      }
-    }
-  })
-
-  const onBeforeUnload = (): void => {
-    saveSessionImmediate()
-  }
-  window.addEventListener('beforeunload', onBeforeUnload)
-
-  return () => {
-    unsub()
-    window.removeEventListener('beforeunload', onBeforeUnload)
-    if (saveTimer) clearTimeout(saveTimer)
+    return null
   }
 }

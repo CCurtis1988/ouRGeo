@@ -11,9 +11,10 @@
 
 import { useProjectStore } from '@/store/project'
 import {
-  saveCurrentProject, saveProjectAs, loadProjectFromPath, newProject, loadProject,
+  saveCurrentProject, saveProjectAs,
 } from '@/lib/project-persistence'
 import { ok, fail, argStr, argNum, argList, type UiAction, type ActionResult } from './types'
+import { switchProject } from '@/lib/project-leave'
 import { useContextStore } from '@/store/context'
 import { hasColumnExclusions } from '@/store/column-disclosure'
 import { projectFileSourceId, type ProjectFileEntry, type ProjectFileRole, type ProjectLinkedFolder } from '@/lib/project-files'
@@ -257,14 +258,17 @@ export const projectActions: UiAction[] = [
     // Loading resets the R session and replaces every open tab and layer.
     tier: 'confirm',
     summary:
-      'Open a .ourgeoproj bundle. This resets the R session and replaces the current tabs, ' +
-      'layers and plots. Omit the path to let the user pick the file.',
+      'Open a .ourgeoproj bundle. The current project\'s unsaved work is kept on this computer ' +
+      '(scratch asks first); R and the workspace are replaced by the opened project. Omit the path to let the user pick the file.',
     params: [
       { name: 'path', type: 'string', description: 'Absolute path to the .ourgeoproj file.' },
     ],
     run: async (args) => {
       const path = argStr(args, 'path')
-      const loaded = path ? await loadProjectFromPath(path) : await loadProject()
+      // Through the same leave-then-open as the project menu: the current
+      // project's work goes to its draft, and scratch asks before dropping
+      // anything (lib/project-leave.tsx).
+      const loaded = await switchProject(path ? { kind: 'open', path } : { kind: 'pick' })
       if (!loaded) return fail(path ? `Could not load "${path}".` : 'Open was cancelled or failed.')
       const s = useProjectStore.getState()
       return ok(`Opened project "${s.name}" (${s.path}).`)
@@ -276,10 +280,10 @@ export const projectActions: UiAction[] = [
     group: 'project',
     // Clears every user object in R.
     tier: 'confirm',
-    summary: 'Start a fresh scratch workspace: a clean R session with the scratch code tabs restored.',
+    summary: 'Go to scratch: a clean R session with scratch\'s untitled documents restored.',
     params: [],
     run: async () => {
-      await newProject()
+      if (!await switchProject({ kind: 'scratch' })) return fail('The user cancelled leaving the current workspace.')
       return ok('Started a new scratch workspace. The R session is clean.')
     },
   },

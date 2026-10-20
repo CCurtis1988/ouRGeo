@@ -216,7 +216,11 @@ export class ProjectFileLibrary {
       return this.catalogue(lease)
     })
   }
-  async activate(projectId: string, bundlePath: string, library: PortableLibrary, blobDir: string, signature: string, upgraded: boolean): Promise<void> {
+  /** `preferLocal`: the user chose their version of a project that changed
+   *  elsewhere (docs/project-persistence-spec.md §1.8), so this computer's
+   *  unsaved file changes are applied over the changed bundle rather than
+   *  set aside as a recovery copy. */
+  async activate(projectId: string, bundlePath: string, library: PortableLibrary, blobDir: string, signature: string, upgraded: boolean, preferLocal = false): Promise<void> {
     library = validateLibrary(library)
     const dir = join(this.root, projectId), blobs = join(dir, 'blobs')
     await mkdir(blobs, { recursive: true, mode: 0o700 }); await mkdir(join(dir, 'index'), { recursive: true, mode: 0o700 })
@@ -228,7 +232,7 @@ export class ProjectFileLibrary {
     const state: State = { projectId, bundlePath, signature, upgraded, saved: clone(library), draft: clone(library), undo: [], dir, blobs, cache: new Map(), cacheBytes: 0, linked: new Map() }
     try {
       const journal = JSON.parse(await readFile(join(dir, 'draft.json'), 'utf8')) as Journal
-      if (journal.baseSignature === signature && journal.draft.revision > library.revision) {
+      if (journal.baseSignature === signature && journal.draft.revision > library.revision || preferLocal && journal.draft.revision > (journal.savedRevision ?? 0)) {
         state.draft = validateLibrary(journal.draft); state.upgraded ||= journal.upgraded
         for (const file of state.draft.files.filter(file => !file.storage)) { const info = await stat(join(blobs, file.sha256)); if (info.size !== file.bytes) throw new Error('A recovered file is incomplete.') }
         state.notice = 'Recovered unsaved project files. Save the project to commit them, or discard the recovered changes.'
@@ -289,6 +293,55 @@ export class ProjectFileLibrary {
       const missing = state.draft.files.filter(file => file.sha256 && (!file.storage || state.linked.get(file.storage.folderId)?.card.status === 'ready') && !state.cache.has(indexId(file))).map(file => file.id)
       if (missing.length && !state.operation) await this.reindex(missing, this.lease().id)
     } catch (error) { if (this.active === state) { state.notice = `Search indexing is paused: ${String(error)} Original files remain available to preview and export.`; this.changed() } }
+  }
+  /** The user chose to save over a bundle that changed elsewhere (§1.8 of
+   *  docs/project-persistence-spec.md). The next save is checked against the
+   *  file as it is now, rather than refused as a changed destination. */
+  async acceptDestination(path: string, signature: string): Promise<void> {
+    return this.serial(async () => {
+      const state = this.active
+      if (!state || state.bundlePath !== path) return
+      state.signature = signature
+      await this.persist(state)
+    })
+  }
+  /** Take Project Files entries from another version of this project (a merge,
+   *  §1.9). `ids` are replaced by — or added as — theirs; `keepBoth` are added
+   *  beside mine, which is renamed with a `_mine` suffix, so both survive.
+   *  Linked entries are references, not bytes, and are copied as such. */
+  async adopt(entries: ProjectFileEntry[], blobDir: string, ids: string[], keepBoth: string[]): Promise<void> {
+    return this.serial(async () => {
+      const state = this.active
+      if (!state) throw new Error('Open the project before merging its files.')
+      for (const entry of entries) {
+        const replace = ids.includes(entry.id), both = keepBoth.includes(entry.id)
+        if (!replace && !both) continue
+        if (!entry.storage) {
+          const target = join(state.blobs, entry.sha256)
+          await copyFile(join(blobDir, entry.sha256), target)
+          if ((await stat(target)).size !== entry.bytes) throw new Error(`The file ${entry.name} from the other version is incomplete.`)
+        }
+        const incoming = clone(entry)
+        const mine = state.draft.files.find(file => file.id === entry.id)
+        if (both && mine) {
+          // Keep both: mine is renamed with a `_mine` suffix and keeps its id
+          // (chats cite it by id); theirs arrives under the original name.
+          const ext = extname(mine.name), stem = mine.name.slice(0, mine.name.length - ext.length)
+          let n = 1, name = `${stem}_mine${ext}`
+          while (state.draft.files.some(file => file.name === name)) name = `${stem}_mine_${++n}${ext}`
+          mine.name = name; this.bump(state, mine)
+          incoming.id = randomUUID()
+          state.draft.files.push(incoming)
+        } else {
+          state.draft.files = state.draft.files.some(file => file.id === entry.id)
+            ? state.draft.files.map(file => file.id === entry.id ? incoming : file)
+            : [...state.draft.files, incoming]
+        }
+        this.bump(state, incoming)
+      }
+      state.upgraded ||= state.draft.files.length > 0
+      await this.persist(state); this.changed()
+    })
   }
   snapshot(): LibrarySnapshot {
     const state = this.active

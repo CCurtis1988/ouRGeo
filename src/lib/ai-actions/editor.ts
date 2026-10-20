@@ -9,6 +9,7 @@
 // answer, so every action takes an explicit path and the assistant asks the
 // user for one when it doesn't have it.
 
+import { closeTab as closeDocument } from '@/lib/document-close'
 import { useEditorStore, type TabState } from '@/store/editor'
 import { useSessionStore } from '@/store/session'
 import { rClient } from '@/lib/r-client'
@@ -141,14 +142,15 @@ export const editorActions: UiAction[] = [
     id: 'editor:closeTab',
     group: 'editor',
     tier: 'autopilot',
-    summary: 'Close a tab. Unsaved changes in it are lost, so check editor:listTabs first.',
+    summary: 'Close a tab. A tab with unsaved edits asks the user to Save, Discard or Cancel first.',
     params: [{ name: 'name', type: 'string', description: 'Tab file name; omit for the active tab.' }],
-    run: (args) => {
+    run: async (args) => {
       const tab = requireTab(argStr(args, 'name'))
       if (isResult(tab)) return tab
-      const dirty = tab.isDirty
-      useEditorStore.getState().closeTab(tab.id)
-      return ok(`Closed "${tab.fileName}"${dirty ? ' — it had unsaved changes' : ''}.`)
+      // The same question the tab's ✕ asks: the assistant never throws away
+      // edits the user has not seen go.
+      const outcome = await closeDocument(tab.id)
+      return outcome === 'closed' ? ok(`Closed "${tab.fileName}".`) : ok(`"${tab.fileName}" is still open: the user cancelled closing it.`)
     },
   },
 

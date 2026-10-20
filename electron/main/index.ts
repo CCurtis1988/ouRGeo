@@ -18,6 +18,7 @@ import { createSleepRecovery, repaintWindow as forceRepaint } from './sleep-reco
 import { registerContextHandlers, stopContextProviders } from './context/ipc'
 import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
 import { registerHealthHandlers } from './health-check'
+import { beginSession, markCleanExit, onFocusRequested, registerProjectDrafts } from './project-drafts'
 import { registerDataPreflightHandlers } from './data-preflight'
 import { setupIpcHandlers, projectOpensPending, cleanupProjectOpens } from './ipc'
 import { registerAiProxy } from './ai-proxy'
@@ -199,6 +200,15 @@ app.whenReady().then(async () => {
   ))
 
   setupIpcHandlers(ipcMain)
+  // Before the window: how the last session ended decides whether this one
+  // opens with a crash warning, and which project it reopens.
+  beginSession()
+  registerProjectDrafts(ipcMain)
+  onFocusRequested(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show(); mainWindow.focus()
+  })
   registerContextHandlers(ipcMain, () => mainWindow?.webContents)
   registerThemeBackgrounds(ipcMain)
   registerHealthHandlers(ipcMain)
@@ -327,4 +337,6 @@ app.on('will-quit', (event) => {
   for (const file of SESSION_SCOPED_FILES) {
     try { unlinkSync(join(dir, file)) } catch { /* file may not exist */ }
   }
+  // Last, so a crash anywhere above still reads as one on the next launch.
+  markCleanExit()
 })

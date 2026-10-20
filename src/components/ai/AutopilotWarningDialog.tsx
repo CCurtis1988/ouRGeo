@@ -46,6 +46,7 @@ export function AutopilotWarningDialog({ open, onOpenChange, onConfirm }: Props)
                 className="accent-geo-accent"
               />
               Don't show this warning again
+              <span className="text-[10px] text-geo-muted/80">(Settings → Prompts turns it back on)</span>
             </label>
 
             <div className="flex items-center justify-end gap-2">

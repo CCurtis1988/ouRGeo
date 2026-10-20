@@ -319,6 +319,17 @@ the whole analysis.
   local database files; a bundle cannot grant access to unrelated absolute paths.
   Moving a bundle keeps its identity. Opening a duplicate offers the existing
   identity or an independent copy with new project and memory IDs.
+- **Nothing lost between saves.** A saved project keeps everything — documents
+  with their unsaved edits, cursors and scroll positions, the R environment,
+  the map, plots, the console and chats — on this computer as you work, and
+  reopens exactly where you left it, by default without asking. R is
+  snapshotted in the background (every 30 seconds of idle time, adjustable),
+  so a crash costs only what came after; the next launch says what was
+  recovered. Closing a document with unsaved edits asks Save / Discard /
+  Cancel. If someone saves over the project file on a shared drive, you choose
+  between their version, yours, or a three-way merge that shows both. Scratch
+  keeps its untitled notes and offers **Save as project** before dropping
+  anything else. See the [project persistence guide](docs/project-persistence.md).
 - **Project Files.** Keep reports, PDF standards, figure examples, Word documents
   and spreadsheets inside a saved project, or link folders whose originals stay
   on disk. Create or link multiple folders, label and rescan them, or forget a

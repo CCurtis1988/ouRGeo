@@ -1,5 +1,6 @@
 import { registerProjectFiles, projectFileLibrary } from './project-files/ipc'
 import { bundleTask } from './project-files/bundle-client'
+import { fileSignature } from './project-files/bundle'
 import { ProjectOpenWorkspaces } from './project-files/open-workspaces'
 import { IpcMain, dialog, app, shell, powerSaveBlocker, clipboard } from 'electron'
 import { readFile, writeFile, readdir, stat, unlink, mkdtemp, rm } from 'fs/promises'
@@ -388,7 +389,7 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
   // Extract a .ourgeoproj: return the manifest JSON string and the temp path of
   // the extracted environment.RData (null if the bundle has no env snapshot).
   let projectOpenGeneration = 0
-  ipcMain.handle('project:unpack', async (_evt, bundlePath: string) => {
+  ipcMain.handle('project:unpack', async (_evt, bundlePath: string, options?: { preferLocalFiles?: boolean }) => {
     requireContextOwner(_evt)
     const generation = ++projectOpenGeneration
     const priorLease = contextLease().id
@@ -460,7 +461,7 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
         }
         if (generation !== projectOpenGeneration || contextLease().id !== priorLease) throw new Error('SCOPE_CHANGED')
         opened.signal.throwIfAborted()
-      if (projectId) await projectFileLibrary().activate(projectId, bundlePath, unpacked.library, unpacked.blobDir, unpacked.signature, manifest.version >= 2)
+      if (projectId) await projectFileLibrary().activate(projectId, bundlePath, unpacked.library, unpacked.blobDir, unpacked.signature, manifest.version >= 2, options?.preferLocalFiles === true)
         activateContextProject(projectId)
         try { await rm(unpacked.blobDir, { recursive: true, force: true }) }
         catch (error) { contextWarnings.push(`Project opened, but temporary file copies could not be removed: ${String(error)}. Managed originals are intact.`) }
@@ -471,6 +472,37 @@ export function setupIpcHandlers(ipcMain: IpcMain): void {
       catch (cleanupError) { console.error('Temporary project-open cleanup failed:', cleanupError) }
       throw error
     }
+  })
+
+  // Read another version of a project without opening it: the "theirs" and
+  // "base" sides of a merge (docs/project-persistence-spec.md §1.9). Nothing
+  // is activated — no library, no context scope; the temporary copy is held
+  // until the renderer releases its token, exactly as an open is.
+  ipcMain.handle('project:inspect', async (_evt, bundlePath: string) => {
+    requireContextOwner(_evt)
+    const opened = await openWorkspaces.create(_evt.sender.id)
+    try {
+      return await openWorkspaces.run(opened.token, async () => {
+        const unpacked = await bundleTask('open', bundlePath, opened.path, opened.signal)
+        return { projectJson: JSON.stringify(unpacked.manifest), envRDataPath: unpacked.envPath, catalogue: unpacked.library, openToken: opened.token }
+      })
+    } catch (error) {
+      await openWorkspaces.release(opened.token, _evt.sender.id).catch(() => undefined)
+      throw error
+    }
+  })
+  ipcMain.handle('project:acceptDestination', async (_evt, bundlePath: string) => {
+    requireContextOwner(_evt)
+    await projectFileLibrary().acceptDestination(bundlePath, await fileSignature(bundlePath))
+  })
+  ipcMain.handle('project:adoptFiles', async (_evt, bundlePath: string, ids: string[], keepBoth: string[]) => {
+    requireContextOwner(_evt)
+    if (!Array.isArray(ids) || !Array.isArray(keepBoth) || !ids.length && !keepBoth.length) return
+    const work = await mkdtemp(join(app.getPath('userData'), 'project-merge-'))
+    try {
+      const unpacked = await bundleTask('open', bundlePath, work, new AbortController().signal)
+      await projectFileLibrary().adopt(unpacked.library.files, unpacked.blobDir, ids.map(String), keepBoth.map(String))
+    } finally { await rm(work, { recursive: true, force: true }).catch(() => undefined) }
   })
 
   // File read/write for R scripts

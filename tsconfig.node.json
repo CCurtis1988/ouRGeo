@@ -21,6 +21,7 @@
     "src/lib/ai-fetch-error.ts",
     "src/lib/app-permissions.ts",
     "src/lib/session-scoped-files.ts",
+    "src/lib/project-draft-types.ts",
     "src/lib/health-policy.ts",
     "src/lib/context/types.ts",
     "src/lib/project-files.ts",

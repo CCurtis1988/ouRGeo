@@ -253,9 +253,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
     tempEnvPath: (): Promise<string> => ipcRenderer.invoke('project:tempEnvPath'),
     pack: (bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] }> =>
       ipcRenderer.invoke('project:pack', bundlePath, projectJson, envRDataPath),
-    unpack: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings: string[]; authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths: string[] }> =>
-      ipcRenderer.invoke('project:unpack', bundlePath),
-    releaseOpen: (token: string): Promise<void> => ipcRenderer.invoke('project:releaseOpen', token)
+    unpack: (bundlePath: string, options?: { preferLocalFiles?: boolean }): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings: string[]; authorisedFileLinks: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths: string[] }> =>
+      ipcRenderer.invoke('project:unpack', bundlePath, options),
+    releaseOpen: (token: string): Promise<void> => ipcRenderer.invoke('project:releaseOpen', token),
+    /** Read a bundle without opening it — the other side of a merge. */
+    inspect: (bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; catalogue: unknown; openToken: string }> =>
+      ipcRenderer.invoke('project:inspect', bundlePath),
+    /** The user chose to save over a bundle that changed elsewhere (§1.8). */
+    acceptDestination: (bundlePath: string): Promise<void> => ipcRenderer.invoke('project:acceptDestination', bundlePath),
+    /** Bring Project Files entries from another bundle into this one (§1.9). */
+    adoptFiles: (bundlePath: string, ids: string[], keepBoth: string[]): Promise<void> =>
+      ipcRenderer.invoke('project:adoptFiles', bundlePath, ids, keepBoth),
+  },
+  drafts: {
+    launch: (): Promise<import('../../src/lib/project-draft-types').LaunchState> => ipcRenderer.invoke('drafts:launch'),
+    setProject: (path: string | null): Promise<void> => ipcRenderer.invoke('drafts:setProject', path),
+    read: (path: string | null): Promise<import('../../src/lib/project-draft-types').DraftRead> => ipcRenderer.invoke('drafts:read', path),
+    write: (path: string | null, input: import('../../src/lib/project-draft-types').DraftWrite): Promise<import('../../src/lib/project-draft-types').DraftMeta> => ipcRenderer.invoke('drafts:write', path, input),
+    discard: (path: string | null): Promise<import('../../src/lib/project-draft-types').DraftMeta> => ipcRenderer.invoke('drafts:discard', path),
+    setBase: (path: string): Promise<import('../../src/lib/project-draft-types').DraftMeta> => ipcRenderer.invoke('drafts:setBase', path),
+    basePath: (path: string): Promise<string | null> => ipcRenderer.invoke('drafts:basePath', path),
+    signature: (path: string): Promise<string> => ipcRenderer.invoke('drafts:signature', path),
+    fileInfo: (path: string): Promise<{ exists: boolean; mtime: string | null; size: number }> => ipcRenderer.invoke('drafts:fileInfo', path),
+    list: (): Promise<import('../../src/lib/project-draft-types').DraftListing[]> => ipcRenderer.invoke('drafts:list'),
+    delete: (keys: string[]): Promise<number> => ipcRenderer.invoke('drafts:delete', keys),
+    deleteOlderThan: (days: number): Promise<number> => ipcRenderer.invoke('drafts:deleteOlderThan', days),
+    checkpointTarget: (path: string | null): Promise<{ temp: string; final: string }> => ipcRenderer.invoke('drafts:checkpointTarget', path),
+    commitCheckpoint: (path: string | null, temp: string, at: string, ms: number): Promise<import('../../src/lib/project-draft-types').DraftMeta> => ipcRenderer.invoke('drafts:commitCheckpoint', path, temp, at, ms),
+    abandonCheckpoint: (temp: string): Promise<void> => ipcRenderer.invoke('drafts:abandonCheckpoint', temp),
+    lock: (path: string): Promise<{ ok: true } | { ok: false; pid: number }> => ipcRenderer.invoke('drafts:lock', path),
+    unlock: (path: string): Promise<void> => ipcRenderer.invoke('drafts:unlock', path),
+    focusOwner: (path: string): Promise<void> => ipcRenderer.invoke('drafts:focusOwner', path),
   },
   file: {
     read: (filePath: string): Promise<string> => ipcRenderer.invoke('file:read', filePath),

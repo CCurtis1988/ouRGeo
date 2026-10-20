@@ -25,6 +25,10 @@ interface ProjectState {
   workspaceEpoch: number
   phase: 'ready' | 'loading'
   isDirty: boolean
+  /** The launch restore — scratch's documents, or the project open at quit
+   *  with its draft — has finished. Marked on the project menu so automation
+   *  (and anything else) can tell "starting up" from "ready". */
+  restored: boolean
   recents: RecentProject[]
 
   setCurrent: (name: string, path: string | null) => void
@@ -42,6 +46,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   workspaceEpoch: 0,
   phase: 'ready',
   isDirty: false,
+  restored: false,
   recents: [],
 
   setCurrent: (name, path) => set({ name, path }),

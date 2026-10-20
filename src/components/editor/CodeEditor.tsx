@@ -16,7 +16,10 @@ import {
   CODE_THEMES, MARKDOWN_THEMES,
 } from '@/lib/editor-themes'
 import { ThemeBackground } from './ThemeBackground'
-import { saveSessionDebounced } from '@/lib/session-persistence'
+import { rememberView, viewFor } from '@/lib/editor-view-state'
+import { closeTab as closeDocument } from '@/lib/document-close'
+import { useRecentlyClosedStore } from '@/store/recently-closed'
+import { openRecentlyClosed, refreshRecentlyClosedExistence } from '@/lib/recently-closed-open'
 import { useCompletion, type AcceptResult } from '@/hooks/useCompletion'
 import { CompletionPopup } from '../completion/CompletionPopup'
 
@@ -472,8 +475,13 @@ export function CodeEditor(): React.ReactElement {
       // the model. Tear them down BEFORE the swap or the previous tab's outputs
       // float inside this tab's text at meaningless line numbers.
       chunkLayer.current?.detach()
+      // Monaco keeps the caret and scroll per editor, not per model: record
+      // the outgoing tab's before the swap, and put the incoming one's back.
+      for (const [id, m] of modelsRef.current) if (m === currentModel) { rememberView(id, editor.saveViewState()); break }
       suppressChangeRef.current = true
       editor.setModel(model)
+      const view = viewFor(tab.id)
+      if (view) editor.restoreViewState(view as monaco.editor.ICodeEditorViewState)
       suppressChangeRef.current = false
       chunkLayer.current?.attach(editor, tab.id)
       rescanRef.current()
@@ -674,10 +682,25 @@ export function CodeEditor(): React.ReactElement {
       const model = getOrCreateModel(activeTab.id, activeTab.content, languageOf(activeTab))
       suppressChangeRef.current = true
       editor.setModel(model)
+      const view = viewFor(activeTab.id)
+      if (view) editor.restoreViewState(view as monaco.editor.ICodeEditorViewState)
       suppressChangeRef.current = false
       chunkLayer.current?.attach(editor, activeTab.id)
       rescanRef.current()
     }
+
+    // Where the user is in the document, for the draft: a project reopened
+    // tomorrow puts the caret back where it was (docs/project-persistence-spec.md §1.1).
+    let viewTimer: ReturnType<typeof setTimeout> | null = null
+    const recordView = (): void => {
+      if (viewTimer) clearTimeout(viewTimer)
+      viewTimer = setTimeout(() => {
+        const id = activeIdRef.current
+        if (id && editor.getModel() === modelsRef.current.get(id)) rememberView(id, editor.saveViewState())
+      }, 400)
+    }
+    editor.onDidChangeCursorSelection(recordView)
+    editor.onDidScrollChange(recordView)
 
     // Track content changes
     editor.onDidChangeModelContent(() => {
@@ -686,7 +709,6 @@ export function CodeEditor(): React.ReactElement {
       if (!currentTabId) return
       const value = editor.getValue()
       updateTabContent(currentTabId, value)
-      saveSessionDebounced()
       rescanRef.current()
       queryRef.current(false)
     })
@@ -793,7 +815,7 @@ export function CodeEditor(): React.ReactElement {
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW,
       () => {
         const id = activeIdRef.current
-        if (id) useEditorStore.getState().closeTab(id)
+        if (id) void closeDocument(id)
       }
     )
   }
@@ -1319,6 +1341,29 @@ function EmptyEditorState({ panelId }: { panelId: string }): React.ReactElement 
       <p className="text-[11px] text-geo-muted/70">
         Or drag a tab here from the other editor.
       </p>
+      <RecentlyClosedList panelId={panelId} />
+    </div>
+  )
+}
+
+/** Files dropped when scratch was left (§2.5 of docs/project-persistence-spec.md),
+ *  where a user looking at an empty editor would go looking for them. */
+function RecentlyClosedList({ panelId }: { panelId: string }): React.ReactElement | null {
+  const items = useRecentlyClosedStore((s) => s.items)
+  const missing = useRecentlyClosedStore((s) => s.missing)
+  useEffect(() => { void refreshRecentlyClosedExistence() }, [items])
+  if (!items.length) return null
+  return (
+    <div className="mt-3 w-full max-w-xs text-left">
+      <p className="text-[10px] uppercase tracking-wider text-geo-muted mb-1">Recently closed</p>
+      {items.slice(0, 6).map((item) => (
+        <button key={item.path} type="button" disabled={missing[item.path]} title={item.path}
+          onClick={() => { useEditorStore.getState().focusEditor(panelId); void openRecentlyClosed(item.path) }}
+          className={`w-full flex items-center gap-2 py-0.5 text-[11px] ${missing[item.path] ? 'text-geo-muted/60 cursor-not-allowed' : 'text-foreground hover:text-geo-accent'}`}>
+          <span className="truncate flex-1">{item.path.split(/[\\/]/).pop()}</span>
+          {missing[item.path] && <span className="text-[10px]">file not found</span>}
+        </button>
+      ))}
     </div>
   )
 }

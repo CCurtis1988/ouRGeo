@@ -1,6 +1,6 @@
 {
   "name": "ourgeo",
-  "version": "1.16.36",
+  "version": "1.16.37",
   "desktopName": "ourgeo.desktop",
   "description": "R code editor and console powered by Electron",
   "main": "./out/main/index.js",

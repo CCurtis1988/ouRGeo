@@ -99,6 +99,30 @@ route <- function(req) {
       return(handle_env_load(body))
     }
 
+    if (path == "/session/checkpoint" && method == "POST") {
+      return(handle_checkpoint_start(parse_body(req)))
+    }
+
+    if (path == "/session/checkpoint/status" && method == "GET") {
+      return(handle_checkpoint_status())
+    }
+
+    if (path == "/session/snapshot-load" && method == "POST") {
+      return(handle_snapshot_load(parse_body(req)))
+    }
+
+    if (path == "/project/merge-env/compare" && method == "POST") {
+      return(handle_merge_env_compare(parse_body(req)))
+    }
+
+    if (path == "/project/merge-env/build" && method == "POST") {
+      return(handle_merge_env_build(parse_body(req)))
+    }
+
+    if (path == "/project/merge-env/release" && method == "POST") {
+      return(handle_merge_env_release())
+    }
+
     if (path == "/session/reset" && method == "POST") {
       body <- parse_body(req)
       return(handle_session_reset(body))

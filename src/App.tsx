@@ -12,7 +12,6 @@ import { useSessionStore } from './store/session'
 import { usePackagesStore } from './store/packages'
 import { usePlottingStore } from './store/plotting'
 import { useWidgetsStore } from './store/widgets'
-import { loadSession, setupSessionAutosave, saveSessionImmediate } from './lib/session-persistence'
 import { loadChats, setupChatsAutosave } from './lib/ai-chats-persistence'
 import { setupContextLifecycle } from './lib/context/lifecycle'
 import { useContextStore } from './store/context'
@@ -29,9 +28,22 @@ import {
   loadRecentProjects,
   setupProjectTracking,
   enableDirtyTracking,
-  saveCurrentProject,
+  loadProjectFromPath,
+  restoreScratchDocuments,
+  lastOpenLostDocuments,
 } from './lib/project-persistence'
-import { UnsavedChangesDialog, confirmUnsaved } from './components/project/UnsavedChangesDialog'
+import { startDraftWriter, startCheckpointScheduler, flushDraft, useDraftStatus } from './lib/project-draft'
+import { leaveCurrentWorkspace } from './lib/project-leave'
+import { reportCrash } from './lib/crash-report'
+import { hasUnsavedEdits } from './lib/document-close'
+import { loadProjectSettings } from './store/project-settings'
+import { loadPromptPreferences } from './store/prompt-preferences'
+import { loadRecentlyClosed } from './store/recently-closed'
+import { useEditorStore } from './store/editor'
+import { useProjectStore } from './store/project'
+import { AskDialog } from './components/project/AskDialog'
+import { MergeDialog } from './components/project/MergeDialog'
+import type { LaunchState } from './lib/project-draft-types'
 import { reconnectToR, pruneStaleObjectTabs } from './lib/reconnect-r'
 import { loadTheme, loadUiScale, loadEditorThemes } from './lib/theme-persistence'
 import { loadCustomThemes } from './lib/custom-themes-persistence'
@@ -129,19 +141,27 @@ function MainApp(): React.ReactElement {
       if (initialized.current) return
       initialized.current = true
 
-      // Restore previous session (tabs, files)
-      await loadSession()
+      // How the last session ended, and what to reopen
+      // (docs/project-persistence-spec.md §1.3, §3). A renderer reload is not
+      // a launch: R and the main process kept everything.
+      let launch: LaunchState = { firstLoad: true, crashed: false, project: null }
+      try { launch = await window.electronAPI.drafts.launch() } catch { /* older main: scratch */ }
+      await loadProjectSettings()
+      void loadPromptPreferences()
+      void loadRecentlyClosed()
+      let scratchRestore: { restored: string[]; lost: string[] } = { restored: [], lost: [] }
 
-      // Scratch's AI conversations, if a reload or a crash left any. A clean
-      // exit deletes this file, so on an ordinary launch there is nothing to
-      // read and scratch opens with one empty chat — which is what scratch is.
-      try { await loadChats() } catch { /* nothing to recover */ }
-
-      // Restore plots from previous session
-      try { await loadPlots() } catch { /* no saved plots yet */ }
-
-      // Restore spatial layers, map-preview documents, and console history
-      try { await loadWorkspace() } catch { /* no saved workspace yet */ }
+      if (!launch.project) {
+        // Scratch's documents. A fresh launch keeps only the untitled ones
+        // (§2.1); a reload keeps them all, since scratch was never left.
+        scratchRestore = await restoreScratchDocuments({ keepFileBacked: !launch.firstLoad })
+        // Chats, plots, layers and console survive a reload only. Main
+        // deletes these files at launch, so on a fresh start this reads
+        // nothing and scratch opens clean — which is what scratch is.
+        try { await loadChats() } catch { /* nothing to recover */ }
+        try { await loadPlots() } catch { /* no saved plots yet */ }
+        try { await loadWorkspace() } catch { /* no saved workspace yet */ }
+      }
 
       // Load the recent-projects list for the project dropdown
       try { await loadRecentProjects() } catch { /* no recents yet */ }
@@ -225,6 +245,7 @@ function MainApp(): React.ReactElement {
         if (!port) {
           setRStatus('error')
           addEntry('error', 'Could not connect to R server. Is R installed?')
+          useProjectStore.setState({ restored: true })
           return
         }
 
@@ -241,6 +262,7 @@ function MainApp(): React.ReactElement {
         if (!healthy) {
           setRStatus('error')
           addEntry('error', 'R server health check failed after 30s')
+          useProjectStore.setState({ restored: true })
           return
         }
 
@@ -254,6 +276,33 @@ function MainApp(): React.ReactElement {
         }
         addEntry('info', 'R session ready.')
         void refreshWorkingDir()
+
+        // The project open at quit comes back with its draft (§1.3). On a
+        // reload R still holds its objects, so only the window is rebuilt.
+        // Read before opening: the draft writer starts again once the project
+        // is open, and "the newest recovered change" must not become "now".
+        const crashedMeta = launch.crashed && launch.project ? (await window.electronAPI.drafts.read(launch.project)).meta : null
+        if (launch.project) {
+          await loadProjectFromPath(launch.project, { keepR: !launch.firstLoad })
+          // "Not opened" can still mean opened: cancelling Resolve conflicts
+          // leaves the user's own version open. Only an empty workspace gets
+          // scratch's documents — restoring them over an open project once
+          // replaced its documents, and the draft writer saved that.
+          if (useProjectStore.getState().path === null) scratchRestore = await restoreScratchDocuments({ keepFileBacked: false })
+        }
+        useProjectStore.setState({ restored: true })
+        if (launch.crashed) {
+          const named = useProjectStore.getState().path !== null
+          const status = useDraftStatus.getState()
+          const meta = named ? crashedMeta : null
+          void reportCrash({
+            scratch: !named,
+            documents: named ? useEditorStore.getState().tabs.filter(hasUnsavedEdits).map(t => t.fileName) : scratchRestore.restored,
+            lost: named ? lastOpenLostDocuments() : scratchRestore.lost,
+            checkpointAt: status.checkpointAt,
+            newestChange: meta?.changed ? meta.updatedAt : null,
+          })
+        }
 
         // Startup restore is done — from here on, env/state changes mark the
         // project dirty (drives the exit/switch save prompt).
@@ -273,12 +322,14 @@ function MainApp(): React.ReactElement {
       } catch (err) {
         setRStatus('error')
         addEntry('error', `Initialization failed: ${String(err)}`)
+        useProjectStore.setState({ restored: true })
       }
     }
 
     init()
 
-    const cleanupAutosave = setupSessionAutosave()
+    const cleanupDrafts = startDraftWriter()
+    const cleanupCheckpoints = startCheckpointScheduler()
     const cleanupChatsAutosave = setupChatsAutosave()
     const cleanupContext = setupContextLifecycle()
     void useContextStore.getState().init()
@@ -292,7 +343,7 @@ function MainApp(): React.ReactElement {
 
     // Auto-reconnect when R restarts (e.g. after hibernation or crash)
     const cleanupRestarted = window.electronAPI.r.onRestarted(() => {
-      reconnectToR()
+      void reconnectToR({ unexpected: true })
     })
 
     // On system resume, the R console WebSocket can be left half-open (no data,
@@ -306,21 +357,22 @@ function MainApp(): React.ReactElement {
     }
     const cleanupResume = window.electronAPI.system?.onResume(refreshSocket)
 
-    // On window close, prompt to save unsaved project changes. Scratch/.R tabs
-    // are always flushed regardless of the choice; only 'cancel' aborts the quit.
+    // On window close: a named project's work goes to its draft (or is saved,
+    // or asked about — Settings → Projects); scratch offers Save as project
+    // and asks about unsaved file edits (lib/project-leave.tsx). Cancel at any
+    // question keeps the app open.
+    let quitting = false
     const cleanupBeforeQuit = window.electronAPI.app.onBeforeQuit(() => {
+      if (quitting) return
+      quitting = true
       void (async () => {
-        const choice = await confirmUnsaved()
-        if (choice === 'cancel') return // keep the app open
-        if (choice === 'save') {
-          const saved = await saveCurrentProject()
-          if (!saved) return // Save As dialog cancelled → abort quit
-        }
-        // Code tabs are flushed; chats deliberately are NOT. ai-chats.json is
-        // session-scoped, and a write started now would race the will-quit
-        // handler that deletes it, leaving scratch's chats on disk for the
-        // next launch to read back. See ai-chats-persistence.ts.
-        saveSessionImmediate()
+        try {
+          if (!await leaveCurrentWorkspace('quit')) return // keep the app open
+        } finally { quitting = false }
+        // The draft is flushed; chats deliberately are NOT written to
+        // ai-chats.json. That file is session-scoped, and a write started now
+        // would race the will-quit handler that deletes it.
+        await flushDraft()
         // Awaited: confirmQuit destroys the window, and an in-flight write to
         // layout.json does not survive that.
         await flushLayout()
@@ -341,7 +393,8 @@ function MainApp(): React.ReactElement {
     return () => {
       cleanupWsStatus()
       cleanupWsMessages()
-      cleanupAutosave()
+      cleanupDrafts()
+      cleanupCheckpoints()
       cleanupChatsAutosave()
       cleanupContext()
       cleanupPlotsAutosave()
@@ -359,7 +412,7 @@ function MainApp(): React.ReactElement {
 
   return <>
     <ThemeBackgroundLifecycle />
-    <ErrorBoundary><EditorLayout /><UnsavedChangesDialog /></ErrorBoundary>
+    <ErrorBoundary><EditorLayout /><MergeDialog /><AskDialog /></ErrorBoundary>
     {/* A map/compositor render failure must not unmount an active repair. */}
     <ErrorBoundary><HealthCheckDialog /></ErrorBoundary>
     <AppUpdateController />

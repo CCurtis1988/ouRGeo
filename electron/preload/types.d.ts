@@ -313,8 +313,31 @@ declare global {
       project: {
         tempEnvPath(): Promise<string>
         pack(bundlePath: string, projectJson: string, envRDataPath: string | null): Promise<{ contextWarnings?: string[] } | void>
-        unpack(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings?: string[]; authorisedFileLinks?: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths?: string[] }>
+        unpack(bundlePath: string, options?: { preferLocalFiles?: boolean }): Promise<{ projectJson: string; envRDataPath: string | null; openToken?: string; identityForked?: boolean; contextWarnings?: string[]; authorisedFileLinks?: import('../../src/lib/context/types').AuthorisedFileLink[]; authorisedDatabasePaths?: string[] }>
         releaseOpen(token: string): Promise<void>
+        inspect(bundlePath: string): Promise<{ projectJson: string; envRDataPath: string | null; catalogue: unknown; openToken: string }>
+        acceptDestination(bundlePath: string): Promise<void>
+        adoptFiles(bundlePath: string, ids: string[], keepBoth: string[]): Promise<void>
+      }
+      drafts: {
+        launch(): Promise<import('../../src/lib/project-draft-types').LaunchState>
+        setProject(path: string | null): Promise<void>
+        read(path: string | null): Promise<import('../../src/lib/project-draft-types').DraftRead>
+        write(path: string | null, input: import('../../src/lib/project-draft-types').DraftWrite): Promise<import('../../src/lib/project-draft-types').DraftMeta>
+        discard(path: string | null): Promise<import('../../src/lib/project-draft-types').DraftMeta>
+        setBase(path: string): Promise<import('../../src/lib/project-draft-types').DraftMeta>
+        basePath(path: string): Promise<string | null>
+        signature(path: string): Promise<string>
+        fileInfo(path: string): Promise<{ exists: boolean; mtime: string | null; size: number }>
+        list(): Promise<import('../../src/lib/project-draft-types').DraftListing[]>
+        delete(keys: string[]): Promise<number>
+        deleteOlderThan(days: number): Promise<number>
+        checkpointTarget(path: string | null): Promise<{ temp: string; final: string }>
+        commitCheckpoint(path: string | null, temp: string, at: string, ms: number): Promise<import('../../src/lib/project-draft-types').DraftMeta>
+        abandonCheckpoint(temp: string): Promise<void>
+        lock(path: string): Promise<{ ok: true } | { ok: false; pid: number }>
+        unlock(path: string): Promise<void>
+        focusOwner(path: string): Promise<void>
       }
       file: {
         read(filePath: string): Promise<string>

@@ -10,8 +10,8 @@ import type { ProjectFileEntry } from '@/lib/project-files'
 // right for a script re-run. From a dialog it is easier to do by accident: the
 // Environment menu names its output after the object, so exporting `sites`
 // replaces the `sites.csv` imported last week. Hence a question, with a
-// "don't ask again" for users who know, and a switch in Settings → Project
-// Files that turns it back on — a dismissal with no way back would make the
+// "don't ask again" for users who know, and a switch in Settings → Prompts
+// that turns it back on — a dismissal with no way back would make the
 // checkbox a one-way door.
 //
 // Only the GUI asks. R written by the user replaces silently, as it does on

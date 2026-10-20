@@ -31,7 +31,7 @@ export async function pruneStaleObjectTabs(): Promise<void> {
  * Safe to call multiple times; does not re-register WS message/status handlers
  * (those are registered once in App.tsx and survive reconnects).
  */
-export async function reconnectToR(): Promise<void> {
+export async function reconnectToR(options: { unexpected?: boolean } = {}): Promise<void> {
   const { setRStatus, setRPort, addConsoleEntry } = useSessionStore.getState()
 
   setRStatus('connecting')
@@ -74,6 +74,14 @@ export async function reconnectToR(): Promise<void> {
 
     // Reconnect WebSocket to the new port (connect() handles closing the old socket)
     wsClient.connect(port)
+
+    // R crashed and came back: a named project's objects return from the last
+    // checkpoint (docs/project-persistence-spec.md §3.4) before stale tabs are
+    // judged, or every data viewer would close over an object about to return.
+    if (options.unexpected) {
+      const { restoreAfterRRestart } = await import('./project-persistence')
+      await restoreAfterRRestart()
+    }
 
     // R is a fresh process after a restart — drop any object tabs whose object
     // no longer exists so the UI doesn't show dead data-viewer tabs.

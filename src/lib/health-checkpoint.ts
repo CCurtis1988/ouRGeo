@@ -1,6 +1,6 @@
 import type { HealthHardware, HealthReport, HealthResult, RHealth } from './health-types'
 
-export type HealthStep = 'welcome' | 'r' | 'packages' | 'system' | 'ai' | 'summary'
+export type HealthStep = 'welcome' | 'r' | 'packages' | 'system' | 'drafts' | 'ai' | 'summary'
 export interface HealthCheckpoint {
   version: 1
   step: HealthStep
@@ -27,7 +27,7 @@ export function loadHealthCheckpoint(): HealthCheckpoint | null {
     const raw = sessionStorage.getItem(key)
     if (!raw) return null
     const value = JSON.parse(raw) as HealthCheckpoint
-    if (value.version !== 1 || !['welcome', 'r', 'packages', 'system', 'ai', 'summary'].includes(value.step) ||
+    if (value.version !== 1 || !['welcome', 'r', 'packages', 'system', 'drafts', 'ai', 'summary'].includes(value.step) ||
       typeof value.running !== 'boolean' || typeof value.locked !== 'boolean' || typeof value.atCheckpoint !== 'boolean' ||
       !Array.isArray(value.results) || !Array.isArray(value.selected) || !value.selected.every((item) => typeof item === 'string') ||
       typeof value.progress !== 'string' || typeof value.installLog !== 'string') return null

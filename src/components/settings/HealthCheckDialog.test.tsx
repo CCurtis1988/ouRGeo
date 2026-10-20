@@ -8,7 +8,7 @@ import { useAiStore } from '@/store/ai'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { loadHealthCheckpoint } from '@/lib/health-checkpoint'
 
-const mocks = vi.hoisted(() => ({ testAssistant: vi.fn(), inspect: vi.fn(), save: vi.fn() }))
+const mocks = vi.hoisted(() => ({ testAssistant: vi.fn(), inspect: vi.fn(), save: vi.fn(), drafts: { list: vi.fn(), delete: vi.fn() } }))
 vi.mock('@/lib/health-check', async (original) => ({
   ...await original<typeof import('@/lib/health-check')>(),
   inspectConnections: mocks.inspect, testAssistant: mocks.testAssistant,
@@ -39,12 +39,14 @@ beforeEach(() => {
     removePackageCopies: vi.fn(async () => r),
     ollamaModels: vi.fn(async () => ({ models: [] })), startOllama: vi.fn(async () => {}), pullModel: vi.fn(async () => {}), onProgress: vi.fn(() => () => {}),
   }
-  window.electronAPI = { health: api, r: { isReady: vi.fn(async () => true) } } as unknown as Window['electronAPI']
+  mocks.drafts.list.mockResolvedValue([])
+  mocks.drafts.delete.mockResolvedValue(0)
+  window.electronAPI = { health: api, r: { isReady: vi.fn(async () => true) }, drafts: mocks.drafts } as unknown as Window['electronAPI']
 })
 afterEach(() => { cleanup(); useUiStore.setState({ openDialog: null }) })
 const run = async () => { render(<HealthCheckDialog />); fireEvent.click(await screen.findByRole('button', { name: 'Confirm and run health check' })) }
 const next = async (name: string) => fireEvent.click(await screen.findByRole('button', { name }))
-const goToAi = async () => { await next('Next: R packages'); await next('Next: System'); await next('Next: AI assistant') }
+const goToAi = async () => { await next('Next: R packages'); await next('Next: System'); await next('Next: Stored project changes'); await next('Next: AI assistant') }
 describe('guided health check approvals', () => {
   it('shows a dismissible first-run invitation and performs no diagnostics before consent', async () => {
     render(<React.StrictMode><HealthCheckDialog /></React.StrictMode>)
@@ -84,7 +86,7 @@ describe('guided health check approvals', () => {
     expect(screen.getByText(/repairs stop the current R session/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Approve selected repairs' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Approve R restart' }))
-    await next('Next: System'); await next('Next: AI assistant')
+    await next('Next: System'); await next('Next: Stored project changes'); await next('Next: AI assistant')
     fireEvent.click(await screen.findByRole('button', { name: 'Skip response test' }))
     await next('View results')
     await waitFor(() => expect(api.saveReport).toHaveBeenCalled())
@@ -158,7 +160,7 @@ describe('guided health check approvals', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Keep sf 1.0.19 in /site/R' }))
     await next('Approve removing unchecked copies')
     await next('Approve R restart')
-    await next('Next: System'); await next('Next: AI assistant'); await next('Skip response test'); await next('View results')
+    await next('Next: System'); await next('Next: Stored project changes'); await next('Next: AI assistant'); await next('Skip response test'); await next('View results')
     await waitFor(() => expect(api.saveReport).toHaveBeenCalled())
     expect(api.removePackageCopies).toHaveBeenCalledWith([copies[2]], true)
     const results = vi.mocked(api.saveReport).mock.calls[0][0].results
@@ -236,7 +238,7 @@ describe('guided health check approvals', () => {
     expect(api.checkR).toHaveBeenCalledOnce()
     expect(screen.getByText('R server connection')).toBeTruthy()
     await next('Next: System')
-    await screen.findByRole('button', { name: 'Next: AI assistant' })
+    await screen.findByRole('button', { name: 'Next: Stored project changes' })
     expect(api.hardware).toHaveBeenCalledOnce()
   })
   it('restores pending copy selections without approving or repeating cleanup', async () => {
@@ -301,5 +303,21 @@ describe('guided health check approvals', () => {
     expect(screen.getByText('AI response test')).toBeTruthy()
     expect(api.checkR).toHaveBeenCalledOnce()
     expect(mocks.testAssistant).not.toHaveBeenCalled()
+  })
+
+  it('reports stored drafts as information and deletes only what was approved', async () => {
+    const day = 86_400_000
+    mocks.drafts.list.mockResolvedValue([
+      { key: 'a'.repeat(32), path: '/gone/one.ourgeoproj', name: 'one', updatedAt: new Date().toISOString(), changed: true, bytes: 2048, fileExists: false, open: false },
+      { key: 'b'.repeat(32), path: '/here/old.ourgeoproj', name: 'old', updatedAt: new Date(Date.now() - 120 * day).toISOString(), changed: true, bytes: 1024, fileExists: true, open: false },
+      { key: 'c'.repeat(32), path: '/here/open.ourgeoproj', name: 'open', updatedAt: new Date(Date.now() - 400 * day).toISOString(), changed: true, bytes: 10, fileExists: true, open: true },
+    ])
+    mocks.drafts.delete.mockResolvedValue(1)
+    await run()
+    await next('Next: R packages'); await next('Next: System'); await next('Next: Stored project changes')
+    expect(await screen.findByText(/3 drafts on this computer/)).toBeTruthy()
+    await next('Approve deleting 1 whose project file is gone')
+    await waitFor(() => expect(mocks.drafts.delete).toHaveBeenCalledWith(['a'.repeat(32)]))
+    expect(await screen.findByText(/1 draft deleted\. Project files were not touched\./)).toBeTruthy()
   })
 })

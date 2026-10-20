@@ -4,7 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal, Store, HeartPulse, ArrowUpCircle, Package,
+  SquareTerminal, Store, HeartPulse, ArrowUpCircle, Package, FolderCog, BellRing,
 } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
 import { APP_VERSION } from './versionHistory'
@@ -22,6 +22,8 @@ import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { LayoutSettings } from './LayoutSettings'
 import { TerminalSettings } from './TerminalSettings'
 import { ProjectFileSettings } from './ProjectFileSettings'
+import { ProjectSettings } from './ProjectSettings'
+import { PromptSettings } from './PromptSettings'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useUiStore } from '@/store/ui'
 
@@ -221,6 +223,16 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
       </>,
     },
     {
+      title: 'Projects', group: 'Application', icon: FolderCog,
+      description: 'Unsaved work, R snapshots, and drafts kept on this computer',
+      content: <ProjectSettings />,
+    },
+    {
+      title: 'Prompts', group: 'Application', icon: BellRing,
+      description: 'Every question you have told ouRGeo not to ask again — and the way back',
+      content: <PromptSettings />,
+    },
+    {
       title: 'Workspace', group: 'Application', icon: LayoutGrid,
       description: 'Panel arrangement — dragging, saved layouts, and the way back',
       content: <>
@@ -276,7 +288,7 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
       title: 'Project Files', group: 'Maps & data', icon: Package,
       description: 'Saving exports into this project’s file library',
       content: <>
-        <ProjectFileSettings />
+        <ProjectFileSettings onOpenPrompts={() => setSelected('Prompts')} />
       </>,
     },
     {

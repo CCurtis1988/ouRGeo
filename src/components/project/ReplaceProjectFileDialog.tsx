@@ -38,7 +38,7 @@ export function ReplaceProjectFileDialog(): React.ReactElement | null {
             </p>
             <label className="flex items-start gap-2 pt-1 text-xs text-foreground cursor-pointer">
               <input type="checkbox" className="mt-0.5" checked={dontAskAgain} onChange={e => setDontAskAgain(e.target.checked)} />
-              <span>Don&apos;t ask again<span className="block text-[10px] text-geo-muted">Turn this question back on in Settings → Project Files.</span></span>
+              <span>Don&apos;t ask again<span className="block text-[10px] text-geo-muted">Turn this question back on in Settings → Prompts.</span></span>
             </label>
           </div>
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-geo-border">

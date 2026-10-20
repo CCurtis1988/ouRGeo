@@ -10,6 +10,8 @@ import { inspectConnections, packageResults, testAssistant } from '@/lib/health-
 import { reconnectToR } from '@/lib/reconnect-r'
 import { rClient } from '@/lib/r-client'
 import { saveCurrentProject } from '@/lib/project-persistence'
+import { summariseDrafts } from '@/lib/project-draft-types'
+import { fileSize } from '@/lib/project-files-ui'
 import { useSessionStore } from '@/store/session'
 import { LocalModelSetup } from './LocalModelSetup'
 import { loadHealthCheckpoint, saveHealthCheckpoint, clearHealthCheckpoint, type HealthCheckpoint, type HealthStep } from '@/lib/health-checkpoint'
@@ -29,8 +31,8 @@ interface Request {
 }
 const button = 'rounded border border-geo-border px-3 py-2 text-xs font-medium text-foreground hover:bg-geo-bg disabled:opacity-40 disabled:cursor-not-allowed'
 const primary = 'rounded bg-geo-accent px-3 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed'
-const labels: Record<Step, string> = { welcome: 'Welcome', r: 'R installation', packages: 'R packages', system: 'System', ai: 'AI assistant', summary: 'Results' }
-const steps: Step[] = ['r', 'packages', 'system', 'ai', 'summary']
+const labels: Record<Step, string> = { welcome: 'Welcome', r: 'R installation', packages: 'R packages', system: 'System', drafts: 'Stored project changes', ai: 'AI assistant', summary: 'Results' }
+const steps: Step[] = ['r', 'packages', 'system', 'drafts', 'ai', 'summary']
 const statusLabel = { pass: 'Ready', warning: 'Needs attention', error: 'Needs repair', skipped: 'Skipped' }
 const copyKey = (copy: HealthPackageCopy) => JSON.stringify([copy.name, copy.library])
 class GoBack extends Error {}
@@ -247,6 +249,28 @@ export function HealthCheckDialog(): React.ReactElement {
           put({ id: 'pandoc', title: 'Document export: Pandoc', status: r.tools.pandoc ? 'pass' : 'warning', detail: r.tools.pandoc ? 'Pandoc is available for document export.' : 'Optional: install Pandoc from pandoc.org for HTML and Word export. Inline R chunks still work.' })
           put({ id: 'latex', title: 'Document export: PDF', status: r.tools.latex ? 'pass' : 'warning', detail: r.tools.latex ? 'A LaTeX compiler is available.' : 'Optional: install a LaTeX distribution, such as TinyTeX, to export PDF documents.' })
         }
+      })
+      // Drafts are users' unsaved work, kept until deleted (docs/project-persistence-spec.md
+      // §4.3): this step reports them and offers the Settings → Projects
+      // cleanout, with approval. It is information, never a failure.
+      stage('drafts', async () => {
+        const report = summariseDrafts(await window.electronAPI.drafts.list(), Date.now())
+        put({ id: 'drafts', title: 'Stored project changes', status: 'pass', detail: report.count
+          ? `${report.count} draft${report.count === 1 ? '' : 's'} on this computer, ${fileSize(report.bytes)} in all. ${report.orphans.length} belong to project files that no longer exist; ${report.old.length} are older than 90 days. Manage them in Settings → Projects.`
+          : 'No unsaved project changes are stored on this computer.' })
+        if (!report.orphans.length && !report.old.length) return
+        const names = (list: typeof report.old): string => list.map((d) => d.name).join(', ')
+        const answer = await askStep({ title: 'Clear out stored project changes?', detail: `${report.orphans.length ? `Project file gone: ${names(report.orphans)}. ` : ''}${report.old.length ? `Older than 90 days: ${names(report.old)}. ` : ''}Deleting a draft deletes the unsaved changes in it permanently. Project files themselves are never touched.`, choices: [
+          ...(report.orphans.length ? [{ id: 'orphans', label: `Approve deleting ${report.orphans.length} whose project file is gone` }] : []),
+          ...(report.old.length ? [{ id: 'old', label: `Approve deleting ${report.old.length} older than 90 days` }] : []),
+          ...(report.orphans.length && report.old.length ? [{ id: 'both', label: 'Approve deleting both' }] : []),
+          { id: 'skip', label: 'Keep them', primary: true },
+        ] })
+        signal.throwIfAborted()
+        if (answer.id === 'skip') return
+        const keys = [...(answer.id !== 'old' ? report.orphans : []), ...(answer.id !== 'orphans' ? report.old : [])].map((d) => d.key)
+        const deleted = await mutation(() => window.electronAPI.drafts.delete(keys))
+        put({ id: 'drafts-cleanup', title: 'Stored project changes cleanup', status: 'pass', repaired: true, detail: `${deleted} draft${deleted === 1 ? '' : 's'} deleted. Project files were not touched.` })
       })
       stage('ai', async () => {
         let connections = await inspectConnections(signal)

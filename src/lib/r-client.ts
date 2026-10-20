@@ -11,6 +11,20 @@ export interface RResponse<T = unknown> {
   error?: string
 }
 
+/** A checkpoint's progress: `running` while a forked snapshot writes. */
+export interface CheckpointState { success: boolean; state: 'idle' | 'busy' | 'running' | 'done' | 'failed'; ms?: number; error?: string; async?: boolean }
+/** An object a snapshot could not bring back, and why. */
+export interface NotRestored { name: string; reason: string }
+export interface MergeEnvDescription { side: 'base' | 'mine' | 'theirs'; class: string; size: string; str: string }
+export interface MergeEnvItem {
+  name: string
+  has: { base: boolean; mine: boolean; theirs: boolean }
+  mineEqBase: boolean
+  theirsEqBase: boolean
+  mineEqTheirs: boolean
+  describe: MergeEnvDescription[]
+}
+
 // /r/execute returns the captured console text at the TOP level (`output`),
 // not nested under `result` — see r/lib/handlers-exec.R handle_execute.
 export interface RExecuteResponse extends RResponse {
@@ -440,6 +454,33 @@ class RClient {
 
   async envLoad(filePath: string, envName: string): Promise<RResponse & { rdataLoadedNames?: string[] }> {
     return this.ask<RResponse & { rdataLoadedNames?: string[] }>('/env/load', { filePath, envName })
+  }
+
+  // ── Project snapshots (docs/project-persistence-spec.md §1.2, §1.9, §1.11) ──
+  /** Snapshot the user's objects to `filePath`. On Unix R forks and returns
+   *  `running` at once; poll `checkpointStatus`. `sync` writes in-process.
+   *  `compress: 'fast'` is for bundles that travel; checkpoints stay local
+   *  and uncompressed, which is what keeps them fast (handlers-checkpoint.R). */
+  async checkpointStart(filePath: string, sync = false, compress: 'none' | 'fast' = 'none'): Promise<CheckpointState> {
+    return this.ask<CheckpointState>('/session/checkpoint', { filePath, sync, compress })
+  }
+  async checkpointStatus(): Promise<CheckpointState> {
+    const res = await this.http.get<CheckpointState>('/session/checkpoint/status')
+    return res.data
+  }
+  /** Restore a project snapshot into .GlobalEnv, unpacking terra objects and
+   *  naming what could not be rebuilt. */
+  async snapshotLoad(filePath: string): Promise<RResponse & { restored?: string[]; notRestored?: NotRestored[]; rdataLoadedNames?: string[] }> {
+    return this.ask('/session/snapshot-load', { filePath })
+  }
+  async mergeEnvCompare(sides: { base?: string | null; mine?: string | null; theirs?: string | null }): Promise<RResponse & { items?: MergeEnvItem[] }> {
+    return this.ask('/project/merge-env/compare', { sides })
+  }
+  async mergeEnvBuild(filePath: string, choices: Record<string, 'mine' | 'theirs' | 'both' | 'none'>): Promise<RResponse & { names?: string[] }> {
+    return this.ask('/project/merge-env/build', { filePath, choices })
+  }
+  async mergeEnvRelease(): Promise<void> {
+    await this.ask('/project/merge-env/release', {})
   }
 
   // Clear .GlobalEnv, disconnect all DuckDB connections, drop proxies — a clean

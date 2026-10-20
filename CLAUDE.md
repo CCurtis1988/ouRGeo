@@ -374,22 +374,102 @@ Debounced autosave survives sleep and a renderer reload/crash. Two lifetimes:
   preferences and must never join the `will-quit` delete list, as is
   `environment-preferences` → `environment-preferences.json` (how the
   Environment panel lists each of the user's environments).
-  `session-persistence` → `session.json` = **code tabs
-  only** (open `.R` files + untitled scratch; file-backed tabs re-read from disk
-  on load). This is the one thing deliberately left across restarts.
-- **Session-scoped (wiped on clean exit)** — `workspace-persistence` writes
+  Scratch's documents live in its **draft** (`project-drafts/scratch/`, see
+  *Drafts* below); `session.json` is now only read once, as a legacy fallback.
+- **Session-scoped (renderer reloads only)** — `workspace-persistence` writes
   spatial layers (`spatial-layers.json`), map view/legend settings
   (`spatial-ui.json`), console history (`console.json`), and object-backed
   data-viewer/function-editor tabs (`object-tabs.json`); `plots-persistence`
-  writes `plots.json`. The `will-quit`
-  handler (`electron/main/index.ts`) deletes all of these on exit, so the next
-  launch is clean. A **crash** (no `will-quit`) leaves them for recovery.
+  writes `plots.json`. The `will-quit` handler deletes them on exit, and since
+  1.16.37 `beginSession` (`electron/main/project-drafts.ts`) also deletes them
+  at LAUNCH: they exist so a renderer reload keeps scratch's panels, and a
+  crash must not resurrect scratch's map and plots on the next launch (spec
+  §3.2). Named projects recover from their draft instead.
 
 Files are split so a pan or console line never rewrites the large layer geojson.
 On load, object tabs are appended after code tabs, then `pruneStaleObjectTabs`
 drops any whose R object is gone. Workspace savers intentionally have **no
 `beforeunload` flush** — that would race the on-exit deletion; the debounced
 saves during the session suffice for reload recovery. All wired in `App.tsx`.
+
+### Drafts, crash recovery and leaving a workspace (1.16.37)
+
+The behaviour is specified in `docs/project-persistence-spec.md` and explained
+to users in `docs/project-persistence.md`; `scripts/check-project-persistence.mjs`
+runs its acceptance checks against the built app in disposable profiles.
+
+- **A draft is the project's working state on this computer.**
+  `electron/main/project-drafts.ts` keeps one directory per bundle path under
+  `project-drafts/<sha16>/`: `ui.json`, `layers.json`, `plots.json`, `view.json`
+  (cursors — kept even when nothing changed), one `docs/<tab id>.json` per
+  document so one unreadable file never costs the others, `environment.RData`
+  (the R checkpoint), `base.ourgeoproj` (the bundle as opened — what a merge
+  compares against) and `lock.json`. Every write is temp + fsync + rename;
+  `OURGEO_TEST_DRAFT_FAULT=kill-before-rename` exists only for acceptance C5.
+  `meta.changed` is what the project menu's "kept on this computer" reports.
+- **The renderer writes it** (`lib/project-draft.ts`): one subscription set,
+  debounced to a second, comparing each slice with what it last wrote. A
+  named project writes its change slices only while `isDirty`; Save discards
+  them and refreshes the base. Writes are suspended while a project replaces
+  the stores, or a half-hydrated workspace would land in either side's draft.
+- **Documents are project content now.** A tab whose object changed marks a
+  named project dirty, and `applySessionData` restores a dirty file-backed tab
+  as edits against the file as it is NOW (savedContent = disk). The old rule
+  that code tabs "always persist via session.json" is gone.
+- **R checkpoints fork** (`r/lib/handlers-checkpoint.R`): on Unix
+  `parallel::mcparallel` writes the snapshot from a copy-on-write child, so the
+  console never waits; the renderer polls `/session/checkpoint/status`. Windows
+  has no fork and snapshots in-process, in idle time. Snapshots — and bundle
+  saves, which use the same endpoint synchronously — PACK terra objects
+  (`terra::wrap`, by file reference when file-backed) because a raw
+  SpatRaster saves as a dead pointer; `/session/snapshot-load` unpacks them,
+  reattaches packages, and returns `notRestored` (closed DBI connections,
+  rasters whose file is gone) for `lib/project-restore-report.ts` to name.
+- **Leaving goes through one function** (`lib/project-leave.tsx`): the window's
+  close, the project menu and `project:open`/`project:new` all call
+  `leaveCurrentWorkspace`/`switchProject`. A named project keeps its draft by
+  default (Settings → Projects); scratch asks Save as project, then Apply /
+  Drop per dirty file. `UnsavedChangesDialog` is gone — its Don't Save
+  discarded the Project Files and memory journals, which the spec forbids.
+- **Every prompt is `ask()`** (`store/ask.ts`, `components/project/AskDialog.tsx`,
+  z-310): queued, Escape is always the cancel answer. Closing documents
+  (`lib/document-close.tsx`) — ✕, Ctrl+W, Close Others/All, `editor:closeTab`
+  — asks Save / Discard / Cancel with Apply to all remaining.
+- **A changed bundle is a three-way decision** (`lib/project-merge.ts` pure,
+  `lib/project-merge-flow.ts`, `MergeDialog.tsx`, `lib/text-diff.ts`). Mine is
+  OPENED first (`loadProjectFromPath(path, { draft: 'mine' })`, which also
+  asks the file library to prefer its journal over the changed bundle), so
+  every comparison reads the live stores, R (`'live'` side of
+  `/project/merge-env/compare`) and catalogue rather than a second
+  reconstruction of the draft. `project:inspect` reads theirs and the base
+  without activating anything; `project:adoptFiles` copies chosen entries;
+  `project:acceptDestination` lets the next save replace the changed file.
+- **Launch** asks `drafts:launch` how the last session ended
+  (`last-session.json`, whose `cleanExit` is written LAST in `will-quit`) and
+  which project to reopen. A renderer reload is not a launch: it reopens the
+  project with `keepR`, since R still holds the objects.
+- **One window per project**: `lock.json` records pid and (Linux) process
+  start time; a dead or recycled pid's lock is taken over. The owner watches
+  for a `focus-request` file so "Show that window" works across instances.
+- **Snapshots are uncompressed; bundles get gzip level 1.** Measured on a
+  480 MB vector: `save()`'s default gzip took 60 s, level 1 took 11.5 s for a
+  file 1% larger, none took 0.5 s. A checkpoint is local and rewritten every
+  idle interval; a 60-second one never finished before the next change.
+- **Console lines written while a project opens are deferred** until after
+  its console history is restored — written earlier, the restore overwrote
+  them, and "Not restored: …" vanished from the console it was promised to.
+- **"Not opened" can still mean opened.** Cancelling Resolve conflicts leaves
+  the user's own version open, so the launch fallback to scratch checks the
+  project path, and `restoreScratchDocuments` refuses to run over a named
+  project: once it did, and the draft writer saved the project as one empty
+  tab (`project-scratch-guard.test.ts`).
+- **The project menu carries `data-restored`** once the launch restore has
+  finished. "R session ready" comes first, and the project opens after it;
+  automation that waited for R raced the restore.
+- **Settings → Prompts** lists every persisted "don't ask again"
+  (`PROMPTS` in `store/prompt-preferences.ts`); `PromptSettings.test.tsx` scans
+  the source for the phrase and fails on an unregistered one. Settings → Project
+  Files now points there.
 
 ### Project workflow (`src/lib/project-persistence.ts`, `src/store/project.ts`)
 
@@ -405,15 +485,14 @@ plus `databases`) and `environment.RData` (from `/env/save` with
 source()d functions).
 
 - **scratch project** (`path === null`, `SCRATCH_PROJECT_NAME`, `useProjectStore`):
-  the workspace ouRGeo always launches into — a clean R env every time, never
-  savable in place (Save disabled; closing/switching never prompts — `confirmUnsaved`
-  short-circuits to `discard` when `path === null`). `saveSession` is **gated to
-  scratch only**, so `session.json` always holds scratch's code/.R tabs even while
-  a named project is active — that's what makes scratch's tabs survive a project
-  switch and reappear on relaunch. Save As spins off a real project; named-project
-  code tabs live in the bundle.
+  where ouRGeo starts when no named project was open at quit — a clean R env,
+  never savable in place. It keeps only its untitled documents (in its draft);
+  leaving it drops everything else at that moment, after the prompts in
+  `lib/project-leave.tsx`. Save As spins off a real project.
 - **Load** → `/session/reset` (clears user objects — keeping `system_names` —
-  plus DB conns + proxies), hydrate UI stores, `/env/load`, then `/db/reconnect`
+  plus DB conns + proxies), the snapshot (the draft's checkpoint when it has
+  one, else the bundle's) through `/session/snapshot-load`, hydrate UI stores
+  (from the draft when it holds changes), then `/db/reconnect`
   (reopens each `.Rgeo` and rebinds its `dplyr::tbl` proxies, since the restored
   tbl objects hold stale connections). **New** → reset + restore scratch tabs.
 - **`system_names` is the line between ouRGeo's objects and the user's**, and
@@ -435,11 +514,12 @@ source()d functions).
   carries no metadata to say so, and every object it restored came back flagged
   and hidden. The flag is now the file's own metadata ∪ this session's
   `system_names`, and nothing else.
-- **Dirty tracking**: env/spatial/plots/object-tab changes mark a *named*
-  project dirty (`enableDirtyTracking` after startup; suppressed during load/new).
-  On window close the main process fires `app:before-quit`; the renderer shows
-  `UnsavedChangesDialog` (Save / Don't Save / Cancel) for named projects and calls
-  `app:confirm-quit` — code/.R tabs are always flushed regardless of choice.
+- **Dirty tracking**: env/spatial/plots/document/chat/map-session changes mark
+  a *named* project dirty (`enableDirtyTracking` after startup; suppressed
+  during load/new). Dirty means the draft holds changes the bundle does not.
+  On window close the main process fires `app:before-quit`; the renderer runs
+  `leaveCurrentWorkspace('quit')` and calls `app:confirm-quit` unless the user
+  cancelled.
 - Recent projects (max 5) persist in `recent-projects.json` (never deleted).
 
 ### Embedded Project Files (1.16.23)

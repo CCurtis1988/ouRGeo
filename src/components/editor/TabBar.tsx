@@ -15,6 +15,7 @@ import { ContextMenu, type ContextMenuItem } from '../ui/context-menu'
 import { cn } from '@/lib/utils'
 import { CreateDataDialog, type CreateDataType } from './CreateDataDialog'
 import { editorTabWindow, EDITOR_TAB_WIDTH } from '@/lib/editor-tab-window'
+import { closeTab, closeAllTabs } from '@/lib/document-close'
 
 function TabIcon({ tab }: { tab: TabState }): React.ReactElement | null {
   const type: TabType | undefined = tab.type
@@ -36,7 +37,6 @@ export function TabBar(): React.ReactElement {
   const tabs = useMemo(() => tabsForPanel(allTabs, panelId), [allTabs, panelId])
   const activeTabId = useEditorStore((s) => s.activeByPanel[panelId] ?? null)
   const setActiveTab = useEditorStore((s) => s.setActiveTab)
-  const closeTab = useEditorStore((s) => s.closeTab)
   const moveTabToPanel = useEditorStore((s) => s.moveTabToPanel)
   const newMarkdownTab = useEditorStore((s) => s.newMarkdownTab)
   // The other editors this document could be sent to. Read from the layout
@@ -143,9 +143,7 @@ export function TabBar(): React.ReactElement {
               onPress: () => setActiveTab(tab.id),
               onDrop: (to) => moveTabToPanel(tab.id, to),
             }) : undefined}
-            onContextMenu={others.length > 0
-              ? (e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, tab }) }
-              : undefined}
+            onContextMenu={(e) => { e.preventDefault(); setTabMenu({ x: e.clientX, y: e.clientY, tab }) }}
             onClick={() => setActiveTab(tab.id)}
             // The label is truncated at 180px; this is where the whole name —
             // and the path or R expression behind it — can still be read.
@@ -160,7 +158,7 @@ export function TabBar(): React.ReactElement {
               className="opacity-0 group-hover:opacity-100 hover:text-geo-error transition-opacity flex-shrink-0"
               onClick={(e) => {
                 e.stopPropagation()
-                closeTab(tab.id)
+                void closeTab(tab.id)
               }}
             >
               <X className="w-3 h-3" />
@@ -236,15 +234,18 @@ export function TabBar(): React.ReactElement {
           y={tabMenu.y}
           onClose={() => setTabMenu(null)}
           items={[
-            {
+            ...(others.length > 0 ? [{
               label: 'Move to',
               submenu: others.map((p): ContextMenuItem => ({
                 label: panelInfo(p)?.label ?? p,
                 onClick: () => moveTabToPanel(tabMenu.tab.id, p),
               })),
-            },
-            { separator: true, label: '' },
-            { label: 'Close', onClick: () => closeTab(tabMenu.tab.id) },
+            }, { separator: true, label: '' }] : []),
+            // Each asks about every document with unsaved edits, one at a
+            // time, with "Apply to all remaining" (lib/document-close.tsx).
+            { label: 'Close', onClick: () => { void closeTab(tabMenu.tab.id) } },
+            { label: 'Close Others', onClick: () => { void closeAllTabs(tabs.map(t => t.id), tabMenu.tab.id) } },
+            { label: 'Close All', onClick: () => { void closeAllTabs(tabs.map(t => t.id)) } },
           ]}
         />
       )}
