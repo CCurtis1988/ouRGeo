@@ -146,6 +146,9 @@ handle_chunk_execute <- function(body) {
     extra
   ), collapse = "\n")
 
+  # A chunk that wrote to ourgeo_project_path() saves into Project Files too.
+  .ourgeo_pf_finish_command(function(text) broadcast_console(text))
+
   # Chunks create objects and attach packages like any other code — the
   # Environment panel and autocomplete must see them.
   broadcast_env_if_changed()

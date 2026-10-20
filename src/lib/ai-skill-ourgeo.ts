@@ -453,6 +453,27 @@ it never deletes the physical folder or its contents. project:renameFolder chang
 only the project label. Broad R/terminal operations still use their existing
 permissions; a link does not grant a new write or deletion capability.
 
+**Project Files from R** — five helpers every R session in ouRGeo has (console,
+chunks, toolbox, Knit). Keep the user's own writer and change only the path:
+\`read.csv(ourgeo_project_file("data/sites.csv"))\` (reads a read-only copy of
+an embedded file, or the linked file in place); \`write.csv(df,
+ourgeo_project_path("tables/summary.csv"), row.names = FALSE)\` and
+\`ggsave(ourgeo_project_path("figures/map.png"), p)\` (saved into Project
+Files when the command finishes; the same name replaces the earlier file);
+\`ourgeo_project_save(path, "reference/x.pdf")\` for an existing file;
+\`ourgeo_project_files()\` lists them; \`ourgeo_project_commit()\` saves pending
+writes immediately. "folder/name" uses the pane's logical folders, not disk
+paths. \`location = "<linked folder>"\` writes into that folder on disk and
+rescans it. \`ourgeo_save_plot(file, width, height, units, dpi)\` saves the plot
+in the Plots panel. Checked vector export takes \`projectFile\`
+(\`data:exportVector\` with projectFile = "data/roads.gpkg" instead of path).
+Export dialogs ask before replacing a project file (Settings → Project Files
+turns that back on). Scratch has no library: say Save As first. Saving the
+PROJECT is what puts new files in the .ourgeoproj. Prefer these over
+project:* actions when the work is R, so the user sees it in the console. The
+plot, map-image, map-code and Environment export menus all offer Project Files
+as a destination; map:exportCode takes projectFile.
+
 **Recording** captures everything run in the console into a document, optionally with output, turning a session into a runnable script.`,
 
   documents: `# Markdown and R Markdown

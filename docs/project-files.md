@@ -75,6 +75,75 @@ it never deletes the source file. **Forget link…** removes the folder connecti
 and its catalogue entries. Its confirmation says **Files on disk are kept**.
 Neither action deletes the physical folder or its contents.
 
+## Read and write project files from R
+
+Five functions are available in every R session ouRGeo runs: the console,
+document chunks, toolbox tools and Knit. Keep your usual reader or writer and
+change only the path:
+
+```r
+# Read: an embedded file is copied (read-only, name and extension kept) into
+# R's temporary directory; a linked file is read where it is.
+sites <- read.csv(ourgeo_project_file("data/sites.csv"))
+roads <- sf::st_read(ourgeo_project_file("roads.gpkg"))
+
+# Write: any function that takes a file path.
+write.csv(summary, ourgeo_project_path("tables/summary.csv"), row.names = FALSE)
+ggsave(ourgeo_project_path("figures/map.png"), p, width = 7, height = 5)
+
+# An existing file, now:
+ourgeo_project_save("~/Downloads/standard.pdf", "reference/standard.pdf",
+                    description = "Clearance standard")
+
+ourgeo_project_files()      # list them
+ourgeo_project_commit()     # save pending writes before the command ends
+```
+
+- **Names** are the names in the Project Files pane. `"tables/summary.csv"`
+  means the logical folder `tables` and the file `summary.csv`; folders are labels,
+  not locations on disk, and `..` is refused.
+- **When it is saved:** `ourgeo_project_path()` returns a temporary path for the
+  writer. The file is added to Project Files when the console command or chunk
+  finishes, and the console reports it. Reading a staged name earlier in the same
+  command saves it first, so writing and then reading inside one script works.
+  A path that nothing wrote to is forgotten, with a note.
+- **Writing the same name again replaces that file**, keeping its folder and
+  description, as writing over a file on disk would. Identical bytes are reported
+  as unchanged. `overwrite = FALSE` refuses instead. Names are unique across the
+  library.
+- **Saving the project** is what puts new or replaced files into the
+  `.ourgeoproj`, exactly as with **Add files**. Until then they show
+  **Added · Not saved** and are recoverable.
+- **Linked folders:** `ourgeo_project_path("out/result.csv", location = "Field
+  data")` writes into that linked folder on disk and rescans it.
+  `ourgeo_project_file(name, location = "Field data")` picks the linked file when
+  a name exists in two places.
+- **Scratch** has no library. Save the project first.
+- **Outside ouRGeo** (a plain `Rscript`), the functions stop with a message:
+  export the file from the pane and use its path.
+
+### Export dialogs
+
+The plot export, map image export, map **Export Code** (tmap/ggplot) and the
+Environment panel's **Export to Project Files** menu offer **Project Files** as
+the destination, with an optional logical folder (`figures` or `tables` by default).
+Each dialog echoes the R it ran with `ourgeo_project_path()` in place of the
+path, for example
+`ourgeo_save_plot(ourgeo_project_path("figures/plot.png"), width = 7, height = 5, units = "in", dpi = 300)`.
+The map image is a screenshot with no R behind it, so the console records where
+it was saved and points at **Export Code** for the reproducible version.
+
+The Data Viewer's **Export layer** dialog (checked GeoPackage/GeoJSON export)
+offers Project Files too. A new file is named after the layer (`data/roads.gpkg`
+by default); **Add layer** and **Replace named layer** update a GeoPackage already
+in Project Files. The export runs the same checks, review and staged readback as
+a disk export, and only the verified file is saved into the library.
+
+When an export would replace a file already in Project Files, ouRGeo asks first.
+Tick **Don't ask again** to stop the question; turn it back on in
+**Settings → Project Files**. R code never asks: `ourgeo_project_path()` replaces
+a file of the same name, as writing over a file on disk does.
+
 ## Use documents with the assistant
 
 The chat's **Add files** imports into the same library. **Choose project files**

@@ -13,6 +13,7 @@ import { readFile } from 'fs/promises'
 import { unlinkSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { rBridge } from './r-bridge'
+import { startProjectFileAccess } from './project-files/ipc'
 import { createSleepRecovery, repaintWindow as forceRepaint } from './sleep-recovery'
 import { registerContextHandlers, stopContextProviders } from './context/ipc'
 import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
@@ -239,6 +240,8 @@ app.whenReady().then(async () => {
   })
 
   await loadSavedRPath()
+  // Before R starts: its environment carries the address of this door.
+  await startProjectFileAccess().catch(error => console.error('[Main] Project Files access for R unavailable:', error))
 
   try {
     await rBridge.start()

@@ -9,6 +9,10 @@ export interface VectorExportOptions {
   precision: string
   omitFields: string
   textFields: string
+  /** Save into Project Files under this name instead of `path`. R stages the
+   *  checked export and hands the verified file to the library at publication
+   *  (`dq_export_project_stage`, r/lib/vector-export.R). */
+  projectFile?: string
 }
 export function vectorExportRequest(input: PreflightInput, options: VectorExportOptions): PreflightRequest {
   const { format, ...parameters } = options

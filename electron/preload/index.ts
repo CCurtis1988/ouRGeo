@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     renameLinkedFolder: (id: string, name: string, lease: string) => ipcRenderer.invoke('projectFiles:renameLinkedFolder', id, name, lease),
     update: (id: string, revision: string, changes: Partial<Pick<import('../../src/lib/project-files').ProjectFileEntry, 'name' | 'folder' | 'role' | 'userDescription'>>, lease: string) => ipcRenderer.invoke('projectFiles:update', id, revision, changes, lease),
     replace: (id: string, revision: string, lease: string) => ipcRenderer.invoke('projectFiles:replace', id, revision, lease),
+    putBytes: (lease: string, base64: string, target: import('../../src/lib/project-files').ProjectFilePutTarget) => ipcRenderer.invoke('projectFiles:putBytes', lease, base64, target),
     remove: (ids: string[], lease: string) => ipcRenderer.invoke('projectFiles:remove', ids, lease),
     undo: (lease: string) => ipcRenderer.invoke('projectFiles:undo', lease),
     reindex: (ids: string[] | undefined, lease: string) => ipcRenderer.invoke('projectFiles:reindex', ids, lease),

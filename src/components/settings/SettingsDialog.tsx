@@ -4,7 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal, Store, HeartPulse, ArrowUpCircle,
+  SquareTerminal, Store, HeartPulse, ArrowUpCircle, Package,
 } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
 import { APP_VERSION } from './versionHistory'
@@ -21,6 +21,7 @@ import { VoiceSettings } from './VoiceSettings'
 import { MapChunkEngineSetting } from './MapChunkEngineSetting'
 import { LayoutSettings } from './LayoutSettings'
 import { TerminalSettings } from './TerminalSettings'
+import { ProjectFileSettings } from './ProjectFileSettings'
 import { useApiKeysStore } from '@/store/apiKeys'
 import { useUiStore } from '@/store/ui'
 
@@ -269,6 +270,13 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
           mapping package that code uses.
         </p>
         <MapChunkEngineSetting />
+      </>,
+    },
+    {
+      title: 'Project Files', group: 'Maps & data', icon: Package,
+      description: 'Saving exports into this project’s file library',
+      content: <>
+        <ProjectFileSettings />
       </>,
     },
     {

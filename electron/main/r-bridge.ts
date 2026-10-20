@@ -3,10 +3,16 @@ import { spawn, ChildProcess } from 'child_process'
 import { join } from 'path'
 import { homedir } from 'os'
 import { is } from '@electron-toolkit/utils'
+import { projectFileAccessEnv } from './project-files/r-access'
 
 const PORT_ANNOUNCE_PREFIX = 'OURGEO_PORT:'
 const READY_SIGNAL = 'OURGEO_READY'
 const STARTUP_TIMEOUT_MS = 30_000
+
+/** Where ouRGeo's R sources live — the server, and the modules Knit borrows. */
+export function rScriptDir(): string {
+  return is.dev ? join(process.cwd(), 'r') : join(process.resourcesPath, 'r')
+}
 
 class RBridge {
   activePreflight: string | null = null
@@ -60,10 +66,7 @@ class RBridge {
   }
 
   private getRDir(): string {
-    if (is.dev) {
-      return join(process.cwd(), 'r')
-    }
-    return join(process.resourcesPath, 'r')
+    return rScriptDir()
   }
 
   start(): Promise<void> {
@@ -97,7 +100,9 @@ class RBridge {
         env: {
           ...process.env,
           OURGEO_MODE: 'server',
-          OURGEO_PREFLIGHT_SECRET: this.preflightSecret
+          OURGEO_PREFLIGHT_SECRET: this.preflightSecret,
+          // ourgeo_project_file() / ourgeo_project_path() reach Project Files here.
+          ...projectFileAccessEnv()
         }
       })
       const child = this.process

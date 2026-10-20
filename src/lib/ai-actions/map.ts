@@ -14,6 +14,8 @@
 import { useSpatialStore, type SpatialLayer, type LayerSymbology } from '@/store/spatial'
 import { useBasemapStore } from '@/store/basemap'
 import { useSessionStore } from '@/store/session'
+import { useProjectStore } from '@/store/project'
+import { projectFileName } from '@/lib/project-file-code'
 import { useSelectionStore } from '@/store/selection'
 import { useEditorStore } from '@/store/editor'
 import { rClient } from '@/lib/r-client'
@@ -703,6 +705,7 @@ export const mapActions: UiAction[] = [
       },
       { name: 'run', type: 'boolean', default: false, description: 'Also run the code.' },
       { name: 'path', type: 'string', description: 'Write the figure to this file instead of drawing it.' },
+      { name: 'projectFile', type: 'string', description: 'Write the figure into Project Files under this name, e.g. "figures/map.png" (named projects only). Replaces path.' },
       { name: 'width', type: 'number', default: 7, description: 'Figure width in inches, when writing a file.' },
       { name: 'height', type: 'number', default: 5, description: 'Figure height in inches, when writing a file.' },
       { name: 'dpi', type: 'number', default: 150, description: 'Resolution, when writing a file.' },
@@ -714,12 +717,17 @@ export const mapActions: UiAction[] = [
       }
       const engine = (argStr(args, 'engine') || lastExportEngine()) as MapEngine
       if (!['tmap', 'ggplot'].includes(engine)) return fail('engine must be tmap or ggplot.')
-      const path = argStr(args, 'path')
+      const projectFile = argStr(args, 'projectFile')
+      const path = argStr(args, 'path') || (projectFile ? projectFile.split('/').pop() ?? projectFile : '')
+      if (projectFile && useProjectStore.getState().path === null) {
+        return fail('The scratch workspace has no Project Files. Ask the user to save the project (Save As), or pass path instead.')
+      }
       const code = generateMapCode({
         engine,
         exportOpts: path
           ? {
               path,
+              ...(projectFile ? { projectFile: projectFileName('', projectFile) } : {}),
               width: argNum(args, 'width', 7),
               height: argNum(args, 'height', 5),
               units: 'in',

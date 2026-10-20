@@ -4,6 +4,8 @@ import { existsSync } from 'node:fs'
 import type { IpcMain, WebContents } from 'electron'
 // Pure helpers live in the renderer tree so they are covered by the test suite.
 import { parseErrorLine, hintFor } from '../../src/lib/markdown/knit-errors'
+import { rScriptDir } from './r-bridge'
+import { projectFileAccessEnv } from './project-files/r-access'
 
 // Knit an R Markdown document with rmarkdown::render().
 //
@@ -88,19 +90,26 @@ export function registerKnitHandlers(ipcMain: IpcMain): void {
       ? `rmarkdown::${OUTPUT_FORMAT[req.format]}`
       : JSON.stringify(OUTPUT_FORMAT[req.format])
 
+    // The Project Files helpers are the one thing a clean session is given:
+    // a chunk reading ourgeo_project_file("sites.csv") in the console must
+    // knit too, and the file it names exists only inside the project bundle.
+    // Outputs staged with ourgeo_project_path() are saved when the render ends.
+    const helpers = join(rScriptDir(), 'lib', 'project-files.R')
     const rExpr = [
       'options(warn = 1)',
-      `rmarkdown::render(${JSON.stringify(req.filePath)},`,
+      ...(existsSync(helpers) ? [`sys.source(${JSON.stringify(helpers)}, envir = globalenv())`] : []),
+      `tryCatch(rmarkdown::render(${JSON.stringify(req.filePath)},`,
       `  output_format = ${format},`,
       `  output_file = ${JSON.stringify(basename(outFile))},`,
       `  output_dir = ${JSON.stringify(outDir)},`,
       '  knit_root_dir = dirname(normalizePath(' + JSON.stringify(req.filePath) + ')),',
-      '  quiet = FALSE)',
+      '  quiet = FALSE),',
+      '  finally = if (exists(".ourgeo_pf_finish_command")) .ourgeo_pf_finish_command(message))',
     ].join('\n')
 
     return await new Promise((resolve) => {
       const child = spawn(req.rscriptPath || (process.platform === 'win32' ? 'Rscript.exe' : 'Rscript'),
-        ['-e', rExpr], { cwd: dir })
+        ['-e', rExpr], { cwd: dir, env: { ...process.env, ...projectFileAccessEnv() } })
       running.set(req.id, child)
 
       let log = ''

@@ -3,6 +3,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, Lock, Unlock, FolderOpen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { rClient } from '@/lib/r-client'
+import { useSessionStore } from '@/store/session'
+import { savePlotCode, projectFileName, destinationLabel, type FileDestination } from '@/lib/project-file-code'
+import { ExportDestinationField, type ExportTarget } from '../project/ExportDestinationField'
+import { confirmProjectFileReplace } from '@/store/project-file-replace'
 
 type Format = 'png' | 'jpg' | 'pdf'
 type Unit = 'px' | 'in' | 'cm'
@@ -68,6 +72,8 @@ export function ExportDialog({ open, onOpenChange, plotId = null }: Props): Reac
   const [aspectRatio, setAspectRatio] = useState(7 / 5)
   const [filename, setFilename]     = useState('plot.png')
   const [exportDir, setExportDir]   = useState('')
+  const [target, setTarget]         = useState<ExportTarget>('disk')
+  const [projectFolder, setProjectFolder] = useState('figures')
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
@@ -181,21 +187,29 @@ export function ExportDialog({ open, onOpenChange, plotId = null }: Props): Reac
   }
 
   // ---- Export ----
+  // Both destinations run R, so the export is echoed like every other GUI
+  // operation: `ourgeo_save_plot("…/plot.png", …)` to disk, or with
+  // `ourgeo_project_path("figures/plot.png")` into Project Files. Writing the
+  // bytes from here (the old route) echoed nothing, and resolved an empty
+  // directory against ouRGeo's process directory rather than R's.
   const handleExport = async () => {
     setSaving(true)
     setError(null)
     try {
-      const res = await rClient.exportPlot({ format, widthPx, heightPx, dpi, plotId })
-      if (!res.success || !res.data) {
-        setError(res.error ?? 'Export failed')
+      const destination: FileDestination = target === 'project'
+        ? { kind: 'project', name: projectFileName(projectFolder, filename) }
+        : { kind: 'disk', path: exportDir ? `${exportDir.replace(/[\\/]+$/, '')}/${filename}` : filename }
+      if (destination.kind === 'project' && !await confirmProjectFileReplace(destination.name)) return
+      const code = savePlotCode(destination, { width, height, units: unit, dpi, plotId })
+      useSessionStore.getState().addConsoleEntry('input', code)
+      const res = await rClient.execute(code)
+      if (!res.success) {
+        setError(res.error ?? `Export to ${destinationLabel(destination)} failed`)
         return
       }
-      const sep = exportDir ? '/' : ''
-      const fullPath = exportDir ? `${exportDir}${sep}${filename}` : filename
-      await window.electronAPI.file.writeBinary(fullPath, res.data)
       onOpenChange(false)
     } catch (e) {
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
@@ -359,26 +373,28 @@ export function ExportDialog({ open, onOpenChange, plotId = null }: Props): Reac
                 />
               </div>
 
-              {/* Directory */}
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-geo-muted font-medium uppercase tracking-wide">Directory</label>
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    value={exportDir}
-                    placeholder="Working dir"
-                    onChange={(e) => setExportDir(e.target.value)}
-                    className="flex-1 min-w-0 bg-geo-bg border border-geo-border rounded px-2 py-1 text-xs text-foreground placeholder-geo-muted focus:outline-none focus:border-geo-accent"
-                  />
-                  <button
-                    onClick={handleBrowse}
-                    title="Browse"
-                    className="flex-shrink-0 px-2 py-1 bg-geo-bg border border-geo-border rounded text-geo-muted hover:text-foreground hover:border-geo-muted transition-colors"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                  </button>
+              {/* Destination */}
+              <ExportDestinationField target={target} onTargetChange={setTarget} folder={projectFolder} onFolderChange={setProjectFolder}>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-geo-muted font-medium uppercase tracking-wide">Directory</label>
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={exportDir}
+                      placeholder="Working dir"
+                      onChange={(e) => setExportDir(e.target.value)}
+                      className="flex-1 min-w-0 bg-geo-bg border border-geo-border rounded px-2 py-1 text-xs text-foreground placeholder-geo-muted focus:outline-none focus:border-geo-accent"
+                    />
+                    <button
+                      onClick={handleBrowse}
+                      title="Browse"
+                      className="flex-shrink-0 px-2 py-1 bg-geo-bg border border-geo-border rounded text-geo-muted hover:text-foreground hover:border-geo-muted transition-colors"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </ExportDestinationField>
             </div>
 
             {/* Preview panel */}

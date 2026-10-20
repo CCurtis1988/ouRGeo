@@ -13,6 +13,9 @@ import { exportEnvironments } from '@/lib/env-export'
 import { placementMenu, workHereItem } from './env-menu'
 import { type SpatialLayer } from '@/store/spatial'
 import { rClient } from '@/lib/r-client'
+import { useProjectStore } from '@/store/project'
+import { confirmProjectFileReplace } from '@/store/project-file-replace'
+import { destinationExpr, projectFileName, TABLE_EXTENSION, writeTableCode, type FileDestination, type TableFormat } from '@/lib/project-file-code'
 import { SaveConflictDialog, type SaveConflictDecision } from '../database/SaveConflictDialog'
 import { AlreadyOnMapDialog } from '../spatial/AlreadyOnMapDialog'
 import {
@@ -53,13 +56,11 @@ function buildExportCode(
   accessPath: string,
   objName: string,
   cls: string,
-  format: 'csv' | 'txt' | 'xlsx' | 'r',
-  filePath: string
+  format: TableFormat | 'r',
+  destination: FileDestination
 ): string {
-  const p = filePath.replace(/\\/g, '/')
-
   if (format === 'r') {
-    return `writeLines(c(paste0("${objName} <- ", paste(deparse(${accessPath}), collapse = "\n")), ""), con = "${p}")`
+    return `writeLines(c(paste0("${objName} <- ", paste(deparse(${accessPath}), collapse = "\n")), ""), con = ${destinationExpr(destination)})`
   }
 
   const expr = isVectorExportable(cls)
@@ -68,14 +69,7 @@ function buildExportCode(
       ? `as.data.frame(${accessPath})`
       : accessPath
 
-  switch (format) {
-    case 'csv':
-      return `write.csv(${expr}, "${p}", row.names = FALSE)`
-    case 'txt':
-      return `write.table(${expr}, "${p}", sep = "\\t", row.names = FALSE, quote = FALSE)`
-    case 'xlsx':
-      return `writexl::write_xlsx(${expr}, "${p}")`
-  }
+  return writeTableCode(expr, format, destination)
 }
 
 export function EnvironmentItem({
@@ -102,6 +96,7 @@ export function EnvironmentItem({
   } | null>(null)
   const [alreadyOnMap, setAlreadyOnMap] = useState<SpatialLayer[]>([])
   const workspaceFolder = useDatabaseStore((s) => s.workspaceFolder)
+  const projectNamed = useProjectStore((s) => s.path !== null)
   const userFilterActive = useEnvironmentStore((s) => s.userFilterActive)
   const envPlacement = useEnvironmentStore((s) => s.envPlacement)
   const renameRef = useRef<HTMLInputElement>(null)
@@ -293,11 +288,24 @@ export function EnvironmentItem({
     void sendToSpatial()
   }
 
-  const handleExport = async (format: 'csv' | 'txt' | 'xlsx' | 'r') => {
+  const handleExport = async (format: TableFormat | 'r', target: 'disk' | 'project' = 'disk') => {
     if (!window.electronAPI) return
-    const filePath = await window.electronAPI.dialog.saveExportFile(format)
-    if (!filePath) return
-    const code = buildExportCode(currentAccessPath, obj.name, obj.class, format, filePath)
+    let destination: FileDestination
+    if (target === 'project') {
+      // Named after the object, in "tables/": re-exporting the same object
+      // updates its file rather than collecting copies, as writing over a file
+      // on disk would. Renaming is the pane's job, or ourgeo_project_path()'s.
+      // It is also how a re-export replaces a file the user imported under
+      // the same name, so it asks first (unless told not to).
+      destination = { kind: 'project', name: projectFileName(format === 'r' ? 'code' : 'tables', `${obj.name}.${format === 'r' ? 'R' : TABLE_EXTENSION[format]}`) }
+      try { if (!await confirmProjectFileReplace(destination.name)) return }
+      catch (e) { useSessionStore.getState().addConsoleEntry('error', `Project Files: ${e instanceof Error ? e.message : String(e)}`); return }
+    } else {
+      const filePath = await window.electronAPI.dialog.saveExportFile(format)
+      if (!filePath) return
+      destination = { kind: 'disk', path: filePath }
+    }
+    const code = buildExportCode(currentAccessPath, obj.name, obj.class, format, destination)
     logToConsole(code)
     const res = await rClient.execute(code)
     if (!res.success && res.error) {
@@ -425,12 +433,23 @@ export function EnvironmentItem({
               { label: 'Export as Text (.txt)',   onClick: () => handleExport('txt') },
               { label: 'Export as Excel (.xlsx)', onClick: () => handleExport('xlsx') },
             ]
-          }
+          },
+          // Offered only in a named project: scratch has no file library, and
+          // an item that runs only to be refused by R is a dead end.
+          ...(projectNamed ? [{
+            label: 'Export to Project Files',
+            submenu: [
+              { label: 'CSV',          onClick: () => handleExport('csv', 'project') },
+              { label: 'Text (.txt)',   onClick: () => handleExport('txt', 'project') },
+              { label: 'Excel (.xlsx)', onClick: () => handleExport('xlsx', 'project') },
+            ]
+          }] : [])
         ]
       : obj.class === 'function'
       ? [
           { separator: true } as ContextMenuItem,
-          { label: 'Export as .R file', onClick: () => handleExport('r') }
+          { label: 'Export as .R file', onClick: () => handleExport('r') },
+          ...(projectNamed ? [{ label: 'Export .R file to Project Files', onClick: () => handleExport('r', 'project') }] : [])
         ]
       : []),
   ]

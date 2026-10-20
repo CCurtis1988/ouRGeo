@@ -1,4 +1,5 @@
 import { familyIsPolygon, familyIsLine } from '@/lib/geometry-family'
+import { projectPathCall } from './project-file-code'
 import type { SpatialLayer, LegendSettings, NorthArrowSettings, NorthArrowStyle, OverlayPosition } from '@/store/spatial'
 import { getEffectiveSym } from '@/lib/layer-symbology'
 import { getProviderInfo } from '@/lib/basemap-providers'
@@ -11,6 +12,9 @@ import {
 
 export interface GgplotExportOpts {
   path: string
+  /** Save into Project Files under this name instead of `path`
+   *  (`ourgeo_project_path("figures/map.png")`). */
+  projectFile?: string
   width: number
   height: number
   units: 'px' | 'in' | 'cm'
@@ -486,14 +490,15 @@ export function generateGgplotCode(params: GgplotCodeParams): string {
   if (exportOpts && isStatic) {
     lines.push('')
     lines.push('ggplot2::ggsave(')
-    lines.push(`  filename = ${rStr(exportOpts.path)},`)
+    lines.push(`  filename = ${exportOpts.projectFile ? projectPathCall(exportOpts.projectFile) : rStr(exportOpts.path)},`)
     lines.push(`  plot     = p,`)
     lines.push(`  width    = ${exportOpts.width},`)
     lines.push(`  height   = ${exportOpts.height},`)
     lines.push(`  units    = ${rStr(exportOpts.units)},`)
     lines.push(`  dpi      = ${exportOpts.dpi}`)
     lines.push(')')
-    lines.push(`cat("Saved to: ${exportOpts.path}\\n")`)
+    // Project Files reports its own save; a path is quoted, never spliced raw.
+    if (!exportOpts.projectFile) lines.push(`cat("Saved to:", ${rStr(exportOpts.path)}, "\\n")`)
   }
 
   return lines.join('\n').trimEnd()

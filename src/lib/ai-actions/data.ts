@@ -1,3 +1,4 @@
+import { useProjectStore } from '@/store/project'
 import { transformImportedLayer } from '@/lib/data-preflight'
 import { exportVector, vectorExportRequest } from '@/lib/vector-export'
 // Getting data in: files, the Data Connector, and .Rgeo databases.
@@ -47,7 +48,8 @@ export const dataActions: UiAction[] = [
     params: [
       { name: 'name', type: 'string', required: true, description: 'Existing vector object name or safe accessor.' },
       { name: 'env', type: 'string', description: 'Source environment; default .GlobalEnv.' },
-      { name: 'path', type: 'string', required: true, description: 'Absolute local destination; cannot replace a tracked imported source.' },
+      { name: 'path', type: 'string', description: 'Absolute local destination; cannot replace a tracked imported source. Omit when projectFile is given.' },
+      { name: 'projectFile', type: 'string', description: 'Save into this project\'s Project Files instead, by name ("data/roads.gpkg"); mode new replaces a file of that name, add/replace update a project GeoPackage. Named projects only.' },
       { name: 'format', type: 'enum', values: ['gpkg', 'geojson'], default: 'gpkg', description: 'GeoPackage preservation profile or RFC 7946 GeoJSON.' },
       { name: 'layer', type: 'string', default: 'layer', description: 'Destination layer name; also selects exactly the GeoPackage layer to replace.' },
       { name: 'mode', type: 'enum', values: ['new', 'add', 'replace'], default: 'new', description: 'New file, add GeoPackage layer, or replace a named layer/file; replacement needs native review.' },
@@ -56,12 +58,14 @@ export const dataActions: UiAction[] = [
       { name: 'textFields', type: 'string', description: 'Comma-separated supported scalar attributes deliberately converted to text; requires native review.' },
     ],
     run: async args => {
-      const name = argStr(args, 'name'), path = argStr(args, 'path')
-      if (!name || !path) return fail('Choose an existing vector and an absolute local destination.')
+      const name = argStr(args, 'name'), path = argStr(args, 'path'), projectFile = argStr(args, 'projectFile')
+      if (!name || (!path && !projectFile)) return fail('Choose an existing vector and an absolute local destination, or a projectFile name.')
+      if (projectFile && useProjectStore.getState().path === null) return fail('This is the scratch workspace, which has no Project Files. Save the project first (project:saveAs), or pass an absolute path.')
       const request = vectorExportRequest({ name, accessPath: name, envName: argStr(args, 'env') || '.GlobalEnv' }, {
         format: (argStr(args, 'format') || 'gpkg') as 'gpkg' | 'geojson', path, layer: argStr(args, 'layer') || 'layer',
         mode: (argStr(args, 'mode') || 'new') as 'new' | 'add' | 'replace', precision: String(argNum(args, 'precision', 15)),
         omitFields: argStr(args, 'omitFields'), textFields: argStr(args, 'textFields'),
+        ...(projectFile ? { path: '', projectFile } : {}),
       })
       const result = await exportVector(request)
       return result.success ? ok(`Saved and verified ${result.featureCount} features to ${result.path}.`) : fail(result.error ?? 'Export was blocked or cancelled; no staged file was published.')

@@ -1,4 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
+import { projectFileName } from '@/lib/project-file-code'
+import { useProjectStore } from '@/store/project'
+import { useSessionStore } from '@/store/session'
+import { ExportDestinationField, type ExportTarget } from '@/components/project/ExportDestinationField'
+import { confirmProjectFileReplace } from '@/store/project-file-replace'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, Play, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSpatialStore } from '@/store/spatial'
@@ -50,6 +55,10 @@ export function ExportCodeDialog({ open, onClose, mode, mapContainerRef }: Expor
   const [customDpi, setCustomDpi] = useState('')
   const [exportFilename, setExportFilename] = useState('map.png')
   const [exportDir, setExportDir] = useState('')
+  const [exportTarget, setExportTarget] = useState<ExportTarget>('disk')
+  const [projectFolder, setProjectFolder] = useState('figures')
+  const projectNamed = useProjectStore((s) => s.path !== null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [copied, setCopied] = useState(false)
   const [annotations, setAnnotations] = useState<MapAnnotations>(() => ({
@@ -238,8 +247,15 @@ export function ExportCodeDialog({ open, onClose, mode, mapContainerRef }: Expor
   }
 
   const handleRenderSave = async () => {
+    setSaveError(null)
+    let projectFile: string | undefined
+    try {
+      projectFile = exportTarget === 'project' && projectNamed ? projectFileName(projectFolder, exportFilename) : undefined
+    } catch (e) { setSaveError(e instanceof Error ? e.message : String(e)); return }
+    if (projectFile && !await confirmProjectFileReplace(projectFile)) return
     const exportOpts = {
       path: exportDir ? `${exportDir}/${exportFilename}` : exportFilename,
+      projectFile,
       width: exportWidth,
       height: exportHeight,
       units: exportUnit,
@@ -249,7 +265,11 @@ export function ExportCodeDialog({ open, onClose, mode, mapContainerRef }: Expor
     const fullCode = mode === 'tmap'
       ? generateTmapCode({ ...codeParams, exportOpts })
       : generateGgplotCode({ ...codeParams, exportOpts })
-    await rClient.execute(fullCode)
+    // Echoed like every other GUI operation: the save line is what tells the
+    // user where the figure went, and how to send it there from a script.
+    useSessionStore.getState().addConsoleEntry('input', fullCode)
+    const res = await rClient.execute(fullCode)
+    if (!res.success) setSaveError(res.error ?? 'The map could not be saved; see the console.')
   }
 
   const title = mode === 'tmap' ? 'Export to Tmap' : 'Export to ggplot'
@@ -457,22 +477,25 @@ export function ExportCodeDialog({ open, onClose, mode, mapContainerRef }: Expor
                     />
                   </div>
 
-                  {/* Directory */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-geo-muted w-16 flex-shrink-0">Directory</span>
-                    <input
-                      type="text" value={exportDir}
-                      onChange={(e) => setExportDir(e.target.value)}
-                      placeholder="/home/user/..."
-                      className="flex-1 px-2 py-1 text-xs bg-geo-bg border border-geo-border rounded text-foreground placeholder-geo-muted/50 focus:outline-none focus:border-geo-accent min-w-0"
-                    />
-                    <button
-                      onClick={handleBrowse}
-                      className="px-3 py-1 text-xs rounded border border-geo-border text-geo-muted hover:text-foreground hover:bg-geo-bg transition-colors flex-shrink-0"
-                    >
-                      Browse
-                    </button>
-                  </div>
+                  {/* Destination */}
+                  <ExportDestinationField target={exportTarget} onTargetChange={setExportTarget} folder={projectFolder} onFolderChange={setProjectFolder}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-geo-muted w-16 flex-shrink-0">Directory</span>
+                      <input
+                        type="text" value={exportDir}
+                        onChange={(e) => setExportDir(e.target.value)}
+                        placeholder="/home/user/..."
+                        className="flex-1 px-2 py-1 text-xs bg-geo-bg border border-geo-border rounded text-foreground placeholder-geo-muted/50 focus:outline-none focus:border-geo-accent min-w-0"
+                      />
+                      <button
+                        onClick={handleBrowse}
+                        className="px-3 py-1 text-xs rounded border border-geo-border text-geo-muted hover:text-foreground hover:bg-geo-bg transition-colors flex-shrink-0"
+                      >
+                        Browse
+                      </button>
+                    </div>
+                  </ExportDestinationField>
+                  {saveError && <p className="text-xs text-geo-error break-words">{saveError}</p>}
 
                   {/* Render & Save */}
                   <div className="flex justify-end pt-1">

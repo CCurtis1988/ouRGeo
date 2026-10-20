@@ -39,6 +39,8 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'themeBackgrounds.reset', label: 'Restore default selection', where: 'Theme backgrounds → Theme artwork' },
   { id: 'themeBackgrounds.linkFolder', label: 'Link image folder…', where: 'Theme backgrounds → Linked image folders' },
   { id: 'settings.plugins', label: 'Plugins…', where: 'Settings → Plugins' },
+  { id: 'settings.projectFilesAskReplace', label: 'Ask before an export replaces a project file', where: 'Settings → Project Files' },
+  { id: 'projectFiles.replaceConfirm', label: 'Replace', where: 'Replace a project file? — asked when an export would overwrite a Project Files entry' },
   { id: 'settings.documentModelMode', label: 'Document analysis model', where: 'Settings → AI Assistant → File analysis models' },
   { id: 'settings.imageModelMode', label: 'Image interpretation model', where: 'Settings → AI Assistant → File analysis models' },
   { id: 'settings.documentModelProvider', label: 'Document analysis provider', where: 'Settings → AI Assistant → File analysis models' },
@@ -135,6 +137,7 @@ const FIXED_TARGETS: UiTarget[] = [
   { id: 'dataViewer.exportVector', label: 'Export layer', where: 'Spatial Data Viewer header; opens checked vector export' },
   { id: 'dataViewer.exportVector.save', label: 'Check and save', where: 'Vector export dialog; validates, reviews and verifies output' },
   { id: 'environment.export', label: 'Export', where: 'Environment panel, action bar' },
+  { id: 'export.destination', label: 'Save to (Folder / Project Files)', where: 'Plot, map image and map code export dialogs' },
   { id: 'environment.load', label: 'Load', where: 'Environment panel, action bar' },
 
   // Editor toolbar and console.

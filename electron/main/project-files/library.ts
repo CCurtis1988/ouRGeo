@@ -5,8 +5,9 @@ import { basename, dirname, extname, isAbsolute, join, relative, sep } from 'nod
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { setImmediate } from 'node:timers/promises'
-import type { ProjectFileAnalysisInput, ProjectFileCatalogue, ProjectFileEntry, ProjectFileExtraction, ProjectFileHit, ProjectFileImportResult, ProjectFileLocation, ProjectFileOperation, ProjectFilePreview, ProjectFileRead, ProjectLinkedFolder } from '../../../src/lib/project-files'
+import type { ProjectFileAnalysisInput, ProjectFileCatalogue, ProjectFileEntry, ProjectFileExtraction, ProjectFileHit, ProjectFileImportResult, ProjectFileLocation, ProjectFileOperation, ProjectFilePreview, ProjectFilePutResult, ProjectFilePutTarget, ProjectFileRead, ProjectLinkedFolder } from '../../../src/lib/project-files'
 import { EMPTY_PROJECT_FILES, PROJECT_FILE_LIMITS } from '../../../src/lib/project-files'
+import { formatProjectFileTarget, parseProjectFileTarget } from '../../../src/lib/project-file-targets'
 import { emptyLibrary, validateLibrary, type PortableLibrary } from './catalogue'
 import { syncDirectory } from './durability'
 import { authoriseLinkedFolder, inspectLinkedFile, scanLinkedFolder, verifyLinkedRoot, type LinkedFolderGrant } from './linked'
@@ -418,6 +419,62 @@ export class ProjectFileLibrary {
       } finally { state.controller = undefined }
       void this.reindex([id], lease).catch(error => { state.notice = String(error); this.changed() })
       return this.catalogue(lease)
+    })
+  }
+  /** Add or replace an embedded original BY NAME — what R's
+   * `ourgeo_project_path()` and the export dialogs mean by "save it to the
+   * project as tables/summary.csv". Re-running a script must update the file it
+   * wrote last time rather than collect `summary (2).csv`, `summary (3).csv`;
+   * `add` de-duplicates names because a user dragging in two files of the same
+   * name means two files, and this caller means one.
+   *
+   * Unlike `add`, this does not claim `state.operation`. That slot is shared
+   * with indexing, so a script writing two outputs in a row found the second
+   * refused with "A file operation is running" while the first was still being
+   * indexed. A put is one bounded copy inside the mutation queue, the same as
+   * `update`; indexing is queued behind whatever is running. */
+  async put(path: string, target: ProjectFilePutTarget, lease: string): Promise<ProjectFilePutResult> {
+    const state = this.guard(lease)!
+    const parsed = parseProjectFileTarget(target.name, target.folder)
+    const role = target.role ?? 'reference'
+    if (!['reference', 'standard', 'example'].includes(role)) throw new Error('Choose role "reference", "standard" or "example".')
+    if (target.description !== undefined && (typeof target.description !== 'string' || target.description.length > 4000 || target.description.includes('\0'))) throw new Error('Keep the description below 4,000 characters.')
+    return this.serial(async () => {
+      this.current(state)
+      const name = parsed.name
+      const existing = state.draft.files.filter(file => file.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)
+      const linked = existing.find(file => file.storage)
+      if (linked) throw new Error(`"${name}" is a file in a linked folder. Write it with location = the folder's name, or choose another name for an embedded copy.`)
+      const current = existing[0]
+      if (current && target.overwrite === false) throw new Error(`"${formatProjectFileTarget(current)}" is already in the project. Pass overwrite = TRUE to replace it, or choose another name.`)
+      const result = await this.copyOriginal(state, path, new AbortController().signal)
+      this.current(state)
+      const folder = target.folder !== undefined || parsed.folder ? parsed.folder : current?.folder ?? ''
+      const others = state.draft.files.filter(file => !file.storage && file.id !== current?.id).reduce((sum, file) => sum + file.bytes, 0)
+      if (others + result.bytes > PROJECT_FILE_LIMITS.totalBytes) throw new Error('Embedded originals would exceed 1 GiB. Remove files or link a folder for large outputs.')
+      const report = (file: ProjectFileEntry, action: ProjectFilePutResult['action']): ProjectFilePutResult => ({ action, id: file.id, revision: file.revision, name: file.name, folder: file.folder, bytes: file.bytes })
+      if (current && current.sha256 === result.hash && current.folder === folder && (target.description === undefined || current.userDescription === target.description)) return report(current, 'unchanged')
+      const previous = clone(state.draft), upgraded = state.upgraded
+      let file: ProjectFileEntry
+      if (current) {
+        file = current
+        const contentChanged = file.sha256 !== result.hash
+        Object.assign(file, { folder, ...(target.description !== undefined ? { userDescription: target.description, descriptionNeedsReview: false } : {}) })
+        if (contentChanged) {
+          Object.assign(file, { sha256: result.hash, bytes: result.bytes, originalName: name, mediaType: projectFileMediaType(name), status: 'queued', coverage: 'Not yet indexed', generatedDescription: '', descriptionNeedsReview: target.description === undefined && !!file.userDescription, includeHidden: false })
+          delete file.issue; delete file.aiDescription
+        }
+        this.bump(state, file)
+      } else {
+        if (state.draft.files.length >= PROJECT_FILE_LIMITS.count) throw new Error('The library holds 2,000 files. Remove files before writing more.')
+        const now = new Date().toISOString()
+        file = { id: randomUUID(), name, originalName: name, folder, role, userDescription: target.description ?? '', generatedDescription: `${projectFileMediaType(name)} · ${result.bytes} bytes`, sha256: result.hash, bytes: result.bytes, mediaType: projectFileMediaType(name), revision: `${result.hash}:0`, importedAt: now, updatedAt: now, status: 'queued', coverage: 'Not yet indexed', saved: false }
+        state.draft.files.push(file); this.bump(state, file); state.upgraded = true
+      }
+      try { await this.persist(state) } catch (error) { state.draft = previous; state.upgraded = upgraded; throw error }
+      this.changed()
+      if (file.status === 'queued') { state.pendingIndex ??= new Set(); state.pendingIndex.add(file.id); this.resumeIndex(state) }
+      return report(file, current ? 'replaced' : 'added')
     })
   }
   private entry(state: State, id: string, revision?: string): ProjectFileEntry { const file = state.draft.files.find(f => f.id === id); if (!file) throw new Error('SOURCE_UNAVAILABLE: this file was removed. Choose a current project file.'); if (revision && revision !== file.revision) throw new Error('STALE_REFERENCE: the file changed. Select its current revision.'); return file }

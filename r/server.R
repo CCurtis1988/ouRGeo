@@ -156,7 +156,7 @@ for (.mod in c(
   "util-raster.R",
   "handlers-data-widget.R", "handlers-exec.R", "handlers-help.R",
   "handlers-spatial.R", "data-preflight.R", "vector-export.R", "handlers-cogo.R", "handlers-env.R", "context.R", "handlers-packages.R",
-  "handlers-object.R", "handlers-raster.R", "handlers-rmarkdown.R", "handlers-wd.R",
+  "handlers-object.R", "handlers-raster.R", "handlers-rmarkdown.R", "handlers-wd.R", "project-files.R",
   "db-core.R", "db-raster.R", "db-translate.R", "db-handlers.R",
   "router.R"
 )) {

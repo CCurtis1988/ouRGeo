@@ -29,6 +29,7 @@ import { zoneVisible, type PanelId, type ZoneId } from '@/lib/layout/model'
 import { resolveToolbar, type ToolbarButtonDef } from '@/lib/layout/toolbar'
 import { actionById } from '@/lib/ai-actions/registry'
 import { HighlightOverlay } from './HighlightOverlay'
+import { ReplaceProjectFileDialog } from '../project/ReplaceProjectFileDialog'
 import { Zone, EmptyZoneTarget, ContentDragLabel } from './Zone'
 import { startDragResize } from './resize'
 import { useElementSize } from './useElementSize'
@@ -348,6 +349,9 @@ export function EditorLayout(): React.ReactElement {
           Settings and from the microphone in the AI panel, and a prop chain
           from either would leave the other unable to show it. */}
       <VoiceModelDialog />
+      {/* Raised by any export dialog writing over a project file, so it is
+          rendered once here and stacks above whichever one asked. */}
+      <ReplaceProjectFileDialog />
       {/* A sibling of Settings for the same reason the Theme Studio is. */}
       <PluginManagerDialog
         open={openDialog === 'plugins'}

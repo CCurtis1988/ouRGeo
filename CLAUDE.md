@@ -37,6 +37,8 @@ install.packages(c("httpuv", "jsonlite", "later", "httr2", "rlang"))
 #   LaTeX install, e.g. tinytex). Running chunks inline needs NOTHING extra —
 #   it uses base eval + grDevices.
 # Database (.Rgeo) features also need: DBI, duckdb, dplyr
+# Project Files from R (ourgeo_project_file/_path) uses curl + jsonlite, both
+#   already installed with httr2 — nothing extra
 ```
 
 The Data Connector's **Web APIs** tab generates import code with `httr2`/`jsonlite`
@@ -536,6 +538,72 @@ The legacy settings folder sources remain temporary, workspace-scoped text acces
 
 See `docs/linked-project-folders-spec.md` and the Project Files guide for the
 workflow. Native Windows/macOS checks remain deferred.
+
+### Project Files from R (1.16.36)
+
+`r/lib/project-files.R` gives every R session ouRGeo runs five helpers that slot
+INTO ordinary R: `ourgeo_project_file(name)` returns a readable path,
+`ourgeo_project_path(name)` a writable one, plus `ourgeo_project_save()`,
+`ourgeo_project_files()` and `ourgeo_project_commit()`. The user keeps
+`write.csv`, `ggsave`, `sf::st_write`; only the path changes, and that is also
+the R every export dialog echoes, so the GUI teaches the script.
+
+- **R asks main directly, over a loopback door** (`project-files/r-access.ts`).
+  The renderer channel cannot serve `read.csv(ourgeo_project_file(…))`: it only
+  runs while R is idle, and the path is needed mid-evaluation. Bound to
+  127.0.0.1, per-launch bearer token passed in `OURGEO_PROJECT_FILES_URL/_TOKEN`,
+  started before R spawns, refuses any request carrying an Origin. The token
+  grants only what the user's R already has; writes still go through the library.
+- **A writer needs a path before the file exists**, so `ourgeo_project_path`
+  hands out a staging path and the commit runs in `handle_execute`/chunk sweeps
+  (`.ourgeo_pf_finish_command`), beside the env/wd sweeps. A read commits pending
+  writes first, so write-then-read in one command behaves as on disk. A staged
+  path nothing wrote to is reported and dropped rather than committed by some
+  later unrelated command.
+- **`ProjectFileLibrary.put` is add-or-replace BY NAME**, unlike `add`, which
+  de-duplicates names because two dragged-in files are two files. A re-run must
+  update `summary.csv`, not collect `summary (2).csv`. `put` deliberately does
+  not claim `state.operation`: that slot is shared with indexing, and a script's
+  second write met "A file operation is running" while the first was indexing.
+  Indexing is queued through `pendingIndex`. Identical bytes are `unchanged`.
+- **Embedded reads are read-only copies** under `tempdir()/ourgeo-project-files/
+  <sha>/<name>`: readers (readxl, GDAL) need the extension the content-addressed
+  blob lacks, and read-only makes a writer pointed there fail loudly rather than
+  change a copy nothing saves. Linked files are read in place.
+- **Knit sources the same file** into its clean child and passes the same env,
+  or a document using the helpers would be the newest "works in console, fails
+  on Knit". That is why the file is self-contained (base + curl + jsonlite).
+- `src/lib/project-file-targets.ts` is the one parser of "folder/name" (main
+  resolves, renderer emits); `project-file-code.ts` is the R the dialogs emit
+  (`FileDestination` union, `writeTableCode`, `savePlotCode`). The plot export
+  dialog now always runs `ourgeo_save_plot()` — the old base64 write echoed
+  nothing and resolved an empty directory against main's cwd, not R's. The map
+  image is a screenshot, so it goes through `projectFiles:putBytes` with an
+  info line naming Export Code as the reproducible route.
+- **Checked vector export reaches Project Files through its own pipeline**,
+  not around it (`dq_export_project_stage` in `vector-export.R`). The plan is
+  fingerprinted and revalidated at preflight, approval and publication, so the
+  staging path is FIXED per name (`tempdir()/ourgeo-project-export/<sha16>/`),
+  not `ourgeo_project_path()`'s fresh one — a new temporary path each time read
+  as a changed destination. Add/replace-layer stages the project's current
+  copy, whose hash becomes `destinationRevision`, so a project file changed
+  between check and save is refused like a changed file on disk. Publication
+  then `put`s the verified file and deletes the stage. `tempdir()` is
+  normalised because macOS's sits under `/var`, a symlink the destination check
+  rightly refuses. The echoed `dq_export_run(...)` carries `projectFile`, so it
+  replays.
+- **Dialogs ask before replacing; R does not** (`store/project-file-replace.ts`,
+  `ReplaceProjectFileDialog`). The Environment menu names its file after the
+  object, so re-exporting `sites` silently replaced the `sites.csv` imported
+  last week. `replacedProjectFile` states `put`'s rule (same display name, any
+  folder, never a linked file) so the question is about the file that will
+  actually be overwritten. "Don't ask again" counts only with Replace, persists
+  in `project-file-preferences.json` (a preference, never session-scoped), and
+  Settings → Project Files turns it back on — a dismissal with no way back
+  makes the checkbox a one-way door. The dialog is z-300 because Export Code's
+  own dialog is z-201. A new vector file asks; add/replace-layer does not,
+  since the checks already review that update. Assistant actions do not ask:
+  they have their own tiers.
 
 ### File-analysis task models (1.16.25)
 

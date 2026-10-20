@@ -332,6 +332,12 @@ the whole analysis.
   settings, with optional AI descriptions on import/rescan.
   Chat and document analysis share model choices and existing sign-ins, including
   custom models; no separate provider registration is needed.
+  From R, keep your usual readers and writers and change only the path:
+  `read.csv(ourgeo_project_file("data/sites.csv"))`,
+  `write.csv(df, ourgeo_project_path("tables/summary.csv"))`,
+  `ggsave(ourgeo_project_path("figures/map.png"), p)`. The plot, map image, map
+  code, checked vector layer and Environment export menus offer **Project Files**
+  as a destination and echo the same R, asking before they replace a file. These work in the console, chunks and Knit.
   Read the [Project Files guide](docs/project-files.md) for supported contents,
   visual-model capability, privacy, recovery and project-version compatibility.
 - **No telemetry, no account, no cloud dependency.**

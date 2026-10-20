@@ -211,6 +211,10 @@ handle_execute <- function(body) {
     }
   }, error = function(e) NULL)
 
+  # Files written to ourgeo_project_path() go into Project Files now that the
+  # writer has run (r/lib/project-files.R).
+  .ourgeo_pf_finish_command(function(text) broadcast_console(text))
+
   # Push a scoped .GlobalEnv update to the UI if user objects changed, so the
   # Environment panel and autocomplete stay current without a manual refresh.
   broadcast_env_if_changed()

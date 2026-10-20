@@ -24,6 +24,37 @@ dq_export_path <- function(path,driver) {
   if(!grepl(suffix,path,ignore.case=TRUE)) stop(paste('Use a',if(driver=='GPKG') '.gpkg' else '.geojson or .json','filename'))
   path
 }
+# Project Files destinations. The bundle is not a filesystem, so the checked
+# export runs against a staging file and the verified result is handed to the
+# library (put, add-or-replace by name) at publication. The staging path is
+# fixed per name rather than per call: the plan is fingerprinted, and
+# preflight, approval and publication each re-validate it, so a fresh
+# temporary path each time would read as a changed destination. Adding or
+# replacing a layer starts from the project's current copy, and that copy's
+# hash becomes the destination revision, so a project file changed between
+# check and save is refused exactly as a changed file on disk is.
+dq_export_project_stage <- function(p,driver) {
+  name<-p$projectFile;.ourgeo_pf_check_name(name,'projectFile')
+  status<-.ourgeo_pf_request('status')
+  if(is.null(status$project)) stop('This is the scratch workspace, which has no Project Files. Save the project (Project menu > Save As...) and export again')
+  key<-substr(unclass(as.character(openssl::sha256(tolower(name)))),1,16)
+  # Normalised: macOS tempdir() sits under /var, a symlink the destination
+  # check below rightly refuses.
+  dir<-file.path(normalizePath(tempdir(),winslash='/'),'ourgeo-project-export',key)
+  dir.create(dir,recursive=TRUE,showWarnings=FALSE,mode='0700')
+  path<-file.path(dir,basename(gsub('\\\\','/',name)))
+  mode<-p$mode %||% 'new'
+  if(mode=='new') {if(file.exists(path)) unlink(path);return(path)}
+  if(driver!='GPKG') stop('A GeoJSON file in Project Files is written whole. Choose New file; it replaces a project file of the same name')
+  found<-tryCatch(.ourgeo_pf_request('resolve',list(name=name,location='project')),error=function(e) stop(paste0(conditionMessage(e),' To create it, choose New file')))
+  if(!identical(dq_file_revision(path),found$sha256)) {
+    if(file.exists(path)) {Sys.chmod(path,'0644');unlink(path)}
+    if(!file.copy(found$path,path,overwrite=TRUE)) stop('Could not stage the project copy of ',name,' for updating')
+    Sys.chmod(path,'0644')
+  }
+  path
+}
+dq_export_to_project <- function(p) !is.null(p$projectFile)&&nzchar(p$projectFile)
 dq_export_closed <- function(path) {
   if(any(file.exists(paste0(path,c('-wal','-shm','-journal'))))) stop('The destination has SQLite journal/WAL companions. Close it in other applications and finish their transactions before exporting')
 }
@@ -50,7 +81,7 @@ dq_export_fields <- function(x,p) {
 dq_export_plan <- function(input,profile,p,op,add) {
   x<-input$object;driver<-if(op=='export-gpkg') 'GPKG' else 'GeoJSON'
   if(!inherits(x,'sf')) stop('Export requires an sf-compatible vector layer')
-  path<-dq_export_path(p$path,driver);if(driver=='GPKG') dq_export_closed(path)
+  path<-dq_export_path(if(dq_export_to_project(p)) dq_export_project_stage(p,driver) else p$path,driver);if(driver=='GPKG') dq_export_closed(path)
   if(!isTRUE(profile$crs$known)) stop('The source CRS is missing or unparseable. Explicitly assign the known CRS to a copy before export')
   source_files<-attr(input$original,'ourgeo_source_files') %||% character()
   if(path %in% source_files) stop('Choose a derived destination; the imported source file cannot be replaced')
@@ -70,7 +101,8 @@ dq_export_plan <- function(input,profile,p,op,add) {
   }
   if(driver=='GPKG'&&mode=='add'&&layer %in% unlist(layers)) stop('That layer already exists. Choose another layer name or Replace named layer')
   if(driver=='GPKG'&&mode=='replace'&&!layer %in% unlist(layers)) stop('The named layer does not exist. Choose Add layer instead')
-  if(exists) add('EXP-DESTINATION',if(driver=='GPKG') paste(if(mode=='add') 'Add' else 'Replace',layer,'in',path,'; every unrelated layer will be retained and verified.') else paste('Replace the existing GeoJSON file',path,'after staged verification.'),'warning')
+  if(exists&&dq_export_to_project(p)) add('EXP-DESTINATION',paste(if(mode=='add') 'Add' else 'Replace',layer,'in the project file',p$projectFile,'; every unrelated layer will be retained and verified.'),'warning')
+  else if(exists) add('EXP-DESTINATION',if(driver=='GPKG') paste(if(mode=='add') 'Add' else 'Replace',layer,'in',path,'; every unrelated layer will be retained and verified.') else paste('Replace the existing GeoJSON file',path,'after staged verification.'),'warning')
   fields<-dq_export_fields(x,p)
   if(anyDuplicated(names(x))) stop('Duplicate field names are not a supported export schema')
   for(nm in unlist(fields$omitted)) add('EXP-OMIT',paste('Attribute field',nm,'will be omitted from the file; the source remains intact.'),'warning',rows=input$rows,field=nm)
@@ -253,7 +285,15 @@ dq_export_publish <- function(context) {
   ok<-if(is.null(p$destinationRevision)) file.link(context$stage,p$path) else file.rename(context$stage,p$path)
   if(!ok) stop('The filesystem could not safely publish the export. Close locked destinations or choose a new local path; the previous file was retained')
   context$published<-TRUE
-  result<-list(path=p$path,layer=p$layer,driver=p$driver,featureCount=nrow(context$expected),verified=TRUE,
+  where<-p$path
+  if(dq_export_to_project(context$request$parameters)) {
+    name<-context$request$parameters$projectFile
+    saved<-tryCatch(.ourgeo_pf_request('put',list(path=p$path,name=name,overwrite=TRUE)),error=function(e)
+      stop(paste0('The export was verified but not saved into Project Files: ',conditionMessage(e),' The verified file is kept at ',p$path,'; ourgeo_project_save("',p$path,'", "',name,'") saves it once fixed')))
+    unlink(p$path)
+    where<-paste0('Project Files: ',if(nzchar(saved$folder %||% '')) paste0(saved$folder,'/') else '',saved$name,if(identical(saved$action,'unchanged')) ' (unchanged)' else ' (save the project to keep it)')
+  }
+  result<-list(path=where,layer=p$layer,driver=p$driver,featureCount=nrow(context$expected),verified=TRUE,
     fingerprint=context$fingerprint,plan=p,rowRecords=context$report$rowRecords,inputRevisions=context$report$inputRevisions,
     acknowledged=as.list(context$acknowledged))
   if(is.null(dq_state$exportRecords)) dq_state$exportRecords<-list()

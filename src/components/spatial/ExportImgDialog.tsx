@@ -4,6 +4,11 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { X, AlertTriangle, Lock, Unlock, FolderOpen, ChevronDown } from 'lucide-react'
 import { captureMapContainer, dataUriToBase64 } from '@/lib/export-canvas'
 import { cn } from '@/lib/utils'
+import { projectFileName } from '@/lib/project-file-code'
+import { useProjectStore } from '@/store/project'
+import { useSessionStore } from '@/store/session'
+import { ExportDestinationField, type ExportTarget } from '@/components/project/ExportDestinationField'
+import { confirmProjectFileReplace } from '@/store/project-file-replace'
 
 // ---- Warning toast ----
 
@@ -103,6 +108,10 @@ export function ExportImgDialog({ open, onClose, mapContainerRef }: ExportImgDia
   const [marginLeft, setMarginLeft] = useState(0)
   const [filename, setFilename] = useState('spatial-export.png')
   const [exportDir, setExportDir] = useState('')
+  const [target, setTarget] = useState<ExportTarget>('disk')
+  const projectNamed = useProjectStore((st) => st.path !== null)
+  const [projectFolder, setProjectFolder] = useState('figures')
+  const toProject = target === 'project' && projectNamed
   const [isExporting, setIsExporting] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -189,19 +198,31 @@ export function ExportImgDialog({ open, onClose, mapContainerRef }: ExportImgDia
   }
 
   const handleExport = async () => {
-    if (!exportDir) { setError('Please select an export directory.'); return }
+    if (!toProject && !exportDir) { setError('Please select an export directory.'); return }
     if (!mapContainerRef.current) { setError('Map container not available.'); return }
     setError(null)
     setIsExporting(true)
     try {
+      // Asked before the capture, which is the slow part.
+      const name = toProject ? projectFileName(projectFolder, filename) : ''
+      if (toProject && !await confirmProjectFileReplace(name)) return
       const widthPx = toPx(width, unit, effectiveDpi)
       const heightPx = toPx(height, unit, effectiveDpi)
       const dataUri = await captureMapContainer(mapContainerRef.current, {
         widthPx, heightPx, dpi: effectiveDpi, format, marginPx: effectiveMarginPx,
       })
       const base64 = dataUriToBase64(dataUri)
-      const sep = exportDir.endsWith('/') || exportDir.endsWith('\\') ? '' : '/'
-      await window.electronAPI.file.writeBinary(`${exportDir}${sep}${filename}`, base64)
+      if (toProject) {
+        // A screenshot of the map has no R behind it, so it cannot be written
+        // through ourgeo_project_path(); the bytes go straight into the library
+        // and the console says what happened, and where the reproducible R is.
+        const lease = await window.electronAPI.context.lease()
+        const saved = await window.electronAPI.projectFiles.putBytes(lease.id, base64, { name })
+        useSessionStore.getState().addConsoleEntry('info', `Map image ${saved.action === 'replaced' ? 'updated' : saved.action === 'unchanged' ? 'unchanged' : 'saved'} in Project Files: ${name}. It is a picture of the map view; Export Code writes the R that redraws it. Save the project to keep it.`)
+      } else {
+        const sep = exportDir.endsWith('/') || exportDir.endsWith('\\') ? '' : '/'
+        await window.electronAPI.file.writeBinary(`${exportDir}${sep}${filename}`, base64)
+      }
       onClose()
       setShowToast(true)
     } catch (err) {
@@ -424,23 +445,26 @@ export function ExportImgDialog({ open, onClose, mapContainerRef }: ExportImgDia
                       className={cn(inputCls, 'flex-1 font-mono')}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-geo-muted w-20 flex-shrink-0">Directory</span>
-                    <input
-                      type="text"
-                      readOnly
-                      value={exportDir}
-                      placeholder="Select a directory..."
-                      className={cn(inputCls, 'flex-1 font-mono text-geo-muted cursor-default placeholder:text-geo-muted/50')}
-                    />
-                    <button
-                      onClick={handleBrowse}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-geo-border text-geo-muted hover:text-foreground hover:border-geo-muted rounded transition-colors flex-shrink-0"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" />
-                      Browse
-                    </button>
-                  </div>
+                  <ExportDestinationField target={target} onTargetChange={setTarget} folder={projectFolder} onFolderChange={setProjectFolder}
+                    labelClassName="text-[11px] text-geo-muted">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-geo-muted w-20 flex-shrink-0">Directory</span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={exportDir}
+                        placeholder="Select a directory..."
+                        className={cn(inputCls, 'flex-1 font-mono text-geo-muted cursor-default placeholder:text-geo-muted/50')}
+                      />
+                      <button
+                        onClick={handleBrowse}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs border border-geo-border text-geo-muted hover:text-foreground hover:border-geo-muted rounded transition-colors flex-shrink-0"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" />
+                        Browse
+                      </button>
+                    </div>
+                  </ExportDestinationField>
                 </div>
               </div>
 
@@ -452,7 +476,7 @@ export function ExportImgDialog({ open, onClose, mapContainerRef }: ExportImgDia
               <div className="flex justify-end pt-1">
                 <button
                   onClick={handleExport}
-                  disabled={isExporting || !exportDir}
+                  disabled={isExporting || (!toProject && !exportDir)}
                   className="px-4 py-2 text-xs bg-geo-accent text-white rounded hover:bg-geo-accent/90
                     disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
                 >

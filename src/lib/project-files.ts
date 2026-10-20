@@ -86,12 +86,18 @@ export interface ProjectFilePreview extends ProjectFileRead {
 }
 export interface ProjectFileHit { id: string; revision: string; title: string; excerpt: string; location?: ProjectFileLocation }
 export interface ProjectFileImportResult { catalogue: ProjectFileCatalogue; ids: string[]; errors: string[] }
+/** A named write into the embedded library (R helpers, export dialogs).
+ *  `name` may carry a logical folder: "figures/map.png". */
+export interface ProjectFilePutTarget { name: string; folder?: string; description?: string; role?: ProjectFileRole; overwrite?: boolean }
+export interface ProjectFilePutResult { action: 'added' | 'replaced' | 'unchanged'; id: string; revision: string; name: string; folder: string; bytes: number }
 export interface ProjectFileApi {
   pathForFile(file: File): string
   catalogue(lease: string): Promise<ProjectFileCatalogue>
   add(lease: string, paths?: string[]): Promise<ProjectFileImportResult>
   update(id: string, revision: string, changes: Partial<Pick<ProjectFileEntry, 'name' | 'folder' | 'role' | 'userDescription'>>, lease: string): Promise<ProjectFileCatalogue>
   replace(id: string, revision: string, lease: string): Promise<ProjectFileCatalogue>
+  /** Save bytes rendered in the window (a map image) into the library by name. */
+  putBytes(lease: string, base64: string, target: ProjectFilePutTarget): Promise<ProjectFilePutResult>
   remove(ids: string[], lease: string): Promise<ProjectFileCatalogue>
   undo(lease: string): Promise<ProjectFileCatalogue>
   reindex(ids: string[] | undefined, lease: string): Promise<ProjectFileCatalogue>

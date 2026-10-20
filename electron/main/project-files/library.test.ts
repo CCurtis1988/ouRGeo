@@ -471,3 +471,49 @@ describe('project-owned file library', () => {
     await expect(h.library.read(entry.id, entry.revision, h.scope.id)).rejects.toThrow('checksum failed')
   })
 })
+
+describe('writing by name (R helpers and export dialogs)', () => {
+  it('adds a named file into its logical folder, then replaces it when the same name is written again', async () => {
+    const h = await harness()
+    const output = join(h.directory, 'staged.csv'); await writeFile(output, 'a,b\n1,2\n')
+    const first = await h.library.put(output, { name: 'tables/summary.csv', description: 'Totals' }, h.scope.id)
+    expect(first).toMatchObject({ action: 'added', name: 'summary.csv', folder: 'tables' })
+    await writeFile(output, 'a,b\n3,4\n')
+    const second = await h.library.put(output, { name: 'summary.csv' }, h.scope.id)
+    // A re-run updates the file it wrote last time, keeping its folder and description.
+    expect(second).toMatchObject({ action: 'replaced', id: first.id, folder: 'tables' })
+    const files = h.library.catalogue(h.scope.id).files
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ name: 'summary.csv', userDescription: 'Totals', mediaType: 'text/csv', saved: false })
+    expect(await readFile((await h.library.original(first.id, files[0].revision, h.scope.id)).path, 'utf8')).toBe('a,b\n3,4\n')
+    await h.settled()
+  })
+  it('reports identical bytes as unchanged rather than minting a revision', async () => {
+    const h = await harness(), output = join(h.directory, 'same.txt'); await writeFile(output, 'same\n')
+    const first = await h.library.put(output, { name: 'same.txt' }, h.scope.id); await h.settled()
+    const revision = h.library.catalogue(h.scope.id).revision
+    expect(await h.library.put(output, { name: 'same.txt' }, h.scope.id)).toMatchObject({ action: 'unchanged', id: first.id })
+    expect(h.library.catalogue(h.scope.id).revision).toBe(revision)
+  })
+  it('accepts a second write while the first is still indexing', async () => {
+    // A script writing two outputs used to meet "A file operation is running".
+    const h = await harness(); let release!: () => void
+    h.extract.mockImplementationOnce(async () => { await new Promise<void>(resolve => { release = resolve }); return fixtureExtraction() })
+    const a = join(h.directory, 'a.md'), b = join(h.directory, 'b.md'); await writeFile(a, 'first\n'); await writeFile(b, 'second\n')
+    await h.library.put(a, { name: 'a.md' }, h.scope.id)
+    await expect.poll(() => h.library.catalogue(h.scope.id).operation?.label).toBe('Indexing files')
+    await expect(h.library.put(b, { name: 'b.md' }, h.scope.id)).resolves.toMatchObject({ action: 'added' })
+    release(); await h.settled()
+    await expect.poll(() => h.library.catalogue(h.scope.id).files.map(file => file.status).sort()).toEqual(['searchable', 'searchable'])
+  })
+  it('refuses overwrite = FALSE and traversal, naming the way out', async () => {
+    const h = await harness(), output = join(h.directory, 'x.csv'); await writeFile(output, 'x\n')
+    await h.library.put(output, { name: 'x.csv' }, h.scope.id)
+    await expect(h.library.put(output, { name: 'x.csv', overwrite: false }, h.scope.id)).rejects.toThrow('overwrite = TRUE')
+    await expect(h.library.put(output, { name: '../x.csv' }, h.scope.id)).rejects.toThrow('steps outside the project')
+  })
+  it('is unavailable in scratch', async () => {
+    const h = await harness(false), output = join(h.directory, 'x.csv'); await writeFile(output, 'x\n')
+    await expect(h.library.put(output, { name: 'x.csv' }, h.scope.id)).rejects.toThrow('Save project')
+  })
+})

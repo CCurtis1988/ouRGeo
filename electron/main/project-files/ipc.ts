@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, nativeImage, protocol, safeStorage, type IpcMain } from 'electron'
 import { createReadStream } from 'node:fs'
-import { copyFile, mkdir, open, readFile, realpath, rename, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, open, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
@@ -9,7 +9,9 @@ import { extractProjectFile } from './extract'
 import { requireContextOwner } from '../context/ipc'
 import { contextLease, subscribeContextScope } from '../context/scope'
 import { protectedMemoryKey } from '../context/key'
-import type { ProjectFileLocation, ProjectFilePreview } from '../../../src/lib/project-files'
+import { ensureProjectFileAccess, type ProjectFileAccess } from './r-access'
+import type { ProjectFileLocation, ProjectFilePreview, ProjectFilePutTarget } from '../../../src/lib/project-files'
+import { PROJECT_FILE_LIMITS } from '../../../src/lib/project-files'
 
 export const PROJECT_FILES_SCHEME = { scheme: 'ourgeo-project-file', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
 let library: ProjectFileLibrary | undefined
@@ -24,6 +26,15 @@ export function projectFileLibrary(): ProjectFileLibrary {
     subscribeContextScope(() => library?.scopeChanged())
   }
   return library
+}
+
+/** The door R uses into the library (see `r-access.ts`). Awaited before R is
+ *  spawned, so the session's environment carries the address from the start. */
+export function startProjectFileAccess(): Promise<ProjectFileAccess> {
+  return ensureProjectFileAccess(() => {
+    const service = projectFileLibrary()
+    return { lease: contextLease, catalogue: lease => service.catalogue(lease), original: (id, revision, lease) => service.original(id, revision, lease), put: (path, target, lease) => service.put(path, target, lease), rescan: (ids, lease) => service.rescanFolders(ids, lease) }
+  })
 }
 
 export function registerProjectFiles(ipc: IpcMain): void {
@@ -73,6 +84,18 @@ export function registerProjectFiles(ipc: IpcMain): void {
     if (!file) throw new Error('Select a current file to replace.')
     const selected = await dialog.showOpenDialog({ title: `Replace ${file.name}`, properties: ['openFile'] })
     return selected.canceled ? service.catalogue(lease) : service.replace(id, revision, selected.filePaths[0], lease)
+  })
+  // Bytes the renderer drew itself (the map image export) — there is no R
+  // object behind them, so they cannot go through ourgeo_project_path(). They
+  // are staged privately and stored through the same `put` R uses.
+  register('putBytes', async (lease: string, base64: string, target: ProjectFilePutTarget) => {
+    service.catalogue(lease)
+    if (!contextLease().projectId) throw new Error('Save the project to export into Project Files.')
+    if (typeof base64 !== 'string' || base64.length > Math.ceil(PROJECT_FILE_LIMITS.fileBytes / 3) * 4) throw new Error('Exported images must be smaller than 100 MiB.')
+    const directory = join(app.getPath('userData'), 'project-files-incoming'); await mkdir(directory, { recursive: true, mode: 0o700 })
+    const staged = join(directory, `${randomUUID()}.tmp`)
+    await writeFile(staged, Buffer.from(base64, 'base64'), { mode: 0o600, flag: 'wx' })
+    try { return await service.put(staged, target, lease) } finally { await unlink(staged).catch(() => undefined) }
   })
   register('remove', service.remove.bind(service)); register('undo', service.undo.bind(service))
   register('reindex', service.reindex.bind(service)); register('cancel', service.cancel.bind(service))
