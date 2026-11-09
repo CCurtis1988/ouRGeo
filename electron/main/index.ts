@@ -70,6 +70,7 @@ function createWindow(): void {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      backgroundThrottling: process.env.OURGEO_EVAL !== '1',
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
@@ -82,8 +83,10 @@ function createWindow(): void {
     }
   })
 
+  // The skill-training harness drives hidden windows so a run does not take
+  // over the desktop; nothing else changes in eval mode.
   mainWindow.on('ready-to-show', () => {
-    mainWindow!.show()
+    if (process.env.OURGEO_EVAL !== '1') mainWindow!.show()
   })
 
   // Intercept the first close so the renderer can prompt to save unsaved project

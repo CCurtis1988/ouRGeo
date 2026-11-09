@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContextBroker } from './broker'
+import { evalScalars } from '@/lib/eval/hooks'
 import { estimateTokens } from './budget'
 import type { BrokerHost } from './broker'
 import type { ContextSource } from './types'
@@ -17,6 +18,19 @@ function source(extra: Partial<ContextSource> = {}): ContextSource {
 function first(broker: ContextBroker, query = 'theme') { return JSON.parse(broker.search({ query })).results[0].ref }
 
 describe('context leases and budgets', () => {
+  it('skips optional evidence that cannot be read, and keeps what can', async () => {
+    const vector = source({ id: 'environment:area_ha', kind: 'environment', scope: 'workspace', title: 'area_ha', read: () => { throw new Error('SOURCE_UNAVAILABLE: Schema inspection supports in-memory data frames') } })
+    const parcels = source({ id: 'environment:parcels', kind: 'environment', scope: 'workspace', title: 'parcels', read: () => 'Current synthetic schema' })
+    const { broker } = fixture([vector, parcels])
+    const evidence = await broker.prefetch([vector.id, parcels.id])
+    expect(evidence).toHaveLength(1)
+    expect(evidence[0]).toContain('Current synthetic schema')
+  })
+  it('does not swallow a refusal other than an unreadable source', async () => {
+    const denied = source({ id: 'environment:private', kind: 'environment', scope: 'workspace', title: 'private', read: () => { throw new Error('POLICY_DENIED: excluded by the user') } })
+    const { broker } = fixture([denied])
+    await expect(broker.prefetch([denied.id])).rejects.toThrow('POLICY_DENIED')
+  })
   it('requires dependencies and mandatory sections to be delivered before action guidance is ready', async () => {
     const units = source({ id: 'skill:plugin:units', title: 'units' })
     const safety = source({ id: 'skill:plugin:flood:safety', title: 'safety' })
@@ -209,6 +223,53 @@ describe('context leases and budgets', () => {
     expect(read).toHaveBeenCalledTimes(1)
     expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
   })
+  it('treats environment evidence returned in a tool result as delivered history after an R execution', () => {
+    // Claude subscription runs the whole tool loop in one invocation, so no
+    // recordInvocation marks search evidence sent before the next tool call.
+    const { broker, state } = fixture([source({ id: 'environment:.GlobalEnv:nc', kind: 'environment', scope: 'workspace', title: '.GlobalEnv::nc', summary: 'nc sf polygons', revision: 'gen-1' })])
+    const result = broker.search({ query: 'nc' })
+    state.sources = [source({ id: 'environment:.GlobalEnv:nc', kind: 'environment', scope: 'workspace', title: '.GlobalEnv::nc', summary: 'nc sf polygons', revision: 'gen-2' })]
+    expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
+    broker.noteToolResultReturned(result)
+    expect(() => broker.validateSend()).not.toThrow()
+  })
+  describe('lever L12: environment evidence whose object is gone', () => {
+    beforeEach(() => { evalScalars.set('evidence:goneIsHistory', 1) })
+    afterEach(() => { evalScalars.clear() })
+    const nc = () => source({ id: 'environment:.GlobalEnv:nc', kind: 'environment', scope: 'workspace', title: '.GlobalEnv::nc', summary: 'nc sf polygons' })
+    it('is history once delivered: moving an object must not end the turn that moved it', () => {
+      const { broker, state } = fixture([nc()])
+      broker.noteToolResultReturned(broker.search({ query: 'nc' }))
+      state.sources = []
+      expect(() => broker.validateSend()).not.toThrow()
+    })
+    it('is off unless the lever is set: the shipped rule still refuses', () => {
+      evalScalars.clear()
+      const { broker, state } = fixture([nc()])
+      broker.noteToolResultReturned(broker.search({ query: 'nc' }))
+      state.sources = []
+      expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
+    })
+    it('still stops the turn when it was never delivered', () => {
+      const { broker, state } = fixture([nc()])
+      broker.search({ query: 'nc' })
+      state.sources = []
+      expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
+    })
+    it('still stops the turn when the user excluded it, delivered or not', () => {
+      const { broker, state } = fixture([nc()])
+      broker.noteToolResultReturned(broker.search({ query: 'nc' }))
+      state.excluded = ['environment:.GlobalEnv:nc']
+      expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
+    })
+    it('still stops the turn when any exclusion changed and the object is also gone', () => {
+      const { broker, state } = fixture([nc()])
+      broker.noteToolResultReturned(broker.search({ query: 'nc' }))
+      state.sources = []
+      state.excluded = ['environment:nc']
+      expect(() => broker.validateSend()).toThrow('STALE_REFERENCE')
+    })
+  })
   it('rejects a result that completes in a different workspace', async () => {
     let release!: (text: string) => void
     const { broker, state } = fixture([source({ read: () => new Promise(resolve => { release = resolve }) })])
@@ -231,7 +292,7 @@ describe('context leases and budgets', () => {
   })
   it('pages large evidence with opaque scoped cursors', async () => {
     const text = 'a'.repeat(16000)
-    const { broker } = fixture([source({ read: () => text })])
+    const { broker } = fixture([source({ id: 'document:notes', kind: 'document', scope: 'workspace', read: () => text })])
     const result = JSON.parse(await broker.read({ ref: first(broker) }))
     expect(result.completeness).toBe('partial')
     expect(result.nextCursor).toMatch(/^ctx_/)
@@ -242,11 +303,42 @@ describe('context leases and budgets', () => {
   })
   it('keeps an exact repeated read in the task cache without another retrieval round', async () => {
     const read = vi.fn(() => 'one statement')
-    const { broker } = fixture([source({ read })])
+    const { broker } = fixture([source({ id: 'document:notes', kind: 'document', scope: 'workspace', read })])
     const ref = first(broker)
     await broker.read({ ref }); await broker.read({ ref })
     expect(read).toHaveBeenCalledTimes(1)
     expect(broker.trace.retrievalCalls).toBe(2)
+  })
+  it('loads a skill by id for the host, free, and refuses an excluded one by absence', async () => {
+    const { broker, state } = fixture([source({ read: () => 'Theme steps.' })])
+    expect(JSON.parse((await broker.loadSkill('skill:themes', 'user invoked skill'))!).content).toContain('Theme steps.')
+    expect(broker.trace.retrievalCalls).toBe(0)
+    expect(broker.trace.selected.at(-1)?.reason).toBe('user invoked skill')
+    state.excluded = ['skill:themes']
+    expect(await broker.loadSkill('skill:themes', 'user invoked skill')).toBeNull()
+  })
+  it('finding and reading skills and actions does not spend context lookups', async () => {
+    const { broker } = fixture([source(), source({ id: 'action:theme:create', kind: 'action', title: 'theme:create', summary: 'create a theme' })])
+    for (let i = 0; i < 8; i++) broker.search({ query: 'theme', kinds: ['skill'] })
+    broker.search({ query: 'theme', kinds: ['action'] })
+    const skill = JSON.parse(broker.search({ query: 'theme', kinds: ['skill'] })).results[0].ref
+    expect(JSON.parse(await broker.read({ ref: skill })).status).toBe('ok')
+    expect(broker.trace.retrievalCalls).toBe(0)
+    broker.search({ query: 'theme' })
+    expect(broker.trace.retrievalCalls).toBe(1)
+  })
+  it('opens the gate once REQUIRED_SKILL guidance has gone back to the model as a tool result', async () => {
+    // Guidance is a JSON string of prefetched evidence, itself JSON, so a skill body
+    // with a newline or quote arrives escaped twice inside the tool result.
+    const body = 'Mandatory steps:\n1. Copy the "template" theme.\n2. Check contrast.'
+    // As workspace.ts builds it: the read returns the prerequisites, then the body.
+    const prerequisites = 'Read before acting.\nNever edit shipped themes.'
+    const { broker } = fixture([source({ prerequisites, read: () => `${prerequisites}\n${body}` })])
+    const guidance = (await broker.ensureSkills(['skill:themes']))!
+    expect(JSON.parse(guidance).status).toBe('REQUIRED_SKILL')
+    broker.noteToolResultReturned(guidance)
+    broker.recordInvocation(1000, 32000, { messages: [{ role: 'user', content: 'Change my theme' }, { role: 'tool', content: guidance }] })
+    expect(await broker.ensureSkills(['skill:themes'])).toBeNull()
   })
   it('gates an action until its skill revision has reached an invocation', async () => {
     const { broker } = fixture([source()])

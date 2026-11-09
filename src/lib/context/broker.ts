@@ -1,3 +1,4 @@
+import { overlayValue } from '@/lib/eval/hooks'
 import { descriptorIdentity, safeDescriptorId, type DescriptorQuery } from './descriptor-identity'
 import { materialiseDescriptor } from './descriptor-index'
 import type { MemoryRecallRequest, MemoryRecallResult } from './providers/recall'
@@ -56,6 +57,25 @@ export interface BrokerHost {
   limitations?: string[]
 }
 
+/**
+ * Does this text carry the evidence? Its ref must appear, and its content at some
+ * JSON escaping depth: REQUIRED_SKILL guidance is a JSON string of prefetched
+ * evidence, which is itself JSON, so a body arrives escaped twice in a tool result.
+ */
+/** Application guidance: free to find and read (see `takeCall`). */
+const GUIDANCE_KINDS = new Set<ContextKind>(['skill', 'action'])
+const isGuidanceOnly = (kinds: unknown): boolean => Array.isArray(kinds) && kinds.length > 0 && kinds.every(kind => GUIDANCE_KINDS.has(kind as ContextKind))
+
+function carries(text: string, evidence: ContextEvidence): boolean {
+  if (!text.includes(evidence.ref)) return false
+  let content = evidence.content
+  for (let depth = 0; depth < 4; depth++) {
+    if (text.includes(content)) return true
+    content = JSON.stringify(content).slice(1, -1)
+  }
+  return false
+}
+
 /** References and cursors are leases on one turn, not paths or provider IDs.
  * Every cache hit goes through the same current-source check as a fresh read. */
 export class ContextBroker {
@@ -68,7 +88,9 @@ export class ContextBroker {
   private contentRanks = new Map<string, ContentSearchHit[]>()
   private memoryRanks = new Map<string, MemoryRecallResult>()
   private deadline = Date.now() + 30 * 60_000
+  private exclusionsAtStart: string
   constructor(private host: BrokerHost) {
+    this.exclusionsAtStart = JSON.stringify(host.excluded())
     this.trace = { turnId: crypto.randomUUID(), identity: host.identity, target: host.target, state: 'prepared', selected: [], invocations: [], retrievalCalls: 0, returnedTokens: 0, excluded: [], ...(host.limitations?.length ? { limitations: host.limitations.slice(0, 5).map(value => value.slice(0, 200)) } : {}) }
   }
 
@@ -77,12 +99,18 @@ export class ContextBroker {
     this.host.signal.throwIfAborted()
     if (!this.host.current() || Date.now() > this.deadline) throw new Error('SCOPE_CHANGED')
   }
-  private takeCall(): void {
+  /**
+   * Spend one context lookup. Skills and interface actions are application guidance,
+   * not user data, so finding and reading them does not count against the lookup
+   * limit (`free`); the returned-token allowance still applies. Counting them cut off
+   * small models mid-task: opening one skill cost 2 of 6 lookups.
+   */
+  private takeCall(free = false): void {
     this.check()
     const max = this.host.effort === 'thorough' ? 10 : this.host.effort === 'efficient' ? 3 : 6
-    if (this.trace.retrievalCalls >= max) throw new Error(`BUDGET_LIMIT: this turn has used its ${max} context lookups at ${this.host.effort} effort. Use the evidence already retrieved, narrow the request, or choose a higher Context effort in the assistant footer and send again.`)
+    if (!free && this.trace.retrievalCalls >= max) throw new Error(`BUDGET_LIMIT: this turn has used its ${max} context lookups at ${this.host.effort} effort. Use the evidence already retrieved, narrow the request, or choose a higher Context effort in the assistant footer and send again.`)
     if (this.trace.returnedTokens >= 12000) throw new Error('BUDGET_LIMIT: this turn has reached its 12,000-token retrieval allowance. Use the evidence already retrieved or send a narrower follow-up request.')
-    this.trace.retrievalCalls++
+    if (!free) this.trace.retrievalCalls++
   }
   private eligible(kinds?: ContextKind[], matches?: (source: ContextSource) => boolean): ContextSource[] {
     return Array.from(this.iterateEligible(kinds, matches), materialiseDescriptor)
@@ -105,7 +133,7 @@ export class ContextBroker {
   }
 
   search(input: Record<string, unknown>): string {
-    this.takeCall()
+    this.takeCall(isGuidanceOnly(input.kinds))
     return this.compileSearch(input)
   }
 
@@ -165,7 +193,7 @@ export class ContextBroker {
       && !s.legacyIds?.some(id => denied.has(id)) && (!kinds || kinds.includes(s.kind))
       && (scope === 'all' || scope === 'available' || s.scope === scope) && (!group || s.group === group)
       && (after === null && before === null || Boolean(s.timestamp && (after === null || Date.parse(s.timestamp) >= after) && (before === null || Date.parse(s.timestamp) <= before)))
-      && safeIdentifier(s)
+      && safeIdentifier(s) && !s.hostOnly
     const resultsToSearch = !kinds || kinds.includes('result') ? this.results : []
     const originals = (query?: DescriptorQuery): Iterable<ContextSource> => this.host.sources(kinds, query)
     const sources = resultsToSearch.length ? function* (query?: DescriptorQuery) { yield* originals(query); yield* resultsToSearch } : originals
@@ -219,7 +247,7 @@ export class ContextBroker {
     const cacheKey = range ? JSON.stringify([source.id, source.revision, range.startLine, range.endLine]) : sourceRevisionKey(source.id, source.revision)
     let raw = this.cache.get(cacheKey)
     if (raw === undefined) {
-      this.takeCall()
+      this.takeCall(GUIDANCE_KINDS.has(source.kind))
       const original = range && source.readRange ? await source.readRange(range, this.host.signal) : await source.read(this.host.signal)
       raw = redactContext(range && !source.readRange ? readDocumentRange(original, range) : original)
       if (raw.length > 1_000_000) return JSON.stringify({ status: 'BUDGET_LIMIT', recovery: 'Select a smaller document section or result.' })
@@ -347,6 +375,20 @@ export class ContextBroker {
     return JSON.stringify({ status: 'ok', ref, title: redactContext(source.title), revision: source.revision, location, content, coverage: 'typed image rendition prepared for dispatch; selection does not establish delivery', completeness: result.complete ? 'complete' : 'partial', citation, estimatedTokens: IMAGE_TOKEN_RESERVATION })
   }
 
+  /**
+   * Read one skill by its source id: for `use_skill`, and for skills the host
+   * attaches (invoked by the user, always on, or active in this chat). Unlike
+   * `prefetch` it takes no slot from workspace evidence and costs no lookup, and it
+   * goes through `read`, so attribution, redaction and delivery tracking all apply.
+   * Null when the skill is switched off or excluded: absent, not refused.
+   */
+  async loadSkill(sourceId: string, reason: string, tokenLimit = 3000): Promise<string | null> {
+    this.check()
+    const source = this.eligible(['skill'], s => s.id === sourceId)[0]
+    if (!source) return null
+    return this.read({ ref: this.ref(source) }, reason, tokenLimit)
+  }
+
   async prefetch(ids: string[], allocation = 2400): Promise<string[]> {
     const results: string[] = []
     const selected = ids.slice(0, this.host.effort === 'efficient' ? 1 : 3)
@@ -358,6 +400,11 @@ export class ContextBroker {
         let result: string
         try { result = await this.read({ ref: this.ref(source) }, 'local task routing', limit) }
         catch (error) {
+          // Prefetch is optional evidence. A source that cannot be read, such as a
+          // plain vector with no schema, is skipped rather than ending the turn;
+          // the model can still inspect it with R. Any other refusal, policy
+          // above all, keeps throwing: those fail closed.
+          if (String(error).includes('SOURCE_UNAVAILABLE')) continue
           if (source.kind !== 'environment' || !String(error).includes('STALE_REFERENCE')) throw error
           result = JSON.stringify({ status: 'STALE_REFERENCE' })
         }
@@ -517,12 +564,47 @@ export class ContextBroker {
     const selectedIds = new Set(this.trace.selected.map(e => e.sourceId))
     const sources = this.eligible([...new Set(this.trace.selected.map(e => e.kind))], source => selectedIds.has(source.id))
     const historical = new Set(this.trace.selected.filter(e => e.kind === 'environment' && ['sent', 'acknowledged', 'uncertain'].includes(e.delivery ?? 'selected')).map(e => sourceRevisionKey(e.sourceId, e.revision)))
-    if (this.trace.selected.some(e => !sources.some(s => s.id === e.sourceId && (s.kind === 'result' || s.revision === e.revision
+    // Lever L12, eval only; the shipped rule refuses removal after delivery
+    // (freshness.test.ts). An object the turn itself moved or removed leaves
+    // delivered evidence with no source, and refusing reports failure for work
+    // that succeeded. Exclusion also hides a source and must still stop the turn,
+    // so any change to the list since the turn began disqualifies.
+    const exclusionsUnchanged = JSON.stringify(this.host.excluded()) === this.exclusionsAtStart
+    const gone = (e: ContextEvidence): boolean => overlayValue<number>('evidence:goneIsHistory', 0) === 1 && e.kind === 'environment' && exclusionsUnchanged
+      && historical.has(sourceRevisionKey(e.sourceId, e.revision)) && !sources.some(s => s.id === e.sourceId)
+    if (this.trace.selected.some(e => !gone(e) && !sources.some(s => s.id === e.sourceId && (s.kind === 'result' || s.revision === e.revision
       // An execution legitimately invalidates observations already delivered
       // in this task. Keep them as labelled history; newly prepared evidence
       // must still match before its first disclosure.
       || (s.kind === 'environment' && historical.has(sourceRevisionKey(e.sourceId, e.revision))))))) {
       throw new Error('STALE_REFERENCE: selected context changed or was excluded. Send again to prepare current evidence.')
+    }
+  }
+  /** A tool result has been handed back to the transport, so the evidence it
+   * carries is delivered. Without this, a transport that runs the whole tool
+   * loop inside ONE invocation (Claude subscription, over MCP) never marks
+   * search evidence as sent: the first execute_r_code then moves the
+   * environment generation, as it legitimately should, and validateSend
+   * rejects every later tool call in the turn as STALE_REFERENCE — measured by
+   * the skill-training harness on 2026-11-05 ("search nc → run R → add layer"
+   * failed every call after the R). Delivered evidence is history, which is
+   * exactly what the environment exemption in validateSend allows. */
+  noteToolResultReturned(result: string): void {
+    for (const evidence of this.trace.selected) {
+      if ((evidence.delivery ?? 'selected') === 'selected' && result.includes(evidence.ref)) evidence.delivery = 'sent'
+    }
+    // Skill guidance handed back inside a tool result is delivered now. Waiting for
+    // the next invocation never happens on the Claude CLI, which runs the whole tool
+    // loop in one, so a gated action stayed refused for the rest of the turn.
+    this.markDelivered(this.trace.selected.filter(evidence => evidence.kind === 'skill' && carries(result, evidence)))
+  }
+  /** Delivered = the model has the whole text, mandatory prerequisites included. */
+  private markDelivered(evidence: ContextEvidence[]): void {
+    for (const item of evidence) {
+      if (item.reason === 'search discovery metadata') continue
+      const source = item.kind === 'skill' ? this.eligible(['skill'], source => source.id === item.sourceId)[0] : undefined
+      if (source?.prerequisites && !item.content.includes(source.prerequisites)) continue
+      this.delivered.add(sourceRevisionKey(item.sourceId, item.revision))
     }
   }
   recordInvocation(inputTokens: number, window: number, payload?: unknown): void {
@@ -536,16 +618,13 @@ export class ContextBroker {
     if (payload !== undefined) collect(payload)
     const freshness = this.freshnessNotice()
     if (freshness && !strings.some(text => text.includes(freshness))) throw new Error('STALE_REFERENCE: historical workspace evidence needs a host freshness notice before another invocation. Prepare current context and retry.')
-    const sent = this.trace.selected.filter(evidence => payload === undefined || strings.some(text => text.includes(evidence.ref) && (text.includes(evidence.content) || text.includes(JSON.stringify(evidence.content).slice(1, -1)))))
+    const sent = this.trace.selected.filter(evidence => payload === undefined || strings.some(text => carries(text, evidence)))
     this.trace.invocations.push({ inputTokens, window, estimated: true, sentRefs: [...new Set(sent.map(evidence => evidence.ref))] })
     for (const evidence of this.trace.selected) {
       if (!sent.includes(evidence)) { evidence.delivery ??= 'selected'; continue }
       evidence.delivery = 'sent'
-      if (evidence.reason === 'search discovery metadata') continue
-      const source = evidence.kind === 'skill' ? this.eligible(['skill'], source => source.id === evidence.sourceId)[0] : undefined
-      if (source?.prerequisites && !evidence.content.includes(source.prerequisites)) continue
-      this.delivered.add(sourceRevisionKey(evidence.sourceId, evidence.revision))
     }
+    this.markDelivered(sent)
     this.trace.state = 'sent'
     this.emit()
   }

@@ -1,0 +1,304 @@
+[
+ {
+  "id": "skills-invoked-by-name-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "Please use your short-report skill to summarise nc."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: short-report\ndescription: Use when the user wants a short one-page summary report of a data frame.\n---\n# short-report\n\n1. Run R to count the rows and list the column names.\n2. Reply under a heading \"Short report\" with three bullet points.\nEnd your answer with the exact line \"Report complete.\"\n"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_regex": "Report complete\\."
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "## Short report\n- 4 rows\n- NAME, BIR74\n- data frame\nReport complete."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Here you go."
+  }
+ },
+ {
+  "id": "skills-invoked-by-slash-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "/short-report nc"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: short-report\ndescription: Use when the user wants a short one-page summary report of a data frame.\n---\n# short-report\n\n1. Run R to count the rows and list the column names.\n2. Reply under a heading \"Short report\" with three bullet points.\nEnd your answer with the exact line \"Report complete.\"\n"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_regex": "Report complete\\."
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "## Short report\nReport complete."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Here you go."
+  }
+ },
+ {
+  "id": "skills-auto-by-description-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "Which coordinate reference system is my nc_sf layer in?"
+   }
+  ],
+  "fixture": {
+   "r": "library(sf); nc_sf <- st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "skills": [
+    {
+     "text": "---\nname: crs-check\ndescription: Use when the user asks which coordinate reference system (CRS) an object is in, or whether two objects share one.\n---\n# crs-check\n\n1. Run sf::st_crs() on each object in R.\n2. Give the EPSG code and its name.\nEnd your answer with the exact line \"CRS check done.\"\n"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_regex": "CRS check done\\."
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "EPSG 4267 (NAD27).\nCRS check done."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Here you go."
+  }
+ },
+ {
+  "id": "skills-always-on-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "How many rows does nc have?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: house-style\ndescription: Use for every answer: the team's reporting style.\n---\n# house-style\n\n1. Keep answers short.\nEnd your answer with the exact line \"Source: ouRGeo team style.\"\n",
+     "mode": "always"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_regex": "Source: ouRGeo team style\\."
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "4 rows.\nSource: ouRGeo team style."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Here you go."
+  }
+ },
+ {
+  "id": "skills-manual-not-used-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "Give me a summary of nc for the board."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: board-summary\ndescription: Use when the user wants a summary for the board.\n---\n# board-summary\n\n1. Count rows in R.\n2. One sentence only.\nEnd your answer with the exact line \"Board summary ready.\"\n",
+     "mode": "manual"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_not_regex": "Board summary ready\\."
+   },
+   {
+    "answer_regex": "\\b4\\b"
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "nc has 4 counties."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "nc has 4 rows. Board summary ready."
+  }
+ },
+ {
+  "id": "skills-manual-used-when-named-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "Use your board-summary skill on nc."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: board-summary\ndescription: Use when the user wants a summary for the board.\n---\n# board-summary\n\n1. Count rows in R.\n2. One sentence only.\nEnd your answer with the exact line \"Board summary ready.\"\n",
+     "mode": "manual"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_regex": "Board summary ready\\."
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "nc has 4 rows. Board summary ready."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Here you go."
+  }
+ },
+ {
+  "id": "skills-off-not-used-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "turns": [
+   {
+    "user": "Please use your short-report skill on nc."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))",
+   "skills": [
+    {
+     "text": "---\nname: short-report\ndescription: Use when the user wants a short one-page summary report of a data frame.\n---\n# short-report\n\n1. Run R to count the rows and list the column names.\n2. Reply under a heading \"Short report\" with three bullet points.\nEnd your answer with the exact line \"Report complete.\"\n",
+     "enabled": false,
+     "createdBy": "import"
+    }
+   ]
+  },
+  "graders": [
+   {
+    "answer_not_regex": "Report complete\\."
+   },
+   {
+    "answer_regex": "\\b(off|disabled|not (switched |turned )?on|not available|unavailable|can(no|')t|isn't|is not)\\b|\\bno skill\\b"
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "That skill is switched off, so I cannot use it."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "## Short report\nReport complete."
+  }
+ },
+ {
+  "id": "skills-save-workflow-01",
+  "domains": [
+   "skills"
+  ],
+  "modules": [
+   "skills"
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(NAME = c(\"A\",\"B\",\"C\",\"D\"), BIR74 = c(10, 20, 30, 45))"
+  },
+  "turns": [
+   {
+    "user": "Count the rows of nc and give the total of BIR74."
+   },
+   {
+    "user": "Please turn what we just did into a skill called nc-stats."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "save_skill",
+     "where": "i.operation === 'create' && /nc-stats/.test(String(i.name))"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "save_skill",
+     "input": {
+      "operation": "create",
+      "name": "nc-stats",
+      "content": "---\nname: nc-stats\ndescription: Use when x.\n---\n1. Count rows."
+     },
+     "result": "Saved skill \"nc-stats\"."
+    }
+   ],
+   "answer": "Saved nc-stats."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "4 rows, total 105."
+  }
+ }
+]

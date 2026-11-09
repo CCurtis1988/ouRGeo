@@ -1,0 +1,167 @@
+[
+ {
+  "id": "autopilot-off-val-gauges-median-na-terse-01",
+  "domains": [
+   "autopilot-off"
+  ],
+  "modules": [
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": false,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "gauges <- data.frame(site = c(\"G1\", \"G2\", \"G3\", \"G4\", \"G5\", \"G6\", \"G7\", \"G8\"), basin = c(\"Neuse\", \"Neuse\", \"Tar\", \"Neuse\", \"Tar\", \"Neuse\", \"Neuse\", \"Tar\"), flow_cfs = c(412, NA, 87, 655, 230, 391, 148, NA))"
+  },
+  "turns": [
+   {
+    "user": "median flow_cfs for the Neuse gauges in gauges?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "median\\s*\\(|quantile\\s*\\("
+   },
+   {
+    "answer_regex": "na\\.rm\\s*=\\s*(TRUE|T)\\b|na\\.omit\\s*\\(|!\\s*is\\.na\\s*\\(|complete\\.cases\\s*\\(|drop_na\\s*\\("
+   },
+   {
+    "answer_regex": "Neuse"
+   },
+   {
+    "answer_not_regex": "\\b401[.,]50*\\b|\\b402\\b"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "r_state": "local({ g <- get(\"gauges\", envir = globalenv()); nrow(g) == 8L && median(g$flow_cfs[g$basin == \"Neuse\"], na.rm = TRUE) == 401.5 })"
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Autopilot is off, so here is the code to paste into the console:\n\n```r\nwith(gauges, median(flow_cfs[basin == \"Neuse\"], na.rm = TRUE))\n```\n\n`na.rm = TRUE` matters because one Neuse gauge has a missing reading, and without it `median()` returns `NA`."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Autopilot is off, so here is the code to paste into the console:\n\n```r\nwith(gauges, median(flow_cfs[basin == \"Neuse\"]))\n```"
+  }
+ },
+ {
+  "id": "autopilot-off-val-parcels-r1-hectares-chatty-01",
+  "domains": [
+   "autopilot-off"
+  ],
+  "modules": [
+   "action:map:listColumns",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": false,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "rect <- function(x, y, w, h) sf::st_polygon(list(rbind(c(x, y), c(x + w, y), c(x + w, y + h), c(x, y + h), c(x, y))))\nparcels <- sf::st_sf(parcel_id = 1:4, zoning = c(\"R1\", \"C2\", \"R1\", \"R1\"), area_ha = c(3.1, 1.2, 3.4, 2.2), geometry = sf::st_sfc(rect(700000, 3950000, 200, 150), rect(700300, 3950000, 100, 100), rect(700000, 3950300, 300, 120), rect(700400, 3950300, 250, 80), crs = 32617))\nrm(rect)",
+   "layers": [
+    "parcels"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hi! I'm putting together a little summary for the planning office and I need one figure from the parcels layer I've got on the map: how many hectares are zoned R1 in total? The zoning column has the codes. Please go off the actual geometry though, I don't trust that old area_ha column at all. Thanks so much!"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "st_area\\s*\\("
+   },
+   {
+    "answer_regex": "10000|1e\\+?0?4|set_units\\s*\\("
+   },
+   {
+    "answer_regex": "R1"
+   },
+   {
+    "answer_not_regex": "\\b8[.,]60*\\b|\\b86[ ,]?000\\b"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "r_state": "local({ p <- get(\"parcels\", envir = globalenv()); nrow(p) == 4L && abs(sum(as.numeric(sf::st_area(p[p$zoning == \"R1\", ]))) / 10000 - 8.6) < 1e-6 })"
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Autopilot is off, so here is the code to paste into the console:\n\n```r\nr1 <- parcels[parcels$zoning == \"R1\", ]\nsum(as.numeric(sf::st_area(r1))) / 10000\n```\n\n`st_area()` measures each polygon from its geometry in square metres, so `area_ha` is not used. Dividing by 10000 converts the total to hectares."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "The parcels zoned R1 total 8.6 hectares.\n\n```r\nr1 <- parcels[parcels$zoning == \"R1\", ]\nsum(as.numeric(sf::st_area(r1))) / 10000\n```"
+  }
+ },
+ {
+  "id": "autopilot-off-val-wells-river-crs-typo-01",
+  "domains": [
+   "autopilot-off"
+  ],
+  "modules": [
+   "action:map:status",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": false,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "i <- 1:60\nwells_utm <- sf::st_as_sf(data.frame(well_id = sprintf(\"W%02d\", i), status = ifelse(i %% 4 == 0, \"capped\", \"active\"), x = 650100 + 60 * (i - 1), y = 3960000 + rep(c(1, -1), 30) * (20 * i - 10)), coords = c(\"x\", \"y\"), crs = 32617)\nwells <- sf::st_transform(wells_utm, 4326)\nriver <- sf::st_sf(name = \"Haw River\", geometry = sf::st_sfc(sf::st_linestring(rbind(c(650000, 3960000), c(654000, 3960000))), crs = 32617))\nrm(i, wells_utm)",
+   "layers": [
+    "river",
+    "wells"
+   ]
+  },
+  "turns": [
+   {
+    "user": "how many actve wells are within 500 m of the river? wells is lon/lat from the GPS, river is in UTM. status column says active or capped"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "st_transform\\s*\\("
+   },
+   {
+    "answer_regex": "st_is_within_distance\\s*\\(|st_buffer\\s*\\(|st_distance\\s*\\("
+   },
+   {
+    "answer_regex": "\\b500\\b"
+   },
+   {
+    "answer_regex": "active"
+   },
+   {
+    "answer_not_regex": "\\b(19|25|nineteen|twenty[- ]five)\\b"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "r_state": "local({ w <- get(\"wells\", envir = globalenv()); r <- get(\"river\", envir = globalenv()); w2 <- sf::st_transform(w, sf::st_crs(r)); hit <- as.numeric(sf::st_distance(w2, r)) <= 500; nrow(w) == 60L && sum(hit) == 25L && sum(hit & w$status == \"active\") == 19L })"
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Autopilot is off, so here is the code to paste into the console:\n\n```r\nwells_utm <- sf::st_transform(wells, sf::st_crs(river))\nnear <- lengths(sf::st_is_within_distance(wells_utm, river, dist = 500)) > 0\nsum(near & wells_utm$status == \"active\")\n```\n\nThe wells are moved into the river's UTM CRS first because sf will not compare two layers in different coordinate systems. The distance is then in metres."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Autopilot is off, so here is the code to paste into the console:\n\n```r\nnear <- lengths(sf::st_is_within_distance(wells, river, dist = 500)) > 0\nsum(near & wells$status == \"active\")\n```"
+  }
+ }
+]

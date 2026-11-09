@@ -13,7 +13,10 @@
 import { actionIndex } from '@/lib/ai-actions/registry'
 
 /**
- * Always in the prompt.
+ * NOT SENT TO ANY MODEL. It was the always-in-prompt core until the context broker
+ * replaced the prompt with `buildContextContract`; the skill catalog
+ * (lib/skills/catalog.ts) is what now tells the model what it can do. Kept as the
+ * legacy counterfactual that accounting.test.ts measures the new prompt against.
  *
  * The action index is generated from the registry rather than written out, so
  * it cannot drift: a new action appears in the model's context the moment it is
@@ -44,9 +47,9 @@ ${actionIndex()}
 
 \`toolbox_tools\` searches the 94 geoprocessing tools and \`run_toolbox_tool\` runs one (\`dryRun\` shows the code without running it). \`ourgeo_docs\` reads ouRGeo's documentation — use it rather than guessing how a feature works.
 
-**The terminal runs the user's own shell.** \`terminal:*\` needs the Terminal switch in the AI panel footer as well as Autopilot, and is for what is genuinely outside R — read \`ourgeo_docs({topic: "terminal"})\` first.
+**The terminal runs the user's own shell.** \`terminal:*\` needs the Terminal switch in the AI panel footer as well as Autopilot, and is for what is genuinely outside R — read \`use_skill({name: "terminal"})\` first.
 
-**You can add capabilities ouRGeo does not have.** Search the **plugin store** first (\`store:search\`) — somebody may have written it already. Otherwise write a plugin: \`ourgeo_docs({topic: "extending"})\`, or \`{topic: "plugin-store"}\` for installing and publishing.
+**You can add capabilities ouRGeo does not have.** Search the **plugin store** first (\`store:search\`) — somebody may have written it already. Otherwise write a plugin: \`use_skill({name: "extending"})\`, or \`{topic: "plugin-store"}\` for installing and publishing.
 
 Actions are tiered: reading is always allowed; changes to R or disk need Autopilot; destructive actions ask for confirmation. Users can reassign tiers from the gear beside Autopilot. Report refusals and offer to highlight the control.
 
@@ -65,7 +68,7 @@ This is what the interface access is for. When a user asks how to do something i
 The result text is the truth — read it before reacting; it usually says what to do. Retry the same call **once** at most. If it fails again, re-read the state (\`map:status\`, \`ui:describe\`), tell the user plainly what failed, and stop. Never work around a failed action by rebuilding, simplifying or renaming the user's data: a layer that fails to add says nothing about its geometry, and a severed connection says nothing about the object at all.`
 }
 
-// ── The reference, served by `ourgeo_docs` ─────────────────────────────────
+// ── The reference, served by `use_skill` ─────────────────────────────────────
 
 const BUILTIN_TOPICS: Record<string, string> = {
   terminal: `# The terminal
@@ -730,7 +733,7 @@ The other route is **Save a submission file…** and uploading it at ourgeo.dev/
 
 ouRGeo cannot be edited in place once it is installed. The interface ships as one compiled bundle inside a read-only archive, and there is no compiler on the user's machine to rebuild it. **Changing ouRGeo itself always means cloning the repository and building from source** — a real option, and the one to name when someone wants to change how an existing feature behaves.
 
-**Search the plugin store first** (\`store:search\`). Somebody may have written what the user needs, and an installed plugin is code a moderator has read and other people are running. See \`ourgeo_docs({topic: "plugin-store"})\` — it also covers publishing what you build here.
+**Search the plugin store first** (\`store:search\`). Somebody may have written what the user needs, and an installed plugin is code a moderator has read and other people are running. See \`use_skill({name: "plugin-store"})\` — it also covers publishing what you build here.
 
 A **plugin** is the other route: new capabilities, added while the app is running. This is what you reach for when the user wants something ouRGeo does not do.
 
@@ -804,13 +807,13 @@ All source IDs, scope, trust and broker budgets belong to the host. Sources appe
 
 ## Always contribute a docs topic
 
-\`contributes.docs\` adds a topic to \`ourgeo_docs\`. A plugin that adds a connector and nothing else leaves the next assistant — or you, next session — guessing what it does from an id in a listing. One paragraph saying what it is for and how to use it costs nothing until someone opens it.
+\`contributes.docs\` adds a skill the assistant can load with \`use_skill\`. A plugin that adds a connector and nothing else leaves the next assistant — or you, next session — guessing what it does from an id in a listing. One paragraph saying what it is for and how to use it costs nothing until someone opens it.
 
 ## The reference
 
-- \`ourgeo_docs({topic: "plugin-connectors"})\` — the connector spec, field by field, and what it cannot express.
-- \`ourgeo_docs({topic: "plugin-tools"})\` — toolbox tools and actions as JSON.
-- \`ourgeo_docs({topic: "plugin-code"})\` — writing \`main.ts\`, and the rules it runs under.
+- \`use_skill({name: "plugin-connectors"})\` — the connector spec, field by field, and what it cannot express.
+- \`use_skill({name: "plugin-tools"})\` — toolbox tools and actions as JSON.
+- \`use_skill({name: "plugin-code"})\` — writing \`main.ts\`, and the rules it runs under.
 
 ## When something does not work
 
@@ -1055,6 +1058,24 @@ Worth offering unprompted when a user has just spent a while arranging things, a
 ## The way out
 
 \`layout:reset\` puts everything back where ouRGeo ships it. Offer it before the user starts dragging things back by hand — and if you have made a mess, offer it immediately rather than trying to reverse your own moves one at a time.`,
+  skills: `# Skills
+
+A skill is a set of instructions for one kind of task. The list of skills you can load is in available_skills; load one with \`use_skill\` before acting on a task it covers. When the user names a skill ("use your short-report skill", or \`/short-report\`), the host attaches it for you and it stays in use for the rest of the chat.
+
+## Saving a workflow as a skill
+
+When the user asks you to turn something into a skill, or after a multi-step workflow they say they will repeat, save it with \`save_skill\` (operation create) and tell them. Write it so it works next time, on different data:
+
+- A description that starts "Use when …", in the user's words.
+- Short numbered steps. Put R in code blocks with placeholders (\`OBJ\`, \`COL\`) instead of this conversation's dataset and column names.
+- Prefer patching a skill you just used (operation patch, exact text) over creating a near-copy.
+
+Skills you save are switched on, marked as written by you, and the user can review or undo them. You cannot switch skills on or off, change when they are used, lock them, edit a locked or built-in one, or delete one; you can archive a skill you made. In scratch, a skill is saved on this computer, not in a project.
+
+## Where the user manages skills
+
+The Skills dialog: the book button in the AI panel header, or Settings → AI Assistant → Skills…. There the user switches skills on and off, chooses when each is used (automatically, always in context, or only when they ask), locks, edits and restores versions, tests whether a message would bring one in, and imports or exports SKILL.md files and folders. Imported skills arrive switched off. Point at it with \`ui:highlight\` on \`ai.skills\` or \`settings.skills\`.
+`,
 }
 
 /** The topics ouRGeo ships. */
@@ -1095,25 +1116,30 @@ export function registerPluginTopics(
   }
 }
 
+// "Use when…" first: these lines are what discovery shows the model and scores a query
+// against, so each names the user's intent and the words a user actually types.
 const TOPIC_SUMMARIES: Record<string, string> = {
-    'context-memory': 'selective retrieval, context inspector, effort, scoped memory, learning controls and forgetting',
-    interface: 'panels, toolbar, editor, console, viewers, settings',
-    toolbox: 'the 94 geoprocessing tools, piping, Linearize and Calculation CRS',
-    'data-import': 'Load Data, the Data Connector and its providers, .Rgeo',
-    maps: 'layers, symbology, labels, selection, legend, export',
-    drawing: 'edit mode, the ten tools, curves, distance & bearing, snapping, staged edits',
-    projects: 'scratch vs .ourgeoproj, embedded project files, linked local folders, create/link/relink/rescan/forget references, persistence and recording',
-    documents: 'Markdown and R Markdown, chunks, knit, Visual mode, publish',
-    databases: '.Rgeo files, connect vs load, raster pyramids',
-    shortcuts: 'keyboard shortcuts',
-    troubleshooting: 'the common failures and what they mean',
-    packages: 'which R package powers which feature',
-    themes: 'the three theme axes, switching, and building a theme for the user',
-    extending: 'plugins — adding capabilities ouRGeo does not ship with',
-    'plugin-connectors': 'writing a data connector for an API as JSON',
-    'plugin-tools': 'toolbox tools, actions and toolbar buttons as JSON',
-    'plugin-code': 'when a plugin needs real code, and the rules it runs under',
-    layout: 'the four zones, moving and sizing panels, the toolbar, presets',
+  terminal: 'Use when a task is genuinely outside R: shell commands, system libraries (GDAL, PROJ, pandoc), git, gdalinfo; the Terminal switch and one-command-per-call rules',
+  interface: 'Use when the user asks where something is or what a panel does: toolbar, editor, console, Environment, viewers, settings, AI panel footer switches, voice',
+  toolbox: 'Use when the user asks for the Toolbox or a standard GIS operation: buffer, clip, dissolve, join, reproject (CRS transform), centroid; 94 tools, piping, Linearize',
+  'data-import': 'Use when loading data: Load Data for CSV, GeoJSON, GPKG, shapefile, rasters; the Data Connector and its web providers; .Rgeo files',
+  maps: 'Use when adding or styling map layers: symbology, colour by column, labels, opacity, selection, legend, basemap, zoom, export to image, tmap or ggplot',
+  drawing: 'Use when creating or editing geometry: edit mode, the ten drawing tools, curves, distance & bearing traverses, snapping, staged edits and saving them',
+  'context-memory': 'Use when the user asks what the assistant remembers or can see: selective retrieval, context inspector, effort, scoped memory, learning controls, forgetting',
+  projects: 'Use for saving and project questions: scratch vs .ourgeoproj, what is kept, chats, crash recovery, embedded project files, linked folders, persistence, recording',
+  documents: 'Use when writing or editing a report: Markdown and R Markdown, chunks, knit in a clean session, Visual mode, publishing',
+  databases: 'Use for .Rgeo database files: connect vs load, tables and spatial objects, raster pyramids',
+  shortcuts: 'Use when the user asks for a keyboard shortcut or how to run a line, selection or chunk',
+  troubleshooting: 'Use when something failed: common errors, what they mean, and the fix',
+  packages: 'Use when the user asks which R package powers a feature or needs installing, and the Packages panel',
+  themes: 'Use when changing how ouRGeo looks: app, code and markdown themes, switching, palette, colours, backgrounds, building a theme for the user',
+  'plugin-store': 'Use before writing a plugin, or when the user wants new functionality: search and open the reviewed plugin store, install, update',
+  extending: 'Use when the user wants a capability ouRGeo does not ship with: plugins, what kind to build, manifests, enabling and validating them',
+  'plugin-connectors': 'Use when writing a plugin that connects an API to the Data Connector, as declarative JSON',
+  'plugin-tools': 'Use when writing a plugin that adds Toolbox tools, actions or toolbar buttons, as declarative JSON',
+  'plugin-code': 'Use when a plugin needs real code (main.ts), and the rules and permissions it runs under',
+  skills: 'Use when the user asks about skills: using one by name, saving a workflow as a skill, or managing skills (switch off, import, review)',
+  layout: 'Use when moving, docking or resizing panels: the four zones, tabs, the toolbar buttons, layout presets',
 }
 // Discovery aliases live outside prompt bodies. The older keyword router can
 // prefetch "palette", yet lexical discovery found no theme because its summary
@@ -1133,6 +1159,27 @@ const TOPIC_CONTEXT: Record<string, { triggers: string[]; exclusions: string[] }
     exclusions: ['general explanation of pdf files'],
   },
 }
+/**
+ * Topics whose BODY mentions the query, best first. Skill search covers titles and
+ * summaries only, so `ourgeo_docs("basemap")` found nothing although `maps` covers it,
+ * and models then concluded the feature was undocumented. Words of three letters or
+ * fewer say nothing about a topic, so a query made only of them matches none.
+ */
+export function topicsMentioning(query: string, topics: Record<string, string> = OURGEO_TOPICS): string[] {
+  const words = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? [])]
+  if (!words.length) return []
+  return Object.entries(topics)
+    .map(([topic, body]) => {
+      const text = body.toLowerCase()
+      const counts = words.map(word => text.split(word).length - 1)
+      // Density, not raw count: a long topic mentions everything once or twice.
+      return { topic, covered: counts.filter(Boolean).length, density: counts.reduce((sum, n) => sum + n, 0) / text.length }
+    })
+    .filter(hit => hit.covered > 0)
+    .sort((a, b) => b.covered - a.covered || b.density - a.density)
+    .map(hit => hit.topic)
+}
+
 export function topicDescriptors(): ({ topic: string; summary: string } & PluginTopicContext)[] {
   return Object.keys(OURGEO_TOPICS).map(topic => ({ topic, summary: TOPIC_SUMMARIES[topic] ?? PLUGIN_SUMMARIES[topic] ?? '', triggers: PLUGIN_CONTEXT[topic]?.triggers ?? TOPIC_CONTEXT[topic]?.triggers ?? [], exclusions: PLUGIN_CONTEXT[topic]?.exclusions ?? TOPIC_CONTEXT[topic]?.exclusions ?? [], version: PLUGIN_CONTEXT[topic]?.version ?? 'builtin', ...(PLUGIN_CONTEXT[topic]?.requiredSkills ? { requiredSkills: PLUGIN_CONTEXT[topic].requiredSkills } : {}), ...(PLUGIN_CONTEXT[topic]?.requiredSources ? { requiredSources: PLUGIN_CONTEXT[topic].requiredSources } : {}) }))
 }

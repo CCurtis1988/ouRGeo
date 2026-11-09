@@ -37,6 +37,9 @@ interface PlotPopoutState {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Skill-training harness only (docs/agent-skill-training-spec.md §4.1).
+  // False in every normal launch, and the renderer installs nothing then.
+  evalMode: process.env.OURGEO_EVAL === '1',
   themeBackgrounds: {
     list: () => ipcRenderer.invoke('themeBackgrounds:list'),
     link: (themeId: string) => ipcRenderer.invoke('themeBackgrounds:link', themeId),
@@ -238,6 +241,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     savePlot: (format: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:savePlot', format),
     openTheme: (): Promise<string | null> => ipcRenderer.invoke('dialog:openTheme'),
+    openSkill: (kind: 'file' | 'folder'): Promise<import('../main/skill-files').SkillFileRead | null> => ipcRenderer.invoke('dialog:openSkill', kind),
+    exportSkill: (name: string, text: string, resources: Record<string, string>): Promise<string | null> => ipcRenderer.invoke('dialog:exportSkill', name, text, resources),
     saveTheme: (defaultName?: string): Promise<string | null> =>
       ipcRenderer.invoke('dialog:saveTheme', defaultName),
     openThemeImage: (title?: string): Promise<string | null> =>

@@ -23,3 +23,10 @@ it('quarantines malformed optional inspector metadata without losing user instru
   const limitations = ['Known limitation', ...Array(8).fill('x'.repeat(300))]
   expect(importChats([{ ...chat, messages: [{ ...message, contextTrace: { ...message.contextTrace, limitations } }] }])[0].messages[0].contextTrace?.limitations).toEqual(['Known limitation'])
 })
+
+it('keeps a chat\'s active skills, dropping anything that is not a skill id', () => {
+  const chat = { id: 'chat', title: 'Fixture', provider: 'ollama', model: 'fixture', createdAt: 0, updatedAt: 0, messages: [],
+    activeSkills: ['skill:maps', 'skill:@user/short-report', 'javascript:alert(1)', 42, 'skill:a b'] }
+  expect(importChats([chat])[0].activeSkills).toEqual(['skill:maps', 'skill:@user/short-report'])
+  expect(importChats([{ ...chat, activeSkills: undefined }])[0].activeSkills).toBeUndefined()
+})

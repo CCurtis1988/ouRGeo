@@ -16,6 +16,123 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.16.38',
+    date: 'November 2026',
+    title: 'Skills You Can See and Shape',
+    summary:
+      'The assistant now knows which skills it has and loads the right one, you can call a skill by name, and a new Skills manager lets you add, edit, switch off and review every skill, including ones the assistant writes.',
+    highlights: [
+      'The assistant is given a short list of every skill that is switched on and loads the one that fits your request. Before, it was never told which skills existed, and a skill it had read was gone by the next message.',
+      'Name a skill to use it ("use your short-report skill", or type /short-report): it is attached straight away and stays in use for the rest of the chat.',
+      'Ask the assistant to turn a workflow into a skill and it writes one from the steps and R code of the conversation. It can also save a workflow it expects you to repeat. Each one is marked "Written by the assistant", and the notice above the message box offers Review and Undo.',
+      'Skills (the book button in the AI panel, or Settings → AI Assistant) lists every skill. Switch skills on or off, choose when each is used (automatically, always, or only when you ask), lock them, edit them with full history, test whether a message would bring one in, and import or export standard SKILL.md files and folders. Imports arrive switched off.',
+      'Skills saved with a project travel inside the .ourgeoproj, and stay off on another computer until approved there.',
+      'Fixed: actions that need a skill could be refused again and again even after the assistant had read it, and on local models a refused lookup could end the answer.',
+    ],
+  },
+  {
+    version: '1.16.37',
+    date: 'October 2026',
+    title: 'Nothing Lost Between Saves',
+    summary:
+      'A saved project keeps its whole working state on this computer between saves, reopens exactly where you left it, and recovers what it can after a crash.',
+    highlights: [
+      'Open documents with their unsaved edits, cursors and scroll positions, the R environment, the map, plots, the console and chats are kept on this computer as you work. Close ouRGeo or switch projects without being asked, and the project reopens exactly as it was — at the next launch too. The project menu says Unsaved changes, kept on this computer while there are any.',
+      'R objects are snapshotted in the background once R has been idle for 30 seconds (adjustable from 10 seconds to 30 minutes in Settings → Projects). On Linux and macOS a forked copy of R writes the snapshot, so your commands are never held up. After a crash, the next launch lists what was recovered and when the R snapshot was taken; anything that cannot survive a restart, such as a database connection, is named with the reason.',
+      'Closing a document with unsaved edits asks Save / Discard / Cancel, whether it is closed from its tab, Ctrl+W, Close Others, Close All or the assistant. Revert to Saved… in the project menu is the one action that throws working changes away, and it lists them first.',
+      'If someone saves over the project file on a shared drive, choose their version, yours, or Resolve conflicts… — a three-way comparison that combines one-sided changes for you and lets you choose per document section, R object, layer, plot, chat or project file. Nothing is written until Finish and save.',
+      'Scratch keeps its untitled notes between launches and offers Save as project… before it drops anything else. A project opens in one window at a time.',
+      'Settings → Projects chooses what closing a project does, whether a project save also writes your open scripts, and lists stored drafts for clean-up; the health check reports them too. Settings → Prompts lists every question you have told ouRGeo not to ask again, with a switch to bring each one back.',
+    ],
+  },
+  {
+    version: '1.16.36',
+    date: 'October 2026',
+    title: 'Project Files from R',
+    summary:
+      'Read and write files in the project library from any R function, and send exports straight into it.',
+    highlights: [
+      'Keep your usual readers and writers and change only the path: read.csv(ourgeo_project_file("data/sites.csv")), write.csv(df, ourgeo_project_path("tables/summary.csv")) or ggsave(ourgeo_project_path("figures/map.png"), p). They work in the console, document chunks, toolbox tools and Knit.',
+      'A written file joins Project Files when the command or chunk finishes, and the console says so. Writing the same name again replaces it and keeps its folder and description. ourgeo_project_save(), ourgeo_project_files() and ourgeo_project_commit() cover the rest, and a location argument writes into a linked folder.',
+      'Plot export, map image export, map Export Code, checked vector export and the Environment panel offer Project Files as a destination and echo the same R. Replacing a file asks first, with a Don’t ask again that Settings → Project Files can turn back on.',
+    ],
+  },
+  {
+    version: '1.16.35',
+    date: 'October 2026',
+    title: 'Field Themes, Docking and Guided Updates',
+    summary:
+      'Photographic Field themes and background galleries, panes that dock anywhere, update checks against the official installers, and finer control over the models the assistant uses.',
+    highlights: [
+      'The Field collection brings the website’s 13 palettes into the app — eight dark and five light — each with six nature photographs and matching code and Markdown colours. Settings → Appearance groups themes as Illustrated, Legacy, Field collection and Custom, and Theme Studio follows the same groups.',
+      'Background images… opens a gallery for the current theme; every painted theme gains five more paintings and a looping GIF. Select one image, or several for a slideshow with your own interval, and link folders of your own pictures. Background visibility sets how strongly the artwork shows, per theme, and reduced motion keeps it still.',
+      'Drag a pane over another to dock it: choose a vertical split, a horizontal split or a tab group, then click where it belongs. Splits nest, groups are remembered across restarts and in saved arrangements, and Escape cancels without moving anything.',
+      'Installed builds check ourgeo.dev for a newer installer shortly after startup and stay quiet when you are current or offline. An available update links to the official download, offers to save your project and shows the steps for your installer; ouRGeo never installs anything itself. Settings → Updates checks on demand or turns the startup check off.',
+      'Settings → AI Assistant → File analysis models picks separate models for project documents and images. They share the chat’s connections and sign-ins, and can optionally write AI descriptions when files are imported.',
+      'A Thinking selector appears for models with supported reasoning controls — OpenAI, ChatGPT plan, Anthropic, Claude subscription, Gemini and Ollama — and is remembered per model. Provider default leaves the choice to the service.',
+      'Launchers, taskbars, pop-out windows and the macOS Dock show the ouRGeo logo.',
+    ],
+  },
+  {
+    version: '1.16.24',
+    date: 'October 2026',
+    title: 'Project Files',
+    summary:
+      'Keep reports, standards and supporting documents inside a project, or link folders that stay on disk, and let the assistant cite them.',
+    highlights: [
+      'A Project Files pane beside the R console and Terminal. Add files or drop them in: In project files travel inside the .ourgeoproj with their exact bytes. Give each one a display name, a logical folder, a description and a role — Reference, Standard or Example.',
+      'Linked folders keep large or working files where they are. Link an existing folder or create one, then rescan, relabel, relink on another computer or forget the link; files on disk are never deleted. A shared project carries folder labels and relative paths, never your absolute folder paths.',
+      'Markdown, text, PDF, Word, Excel, CSV/TSV and images are indexed locally with no model call. Previews are read-only; Export original and Replace file bring back edits made in another application.',
+      'Attach a file, a PDF page, a document section, a sheet range or a line range to a chat message. The assistant searches and reads only what it needs, and answers cite the file and its page, section or cells — click a citation to open it. Clear Available to the assistant to keep a file out of its reach.',
+    ],
+  },
+  {
+    version: '1.16.22',
+    date: 'October 2026',
+    title: 'Conversation Memory and Plugin Context',
+    summary:
+      'Manage conversation memories like the other two scopes, keep large sessions responsive, and let plugins supply context the assistant can use.',
+    highlights: [
+      'Conversation memories can be added, corrected, moved to the project or to About you, and forgotten from the Memory Library, and saved projects keep them with their chat.',
+      'Long tab strips and console histories render only what is on screen, so large sessions stay responsive. Copy all console output in the console header still copies the whole history.',
+      'Plugins can contribute skills and Markdown context sources behind a separate context-source permission. Their sources appear in Browse current context sources, where you can exclude them, and an update that asks for new permissions switches the plugin off until you review it.',
+      'Experimental, Linux x86_64 only: optional local memory engines under AI Assistant → Advanced. Each needs explicit acknowledgement, nothing is imported automatically, and the built-in Memory Library needs none of them.',
+      'Assistant connections to model servers on this computer stay on the loopback interface, with no five-minute reply deadline and no background DNS or IPv6 probes.',
+    ],
+  },
+  {
+    version: '1.16.15',
+    date: 'October 2026',
+    title: 'Context, Memory and Checked Export',
+    summary:
+      'An assistant that retrieves only the context a request needs and remembers what you ask it to, a reorganised Settings dialog, and vector export that verifies what it wrote.',
+    highlights: [
+      'Settings is grouped into Application, Maps & data, Assistant and Extensions. The AI Assistant page is split into Memory Library, Provider & model, Learning & context, Privacy & sources, Budgets, Storage & recovery and Advanced.',
+      'The assistant searches skills, actions, layer schemas, console runs and documents when a request needs them instead of sending everything every time. Expand the context summary under any reply to see what was selected, where it went and its estimated size; Context effort sets how deep retrieval goes.',
+      'The Memory Library keeps About you, Project and Conversation memories apart. Say “Remember that I prefer metric units”, or use Add a memory — both save locally without running a model — then edit or forget it, or review the chat copies to remove. Learned memories are only suggested until you accept them, and project memories are saved with the project.',
+      'Privacy & sources excludes any source, or individual workspace columns, from the assistant and pauses assistant actions that could bypass the exclusion. Budgets sets optional estimated daily and monthly chat limits, and Storage & recovery backs up local memory.',
+      'Export layer… in the Data Viewer writes GeoPackage or RFC 7946 GeoJSON through the same data checks, stages the file, reads it back in full to verify every row, field and coordinate, and only then publishes it. A named layer can be added to or replaced in an existing GeoPackage without touching its other layers.',
+      'The health check gains an S2 geometry-engine test with repairs for each operating system, and clean-up of duplicate package copies across R libraries; the Packages panel loads the copy you choose. An open health check survives sleep and wake.',
+      'Projects keep a portable identity. Opening a duplicate asks whether it is the same project or an independent copy with its own memory.',
+      'Fixed: Buffer and other checked tools could fail with “Check failed: Network Error” because an empty R response was malformed on a reused connection. All 94 toolbox tools are now run by an automated check.',
+    ],
+  },
+  {
+    version: '1.16.4',
+    date: 'October 2026',
+    title: 'Check Before You Run',
+    summary:
+      'Data checks inspect a layer before an operation touches it, and the toolbox stops a buffer, join or summary that would quietly produce the wrong answer.',
+    highlights: [
+      'Data checks → Check data in the Data Viewer profiles a whole layer or table without changing it: geometry validity, empty and non-finite values, field types, repeated values, CRS and coordinate units. Findings name the affected rows and can select them.',
+      'Buffer, area, length, overlay, dissolve, spatial filter and join, transform, the attribute joins and group summary now check their inputs when you press Run. A clean operation simply runs, a consequential choice gets a review, and a blocked one has no “continue anyway”.',
+      'Distances say what they mean. Geographic layers buffer in S2 spherical metres, projected layers convert units explicitly, and international and US survey feet are separate choices. A new Assign CRS tool declares what existing coordinates already are, distinct from Transform CRS; neither ever guesses a CRS or UTM zone.',
+      'Joins preview their relationship, duplicate and blank keys, unmatched rows on each side and the predicted row count. Keys match exactly — no trimming, case folding or lost leading zeros — and a one-to-many expansion has to be approved.',
+      'Summaries ask what to do with missing values — block, propagate, or omit with explicit counts — and an all-missing group is NA, never zero.',
+      'The console records the R that actually ran, including the check and your choices. Checks run locally, with no account or network connection.',
+    ],
+  },
+  {
     version: '1.16.3',
     date: 'October 2026',
     title: 'Guided Installation Health Check',
@@ -26,6 +143,7 @@ export const VERSION_HISTORY: ReleaseNote[] = [
       'Check for R and approve its installation when needed. Repair missing, outdated or incompatible R packages, including the core dependencies that can prevent Rscript from connecting after an R upgrade.',
       'Save the project before a repair stops the R session, then reconnect after installation. Check backend readiness, writable folders, free storage, system memory, GPU memory and document-export tools.',
       'Configure a local AI server and choose Qwen models suited to the available memory and storage. Downloads need approval, and testing a cloud or subscription model asks before using credits or plan allowance.',
+      'Fixed: R Markdown Visual mode shows images and code output again.',
     ],
   },
   {

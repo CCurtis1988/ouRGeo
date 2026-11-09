@@ -152,6 +152,27 @@ the whole analysis.
   render the visible range while keeping every document and output entry.
   Scroll back to earlier output, or use **Copy all console output** in the console
   header to copy the complete history, including entries outside the viewport.
+- **Skills the assistant can use, and you can manage.** A skill is a set of
+  instructions for one kind of task, in the standard `SKILL.md` format, so skills
+  written for Claude Code, Codex or Hermes import as they are. The assistant sees a
+  short list of every skill that is on and loads one when your request fits it. To
+  use one yourself, name it ("use your short-report skill") or type `/short-report`;
+  it then stays in use for the rest of the chat. Ask the assistant to "turn what we
+  just did into a skill" and it writes one from the steps and R code of the
+  conversation. It may also save a workflow it expects you to repeat, and tell you.
+  Every skill it writes shows **Written by the assistant**, keeps its full history,
+  and can be undone from the notice above the message box. **Skills** (the book
+  button in the AI panel, or Settings → AI Assistant) lists every skill:
+  - switch one on or off, or choose when it is used: automatically, always in
+    context, or only when you ask;
+  - lock one so the assistant cannot change it;
+  - edit it, restore an earlier version, or test whether a message would bring it in;
+  - import a skill file or folder, which arrives switched off until you have read it.
+
+  Skills saved with a project travel inside the `.ourgeoproj`, and stay off on another
+  computer until approved there. A skill is guidance only: it cannot change what the
+  assistant is allowed to do.
+
 - **Selective AI context and local memory.** The assistant searches skills,
   action definitions, current schemas, console executions and documents when
   needed. Unrelated requests do not wait for R inspection. The inspector separates

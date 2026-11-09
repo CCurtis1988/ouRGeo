@@ -1,36 +1,15 @@
 # Context delivery: stages 0–2 closure checklist
 
-Built-in Linux engineering closed in 1.16.17; the owner has moved implementation
-to stages 3–4 while retaining the qualification gates below. This is
-requirement coverage, not a release certificate or a percentage based on tests.
-The full specification and `context-implementation.md` remain authoritative.
+Built-in Linux engineering closed in 1.16.17; the owner has moved implementation to stages 3–4 while retaining the qualification gates below. This is requirement coverage, not a release certificate or a percentage based on tests. The full specification and `context-implementation.md` remain authoritative.
 
-Current owner decision: close the **Linux** version first. Windows 11 and macOS
-acceptance will run in later sessions on those machines and are deferred from the
-current platform target. See `context-platform-acceptance.md` for the handoff.
-The owner will perform the Linux manual acceptance tests personally, using
-`context-owner-acceptance.md`. No independent usability results exist. Owner
-acceptance is the current Linux usability handoff; the representative-participant
-study remains unverified and separately tracked. Independent model-quality and
-full offline/installer evidence are not established by owner acceptance.
-The owner retained the closure requirements, then deferred independent corpus/
-quality review and the representative-participant study because no team is
-available. They will revisit them if reviewers become available. These gates
-remain open and stages 0–2 are not certified. See `context-qualification-review.md`.
+Current owner decision: close the **Linux** version first. Windows 11 and macOS acceptance will run in later sessions on those machines and are deferred from the current platform target. See `context-platform-acceptance.md` for the handoff. The owner will perform the Linux manual acceptance tests personally, using `context-owner-acceptance.md`. No independent usability results exist. Owner acceptance is the current Linux usability handoff; the representative-participant study remains unverified and separately tracked. Independent model-quality and full offline/installer evidence are not established by owner acceptance. The owner retained the closure requirements, then deferred independent corpus/ quality review and the representative-participant study because no team is available. They will revisit them if reviewers become available. These gates remain open and stages 0–2 are not certified. See `context-qualification-review.md`.
 
-The owner's subsequent direction is to finish implementation while retaining
-deferred testing. The 1.16.17 [local-runtime follow-up](context-stage02-offline-fix.md)
-resolves the outstanding IPv6-probe and opaque-I/O engineering issues. The built-in
-Linux phase 0–2 implementation is complete for the stated supported behaviour;
-release qualification remains open. This is a distinction between code delivery
-and required evidence, not a waiver of the existing closure requirements.
+The owner's subsequent direction is to finish implementation while retaining deferred testing. The 1.16.17 [local-runtime follow-up](context-stage02-offline-fix.md) resolves the outstanding IPv6-probe and opaque-I/O engineering issues. The built-in Linux phase 0–2 implementation is complete for the stated supported behaviour; release qualification remains open. This is a distinction between code delivery and required evidence, not a waiver of the existing closure requirements.
 
-`Verified` means evidence exists for the stated boundary. `Remaining` means the
-requirement or its release evidence is incomplete. Synthetic fixtures do not
-establish model task quality, supported-platform certification or usability.
+`Verified` means evidence exists for the stated boundary. `Remaining` means the requirement or its release evidence is incomplete. Synthetic fixtures do not establish model task quality, supported-platform certification or usability.
 
 | Stage | Requirement and evidence | Status |
-| --- | --- | --- |
+|----|----|----|
 | 0 | Legacy/new prompt accounting, synthetic context-free and descriptor/console scale fixtures (`scripts/benchmark-context.mjs`, broker tests) | Verified for local synthetic fixtures |
 | 0 | Packaged Electron worker SQLite/FTS5; canonical/index/WAL/temp protection; migration backup and wrong-key refusal | Verified on Linux x86_64 with kwallet6; Windows/macOS deferred to their native sessions |
 | 0 | Canonical provider API pins and isolated dependency/deletion/network spikes | Prototype evidence available; not production certification |
@@ -53,14 +32,8 @@ establish model task quality, supported-platform certification or usability.
 | 0–2 | Scope/concurrency/adversarial gates, quantitative provenance, comparable task quality and human review | Covered deterministic fixtures exist; repaired-schema/historical-join delivery verified in real Electron. Independent corpus/quality review deferred by owner pending reviewers; known model failures retained |
 | 0–2 | Supported platform packaging/protection/offline tests and usability | Windows/macOS deferred by owner. 1.16.17 actual FUSE-mounted acceptance, private GTK launch/local memory/removal, and isolated Debian 1.16.16→1.16.17 install/upgrade/installed-binary acceptance/removal/profile preservation pass. A separately booted Debian desktop and associations remain unverified. Dictionary requests and local Chromium route probes are eliminated. Complete packaged process-tree audit passes: zero external attempts, 837 fully observed readiness-only ring calls, zero opaque operations; direct and hidden ring-connect canaries detect/reject networking. Shared desktop services remain outside capture. Owner observations preserved; representative-participant validation deferred pending a team and remains required |
 
-External provider deployment certification, provider migration, native runtime
-platform certification, dynamic plugin/provider SDK certification and optional
-semantic downloads belong to subsequent stages. They do not close these gaps.
+External provider deployment certification, provider migration, native runtime platform certification, dynamic plugin/provider SDK certification and optional semantic downloads belong to subsequent stages. They do not close these gaps.
 
-Do not mark stages 0–2 complete until every applicable remaining row has its
-implementation and evidence, or an explicit product decision changes the target.
+Do not mark stages 0–2 complete until every applicable remaining row has its implementation and evidence, or an explicit product decision changes the target.
 
-The [1.16.16 owner follow-up](context-stage02-owner-followup.md) preserves owner
-fixes and live model observations; the [1.16.17 runtime follow-up](context-stage02-offline-fix.md)
-records the final implementation fixes and verification. Do not
-interpret token reduction or a completed response as a task-quality pass.
+The [1.16.16 owner follow-up](context-stage02-owner-followup.md) preserves owner fixes and live model observations; the [1.16.17 runtime follow-up](context-stage02-offline-fix.md) records the final implementation fixes and verification. Do not interpret token reduction or a completed response as a task-quality pass.

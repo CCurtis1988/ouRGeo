@@ -193,6 +193,8 @@ export interface VoiceModelStatus {
 declare global {
   interface Window {
     electronAPI: {
+      /** True only when launched with OURGEO_EVAL=1 (skill-training harness). */
+      evalMode: boolean
       context: {
         learningSettings: () => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
         configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
@@ -301,6 +303,10 @@ declare global {
         saveExportFile(format: string, existing?: boolean): Promise<string | null>
         savePlot(format: string): Promise<string | null>
         openTheme(): Promise<string | null>
+        /** A SKILL.md or a skill folder, read by main within limits; null if cancelled. */
+        openSkill(kind: 'file' | 'folder'): Promise<{ text: string; fallbackName: string; resources: Record<string, string>; skipped: string[] } | null>
+        /** Write a skill as `<chosen folder>/<name>/SKILL.md` plus its files. */
+        exportSkill(name: string, text: string, resources: Record<string, string>): Promise<string | null>
         saveTheme(defaultName?: string): Promise<string | null>
         openThemeImage(title?: string): Promise<string | null>
         openLayout(): Promise<string | null>

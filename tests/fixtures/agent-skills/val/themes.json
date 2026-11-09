@@ -1,0 +1,300 @@
+[
+ {
+  "id": "themes-val-legacy-heaven-typo-01",
+  "domains": [
+   "themes"
+  ],
+  "modules": [
+   "action:ui:theme",
+   "action:theme:list",
+   "topic:themes"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)"
+  },
+  "turns": [
+   {
+    "user": "swich me to the legacy heaven theme pls, the orignal look not the new one"
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.theme === 'legacy-heaven'"
+   },
+   {
+    "max_tool_calls": 5
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "ui:theme",
+     "params": {
+      "theme": "legacy-heaven"
+     }
+    }
+   ],
+   "answer": "You're now on the Legacy version of Heaven, the original look."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "ui:theme",
+     "params": {
+      "theme": "heaven"
+     }
+    }
+   ],
+   "answer": "You're now on Heaven."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:theme'"
+  }
+ },
+ {
+  "id": "themes-val-trout-export-copy-terse-01",
+  "domains": [
+   "themes"
+  ],
+  "modules": [
+   "action:theme:export",
+   "action:theme:duplicate",
+   "action:theme:create",
+   "topic:themes"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ d <- '/tmp/ourgeo-themes-val'; dir.create(d, showWarnings = FALSE, recursive = TRUE); unlink(file.path(d, 'trout-share.ourgeotheme.json')) })"
+  },
+  "turns": [
+   {
+    "user": "Export the Field collection Trout theme to /tmp/ourgeo-themes-val/trout-share.ourgeotheme.json for a colleague. Keep my current theme on screen."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "file.exists('/tmp/ourgeo-themes-val/trout-share.ourgeotheme.json') && file.size('/tmp/ourgeo-themes-val/trout-share.ourgeotheme.json') > 0"
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(i.id === 'theme:duplicate' && i.params.kind === 'system' && /trout/i.test(i.params.id)) || (i.id === 'theme:create' && i.params.kind === 'system' && /trout/i.test(i.params.template))"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'theme:export' && i.params.kind === 'system' && i.params.id !== 'field-trout'"
+    }
+   },
+   {
+    "app_state": "!/^my-|trout/i.test(s.theme || '')"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "system",
+      "name": "Trout Share",
+      "template": "field-trout"
+     }
+    },
+    {
+     "action": "theme:export",
+     "params": {
+      "kind": "system",
+      "id": "my-trout-share",
+      "path": "/tmp/ourgeo-themes-val/trout-share.ourgeotheme.json"
+     }
+    }
+   ],
+   "answer": "Shipped themes can't be exported directly, so I made an editable copy of Trout called Trout Share and exported that to /tmp/ourgeo-themes-val/trout-share.ourgeotheme.json. Your current theme is unchanged."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "theme:export",
+      "params": {
+       "kind": "system",
+       "id": "field-trout",
+       "path": "/tmp/ourgeo-themes-val/trout-share.ourgeotheme.json"
+      }
+     },
+     "result": "Refused: field-trout is a shipped theme and cannot be exported directly."
+    }
+   ],
+   "answer": "Done, Trout is exported to /tmp/ourgeo-themes-val/trout-share.ourgeotheme.json and your current theme is unchanged."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'theme:export'"
+  }
+ },
+ {
+  "id": "themes-val-reef-full-set-chatty-01",
+  "domains": [
+   "themes"
+  ],
+  "modules": [
+   "action:theme:create",
+   "action:theme:configure",
+   "action:ui:theme",
+   "topic:themes"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)"
+  },
+  "turns": [
+   {
+    "user": "I've been meaning to set up a proper matching look for ages, so could you give me a hand? I'd like an app theme called Reef Night based on Volcanic, a code palette called Reef Syntax based on gruvboxDark, and a markdown palette called Reef Prose based on prose. No need to change any colours yet. The bit I really care about is that whenever I pick Reef Night, it brings the other two along by itself, because I'm tired of setting them separately. Leave me on Reef Night when you're done, thanks!"
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.theme === 'my-reef-night'"
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(i.id === 'theme:create' && i.params.kind === 'system' && i.params.name === 'Reef Night' && /volcanic/i.test(i.params.template)) || (i.id === 'theme:duplicate' && i.params.kind === 'system' && i.params.name === 'Reef Night' && /volcanic/i.test(i.params.id))"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(i.id === 'theme:create' && i.params.kind === 'code' && i.params.name === 'Reef Syntax' && /gruvboxDark/i.test(i.params.template)) || (i.id === 'theme:duplicate' && i.params.kind === 'code' && i.params.name === 'Reef Syntax' && /gruvboxDark/i.test(i.params.id))"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(i.id === 'theme:create' && i.params.kind === 'markdown' && i.params.name === 'Reef Prose' && /prose/i.test(i.params.template)) || (i.id === 'theme:duplicate' && i.params.kind === 'markdown' && i.params.name === 'Reef Prose' && /prose/i.test(i.params.id))"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'theme:configure' && /reef[- ]night/i.test(i.params.id) && /reef[- ]syntax/i.test(i.params.codeTheme || '')"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'theme:configure' && /reef[- ]night/i.test(i.params.id) && /reef[- ]prose/i.test(i.params.markdownTheme || '')"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "system",
+      "name": "Reef Night",
+      "template": "volcanic",
+      "apply": true
+     }
+    },
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "code",
+      "name": "Reef Syntax",
+      "template": "gruvboxDark"
+     }
+    },
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "markdown",
+      "name": "Reef Prose",
+      "template": "prose"
+     }
+    },
+    {
+     "action": "theme:configure",
+     "params": {
+      "id": "my-reef-night",
+      "codeTheme": "my-reef-syntax",
+      "markdownTheme": "my-reef-prose"
+     }
+    },
+    {
+     "action": "ui:theme",
+     "params": {
+      "theme": "my-reef-night"
+     }
+    }
+   ],
+   "answer": "Reef Night is built from Volcanic and is now active. It uses Reef Syntax and Reef Prose as its defaults, so choosing Reef Night brings both along automatically."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "system",
+      "name": "Reef Night",
+      "template": "volcanic",
+      "apply": true
+     }
+    },
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "code",
+      "name": "Reef Syntax",
+      "template": "gruvboxDark"
+     }
+    },
+    {
+     "action": "theme:create",
+     "params": {
+      "kind": "markdown",
+      "name": "Reef Prose",
+      "template": "prose"
+     }
+    },
+    {
+     "action": "ui:codeTheme",
+     "params": {
+      "theme": "my-reef-syntax"
+     }
+    },
+    {
+     "action": "ui:markdownTheme",
+     "params": {
+      "theme": "my-reef-prose"
+     }
+    }
+   ],
+   "answer": "Reef Night, Reef Syntax and Reef Prose are all active, so the set will come along whenever you pick Reef Night."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'theme:configure'"
+  }
+ }
+]

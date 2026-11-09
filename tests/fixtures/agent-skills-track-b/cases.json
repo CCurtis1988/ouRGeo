@@ -1,0 +1,358 @@
+[
+ {
+  "id": "bug-norm360",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/draw/cogo.ts",
+    "return ((deg % 360) + 360) % 360",
+    "return deg % 360"
+   ]
+  ],
+  "prompt": "A traverse with a bearing of -30 degrees comes out wrong: azimuths should always land in 0–360. Find the cause and fix it.",
+  "checks": [
+   "npx vitest run src/lib/draw/cogo.test.ts"
+  ]
+ },
+ {
+  "id": "bug-metres",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/draw/cogo.ts",
+    "metres / UNITS[unit].toMetre",
+    "metres * UNITS[unit].toMetre"
+   ]
+  ],
+  "prompt": "Distances shown in feet in Distance & Bearing are far too small. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/draw/cogo.test.ts"
+  ]
+ },
+ {
+  "id": "bug-placement-default",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/environments.ts",
+    "return placements[name] ?? DEFAULT_PLACEMENT",
+    "return placements[name] ?? 'child'"
+   ]
+  ],
+  "prompt": "New user environments are showing as rows instead of as groups beside .GlobalEnv. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/environments.test.ts"
+  ]
+ },
+ {
+  "id": "bug-export-system",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/environments.ts",
+    ".filter((n) => !system.has(n))",
+    ".filter((n) => system.has(n))"
+   ]
+  ],
+  "prompt": "Exporting .GlobalEnv saves ouRGeo's own helpers instead of my objects. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/environments.test.ts"
+  ]
+ },
+ {
+  "id": "bug-action-guard",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/ai-actions/action-code-guard.ts",
+    "[.:]([a-zA-Z][a-zA-Z0-9]*)\\s*\\(/gm",
+    ":([a-zA-Z][a-zA-Z0-9]*)\\s*\\(/gm"
+   ]
+  ],
+  "prompt": "When the assistant writes map.addLayer(...) as R, nothing catches it any more and the user sees could not find function. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions/action-code-guard.test.ts"
+  ]
+ },
+ {
+  "id": "action-plots-count",
+  "kind": "feature",
+  "prompt": "Add an interface action the assistant can use, id plots:clearAll, that clears the plot history. It changes user state, so give it the right tier. Add a test.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions",
+   "npm run typecheck"
+  ],
+  "require": [
+   "id: 'plots:clearAll'"
+  ],
+  "deny": [
+   "id: 'plots\\.clearAll'"
+  ]
+ },
+ {
+  "id": "setting-switch",
+  "kind": "feature",
+  "prompt": "Add a setting to Settings → Prompts: \"Ask before clearing plots\", on by default, persisted. No need to wire it to clearing yet.",
+  "checks": [
+   "npm run typecheck",
+   "npx vitest run src/components/settings"
+  ],
+  "require": [
+   "<Switch",
+   "data-ourgeo-id=\"settings\\."
+  ],
+  "deny": [
+   "type=\"checkbox\"",
+   "<Checkbox"
+  ]
+ },
+ {
+  "id": "toolbox-tool",
+  "kind": "feature",
+  "prompt": "Add a Toolbox tool that computes each polygon's area in square kilometres into a new column on an sf object, with the output name as a field.",
+  "checks": [
+   "npm run typecheck",
+   "npx vitest run src/components/toolbox"
+  ],
+  "require": [
+   "st_area"
+  ],
+  "deny": [
+   "#[0-9a-fA-F]{6}"
+  ]
+ },
+ {
+  "id": "bug-tometres",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/draw/cogo.ts",
+    "value * UNITS[unit].toMetre",
+    "value / UNITS[unit].toMetre"
+   ]
+  ],
+  "prompt": "Entering a leg in feet draws it far too short. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/draw/cogo.test.ts"
+  ]
+ },
+ {
+  "id": "bug-dock-contains",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/layout/dock-tree.ts",
+    "dockPanels(node).includes(panel)",
+    "!dockPanels(node).includes(panel)"
+   ]
+  ],
+  "prompt": "Docking a panel into a pane says it is already there when it is not. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/layout/dock-tree.test.ts"
+  ]
+ },
+ {
+  "id": "bug-panel-open",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/layout/model.ts",
+    "next.open[panel] = open",
+    "next.open[panel] = !open"
+   ]
+  ],
+  "prompt": "Closing a panel from the toolbar opens it instead. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/layout/model.test.ts"
+  ]
+ },
+ {
+  "id": "bug-prune-env",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/working-env.ts",
+    "names.includes(current)) return",
+    "!names.includes(current)) return"
+   ]
+  ],
+  "prompt": "Deleting the environment I was working in leaves the console pointed at it, and deleting another one kicks me back to .GlobalEnv. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/working-env.test.ts"
+  ]
+ },
+ {
+  "id": "bug-tier-override",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/ai-actions/permissions.ts",
+    "return overrides[action.id] ?? action.tier",
+    "return action.tier ?? overrides[action.id]"
+   ]
+  ],
+  "prompt": "Permission overrides for assistant actions in Settings have no effect. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions/permissions.test.ts"
+  ]
+ },
+ {
+  "id": "bug-requires-order",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/ai-actions/permissions.ts",
+    "if (action.requires === 'terminal' && !opts.terminal) {",
+    "if (action.requires === 'terminal' && opts.terminal) {"
+   ]
+  ],
+  "prompt": "The assistant can call terminal actions with the Terminal switch off, and is refused with it on. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions"
+  ]
+ },
+ {
+  "id": "bug-session-files",
+  "kind": "bug",
+  "seed": [
+   [
+    "src/lib/session-scoped-files.ts",
+    "  'console.json',\n",
+    ""
+   ]
+  ],
+  "prompt": "Yesterday's console history shows up after a clean restart. Fix it.",
+  "checks": [
+   "npx vitest run src/lib/session-scoped-files.test.ts"
+  ]
+ },
+ {
+  "id": "highlight-target",
+  "kind": "feature",
+  "prompt": "The assistant should be able to point at the Packages toolbar button with ui:highlight. Make that work.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions",
+   "npm run typecheck"
+  ],
+  "require": [
+   "toolbar\\.packages",
+   "data-ourgeo-id"
+  ],
+  "deny": []
+ },
+ {
+  "id": "action-echo-r",
+  "kind": "feature",
+  "prompt": "Add an interface action, session:clearWorkspace, that removes the user's objects from .GlobalEnv. Follow the rules for actions that touch R.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions",
+   "npm run typecheck"
+  ],
+  "require": [
+   "id: 'session:clearWorkspace'",
+   "rm\\(list",
+   " tier: 'confirm'"
+  ],
+  "deny": [
+   "session\\.clearWorkspace"
+  ]
+ },
+ {
+  "id": "action-group",
+  "kind": "feature",
+  "prompt": "Add a new action group \"basemapPresets\" with two actions: one lists saved basemap presets and one applies a preset by name. Stub the store if needed. Add tests.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions",
+   "npm run typecheck"
+  ],
+  "require": [
+   "group: 'basemapPresets'",
+   "basemapPresets:"
+  ],
+  "deny": [
+   "basemapPresets\\.[a-z]"
+  ]
+ },
+ {
+  "id": "connector-source",
+  "kind": "feature",
+  "prompt": "Add a Browse Sources entry for the USGS earthquake GeoJSON feed (all_week). It should import with sf.",
+  "checks": [
+   "npm run typecheck"
+  ],
+  "require": [
+   "docsUrl: 'https://",
+   "sf::st_read|st_read"
+  ],
+  "deny": [
+   "docsUrl: 'http://"
+  ]
+ },
+ {
+  "id": "setting-action-tier",
+  "kind": "feature",
+  "prompt": "Add an assistant action that deletes a plot by index. Think about what tier deletion should have, and add a test that pins it.",
+  "checks": [
+   "npx vitest run src/lib/ai-actions",
+   "npm run typecheck"
+  ],
+  "require": [
+   "tier: 'confirm'"
+  ],
+  "deny": []
+ },
+ {
+  "id": "new-dialog-tokens",
+  "kind": "feature",
+  "prompt": "Add a small dialog component that shows a plot's title and size, in the style of the app. Just the component.",
+  "checks": [
+   "npm run typecheck"
+  ],
+  "require": [
+   "bg-geo-|text-geo-"
+  ],
+  "deny": [
+   "#[0-9a-fA-F]{6}",
+   "bg-gray-",
+   "text-white"
+  ]
+ },
+ {
+  "id": "r-endpoint",
+  "kind": "feature",
+  "prompt": "Add an R endpoint POST /object/nrow that returns the number of rows of a named object, and a matching rClient method. A refusal must reach the caller as a body, not a thrown error.",
+  "checks": [
+   "npm run typecheck",
+   "Rscript -e 'invisible(parse(\"r/lib/router.R\"))'"
+  ],
+  "require": [
+   "/object/nrow",
+   "\\.ask\\("
+  ],
+  "deny": []
+ },
+ {
+  "id": "driver-screenshot",
+  "kind": "driver",
+  "prompt": "Build the app, launch it, and save a screenshot of the Packages panel to shot-packages.png in the repo root.",
+  "checks": [
+   "test -s shot-packages.png",
+   "test $(stat -c %s shot-packages.png) -gt 20000"
+  ],
+  "require": [],
+  "deny": [],
+  "anyChange": true
+ },
+ {
+  "id": "driver-console",
+  "kind": "driver",
+  "prompt": "Build and launch the app, run 1+1 in the R console, and save a screenshot showing the result to shot-console.png in the repo root.",
+  "checks": [
+   "test -s shot-console.png",
+   "test $(stat -c %s shot-console.png) -gt 20000"
+  ],
+  "require": [],
+  "deny": [],
+  "anyChange": true
+ }
+]

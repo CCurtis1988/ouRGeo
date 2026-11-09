@@ -1,4 +1,5 @@
 import { AppUpdateDialog } from '@/components/settings/AppUpdateDialog'
+import { SkillManagerDialog } from '../skills/SkillManagerDialog'
 import { PaneDropDialog } from './PaneDropDialog'
 import React, { useCallback, useEffect, useRef } from 'react'
 import { Settings } from 'lucide-react'
@@ -353,6 +354,10 @@ export function EditorLayout(): React.ReactElement {
           rendered once here and stacks above whichever one asked. */}
       <ReplaceProjectFileDialog />
       {/* A sibling of Settings for the same reason the Theme Studio is. */}
+      <SkillManagerDialog
+        open={openDialog === 'skills'}
+        onOpenChange={dialogToggle('skills')}
+      />
       <PluginManagerDialog
         open={openDialog === 'plugins'}
         onOpenChange={dialogToggle('plugins')}

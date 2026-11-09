@@ -35,6 +35,7 @@ export type DialogId =
   | 'plugins'
   | 'plugin-store'
   | 'plugin-submit'
+  | 'skills'
   | 'recording'
   | 'voice-model'
   // Spatial ribbon
@@ -55,7 +56,7 @@ export type DialogId =
   | 'export-code-ggplot'
 
 export const DIALOG_IDS: DialogId[] = [
-  'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'theme-backgrounds', 'plugins', 'plugin-store', 'plugin-submit',
+  'load-data', 'data-connector', 'toolbox', 'settings', 'theme-studio', 'theme-backgrounds', 'plugins', 'plugin-store', 'plugin-submit', 'skills',
   'recording', 'voice-model', 'health-check', 'app-update',
   'map-contents', 'map-settings', 'select-menu', 'symbology', 'raster-symbology',
   'labeling', 'basemap', 'legend-settings', 'north-arrow-settings', 'save-edits',
@@ -75,6 +76,7 @@ export const DIALOG_LABELS: Record<DialogId, string> = {
   'plugins': 'Plugins',
   'plugin-store': 'Plugin Store',
   'plugin-submit': 'Publish to the plugin store',
+  'skills': 'Skills',
   'recording': 'Record Console',
   'voice-model': 'Speech model',
   'map-contents': 'Contents',

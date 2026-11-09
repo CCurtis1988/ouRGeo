@@ -1,0 +1,311 @@
+[
+ {
+  "id": "context-memory-val-quakes-shadows-dataset-terse-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes <- data.frame(lat = c(-20.4, -17.9, -21.0, -23.5, -15.6), long = c(181.6, 181.9, 181.5, 180.0, 167.0), depth = c(12, 48, 305, 130, 77), mag = c(4.8, 5.1, 4.4, 5.6, 4.2), stations = c(41, 15, 22, 67, 18))"
+  },
+  "turns": [
+   {
+    "user": "deepest quake in my quakes table? depth and mag"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "\\b305\\b"
+   },
+   {
+    "answer_regex": "\\b4\\.4\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "r_state": "exists('quakes', envir = globalenv(), inherits = FALSE) && nrow(get('quakes', envir = globalenv())) == 5"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(quakes[which.max(quakes$depth), c('depth', 'mag')])"
+    }
+   ],
+   "answer": "The deepest quake in your quakes table has depth 305 and magnitude 4.4."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(max(datasets::quakes$depth))"
+    }
+   ],
+   "answer": "The deepest quake in quakes has depth 680."
+  }
+ },
+ {
+  "id": "context-memory-val-report-csv-on-disk-chatty-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "action:editor:listTabs",
+   "action:session:workingDir"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "write.csv(data.frame(plot = 1:3, cover = c(10, 20, 30)), 'plots_2022.csv', row.names = FALSE); writeLines(c('---', 'title: \"Plot survey\"', 'output: html_document', '---', '', '```{r}', 'plots <- read.csv(\"plots_2021.csv\")', 'summary(plots)', '```'), 'report.Rmd')",
+   "documents": [
+    {
+     "fileName": "report.Rmd",
+     "content": "---\ntitle: \"Plot survey\"\noutput: html_document\n---\n\n```{r}\nplots <- read.csv(\"plots_2021.csv\")\nsummary(plots)\n```\n",
+     "language": "rmarkdown"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hey, before I knit report.Rmd for my supervisor this afternoon, could you check something for me? Is the CSV it reads actually sitting in the working folder? If it isn't, tell me which CSV is there instead. Please just tell me and don't change anything, I'd like to sort it out myself."
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "plots_2021\\.csv"
+   },
+   {
+    "answer_regex": "plots_2022\\.csv"
+   },
+   {
+    "answer_regex": "\\bnot\\b|n't|\\bno\\b|missing|absent"
+   },
+   {
+    "app_state": "s.tabs.some(t => t.fileName === 'report.Rmd' && t.content.includes('plots_2021.csv'))"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(grep('read.csv', readLines('report.Rmd'), value = TRUE)); print(list.files(pattern = '[.]csv$'))"
+    }
+   ],
+   "answer": "No. report.Rmd reads plots_2021.csv, which is not in the working folder. The CSV there is plots_2022.csv. I haven't changed anything."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(grep('read.csv', readLines('report.Rmd'), value = TRUE))"
+    }
+   ],
+   "answer": "Yes, report.Rmd reads plots_2021.csv from the working folder, so you can go ahead and knit."
+  }
+ },
+ {
+  "id": "context-memory-val-parcels-owner-column-typo-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "action:map:listColumns",
+   "action:map:setLabels",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "box <- function(x) sf::st_polygon(list(rbind(c(x, 35.7), c(x + 0.1, 35.7), c(x + 0.1, 35.8), c(x, 35.8), c(x, 35.7)))); geom <- sf::st_sfc(box(-78.7), box(-78.6), box(-78.5), crs = 4326); parcels <- sf::st_sf(parcel_id = c('P1', 'P2', 'P3'), own_code = c(101L, 102L, 103L), own_name = c('Alder Farm', 'Birch LLC', 'Cedar Trust'), geometry = geom); parcels_old <- sf::st_sf(parcel_id = c('P1', 'P2', 'P3'), owner = c('Estate of Hale', 'Birch LLC', 'R. Moss'), geometry = geom)",
+   "layers": [
+    "parcels_old",
+    "parcels"
+   ]
+  },
+  "turns": [
+   {
+    "user": "pls lable the pacels with the name of whoever owns them"
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.layers.some(l => (l.name === 'parcels' || l.envName === 'parcels') && l.labels && l.labels.field === 'own_name' && l.labels.enabled)"
+   },
+   {
+    "app_state": "!s.layers.some(l => (l.name === 'parcels_old' || l.envName === 'parcels_old') && l.labels && l.labels.enabled)"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "map:listColumns",
+     "params": {
+      "layer": "parcels"
+     }
+    },
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "parcels",
+      "column": "own_name",
+      "enabled": true
+     }
+    }
+   ],
+   "answer": "The parcels layer is now labelled with owner names from its own_name column."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "parcels",
+      "column": "own_code",
+      "enabled": true
+     }
+    }
+   ],
+   "answer": "The parcels layer is now labelled by owner."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:setLabels'"
+  }
+ },
+ {
+  "id": "context-memory-val-map-layers-crs-odd-one-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "action:map:status",
+   "action:map:listObjects",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE); districts <- sf::st_transform(nc[nc$NAME %in% c('Wake', 'Durham'), c('NAME')], 32119); schools <- sf::st_sf(name = c('Oak Grove', 'Mill Creek'), geometry = sf::st_sfc(sf::st_point(c(-78.64, 35.78)), sf::st_point(c(-78.90, 35.99)), crs = 4326)); roads <- sf::st_sf(route = 'NC-54', geometry = sf::st_sfc(sf::st_linestring(rbind(c(-78.90, 35.90), c(-78.70, 35.85))), crs = 4326)); old_schools <- sf::st_transform(schools, 3857); rm(nc)",
+   "layers": [
+    "districts",
+    "schools",
+    "roads"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Do the layers on my map all use the same CRS? If one is different, which one is it and what's its EPSG code?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "districts[\\s\\S]*32119|32119[\\s\\S]*districts"
+   },
+   {
+    "answer_regex": "\\b4326\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(sapply(list(districts = districts, schools = schools, roads = roads), function(x) sf::st_crs(x)$epsg))"
+    }
+   ],
+   "answer": "No. districts is the odd one out at EPSG:32119, while schools and roads are both EPSG:4326."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(sapply(list(old_schools = old_schools, schools = schools, roads = roads), function(x) sf::st_crs(x)$epsg))"
+    }
+   ],
+   "answer": "No. old_schools is the odd one out at EPSG:3857, while schools and roads are both EPSG:4326."
+  }
+ },
+ {
+  "id": "context-memory-val-lab-ph-followup-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "lab_a <- data.frame(site = c('S1', 'S2', 'S3'), no3 = c(1.2, 3.4, 2.2)); lab_b <- data.frame(site = c('S1', 'S2', 'S3', 'S4', 'S5'), pH = c(6.5, 7.0, NA, 7.5, 8.0)); lab_c <- data.frame(site = c('S1', 'S2'), ph_flag = c('ok', 'low'))"
+  },
+  "turns": [
+   {
+    "user": "Which of my lab tables has the actual pH readings?"
+   },
+   {
+    "user": "ok and what's the average pH in that one"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "\\b7\\.25\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(sapply(list(lab_a = lab_a, lab_b = lab_b, lab_c = lab_c), names))"
+    },
+    {
+     "r": "print(mean(lab_b$pH, na.rm = TRUE))"
+    }
+   ],
+   "answer": "The average pH in lab_b is 7.25, leaving out its one missing reading."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(sapply(list(lab_a = lab_a, lab_b = lab_b, lab_c = lab_c), names))"
+    },
+    {
+     "r": "print(mean(lab_b$pH))"
+    }
+   ],
+   "answer": "The average pH in lab_b is NA."
+  }
+ }
+]

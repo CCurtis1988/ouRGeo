@@ -24,3 +24,20 @@ describe('package copy requests', () => {
     await expect(rClient.loadPackage('dplyr', '/R/library')).rejects.toThrow('Connection refused')
   })
 })
+
+describe('context schema requests', () => {
+  // Naming a plain vector in a chat message reaches this call during retrieval.
+  // Thrown as an AxiosError, R's refusal ended the send before any model saw it.
+  it('returns R’s refusal for an object that is not a data frame', async () => {
+    const data = { success: false, error: 'Schema inspection supports in-memory data frames; inspect other objects explicitly through visible R' }
+    http.post.mockRejectedValue({ response: { status: 500, data } })
+    expect(await rClient.contextSchema('area_ha', '.GlobalEnv')).toEqual(data)
+  })
+  it('keeps its timeout, and still rejects when R cannot answer', async () => {
+    http.post.mockResolvedValue({ data: { success: true, columns: [] } })
+    await rClient.contextSchema('nc', '.GlobalEnv')
+    expect(http.post).toHaveBeenCalledWith('/context/schema', { name: 'nc', envName: '.GlobalEnv' }, { timeout: 8000 })
+    http.post.mockRejectedValue(new Error('Connection refused'))
+    await expect(rClient.contextSchema('nc', '.GlobalEnv')).rejects.toThrow('Connection refused')
+  })
+})

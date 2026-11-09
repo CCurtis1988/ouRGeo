@@ -17,6 +17,8 @@ import { rClient } from '@/lib/r-client'
 import { useEnvironmentStore } from '@/store/environment'
 import { useEditorStore } from '@/store/editor'
 import { useSessionStore } from '@/store/session'
+import { overlayValue } from '@/lib/eval/hooks'
+import { prepareLexicalQuery, scoreLexicalQuery } from '@/lib/context/router'
 
 export function findTool(id: string): ToolDef | undefined {
   const want = id.trim().toLowerCase()
@@ -30,17 +32,31 @@ function categoryOf(tool: ToolDef): string {
   return categoryList().find((c) => c.tools.some((t) => t.id === tool.id))?.label ?? ''
 }
 
-/** Search by id, label, description and category. */
+/** Search by id, label, description and category.
+ *
+ * The baseline matches the WHOLE query as one substring, so "reproject
+ * transform CRS" finds nothing although "CRS Transform" exists — measured on
+ * Qwen3.8-Flash by the skill-training harness (2026-11-05), which then browsed
+ * categories until its turn ran out. Eval lever L10 (`scalar:toolbox:search` =
+ * "words") ranks tools by matched words instead; it becomes the default only if
+ * it measures better (docs/agent-skill-training-spec.md §7.2). */
 export function searchTools(query: string, category?: string): ToolDef[] {
   const q = query.trim().toLowerCase()
   const cat = (category ?? '').trim().toLowerCase()
-  return toolList().filter((t) => {
-    if (cat && !categoryOf(t).toLowerCase().includes(cat)) return false
-    if (!q) return true
-    return t.id.toLowerCase().includes(q)
-      || t.label.toLowerCase().includes(q)
-      || t.description.toLowerCase().includes(q)
-  })
+  const inCategory = toolList().filter((t) => !cat || categoryOf(t).toLowerCase().includes(cat))
+  if (!q) return inCategory
+  if (overlayValue<string>('toolbox:search', 'phrase') === 'words') {
+    const prepared = prepareLexicalQuery(q)
+    return inCategory
+      .map((t) => ({ t, score: scoreLexicalQuery(prepared, t.label.toLowerCase(), `${t.id} ${t.description} ${categoryOf(t)}`.toLowerCase()) }))
+      .filter((hit) => hit.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 12)
+      .map((hit) => hit.t)
+  }
+  return inCategory.filter((t) => t.id.toLowerCase().includes(q)
+    || t.label.toLowerCase().includes(q)
+    || t.description.toLowerCase().includes(q))
 }
 
 /** One line per tool, for the search result. */

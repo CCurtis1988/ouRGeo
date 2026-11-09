@@ -26,6 +26,12 @@ export interface ContextSource {
   legacyIds?: string[]
   resource?: { environment: string; name: string }
   group?: string
+  /**
+   * Readable when the host attaches it (`broker.loadSkill`), never found by search.
+   * A skill set to "Only when I ask" is this: Opus found one through context_search
+   * and followed it unasked.
+   */
+  hostOnly?: boolean
   /** Original recorded console input, used only for narrow local dependency routing. */
   command?: string
   read: (signal?: AbortSignal) => Promise<string> | string

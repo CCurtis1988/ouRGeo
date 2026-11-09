@@ -1,0 +1,249 @@
+[
+ {
+  "id": "data-import-val-gauges-preamble-chatty-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "writeLines(c('HydroLog export v2', 'Site group: Upper Basin', 'Generated 2026-03-14', 'station,stage_m,flow_cms', 'G01,1.20,14.5', 'G02,0.85,9.1', 'G03,2.10,30.2', 'G04,1.55,18.4'), 'gauges_export.csv')"
+  },
+  "turns": [
+   {
+    "user": "Hi! Our logger dumped gauges_export.csv into the working folder, and it always puts a few lines of junk above the real table. Could you bring it into R as gauges with proper column names? Also, which station has the highest flow?"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"gauges\", envir = globalenv()) && is.data.frame(get(\"gauges\", envir = globalenv()))"
+   },
+   {
+    "r_state": "identical(names(get(\"gauges\", envir = globalenv())), c(\"station\", \"stage_m\", \"flow_cms\"))"
+   },
+   {
+    "r_state": "g <- get(\"gauges\", envir = globalenv()); nrow(g) == 4 && is.numeric(g$flow_cms) && abs(sum(g$flow_cms) - 72.2) < 1e-6"
+   },
+   {
+    "answer_regex": "\\bG03\\b"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "gauges <- read.csv(\"gauges_export.csv\", skip = 3)\ngauges[which.max(gauges$flow_cms), ]"
+    }
+   ],
+   "answer": "I loaded gauges_export.csv as gauges after skipping the three lines above the table. It has 4 rows, and G03 has the highest flow at 30.2."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "gauges <- read.csv(\"gauges_export.csv\", skip = 4)\nprint(gauges)"
+    }
+   ],
+   "answer": "I loaded gauges_export.csv as gauges. G03 has the highest flow."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-val-plots-shp-noprj-typo-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "d <- data.frame(plot_id = c('P1', 'P2', 'P3', 'P4', 'P5'), cover = c(35, 60, 20, 75, 50), x = c(500100, 500250, 500400, 500150, 500250), y = c(4649800, 4650050, 4649900, 4650200, 4650100))\np <- sf::st_as_sf(d, coords = c('x', 'y'))\nsf::st_write(p, 'plots.shp', quiet = TRUE)\nunlink('plots.prj')"
+  },
+  "turns": [
+   {
+    "user": "pls load plots.shp as plots. the .prj file got lost but the survyor says the coords are UTM 18N WGS84 (EPSG:32618). dont reproject anyting, the numbers are already right"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"plots\", envir = globalenv()) && inherits(get(\"plots\", envir = globalenv()), \"sf\")"
+   },
+   {
+    "r_state": "isTRUE(sf::st_crs(get(\"plots\", envir = globalenv()))$epsg == 32618)"
+   },
+   {
+    "r_state": "p <- get(\"plots\", envir = globalenv()); xy <- sf::st_coordinates(p); nrow(p) == 5 && abs(sum(xy[, \"X\"]) - 2501150) < 0.01 && abs(sum(xy[, \"Y\"]) - 23250050) < 0.01"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "plots <- sf::st_read(\"plots.shp\", quiet = TRUE)\nsf::st_crs(plots) <- 32618\nprint(sf::st_crs(plots)$epsg)\nprint(nrow(plots))"
+    }
+   ],
+   "answer": "I loaded plots.shp as plots and assigned EPSG:32618 without reprojecting, so the coordinates are unchanged. It has 5 features."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "plots <- sf::st_read(\"plots.shp\", quiet = TRUE)\nprint(nrow(plots))"
+    }
+   ],
+   "answer": "I loaded plots.shp as plots. It has 5 features and the coordinates were left unchanged."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-val-reservoir-missing-codes-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "writeLines(c('site,sampled,turbidity', 'R1,2026-04-01,2.4', 'R2,2026-04-01,-999', 'R3,2026-04-02,4.1', 'R4,2026-04-02,ND', 'R5,2026-04-03,3.3', 'R6,2026-04-03,6.7'), 'reservoir_samples.csv')"
+  },
+  "turns": [
+   {
+    "user": "Load reservoir_samples.csv as samples. In the turbidity column, both -999 and ND mean there was no reading, so they should be missing values, and the column should be numeric. Keep all the rows. What is the mean turbidity of the real readings?"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"samples\", envir = globalenv()) && is.data.frame(get(\"samples\", envir = globalenv()))"
+   },
+   {
+    "r_state": "s <- get(\"samples\", envir = globalenv()); nrow(s) == 6 && is.numeric(s$turbidity) && sum(is.na(s$turbidity)) == 2"
+   },
+   {
+    "r_state": "abs(mean(get(\"samples\", envir = globalenv())$turbidity, na.rm = TRUE) - 4.125) < 1e-6"
+   },
+   {
+    "answer_regex": "\\b4\\.1(2|25|3)\\b"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "samples <- read.csv(\"reservoir_samples.csv\", na.strings = c(\"-999\", \"ND\"))\nc(rows = nrow(samples), valid = sum(!is.na(samples$turbidity)), mean = mean(samples$turbidity, na.rm = TRUE))"
+    }
+   ],
+   "answer": "I loaded reservoir_samples.csv as samples and kept all 6 rows. Two turbidity values are now missing, and the mean of the 4 real readings is 4.125."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "samples <- read.csv(\"reservoir_samples.csv\")\nsamples$turbidity <- suppressWarnings(as.numeric(samples$turbidity))\nmean(samples$turbidity, na.rm = TRUE)"
+    }
+   ],
+   "answer": "I loaded reservoir_samples.csv as samples and converted turbidity to numeric. The mean turbidity is -196.5."
+  }
+ },
+ {
+  "id": "data-import-val-parks-newest-geojson-terse-01",
+  "domains": [
+   "data-import",
+   "maps"
+  ],
+  "modules": [
+   "action:data:load",
+   "action:map:addLayer",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "d <- data.frame(name = c('Riverside', 'Oak Hollow', 'Mill Pond', 'Cedar Flats', 'Harbor Green'), acres = c(12.5, 40, 8, 22.5, 17), lon = c(-78.64, -78.61, -78.58, -78.70, -78.55), lat = c(35.78, 35.81, 35.75, 35.84, 35.72))\np <- sf::st_as_sf(d, coords = c('lon', 'lat'), crs = 4326)\nsf::st_write(p[1:3, ], 'parks_2023.geojson', quiet = TRUE)\nsf::st_write(p, 'parks_2024.geojson', quiet = TRUE)"
+  },
+  "turns": [
+   {
+    "user": "load the newest parks geojson from the working folder as parks and put it on the map"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"parks\", envir = globalenv()) && inherits(get(\"parks\", envir = globalenv()), \"sf\")"
+   },
+   {
+    "r_state": "p <- get(\"parks\", envir = globalenv()); nrow(p) == 5 && setequal(p$name, c(\"Riverside\", \"Oak Hollow\", \"Mill Pond\", \"Cedar Flats\", \"Harbor Green\")) && abs(sum(p$acres) - 100) < 1e-6"
+   },
+   {
+    "app_state": "s.layers.some(l => l.envName === 'parks' || l.name === 'parks')"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "list.files(pattern = \"^parks.*\\\\.geojson$\")\nparks <- sf::st_read(\"parks_2024.geojson\", quiet = TRUE)\nprint(nrow(parks))"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "parks"
+     }
+    }
+   ],
+   "answer": "I loaded parks_2024.geojson, the newer of the two parks files, as parks and added it to the map. It has 5 features."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "parks <- sf::st_read(\"parks_2023.geojson\", quiet = TRUE)\nprint(nrow(parks))"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "parks"
+     }
+    }
+   ],
+   "answer": "I loaded the parks GeoJSON as parks and added it to the map. It has 3 features."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ }
+]

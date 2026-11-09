@@ -1,0 +1,576 @@
+[
+ {
+  "id": "r-provenance-train-mtcars-mean-mpg-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "autos <- mtcars",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "mean mpg in autos?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "20\\.09"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "round(mean(autos$mpg), 2)"
+    }
+   ],
+   "answer": "The mean mpg in autos is 20.09."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "The mean mpg in autos is about 20 — mtcars cars average roughly twenty miles per gallon."
+  }
+ },
+ {
+  "id": "r-provenance-train-sales-region-total-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sales <- data.frame(region = c(\"North\", \"South\", \"North\", \"East\", \"South\", \"North\"), amount = c(120, 80, 200, 50, 150, 30))",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "Hey! I've got a little sales table loaded as `sales`. Could you tell me which region brought in the most money overall, and how much that was in total?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "north[\\s\\S]*\\b350\\b|\\b350\\b[\\s\\S]*north"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "aggregate(amount ~ region, data = sales, FUN = sum)"
+    }
+   ],
+   "answer": "North brought in the most overall, with a total of 350 (South had 230 and East 50)."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "sales[which.max(sales$amount), ]"
+    }
+   ],
+   "answer": "North brought in the most, with 200 in sales."
+  }
+ },
+ {
+  "id": "r-provenance-train-iris-virginica-typo-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "fl <- iris",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "whats the avrage petal lenght for virginica in fl"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "5\\.55"
+   },
+   {
+    "answer_not_regex": "3\\.758"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "round(mean(fl$Petal.Length[fl$Species == \"virginica\"]), 3)"
+    }
+   ],
+   "answer": "The average petal length for virginica in fl is 5.552 cm."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "round(mean(fl$Petal.Length), 3)"
+    }
+   ],
+   "answer": "The average petal length is 3.758 cm."
+  }
+ },
+ {
+  "id": "r-provenance-train-stations-fr-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "stations <- data.frame(station = c(\"A\", \"B\", \"C\", \"D\", \"E\"), alt = c(450, 1200, 1800, 900, 1500), temp = c(14.2, 9.1, 5.3, 11.0, 7.6))",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "Quelle est la température moyenne des stations situées au-dessus de 1000 m d'altitude dans le tableau stations ?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "7[.,]33"
+   },
+   {
+    "answer_not_regex": "9[.,]44"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "stations$station[stations$alt > 1000]\nround(mean(stations$temp[stations$alt > 1000]), 2)"
+    }
+   ],
+   "answer": "La température moyenne des stations B, C et E est de 7.33 °C."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "round(mean(stations$temp), 2)"
+    }
+   ],
+   "answer": "La température moyenne est de 9.44 °C."
+  }
+ },
+ {
+  "id": "r-provenance-train-plots-area-ha-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sq <- function(x0, y0, s) sf::st_polygon(list(rbind(c(x0, y0), c(x0 + s, y0), c(x0 + s, y0 + s), c(x0, y0 + s), c(x0, y0))))\nplots <- sf::st_sf(id = 1:3, geometry = sf::st_sfc(sq(500000, 4000000, 100), sq(501000, 4000000, 200), sq(502000, 4000000, 50), crs = 32617))",
+   "layers": [
+    "plots"
+   ],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "What's the combined area of everything in the plots layer, in hectares?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "5\\.25"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "r_state": "exists(\"plots\", envir = globalenv()) && nrow(get(\"plots\", envir = globalenv())) == 3"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "as.numeric(sum(sf::st_area(plots))) / 10000"
+    }
+   ],
+   "answer": "The plots layer covers 5.25 hectares in total."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "sum(sf::st_area(plots))"
+    }
+   ],
+   "answer": "The plots cover 5250 hectares in total."
+  }
+ },
+ {
+  "id": "r-provenance-train-mtcars-cyl-best-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "In the cars data, which cylinder group gets the best fuel economy on average, and what's that average mpg?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "26\\.66"
+   },
+   {
+    "answer_regex": "\\b4\\b|four"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "aggregate(mpg ~ cyl, data = cars, FUN = function(x) round(mean(x), 2))"
+    }
+   ],
+   "answer": "The 4-cylinder cars have the best fuel economy, averaging 26.66 mpg."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "cars[which.max(cars$mpg), c(\"mpg\", \"cyl\")]"
+    }
+   ],
+   "answer": "The 4-cylinder group is best, averaging 33.9 mpg."
+  }
+ },
+ {
+  "id": "r-provenance-train-wells-in-site-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "site <- sf::st_sf(name = \"site\", geometry = sf::st_sfc(sf::st_polygon(list(rbind(c(0, 0), c(10, 0), c(10, 10), c(0, 10), c(0, 0)))), crs = 3857))\nwells <- sf::st_sf(id = 1:7, geometry = sf::st_sfc(lapply(list(c(1, 1), c(5, 5), c(9, 2), c(12, 3), c(15, 15), c(3, 8), c(11, 11)), sf::st_point), crs = 3857))",
+   "layers": [
+    "site",
+    "wells"
+   ],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "I've got a wells layer and a site boundary on the map. Can you work out how many of the wells actually fall inside the site?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b4\\b|\\bfour\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "r_state": "exists(\"wells\", envir = globalenv()) && nrow(get(\"wells\", envir = globalenv())) == 7"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "sum(lengths(sf::st_intersects(wells, site)) > 0)"
+    }
+   ],
+   "answer": "4 of the wells fall inside the site boundary."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "length(sf::st_intersects(wells, site))"
+    }
+   ],
+   "answer": "All 7 wells fall inside the site boundary."
+  }
+ },
+ {
+  "id": "r-provenance-train-dem-mean-nodata-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "dem <- terra::rast(nrows = 3, ncols = 3, xmin = 0, xmax = 300, ymin = 0, ymax = 300, crs = \"EPSG:32617\", vals = c(10, 20, 30, 40, NA, 60, 70, 80, 90))\nnames(dem) <- \"elev\"",
+   "layers": [
+    "dem"
+   ],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "mean elevation of dem, skipping nodata"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b50(\\.0+)?\\b"
+   },
+   {
+    "answer_not_regex": "44\\.4"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "terra::global(dem, \"mean\", na.rm = TRUE)"
+    }
+   ],
+   "answer": "The mean elevation of dem, ignoring NoData cells, is 50."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "round(sum(terra::values(dem), na.rm = TRUE) / terra::ncell(dem), 2)"
+    }
+   ],
+   "answer": "The mean elevation of dem is 44.44."
+  }
+ },
+ {
+  "id": "r-provenance-train-quakes-es-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sismos <- datasets::quakes",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "¿Cuál es la magnitud media de los terremotos en sismos, y cuál es la profundidad máxima registrada?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "4[.,]62"
+   },
+   {
+    "answer_regex": "\\b680\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "paste0(\"media: \", round(mean(sismos$mag), 2), \"; max: \", max(sismos$depth))"
+    }
+   ],
+   "answer": "La magnitud media es 4.62 y la profundidad máxima registrada es 680 km."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "paste0(\"mediana: \", median(sismos$mag), \"; max: \", max(sismos$depth))"
+    }
+   ],
+   "answer": "La magnitud media es 4.6 y la profundidad máxima es 680 km."
+  }
+ },
+ {
+  "id": "r-provenance-train-nc-count-crs-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code",
+   "topic:r"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "How many features are in the nc layer, and what's its EPSG code?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b100\\b"
+   },
+   {
+    "answer_regex": "\\b4267\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "paste0(\"features: \", nrow(nc), \"; epsg: \", sf::st_crs(nc)$epsg)"
+    }
+   ],
+   "answer": "The nc layer has 100 features (counties), and its CRS is EPSG:4267."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "nrow(nc)"
+    }
+   ],
+   "answer": "The nc layer has 100 counties, stored in WGS84 (EPSG:4326)."
+  }
+ }
+]

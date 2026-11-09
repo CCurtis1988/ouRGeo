@@ -1,0 +1,291 @@
+[
+ {
+  "id": "terminal-train-gridtool-version-terse-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "writeLines(c('#!/bin/sh','if [ \"$1\" = \"--version\" ]; then echo \"gridtool 2.4.1\"; else echo \"usage: gridtool --version\"; exit 2; fi'), 'gridtool'); Sys.chmod('gridtool', '755'); writeLines('gridtool 2.3.0 - first release of the tiling helper', 'CHANGES.txt')"
+  },
+  "turns": [
+   {
+    "user": "terminal: ./gridtool --version. what version, what exit code?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /gridtool/.test(JSON.stringify(i))"
+    }
+   },
+   {
+    "answer_regex": "\\b2\\.4\\.1\\b"
+   },
+   {
+    "answer_regex": "exit[^.\\n]{0,40}\\b(0|zero)\\b|\\b(0|zero)\\b[^.\\n]{0,20}exit"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "./gridtool --version"
+     }
+    }
+   ],
+   "answer": "gridtool reports version 2.4.1, with exit code 0."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "readLines('CHANGES.txt')"
+    }
+   ],
+   "answer": "gridtool is version 2.3.0."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ },
+ {
+  "id": "terminal-train-quakes-head-wc-chatty-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "write.csv(datasets::quakes, 'quakes_export.csv', row.names = FALSE)"
+  },
+  "turns": [
+   {
+    "user": "Hey! Someone sent me quakes_export.csv and it's sitting in the working directory. Before I commit to importing it, could you peek at it from the terminal for me? Please don't load it into R yet. I'd just like to know what the columns are and how many lines the file has in total, header included."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /quakes_export/.test(JSON.stringify(i))"
+    }
+   },
+   {
+    "r_code_not_regex": "read\\.(csv|table|delim)|read_csv|fread|vroom"
+   },
+   {
+    "answer_regex": "\\blat\\b"
+   },
+   {
+    "answer_regex": "\\blong\\b"
+   },
+   {
+    "answer_regex": "\\bdepth\\b"
+   },
+   {
+    "answer_regex": "\\bmag\\b"
+   },
+   {
+    "answer_regex": "\\bstations\\b"
+   },
+   {
+    "answer_regex": "\\b1,?001\\b"
+   },
+   {
+    "answer_regex": "exit[^.\\n]{0,40}\\b(0|zero)\\b|\\b(0|zero)\\b[^.\\n]{0,20}exit"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "head -n 1 quakes_export.csv"
+     }
+    },
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "wc -l quakes_export.csv"
+     }
+    }
+   ],
+   "answer": "The columns are lat, long, depth, mag and stations, and the file has 1001 lines including the header. Both commands finished with exit code 0."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "q <- read.csv('quakes_export.csv'); names(q); nrow(q)"
+    }
+   ],
+   "answer": "The columns are lat, long, depth, mag and stations, and the file has 1000 lines."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ },
+ {
+  "id": "terminal-train-validate-exit-typo-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "writeLines(c('id,name,lat,lon','A,Alder,35.1,-80.2','B,Birch,,-79.9','C,Cedar,36.0,-78.6','D,Dogwood,,-77.4','E,Elm,34.7,-76.9'), 'stations.csv'); writeLines(c('#!/bin/sh','bad=$(grep -c ,, stations.csv)','echo \"checked stations.csv: $bad bad rows\"','[ \"$bad\" -eq 0 ] || exit 3','echo OK'), 'validate.sh'); Sys.chmod('validate.sh', '755')"
+  },
+  "turns": [
+   {
+    "user": "can you run validate.sh in the termnal and tell me if it pased? dont change anything, just tell me what happend"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /validate\\.sh/.test(JSON.stringify(i))"
+    }
+   },
+   {
+    "answer_regex": "exit[^.\\n]{0,40}\\b3\\b|\\b3\\b[^.\\n]{0,20}exit"
+   },
+   {
+    "answer_regex": "\\b(2|two)\\b"
+   },
+   {
+    "r_state": "sum(grepl(',,', readLines('stations.csv'), fixed = TRUE)) == 2"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "sh validate.sh"
+     }
+    }
+   ],
+   "answer": "It did not pass. The script exited with code 3 and reported 2 bad rows in stations.csv. I did not change anything."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "sh validate.sh"
+     }
+    }
+   ],
+   "answer": "It passed, and the command finished with exit code 0."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ },
+ {
+  "id": "terminal-train-tif-count-recursive-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "dir.create('tiles/old', recursive = TRUE); invisible(file.create(file.path('tiles', c('north.tif','south.tif','east.tif','west.tif','north.tif.aux.xml','south.tif.aux.xml')))); invisible(file.create(file.path('tiles/old', c('north.tif','south.tif','east.tif'))))"
+  },
+  "turns": [
+   {
+    "user": "Using the terminal, count the .tif files under the tiles folder, subfolders included. The .aux.xml sidecar files don't count."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /tiles/.test(JSON.stringify(i))"
+    }
+   },
+   {
+    "answer_regex": "\\b(7|seven)\\b"
+   },
+   {
+    "answer_regex": "exit[^.\\n]{0,40}\\b(0|zero)\\b|\\b(0|zero)\\b[^.\\n]{0,20}exit"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "find tiles -type f -name '*.tif' | wc -l"
+     }
+    }
+   ],
+   "answer": "There are 7 .tif files under tiles, including subfolders, not counting the sidecar files. The command finished with exit code 0."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "ls tiles/*.tif | wc -l"
+     }
+    }
+   ],
+   "answer": "There are 4 .tif files under tiles. The command finished with exit code 0."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ }
+]

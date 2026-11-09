@@ -1,0 +1,493 @@
+[
+ {
+  "id": "toolbox-val-elev-zonal-mean-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "elev <- terra::rast(system.file('ex/elev.tif', package = 'terra'))\nmk <- function(x0, x1, y0, y1) sf::st_polygon(list(rbind(c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1), c(x0, y0))))\nzones <- sf::st_sf(zone = c('west', 'east'), geometry = sf::st_sfc(mk(5.95, 6.05, 49.65, 49.8), mk(6.10, 6.20, 49.65, 49.8), crs = 4326))\nrm(mk)"
+  },
+  "turns": [
+   {
+    "user": "Use the Toolbox to work out the mean elevation of elev inside each polygon in zones. Name the output zone_elev."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('zone_elev', envir = globalenv()) && local({ e <- get('elev', envir = globalenv()); z <- get('zones', envir = globalenv()); want <- terra::extract(e, terra::vect(z), fun = mean, na.rm = TRUE)[[2]]; d <- as.data.frame(get('zone_elev', envir = globalenv())); nrow(d) == nrow(z) && any(vapply(d[vapply(d, is.numeric, TRUE)], function(v) isTRUE(all.equal(sort(as.numeric(v)), sort(want), tolerance = 0.01)), TRUE)) })"
+   },
+   {
+    "tool_called": {
+     "name": "run_toolbox_tool",
+     "where": "JSON.stringify(i).includes('raster-zonal-stats')"
+    }
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "zone_elev <- terra::extract(elev, terra::vect(zones), fun = mean, na.rm = TRUE)"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "raster-zonal-stats",
+      "params": {
+       "r": "elev",
+       "zones": "zones",
+       "fun": "mean",
+       "out": "zone_elev"
+      }
+     },
+     "result": "Created zone_elev with one row for each zone."
+    }
+   ],
+   "answer": "Zonal Statistics finished and the mean elevation for each polygon is in zone_elev."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "zone_elev <- terra::extract(elev, terra::vect(zones), fun = mean, na.rm = TRUE)"
+    }
+   ],
+   "answer": "I calculated the mean elevation for each polygon in R and saved it as zone_elev."
+  },
+  "probe": {
+   "tool": "run_toolbox_tool",
+   "where": "JSON.stringify(i).includes('raster-zonal-stats')"
+  }
+ },
+ {
+  "id": "toolbox-val-unsurveyed-counties-anti-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)\nsurveys <- data.frame(county_fips = c(nc$FIPS[1:30], nc$FIPS[1:8]), visit = c(rep(1L, 30), rep(2L, 8)), stringsAsFactors = FALSE)"
+  },
+  "turns": [
+   {
+    "user": "Which counties in nc have no visit recorded in surveys? Match them on the county code, keep the polygons, save the result as nc_unsurveyed, and tell me how many there are."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('nc_unsurveyed', envir = globalenv()) && local({ n <- get('nc', envir = globalenv()); s <- get('surveys', envir = globalenv()); o <- get('nc_unsurveyed', envir = globalenv()); want <- setdiff(n$FIPS, s$county_fips); inherits(o, 'sf') && nrow(o) == length(want) && setequal(o$FIPS, want) })"
+   },
+   {
+    "answer_regex": "\\b70\\b"
+   },
+   {
+    "answer_not_regex": "\\b62\\b"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "nc_unsurveyed <- nc[!(nc$FIPS %in% surveys$county_fips), ]"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "anti-join",
+      "params": {
+       "left": "nc",
+       "right": "surveys",
+       "leftkey": "FIPS",
+       "rightkey": "county_fips",
+       "relationship": "one-to-many",
+       "out": "nc_unsurveyed"
+      }
+     },
+     "result": "Created nc_unsurveyed with 70 rows."
+    }
+   ],
+   "answer": "70 counties have no recorded survey visit. They are saved with their polygons as nc_unsurveyed."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "nc_unsurveyed <- nc[nc$FIPS %in% surveys$county_fips, ]"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "semi-join",
+      "params": {
+       "left": "nc",
+       "right": "surveys",
+       "leftkey": "FIPS",
+       "rightkey": "county_fips",
+       "relationship": "one-to-many",
+       "out": "nc_unsurveyed"
+      }
+     },
+     "result": "Created nc_unsurveyed with 30 rows."
+    }
+   ],
+   "answer": "30 counties are in nc_unsurveyed."
+  }
+ },
+ {
+  "id": "toolbox-val-elev-slope-typo-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "elev <- terra::rast(system.file('ex/elev.tif', package = 'terra'))"
+  },
+  "turns": [
+   {
+    "user": "run slope on elev from the toolbx pls, in degres, call it elev_slope"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('elev_slope', envir = globalenv()) && local({ e <- get('elev', envir = globalenv()); s <- get('elev_slope', envir = globalenv()); inherits(s, 'SpatRaster') && terra::compareGeom(s, e, stopOnError = FALSE) && isTRUE(all.equal(terra::global(s, 'mean', na.rm = TRUE)[1, 1], terra::global(terra::terrain(e, v = 'slope', unit = 'degrees'), 'mean', na.rm = TRUE)[1, 1], tolerance = 0.001)) })"
+   },
+   {
+    "tool_called": {
+     "name": "run_toolbox_tool",
+     "where": "JSON.stringify(i).includes('raster-terrain')"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "elev_slope <- terra::terrain(elev, v = 'slope', unit = 'degrees')"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "raster-terrain",
+      "params": {
+       "r": "elev",
+       "v": "slope",
+       "unit": "degrees",
+       "out": "elev_slope"
+      }
+     },
+     "result": "Created elev_slope."
+    }
+   ],
+   "answer": "Done. The slope raster is saved as elev_slope, in degrees."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "elev_slope <- terra::terrain(elev, v = 'slope', unit = 'radians')"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "raster-terrain",
+      "params": {
+       "r": "elev",
+       "v": "slope",
+       "unit": "radians",
+       "out": "elev_slope"
+      }
+     },
+     "result": "Created elev_slope."
+    }
+   ],
+   "answer": "Done. The slope raster is saved as elev_slope."
+  },
+  "probe": {
+   "tool": "run_toolbox_tool",
+   "where": "JSON.stringify(i).includes('raster-terrain')"
+  }
+ },
+ {
+  "id": "toolbox-val-estaciones-join-es-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)\npts <- suppressWarnings(sf::st_point_on_surface(sf::st_geometry(nc)[c(5, 20, 40, 60, 80, 95)]))\nmar <- sf::st_sfc(sf::st_point(c(-74, 34.5)), crs = sf::st_crs(nc))\nestaciones <- sf::st_transform(sf::st_sf(codigo = c('ALBA', 'BRISA', 'CEDRO', 'DELTA', 'ENCINA', 'FARO', 'GAVIOTA'), geometry = c(pts, mar)), 32119)\nrm(pts, mar)"
+  },
+  "turns": [
+   {
+    "user": "Con la Caja de herramientas, haz una unión espacial para asignar a cada estación de estaciones el condado de nc en el que cae. Quiero conservar todas las estaciones, aunque alguna quede fuera de los condados. Guarda el resultado como est_cond y dime qué estación quedó fuera."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('est_cond', envir = globalenv()) && local({ e <- get('estaciones', envir = globalenv()); n <- get('nc', envir = globalenv()); o <- as.data.frame(get('est_cond', envir = globalenv())); x <- sf::st_join(sf::st_transform(e, sf::st_crs(n)), n['NAME'], left = TRUE); nrow(o) == nrow(e) && 'NAME' %in% names(o) && identical(as.character(o$NAME[match(x$codigo, o$codigo)]), as.character(x$NAME)) })"
+   },
+   {
+    "r_state": "sf::st_crs(get('estaciones', envir = globalenv())) == sf::st_crs(32119)"
+   },
+   {
+    "tool_called": {
+     "name": "run_toolbox_tool",
+     "where": "JSON.stringify(i).includes('sf-spatial-join')"
+    }
+   },
+   {
+    "answer_regex": "gaviota"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "est_cond <- sf::st_join(sf::st_transform(estaciones, sf::st_crs(nc)), nc['NAME'], left = TRUE)"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "sf-spatial-join",
+      "params": {
+       "ds1": "estaciones",
+       "ds2": "nc",
+       "join": "left",
+       "workingCRS": "EPSG:4267",
+       "out": "est_cond"
+      }
+     },
+     "result": "Created est_cond. Station without a county: GAVIOTA."
+    }
+   ],
+   "answer": "He guardado el resultado en est_cond con todas las estaciones. La estación GAVIOTA quedó fuera de los condados."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "est_cond <- sf::st_join(sf::st_transform(estaciones, sf::st_crs(nc)), nc['NAME'], left = FALSE)"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "sf-spatial-join",
+      "params": {
+       "ds1": "estaciones",
+       "ds2": "nc",
+       "join": "inner",
+       "workingCRS": "EPSG:4267",
+       "out": "est_cond"
+      }
+     },
+     "result": "Created est_cond."
+    }
+   ],
+   "answer": "He guardado la unión espacial en est_cond y cada fila tiene su condado."
+  },
+  "probe": {
+   "tool": "run_toolbox_tool",
+   "where": "JSON.stringify(i).includes('sf-spatial-join')"
+  }
+ },
+ {
+  "id": "toolbox-val-harvest-sum-na-terse-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "harvest <- data.frame(site = c('Alder', 'Alder', 'Alder', 'Birch', 'Birch', 'Cedar', 'Cedar', 'Cedar'), tonnes = c(4.5, NA, 2.5, 7, 1.5, NA, 3, 6), stringsAsFactors = FALSE)"
+  },
+  "turns": [
+   {
+    "user": "Toolbox: total tonnes per site from harvest, ignore NAs. Output site_totals, column total_t. Top site?"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('site_totals', envir = globalenv()) && local({ h <- get('harvest', envir = globalenv()); o <- as.data.frame(get('site_totals', envir = globalenv())); w <- tapply(h$tonnes, h$site, sum, na.rm = TRUE); nrow(o) == length(w) && all(c('site', 'total_t') %in% names(o)) && isTRUE(all.equal(as.numeric(o$total_t[match(names(w), as.character(o$site))]), as.numeric(w))) })"
+   },
+   {
+    "tool_called": {
+     "name": "run_toolbox_tool",
+     "where": "JSON.stringify(i).includes('group-summarize')"
+    }
+   },
+   {
+    "answer_regex": "cedar"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "site_totals <- stats::aggregate(list(total_t = harvest$tonnes), list(site = harvest$site), sum, na.rm = TRUE)"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "group-summarize",
+      "params": {
+       "ds": "harvest",
+       "groupcol": "site",
+       "aggcol": "tonnes",
+       "fn": "sum",
+       "newcol": "total_t",
+       "missingPolicy": "omit",
+       "out": "site_totals"
+      }
+     },
+     "result": "Created site_totals: Alder 7, Birch 8.5, Cedar 9."
+    }
+   ],
+   "answer": "Cedar is the top site with 9 tonnes. The totals are in site_totals."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "site_totals <- stats::aggregate(list(total_t = harvest$tonnes), list(site = harvest$site), sum)"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "group-summarize",
+      "params": {
+       "ds": "harvest",
+       "groupcol": "site",
+       "aggcol": "tonnes",
+       "fn": "sum",
+       "newcol": "total_t",
+       "missingPolicy": "propagate",
+       "out": "site_totals"
+      }
+     },
+     "result": "Created site_totals: Alder NA, Birch 8.5, Cedar NA."
+    }
+   ],
+   "answer": "Birch is the top site with 8.5 tonnes."
+  },
+  "probe": {
+   "tool": "run_toolbox_tool",
+   "where": "JSON.stringify(i).includes('group-summarize')"
+  }
+ },
+ {
+  "id": "toolbox-val-wake-erase-chatty-01",
+  "domains": [
+   "toolbox"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)\nwake <- sf::st_transform(nc[nc$NAME == 'Wake', 'NAME'], 32119)\nreserve <- sf::st_sf(name = 'Reserve', geometry = sf::st_buffer(sf::st_centroid(sf::st_geometry(wake)), 8000))\nrm(nc)"
+  },
+  "turns": [
+   {
+    "user": "Hi! I've got the Wake County boundary in wake and a nature reserve in reserve. I need to punch the reserve out of the county so I'm left with only the land outside it. Could you do that through the Toolbox and call the result wake_open? Thanks so much!"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('wake_open', envir = globalenv()) && local({ w <- get('wake', envir = globalenv()); r <- get('reserve', envir = globalenv()); o <- get('wake_open', envir = globalenv()); want <- as.numeric(sum(sf::st_area(sf::st_difference(sf::st_geometry(w), sf::st_union(sf::st_geometry(r)))))); inherits(o, c('sf', 'sfc')) && sf::st_crs(o) == sf::st_crs(w) && abs(as.numeric(sum(sf::st_area(o))) - want) / want < 0.001 })"
+   },
+   {
+    "tool_called": {
+     "name": "run_toolbox_tool",
+     "where": "/sf-erase|sf-difference/.test(JSON.stringify(i))"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "wake_open <- suppressWarnings(sf::st_difference(wake, sf::st_union(reserve)))"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "sf-erase",
+      "params": {
+       "ds1": "wake",
+       "ds2": "reserve",
+       "out": "wake_open"
+      }
+     },
+     "result": "Created wake_open."
+    }
+   ],
+   "answer": "The reserve has been erased from the county boundary, and the remaining land is saved as wake_open."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "wake_open <- suppressWarnings(sf::st_intersection(wake, reserve))"
+    },
+    {
+     "tool": "run_toolbox_tool",
+     "input": {
+      "tool": "sf-clip",
+      "params": {
+       "ds1": "wake",
+       "ds2": "reserve",
+       "out": "wake_open"
+      }
+     },
+     "result": "Created wake_open."
+    }
+   ],
+   "answer": "The county has been cut with the reserve, and the result is saved as wake_open."
+  },
+  "probe": {
+   "tool": "run_toolbox_tool",
+   "where": "/sf-erase|sf-difference/.test(JSON.stringify(i))"
+  }
+ }
+]

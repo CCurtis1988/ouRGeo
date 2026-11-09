@@ -745,7 +745,15 @@ export async function sendMessage(opts: SendOptions): Promise<string> {
     onToolCall: originalTool ? async call => {
       opts.signal?.throwIfAborted()
       if (++toolCalls > 24) throw new Error('BUDGET_LIMIT: tool-call limit reached. Continue in another turn.')
-      return redactContext(await originalTool(call))
+      try { return redactContext(await originalTool(call)) }
+      catch (error) {
+        // A tool that refused is something the model should read and work around:
+        // the MCP bridge already answers Claude this way, and letting the refusal
+        // end the turn cost local models their answer (25 of 76 measured turns).
+        // Cancellation and a changed workspace still end it.
+        if (opts.provider === 'claude-cli' || opts.signal?.aborted || String(error).includes('SCOPE_CHANGED')) throw error
+        return redactContext(`Error: ${String(error)}`)
+      }
     } : undefined,
     systemPrompt: redactContext(opts.systemPrompt), messages: opts.messages.map(m => ({ id: m.id, role: m.role, timestamp: m.timestamp, content: redactContext(m.content), openAiMessages: m.openAiMessages?.map(p => ({ ...p, content: redactContext(p.content) })) })) }
   const dialogueBudget = inputCapacity(window, opts.maxOutputTokens) - estimateTokens({ system: opts.systemPrompt, tools: opts.tools, context: opts.sessionContext })

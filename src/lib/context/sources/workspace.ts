@@ -7,6 +7,7 @@ import { useAiStore } from '@/store/ai'
 import { useProjectStore } from '@/store/project'
 import { useContextStore } from '@/store/context'
 import { OURGEO_TOPICS, topicDescriptors } from '@/lib/ai-skill-ourgeo'
+import { offeredSkills, skillMode, skillOffered, storedSkillBody } from '@/lib/skills/catalog'
 import { buildDocumentSkill } from '@/lib/ai-skill-documents'
 import { actionList } from '@/lib/ai-actions/registry'
 import { describeAction } from '@/lib/ai-actions/types'
@@ -59,15 +60,25 @@ export function workspaceSources(kinds?: ContextKind[], includeFolders = true): 
   if (wants('skill')) {
     const descriptors = new Map(topicDescriptors().map(descriptor => [descriptor.topic, descriptor]))
     for (const [topic, body] of Object.entries(OURGEO_TOPICS)) {
+      // Switched off in the Skill Manager: absent, not refused.
+      if (!skillOffered(`skill:${topic}`)) continue
       const descriptor = descriptors.get(topic)
       const prerequisites = [skillPrerequisites(topic), ...(descriptor?.requiredSkills?.length ? [`Required guidance: ${descriptor.requiredSkills.join(', ')}.`] : []), ...(descriptor?.requiredSources?.length ? [`Required current evidence: ${descriptor.requiredSources.join(', ')}.`] : [])].filter(Boolean).join('\n')
-      sources.push({ id: `skill:${topic}`, kind: 'skill', scope: 'application', title: topic, summary: `${descriptor?.summary ?? ''} ${descriptor?.triggers.join(' ') ?? ''}`.slice(0, 1000), revision: contentRevision(`${descriptor?.version}:${prerequisites}\n${body}`), prerequisites, requiredSkills: descriptor?.requiredSkills, requiredSources: descriptor?.requiredSources, trust: 'untrusted', read: () => `${prerequisites}\n\n${topic === 'documents' ? `${buildDocumentSkill({ hasDocumentTools: true })}\n\n${body}` : body}` })
+      sources.push({ ...(skillMode(`skill:${topic}`) === 'manual' ? { hostOnly: true } : {}), id: `skill:${topic}`, kind: 'skill', scope: 'application', title: topic, summary: `${descriptor?.summary ?? ''} ${descriptor?.triggers.join(' ') ?? ''}`.slice(0, 1000), revision: contentRevision(`${descriptor?.version}:${prerequisites}\n${body}`), prerequisites, requiredSkills: descriptor?.requiredSkills, requiredSources: descriptor?.requiredSources, trust: 'untrusted', read: () => `${prerequisites}\n\n${topic === 'documents' ? `${buildDocumentSkill({ hasDocumentTools: true })}\n\n${body}` : body}` })
+    }
+    for (const entry of offeredSkills()) {
+      const skill = entry.stored
+      if (!skill) continue
+      const body = storedSkillBody(skill)
+      sources.push({ ...(entry.mode === 'manual' ? { hostOnly: true } : {}), id: entry.sourceId, kind: 'skill', scope: 'application', title: entry.name, summary: `${entry.description} ${entry.triggers.join(' ')}`.slice(0, 1000), revision: contentRevision(body), trust: 'untrusted', read: () => body })
     }
   }
   if (wants('action')) {
     const ai = useAiStore.getState()
     for (const action of actionList()) {
       if (action.requires === 'terminal' && !(ai.terminalEnabled && ai.autoPilotEnabled)) continue
+      // An action whose required skill is switched off is absent too: offering it only to refuse it is worse.
+      if (action.contextPrerequisites?.some(id => !skillOffered(id))) continue
       const body = describeAction(action, action.tier)
       sources.push({ id: `action:${action.id}`, kind: 'action', scope: 'application', title: action.id, summary: action.summary, group: action.group, revision: contentRevision(body), trust: 'host', read: () => body })
     }

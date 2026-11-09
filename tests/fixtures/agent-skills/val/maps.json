@@ -1,0 +1,591 @@
+[
+ {
+  "id": "maps-val-sid79-legend-terse-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:setSymbology",
+   "action:map:setLegend",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "nc: colour by SID79. legend bottom left, title \"SIDS 1979\""
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'nc' || l.name === 'nc') && l.symbology && l.symbology.fillColorBinding && l.symbology.fillColorBinding.column === 'SID79')"
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:setLegend' && (i.params || i).position === 'bottom-left' && (i.params || i).show !== false"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:setLegend' && /^\\s*SIDS 1979\\s*$/i.test((i.params || i).title || '') && (i.params || i).show !== false"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "map:setSymbology",
+     "params": {
+      "layer": "nc",
+      "colorBy": "SID79"
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setLegend",
+      "params": {
+       "show": true,
+       "position": "bottom-left",
+       "title": "SIDS 1979"
+      }
+     },
+     "result": "Legend updated."
+    }
+   ],
+   "answer": "The nc layer is now coloured by SID79, and the legend sits in the bottom-left corner with the requested title."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "map:setSymbology",
+     "params": {
+      "layer": "nc",
+      "colorBy": "SID74"
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setLegend",
+      "params": {
+       "show": true,
+       "position": "bottom-left",
+       "title": "SIDS 1979"
+      }
+     },
+     "result": "Legend updated."
+    }
+   ],
+   "answer": "The nc layer is coloured by SIDS counts, and the legend is in the bottom-left corner."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:setSymbology'"
+  }
+ },
+ {
+  "id": "maps-val-big-births-label-hide-chatty-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:addLayer",
+   "action:map:setLabels",
+   "action:map:setLayerVisible",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hi! I'm putting together a quick slide and the full county map is way too busy. Could you pull the counties that had more than 20000 births in 1974 into their own object called big_counties, put that on the map with county names as labels, and hide the original nc layer so only the big ones show? Thanks so much!"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('big_counties', envir = globalenv()) && inherits(big_counties, 'sf') && setequal(big_counties$NAME, nc$NAME[nc$BIR74 > 20000])"
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'big_counties' || l.name === 'big_counties') && l.visible !== false && l.labels && l.labels.field === 'NAME' && l.labels.enabled !== false)"
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'nc' || l.name === 'nc') && l.visible === false)"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "big_counties <- nc[nc$BIR74 > 20000, ]"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "big_counties"
+     }
+    },
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "big_counties",
+      "column": "NAME",
+      "enabled": true
+     }
+    },
+    {
+     "action": "map:setLayerVisible",
+     "params": {
+      "layer": "nc",
+      "visible": false
+     }
+    }
+   ],
+   "answer": "I created big_counties from the 1974 births column, added it to the map with county-name labels, and hid the nc layer."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "big_counties <- nc[nc$BIR79 > 20000, ]"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "big_counties"
+     }
+    },
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "big_counties",
+      "column": "NAME",
+      "enabled": true
+     }
+    }
+   ],
+   "answer": "I created big_counties and added it to the map with county-name labels."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:setLabels'"
+  }
+ },
+ {
+  "id": "maps-val-transparent-default-basemap-typo-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:setLayerOpacity",
+   "action:map:setBasemap",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "can u mkae the nc layer 35% transparnet and put the basmap back to whatever the theme default is"
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'nc' || l.name === 'nc') && (Math.abs(l.opacity - 0.65) < 0.011 || Math.abs((l.symbology || {}).fillOpacity - 0.65) < 0.011))"
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:setBasemap' && (i.params || i).basemap === ''"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "map:setLayerOpacity",
+     "params": {
+      "layer": "nc",
+      "opacity": 0.65
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setBasemap",
+      "params": {
+       "basemap": ""
+      }
+     },
+     "result": "Basemap reset to the theme default."
+    }
+   ],
+   "answer": "The nc layer now has the requested transparency, and the basemap is back to the theme default."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "map:setLayerOpacity",
+     "params": {
+      "layer": "nc",
+      "opacity": 0.35
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setBasemap",
+      "params": {
+       "basemap": ""
+      }
+     },
+     "result": "Basemap reset to the theme default."
+    }
+   ],
+   "answer": "The nc layer's opacity is updated, and the basemap is back to the theme default."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:setLayerOpacity'"
+  }
+ },
+ {
+  "id": "maps-val-estaciones-pm25-es-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:addLayer",
+   "action:map:setSymbology",
+   "action:map:setLabels",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "estaciones <- data.frame(nombre = c('Madrid', 'Sevilla', 'Valencia', 'Bilbao', 'Zaragoza'), lat = c(40.42, 37.39, 39.47, 43.26, 41.65), lon = c(-3.70, -5.99, -0.38, -2.93, -0.88), pm10 = c(31, 27, 24, 19, 22), pm25 = c(14, 12, 11, 8, 10))"
+  },
+  "turns": [
+   {
+    "user": "Tengo la tabla estaciones con coordenadas WGS84. Conviértela en un objeto sf de puntos llamado estaciones_sf, añádelo al mapa, coloréalo según pm25 y etiqueta cada punto con su nombre."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('estaciones_sf', envir = globalenv()) && inherits(estaciones_sf, 'sf') && nrow(estaciones_sf) == nrow(estaciones) && sf::st_crs(estaciones_sf) == sf::st_crs(4326) && local({ m <- match(estaciones$nombre, estaciones_sf$nombre); xy <- sf::st_coordinates(estaciones_sf)[m, , drop = FALSE]; !anyNA(m) && isTRUE(all.equal(unname(xy[, 'X']), estaciones$lon, tolerance = 1e-6)) && isTRUE(all.equal(unname(xy[, 'Y']), estaciones$lat, tolerance = 1e-6)) })"
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'estaciones_sf' || l.name === 'estaciones_sf') && l.symbology && l.symbology.fillColorBinding && l.symbology.fillColorBinding.column === 'pm25')"
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'estaciones_sf' || l.name === 'estaciones_sf') && l.labels && l.labels.field === 'nombre' && l.labels.enabled !== false)"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "estaciones_sf <- sf::st_as_sf(estaciones, coords = c('lon', 'lat'), crs = 4326)"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "estaciones_sf"
+     }
+    },
+    {
+     "action": "map:setSymbology",
+     "params": {
+      "layer": "estaciones_sf",
+      "colorBy": "pm25"
+     }
+    },
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "estaciones_sf",
+      "column": "nombre",
+      "enabled": true
+     }
+    }
+   ],
+   "answer": "He creado estaciones_sf en WGS84, lo he añadido al mapa, coloreado según pm25 y etiquetado con el nombre de cada estación."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "estaciones_sf <- sf::st_as_sf(estaciones, coords = c('lat', 'lon'), crs = 4326)"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "estaciones_sf"
+     }
+    },
+    {
+     "action": "map:setSymbology",
+     "params": {
+      "layer": "estaciones_sf",
+      "colorBy": "pm10"
+     }
+    },
+    {
+     "action": "map:setLabels",
+     "params": {
+      "layer": "estaciones_sf",
+      "column": "nombre",
+      "enabled": true
+     }
+    }
+   ],
+   "answer": "He creado estaciones_sf y lo he añadido al mapa con color y etiquetas."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:addLayer'"
+  }
+ },
+ {
+  "id": "maps-val-relief-custom-stretch-fr-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:setRasterSymbology",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "relief <- terra::rast(system.file('ex/elev.tif', package = 'terra'))",
+   "layers": [
+    "relief"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Sur la couche relief, je voudrais un étirement personnalisé de 300 à 500 avec la rampe de couleurs inversée. Ne modifie pas les données du raster, seulement son affichage."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:setRasterSymbology' && (i.params || i).stretch === 'custom' && Number((i.params || i).min) === 300 && Number((i.params || i).max) === 500 && (i.params || i).invert === true"
+    }
+   },
+   {
+    "r_state": "exists('relief', envir = globalenv()) && inherits(relief, 'SpatRaster') && isTRUE(all.equal(terra::values(relief), terra::values(terra::rast(system.file('ex/elev.tif', package = 'terra')))))"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setRasterSymbology",
+      "params": {
+       "layer": "relief",
+       "stretch": "custom",
+       "min": 300,
+       "max": 500,
+       "invert": true
+      }
+     },
+     "result": "Raster symbology updated."
+    }
+   ],
+   "answer": "L'affichage de la couche relief utilise maintenant l'étirement personnalisé demandé avec la rampe inversée. Les valeurs du raster n'ont pas changé."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "relief <- terra::clamp(relief, 300, 500)"
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setRasterSymbology",
+      "params": {
+       "layer": "relief",
+       "stretch": "minmax",
+       "invert": true
+      }
+     },
+     "result": "Raster symbology updated."
+    }
+   ],
+   "answer": "La couche relief est limitée à la plage demandée et sa rampe est inversée."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:setRasterSymbology'"
+  }
+ },
+ {
+  "id": "maps-val-wells-stack-followup-01",
+  "domains": [
+   "maps"
+  ],
+  "modules": [
+   "action:map:reorderLayers",
+   "action:map:setLayerVisible",
+   "action:map:zoomTo",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "set.seed(42)\ncounties <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)\nstreams <- sf::st_sf(name = c('Neuse', 'Tar'), geometry = sf::st_sfc(sf::st_linestring(rbind(c(-79, 36), c(-77, 35))), sf::st_linestring(rbind(c(-79.5, 36.3), c(-76.8, 35.5))), crs = 4267))\nwells <- sf::st_as_sf(data.frame(id = 1:15, x = runif(15, -84, -76), y = runif(15, 34, 36.5)), coords = c('x', 'y'), crs = 4267)",
+   "layers": [
+    "wells",
+    "streams",
+    "counties"
+   ]
+  },
+  "turns": [
+   {
+    "user": "The wells keep getting buried. Fix the drawing order so wells are on top, streams under them, and counties at the very bottom."
+   },
+   {
+    "user": "Good. Now hide the wells and zoom to the streams."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:reorderLayers' && JSON.stringify((i.params || i).order) === '[\"counties\",\"streams\",\"wells\"]'"
+    }
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'wells' || l.name === 'wells') && l.visible === false)"
+   },
+   {
+    "app_state": "s.layers.some(l => (l.envName === 'streams' || l.name === 'streams') && l.visible !== false) && s.layers.some(l => (l.envName === 'counties' || l.name === 'counties') && l.visible !== false)"
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'map:zoomTo' && ((i.params || i).layer === 'streams' || !!(i.params || i).bbox)"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:reorderLayers",
+      "params": {
+       "order": [
+        "counties",
+        "streams",
+        "wells"
+       ]
+      }
+     },
+     "result": "Layer order updated."
+    },
+    {
+     "action": "map:setLayerVisible",
+     "params": {
+      "layer": "wells",
+      "visible": false
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:zoomTo",
+      "params": {
+       "layer": "streams"
+      }
+     },
+     "result": "Zoomed to streams."
+    }
+   ],
+   "answer": "The layers now draw with wells on top, streams beneath them and counties at the bottom. The wells are hidden and the map is zoomed to the streams."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:reorderLayers",
+      "params": {
+       "order": [
+        "wells",
+        "streams",
+        "counties"
+       ]
+      }
+     },
+     "result": "Layer order updated."
+    },
+    {
+     "action": "map:setLayerVisible",
+     "params": {
+      "layer": "wells",
+      "visible": false
+     }
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:zoomTo",
+      "params": {
+       "layer": "streams"
+      }
+     },
+     "result": "Zoomed to streams."
+    }
+   ],
+   "answer": "I listed wells first, then streams and counties. The wells are hidden and the map is zoomed to the streams."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:reorderLayers'"
+  }
+ }
+]

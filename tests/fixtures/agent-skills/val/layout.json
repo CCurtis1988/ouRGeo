@@ -1,0 +1,279 @@
+[
+ {
+  "id": "layout-val-console-under-map-typo-01",
+  "domains": [
+   "layout"
+  ],
+  "modules": [
+   "action:layout:dockPanel",
+   "action:layout:describe",
+   "topic:layout"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "can u put the consle directly underneath the map? same column, stacked. leave all the other panels where they are"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(function(p){return i.id==='layout:dockPanel'&&((p.panel==='console'&&p.target==='spatial'&&p.placement==='bottom')||(p.panel==='spatial'&&p.target==='console'&&p.placement==='top'));})(i.params||{})"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "layout:describe",
+     "params": {}
+    },
+    {
+     "action": "ui:panel",
+     "params": {
+      "panel": "spatial",
+      "state": "open"
+     }
+    },
+    {
+     "action": "layout:dockPanel",
+     "params": {
+      "panel": "console",
+      "target": "spatial",
+      "placement": "bottom"
+     }
+    }
+   ],
+   "answer": "The console is now docked directly beneath the map, and the other panels stayed where they were."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "layout:movePanel",
+     "params": {
+      "panel": "console",
+      "zone": "bottom"
+     }
+    }
+   ],
+   "answer": "The console is now in the bottom zone, underneath the map."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'layout:dockPanel'"
+  }
+ },
+ {
+  "id": "layout-val-second-editor-split-chatty-01",
+  "domains": [
+   "layout"
+  ],
+  "modules": [
+   "action:layout:addPanel",
+   "action:layout:dockPanel",
+   "action:layout:setPanelSize",
+   "topic:layout"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "layers": [],
+   "documents": [
+    {
+     "fileName": "notes.R",
+     "content": "# field notes\nsummary(mtcars$mpg)\n",
+     "language": "r"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hi! I have notes.R open and I'd like to compare it with another script while I work. Could you give me a second code editor to the right of the current one? The new one can be the narrower of the two, about 35% of the width. Please keep notes.R where it is."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id==='layout:addPanel'&&(i.params||{}).panel==='editor'"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(function(p){var two=/^(editor#2|code editor 2)$/i,one=/^(editor|code editor|code editor 1)$/i;return (i.id==='layout:dockPanel'&&((two.test(p.panel||'')&&one.test(p.target||'')&&p.placement==='right')||(one.test(p.panel||'')&&two.test(p.target||'')&&p.placement==='left')))||(i.id==='layout:setZoneMode'&&p.mode==='split'&&p.axis==='row');})(i.params||{})"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(function(p){return i.id==='layout:setPanelSize'&&((/^(editor#2|code editor 2)$/i.test(p.panel||'')&&Number(p.percent)===35)||(/^(editor|code editor|code editor 1)$/i.test(p.panel||'')&&Number(p.percent)===65));})(i.params||{})"
+    }
+   },
+   {
+    "app_state": "s.tabs.some(function(t){return t.fileName==='notes.R';})"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "layout:describe",
+     "params": {}
+    },
+    {
+     "action": "layout:addPanel",
+     "params": {
+      "panel": "editor"
+     }
+    },
+    {
+     "action": "layout:dockPanel",
+     "params": {
+      "panel": "editor#2",
+      "target": "editor",
+      "placement": "right"
+     }
+    },
+    {
+     "action": "layout:setPanelSize",
+     "params": {
+      "panel": "editor#2",
+      "percent": 35
+     }
+    }
+   ],
+   "answer": "You now have a second, empty code editor to the right of the first. It takes about 35% of the width, and notes.R stays in the original editor."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "layout:addPanel",
+     "params": {
+      "panel": "editor"
+     }
+    },
+    {
+     "action": "layout:dockPanel",
+     "params": {
+      "panel": "editor#2",
+      "target": "editor",
+      "placement": "right"
+     }
+    },
+    {
+     "action": "layout:setPanelSize",
+     "params": {
+      "panel": "editor",
+      "percent": 35
+     }
+    }
+   ],
+   "answer": "The second editor is on the right, and the split is set to 35%."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'layout:setPanelSize'"
+  }
+ },
+ {
+  "id": "layout-val-toolbar-hide-then-restore-terse-01",
+  "domains": [
+   "layout"
+  ],
+  "modules": [
+   "action:layout:setToolbarButtons",
+   "topic:layout"
+  ],
+  "switches": {
+   "autopilot": false,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "layers": []
+  },
+  "turns": [
+   {
+    "user": "hide the record and databases toolbar buttons"
+   },
+   {
+    "user": "actually bring back every hidden toolbar button. don't touch my panels"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(function(p){var h=p.hidden;return i.id==='layout:setToolbarButtons'&&Array.isArray(h)&&h.some(function(b){return /record/i.test(b);})&&h.some(function(b){return /database/i.test(b);});})(i.params||{})"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "(function(p){return i.id==='layout:setToolbarButtons'&&Array.isArray(p.hidden)&&p.hidden.length===0;})(i.params||{})"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "layout:setToolbarButtons",
+     "params": {
+      "hidden": [
+       "record",
+       "databases"
+      ]
+     }
+    },
+    {
+     "action": "layout:setToolbarButtons",
+     "params": {
+      "hidden": []
+     }
+    }
+   ],
+   "answer": "All toolbar buttons are visible again, including Record and Databases, and your panels were left as they were."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "layout:setToolbarButtons",
+     "params": {
+      "hidden": [
+       "record",
+       "databases"
+      ]
+     }
+    },
+    {
+     "action": "layout:reset",
+     "params": {}
+    }
+   ],
+   "answer": "I reset the layout, so all the toolbar buttons are back."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'layout:setToolbarButtons'"
+  }
+ }
+]

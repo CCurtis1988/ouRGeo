@@ -1,0 +1,391 @@
+[
+ {
+  "id": "data-import-train-quakes-csv-chatty-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "write.csv(datasets::quakes[datasets::quakes$mag >= 5, ], \"strong_quakes.csv\", row.names = FALSE)",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "Hey! I dropped a file called strong_quakes.csv into the working folder. Could you pull it into R for me as a data frame named eq? Thanks so much."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"eq\", envir = globalenv()) && is.data.frame(get(\"eq\", envir = globalenv())) && nrow(get(\"eq\", envir = globalenv())) == sum(datasets::quakes$mag >= 5) && all(c(\"lat\", \"long\", \"depth\", \"mag\", \"stations\") %in% names(get(\"eq\", envir = globalenv()))) && min(get(\"eq\", envir = globalenv())$mag) >= 5"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "strong_quakes.csv",
+      "name": "eq",
+      "format": "csv"
+     }
+    }
+   ],
+   "answer": "Done. strong_quakes.csv is loaded as the data frame eq, with the columns lat, long, depth, mag and stations."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "strong_quakes.csv",
+      "format": "csv"
+     }
+    }
+   ],
+   "answer": "Loaded strong_quakes.csv into R as a data frame."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-train-geojson-terse-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE); sf::st_write(nc[nc$BIR74 > 5000, c(\"NAME\", \"FIPS\", \"BIR74\")], \"big_counties.geojson\", quiet = TRUE) })",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "load big_counties.geojson"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE); n <- sum(nc$BIR74 > 5000); any(vapply(ls(globalenv()), function(k) { o <- get(k, envir = globalenv()); inherits(o, \"sf\") && nrow(o) == n && \"BIR74\" %in% names(o) && all(o$BIR74 > 5000) }, logical(1))) })"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "big_counties.geojson",
+      "name": "big_counties",
+      "format": "geojson"
+     }
+    }
+   ],
+   "answer": "Loaded big_counties.geojson as the sf object big_counties, with the columns NAME, FIPS and BIR74."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "data:preview",
+     "params": {
+      "path": "big_counties.geojson",
+      "format": "geojson"
+     }
+    }
+   ],
+   "answer": "Here are the first rows of big_counties.geojson. It has NAME, FIPS and BIR74 columns."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-train-preview-stations-fr-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:preview",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ st <- data.frame(station = c(\"Alpha\", \"Bravo\", \"Charlie\", \"Delta\", \"Echo\", \"Foxtrot\"), lat = c(35.78, 35.91, 36.07, 35.23, 34.24, 35.6), lon = c(-78.64, -79.05, -79.79, -80.84, -77.95, -82.55), elev_m = c(96, 152, 270, 229, 9, 650)); write.csv(st, \"stations.csv\", row.names = FALSE) })",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "Peux-tu me montrer les premières lignes de stations.csv sans l'importer dans la session ? Et dis-moi combien de colonnes il y a."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "!any(vapply(ls(globalenv()), function(k) is.data.frame(get(k, envir = globalenv())), logical(1)))"
+   },
+   {
+    "answer_regex": "\\b(4|quatre|four)\\b"
+   },
+   {
+    "answer_regex": "elev_m"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "data:preview",
+     "params": {
+      "path": "stations.csv",
+      "format": "csv"
+     }
+    }
+   ],
+   "answer": "Voici l'aperçu de stations.csv, sans l'importer. Le fichier a 4 colonnes : station, lat, lon et elev_m. Les premières stations sont Alpha, Bravo et Charlie."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "stations.csv",
+      "name": "stations",
+      "format": "csv"
+     }
+    }
+   ],
+   "answer": "J'ai chargé stations.csv dans l'objet stations. Il a 4 colonnes : station, lat, lon et elev_m."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:preview'"
+  }
+ },
+ {
+  "id": "data-import-train-gpkg-layer-seats-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ nc <- sf::st_transform(sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE), 32119); seats <- sf::st_sf(NAME = nc$NAME, geometry = sf::st_point_on_surface(sf::st_geometry(nc))); sf::st_write(nc[, c(\"NAME\", \"FIPS\")], \"nc.gpkg\", layer = \"counties\", quiet = TRUE); sf::st_write(seats, \"nc.gpkg\", layer = \"seats\", quiet = TRUE) })",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "nc.gpkg has a couple of layers in it. I only want the county seats one. Load it as `seats`."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"seats\", envir = globalenv()) && inherits(get(\"seats\", envir = globalenv()), \"sf\") && nrow(get(\"seats\", envir = globalenv())) == 100 && identical(unique(as.character(sf::st_geometry_type(get(\"seats\", envir = globalenv())))), \"POINT\") && \"NAME\" %in% names(get(\"seats\", envir = globalenv()))"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "nc.gpkg",
+      "name": "seats",
+      "format": "spatial",
+      "layer": "seats"
+     }
+    }
+   ],
+   "answer": "Loaded the seats layer from nc.gpkg as `seats`. It contains one point per county, with a NAME column. The counties layer was left alone."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "nc.gpkg",
+      "name": "seats",
+      "format": "spatial"
+     }
+    }
+   ],
+   "answer": "Loaded nc.gpkg as `seats`."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-train-semicolon-es-01",
+  "domains": [
+   "data-import"
+  ],
+  "modules": [
+   "action:data:load",
+   "action:data:preview",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ ventas <- data.frame(region = c(\"Norte\", \"Sur\", \"Este\", \"Oeste\", \"Norte\", \"Sur\"), mes = c(\"ene\", \"ene\", \"feb\", \"feb\", \"mar\", \"mar\"), importe = c(1250.5, 980, 1430.25, 760, 1105, 1320.75)); write.table(ventas, \"ventas.csv\", sep = \";\", row.names = FALSE, quote = FALSE) })",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "Hola, ¿puedes cargar ventas.csv como ventas? Lo exporté desde un Excel en español."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"ventas\", envir = globalenv()) && is.data.frame(get(\"ventas\", envir = globalenv())) && ncol(get(\"ventas\", envir = globalenv())) == 3 && nrow(get(\"ventas\", envir = globalenv())) == 6 && is.numeric(get(\"ventas\", envir = globalenv())$importe) && isTRUE(all.equal(sum(get(\"ventas\", envir = globalenv())$importe), sum(c(1250.5, 980, 1430.25, 760, 1105, 1320.75))))"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "ventas.csv",
+      "name": "ventas",
+      "format": "csv",
+      "delimiter": ";",
+      "header": true
+     }
+    }
+   ],
+   "answer": "Listo. El archivo usa punto y coma como separador, así que lo cargué con ese delimitador. ventas tiene las columnas region, mes e importe, y importe es numérica."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "data:load",
+     "params": {
+      "path": "ventas.csv",
+      "name": "ventas",
+      "format": "csv"
+     }
+    }
+   ],
+   "answer": "Listo, ventas.csv está cargado como ventas."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ },
+ {
+  "id": "data-import-train-wells-xy-typo-01",
+  "domains": [
+   "data-import",
+   "toolbox"
+  ],
+  "modules": [
+   "action:data:load",
+   "tool:sf-points-from-cols",
+   "topic:data-import"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "local({ set.seed(7); nc <- sf::st_transform(sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE), 32119); p <- sf::st_sample(nc[nc$NAME == \"Wake\", ], 20); xy <- sf::st_coordinates(p); write.csv(data.frame(well_id = sprintf(\"W%02d\", seq_len(nrow(xy))), x = xy[, 1], y = xy[, 2]), \"wells.csv\", row.names = FALSE) })",
+   "layers": [],
+   "documents": []
+  },
+  "turns": [
+   {
+    "user": "lod wells.csv and make it a point layer called wells pls. x/y are NC State Plane metres, EPSG 32119"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists(\"wells\", envir = globalenv()) && inherits(get(\"wells\", envir = globalenv()), \"sf\") && isTRUE(sf::st_crs(get(\"wells\", envir = globalenv())) == sf::st_crs(32119)) && nrow(get(\"wells\", envir = globalenv())) == nrow(read.csv(\"wells.csv\")) && \"well_id\" %in% names(get(\"wells\", envir = globalenv())) && isTRUE(all.equal(unname(sort(sf::st_coordinates(get(\"wells\", envir = globalenv()))[, 1])), sort(read.csv(\"wells.csv\")$x)))"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "wells <- sf::st_as_sf(read.csv(\"wells.csv\"), coords = c(\"x\", \"y\"), crs = 32119)"
+    }
+   ],
+   "answer": "wells is now an sf point layer in EPSG:32119 (NC State Plane, metres). The points were built from the x and y columns and keep well_id."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "wells <- sf::st_as_sf(read.csv(\"wells.csv\"), coords = c(\"x\", \"y\"), crs = 4326)"
+    }
+   ],
+   "answer": "Loaded wells.csv and turned it into the point layer wells."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'data:load'"
+  }
+ }
+]

@@ -1,0 +1,428 @@
+[
+ {
+  "id": "drawing-train-parcels-chains-traverse-typo-01",
+  "domains": [
+   "drawing"
+  ],
+  "modules": [
+   "action:draw:traverse",
+   "action:draw:saveEdits",
+   "topic:drawing"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "square <- function(x, y) sf::st_polygon(list(matrix(c(x, y, x + 0.005, y, x + 0.005, y + 0.005, x, y + 0.005, x, y), ncol = 2, byrow = TRUE)))\nparcels <- sf::st_sf(parcel = c('P1', 'P2'), geometry = sf::st_sfc(square(-78.80, 35.70), square(-78.79, 35.70), crs = 4326))\nrm(square)",
+   "layers": [
+    "parcels"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Plese add a new parcle to the parcels layer as a traverse. Start at lon -78.70, lat 35.80, then go 10 chains on azimuth 90, 10 chains on azimuth 180, 10 chains on azimuth 270, and close it back to the start. Save the edits when your done."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:traverse'"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:saveEdits'"
+    }
+   },
+   {
+    "r_state": "exists('parcels', envir = globalenv()) && local({ p <- get('parcels', envir = globalenv()); a <- as.numeric(sf::st_area(p)); idx <- which(abs(a - 40468.6) < 600); nrow(p) == 3 && sum(!sf::st_is_empty(p)) == 3 && length(idx) == 1 && { bb <- sf::st_bbox(p[idx, ]); abs(bb[['xmin']] + 78.70) < 1e-4 && abs(bb[['ymax']] - 35.80) < 1e-4 } })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "draw:traverse",
+     "params": {
+      "layer": "parcels",
+      "start": [
+       -78.7,
+       35.8
+      ],
+      "legs": [
+       {
+        "distance": 10,
+        "bearing": 90
+       },
+       {
+        "distance": 10,
+        "bearing": 180
+       },
+       {
+        "distance": 10,
+        "bearing": 270
+       }
+      ],
+      "unit": "chain",
+      "notation": "azimuth",
+      "close": true
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "parcels"
+     }
+    }
+   ],
+   "answer": "The traverse is closed back to the start and the new parcel is saved in the parcels layer."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "draw:traverse",
+     "params": {
+      "layer": "parcels",
+      "start": [
+       -78.7,
+       35.8
+      ],
+      "legs": [
+       {
+        "distance": 10,
+        "bearing": 90
+       },
+       {
+        "distance": 10,
+        "bearing": 180
+       },
+       {
+        "distance": 10,
+        "bearing": 270
+       }
+      ],
+      "unit": "m",
+      "notation": "azimuth",
+      "close": true
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "parcels"
+     }
+    }
+   ],
+   "answer": "The traverse is closed back to the start and the new parcel is saved in the parcels layer."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'draw:traverse'"
+  }
+ },
+ {
+  "id": "drawing-train-wells-add-named-chatty-01",
+  "domains": [
+   "drawing"
+  ],
+  "modules": [
+   "action:draw:addFeature",
+   "action:draw:saveEdits",
+   "topic:drawing"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "wells <- sf::st_as_sf(data.frame(name = paste0('W-', 1:5), depth_m = c(42, 57, 38, 61, 49), lon = c(-78.70, -78.68, -78.66, -78.64, -78.62), lat = c(35.76, 35.78, 35.75, 35.79, 35.77)), coords = c('lon', 'lat'), crs = 4326)",
+   "layers": [
+    "wells"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hey! We just finished drilling another well, so could you pop it onto my wells layer for me? It's W-6, at longitude -78.655, latitude 35.772, and it went down 44 m. Please make sure it's actually saved into the layer, with the name and depth filled in. Thanks!"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:addFeature'"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:saveEdits'"
+    }
+   },
+   {
+    "r_state": "exists('wells', envir = globalenv()) && local({ w <- get('wells', envir = globalenv()); hit <- w[which(w$name == 'W-6'), ]; xy <- sf::st_coordinates(hit); nrow(w) == 6 && nrow(hit) == 1 && nrow(xy) == 1 && abs(xy[1, 'X'] + 78.655) < 1e-6 && abs(xy[1, 'Y'] - 35.772) < 1e-6 && isTRUE(all.equal(hit$depth_m, 44)) })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "draw:addFeature",
+     "params": {
+      "layer": "wells",
+      "geometry": {
+       "type": "Point",
+       "coordinates": [
+        -78.655,
+        35.772
+       ]
+      }
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "wells"
+     }
+    },
+    {
+     "r": "wells$name[nrow(wells)] <- 'W-6'; wells$depth_m[nrow(wells)] <- 44"
+    }
+   ],
+   "answer": "W-6 is now saved in the wells layer at the location you gave, with its name and depth filled in."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "draw:addFeature",
+     "params": {
+      "layer": "wells",
+      "geometry": {
+       "type": "Point",
+       "coordinates": [
+        -78.655,
+        35.772
+       ]
+      }
+     }
+    },
+    {
+     "r": "wells$name[nrow(wells)] <- 'W-6'; wells$depth_m[nrow(wells)] <- 44"
+    }
+   ],
+   "answer": "W-6 has been added to the wells layer with its name and depth."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'draw:addFeature'"
+  }
+ },
+ {
+  "id": "drawing-train-trails-latlon-order-terse-01",
+  "domains": [
+   "drawing"
+  ],
+  "modules": [
+   "action:draw:addFeature",
+   "action:draw:saveEdits",
+   "topic:drawing"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "trails <- sf::st_sf(trail = c('Creek', 'Ridge'), geometry = sf::st_sfc(sf::st_linestring(matrix(c(-78.72, 35.74, -78.70, 35.75), ncol = 2, byrow = TRUE)), sf::st_linestring(matrix(c(-78.69, 35.74, -78.67, 35.76), ncol = 2, byrow = TRUE)), crs = 4326))",
+   "layers": [
+    "trails"
+   ]
+  },
+  "turns": [
+   {
+    "user": "New line on trails, in this order (lat, lon): 35.79, -78.66 / 35.80, -78.65 / 35.81, -78.63. Save it."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:addFeature'"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:saveEdits'"
+    }
+   },
+   {
+    "r_state": "exists('trails', envir = globalenv()) && local({ x <- get('trails', envir = globalenv()); xy <- sf::st_coordinates(x[nrow(x), ])[, 1:2, drop = FALSE]; nrow(x) == 3 && nrow(xy) == 3 && max(abs(xy - matrix(c(-78.66, -78.65, -78.63, 35.79, 35.80, 35.81), ncol = 2))) < 1e-6 })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "draw:addFeature",
+     "params": {
+      "layer": "trails",
+      "geometry": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         -78.66,
+         35.79
+        ],
+        [
+         -78.65,
+         35.8
+        ],
+        [
+         -78.63,
+         35.81
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "trails"
+     }
+    }
+   ],
+   "answer": "The new line is saved in trails, with your lat, lon pairs entered in the longitude, latitude order the geometry needs."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "draw:addFeature",
+     "params": {
+      "layer": "trails",
+      "geometry": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         35.79,
+         -78.66
+        ],
+        [
+         35.8,
+         -78.65
+        ],
+        [
+         35.81,
+         -78.63
+        ]
+       ]
+      }
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "trails"
+     }
+    }
+   ],
+   "answer": "The new line is saved in trails."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'draw:addFeature'"
+  }
+ },
+ {
+  "id": "drawing-train-sites-move-stay-staged-01",
+  "domains": [
+   "drawing"
+  ],
+  "modules": [
+   "action:draw:updateFeature",
+   "action:draw:saveEdits",
+   "topic:drawing"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sites <- sf::st_as_sf(data.frame(site = c('A', 'B', 'C', 'D'), lon = c(-78.80, -78.75, -78.70, -78.65), lat = c(35.70, 35.72, 35.74, 35.76)), coords = c('lon', 'lat'), crs = 4326)",
+   "layers": [
+    "sites"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Site B is in the wrong place on the sites layer. It should be at lon -78.76, lat 35.73. Make the change, but don't save it yet: I want to check the pending edit myself before it gets written."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'draw:updateFeature' && /-78\\.76/.test(JSON.stringify(i)) && /35\\.73/.test(JSON.stringify(i)) && !/POINT\\s*\\(/i.test(JSON.stringify(i))"
+    }
+   },
+   {
+    "r_state": "exists('sites', envir = globalenv()) && local({ s <- get('sites', envir = globalenv()); xy <- sf::st_coordinates(s)[, 1:2, drop = FALSE]; nrow(s) == 4 && nrow(xy) == 4 && max(abs(xy - matrix(c(-78.80, -78.75, -78.70, -78.65, 35.70, 35.72, 35.74, 35.76), ncol = 2))) < 1e-9 })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "draw:updateFeature",
+     "params": {
+      "layer": "sites",
+      "row": 2,
+      "geometry": {
+       "type": "Point",
+       "coordinates": [
+        -78.76,
+        35.73
+       ]
+      }
+     }
+    }
+   ],
+   "answer": "Site B's new position is staged as a pending edit and has not been saved, so you can review it in Save Edits first."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "draw:updateFeature",
+     "params": {
+      "layer": "sites",
+      "row": 2,
+      "geometry": {
+       "type": "Point",
+       "coordinates": [
+        -78.76,
+        35.73
+       ]
+      }
+     }
+    },
+    {
+     "action": "draw:saveEdits",
+     "params": {
+      "layer": "sites"
+     }
+    }
+   ],
+   "answer": "Site B has been moved to its new position."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'draw:updateFeature'"
+  }
+ }
+]

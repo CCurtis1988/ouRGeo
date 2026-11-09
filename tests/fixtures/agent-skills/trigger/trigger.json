@@ -1,0 +1,1622 @@
+[
+ {
+  "id": "trigger-terminal-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:terminal"
+  ],
+  "turns": [
+   {
+    "user": "How do I check which GDAL version is installed on my system?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'terminal'",
+   "skill": "terminal"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-terminal-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:terminal"
+  ],
+  "turns": [
+   {
+    "user": "Can you run git status in my project folder?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'terminal'",
+   "skill": "terminal"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-terminal-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:terminal"
+  ],
+  "turns": [
+   {
+    "user": "I need to install PROJ on this machine, what command do I use?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'terminal'",
+   "skill": "terminal"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-interface-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:interface"
+  ],
+  "turns": [
+   {
+    "user": "Where is the Environment panel?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'interface'",
+   "skill": "interface"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-interface-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:interface"
+  ],
+  "turns": [
+   {
+    "user": "What does the button with the record icon in the toolbar do?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'interface'",
+   "skill": "interface"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-interface-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:interface"
+  ],
+  "turns": [
+   {
+    "user": "How do I change the font size of the console?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'interface'",
+   "skill": "interface"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-toolbox-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "turns": [
+   {
+    "user": "Buffer my roads layer by 50 metres using the Toolbox."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'toolbox'",
+   "skill": "toolbox"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-toolbox-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "turns": [
+   {
+    "user": "Dissolve the counties by region with a Toolbox tool."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'toolbox'",
+   "skill": "toolbox"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-toolbox-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:toolbox"
+  ],
+  "turns": [
+   {
+    "user": "Is there a Toolbox tool to reproject a layer?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'toolbox'",
+   "skill": "toolbox"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-data-import-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:data-import"
+  ],
+  "turns": [
+   {
+    "user": "How do I load a GeoPackage file into ouRGeo?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'data-import'",
+   "skill": "data-import"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-data-import-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:data-import"
+  ],
+  "turns": [
+   {
+    "user": "Import a CSV with lat and lon columns as points."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'data-import'",
+   "skill": "data-import"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-data-import-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:data-import"
+  ],
+  "turns": [
+   {
+    "user": "Can I pull data from an ArcGIS REST service?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'data-import'",
+   "skill": "data-import"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-maps-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:maps"
+  ],
+  "turns": [
+   {
+    "user": "Change the basemap to satellite imagery."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'maps'",
+   "skill": "maps"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-maps-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:maps"
+  ],
+  "turns": [
+   {
+    "user": "Colour the counties layer by population."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'maps'",
+   "skill": "maps"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-maps-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:maps"
+  ],
+  "turns": [
+   {
+    "user": "Add labels showing the county names on the map."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'maps'",
+   "skill": "maps"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-drawing-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:drawing"
+  ],
+  "turns": [
+   {
+    "user": "How do I draw a new polygon on my parcels layer?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'drawing'",
+   "skill": "drawing"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-drawing-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:drawing"
+  ],
+  "turns": [
+   {
+    "user": "I want to add a line by entering distances and bearings."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'drawing'",
+   "skill": "drawing"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-drawing-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:drawing"
+  ],
+  "turns": [
+   {
+    "user": "How do I snap new vertices to existing ones while editing?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'drawing'",
+   "skill": "drawing"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-context-memory-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:context-memory"
+  ],
+  "turns": [
+   {
+    "user": "What do you remember about me?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'context-memory'",
+   "skill": "context-memory"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-context-memory-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:context-memory"
+  ],
+  "turns": [
+   {
+    "user": "Forget what I told you about my coordinate system preference."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'context-memory'",
+   "skill": "context-memory"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-context-memory-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:context-memory"
+  ],
+  "turns": [
+   {
+    "user": "How does the assistant decide what context to use?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'context-memory'",
+   "skill": "context-memory"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-projects-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:projects"
+  ],
+  "turns": [
+   {
+    "user": "If I close the app, will my scratch work be kept?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'projects'",
+   "skill": "projects"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-projects-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:projects"
+  ],
+  "turns": [
+   {
+    "user": "How do I save this as a project?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'projects'",
+   "skill": "projects"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-projects-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:projects"
+  ],
+  "turns": [
+   {
+    "user": "Can I link a folder of shapefiles to my project?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'projects'",
+   "skill": "projects"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-documents-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:documents"
+  ],
+  "turns": [
+   {
+    "user": "Write an R Markdown report about the nc data."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'documents'",
+   "skill": "documents"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-documents-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:documents"
+  ],
+  "turns": [
+   {
+    "user": "My report fails to knit but the chunks run fine, why?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'documents'",
+   "skill": "documents"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-documents-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:documents"
+  ],
+  "turns": [
+   {
+    "user": "Add a chunk to my report that plots the histogram."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'documents'",
+   "skill": "documents"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-databases-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:databases"
+  ],
+  "turns": [
+   {
+    "user": "What is an .Rgeo file?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'databases'",
+   "skill": "databases"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-databases-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:databases"
+  ],
+  "turns": [
+   {
+    "user": "Should I connect to or load my .Rgeo database?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'databases'",
+   "skill": "databases"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-databases-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:databases"
+  ],
+  "turns": [
+   {
+    "user": "How are large rasters stored in a .Rgeo file?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'databases'",
+   "skill": "databases"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-shortcuts-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:shortcuts"
+  ],
+  "turns": [
+   {
+    "user": "What is the keyboard shortcut to run the current line?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'shortcuts'",
+   "skill": "shortcuts"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-shortcuts-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:shortcuts"
+  ],
+  "turns": [
+   {
+    "user": "How do I run only the selected code with the keyboard?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'shortcuts'",
+   "skill": "shortcuts"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-shortcuts-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:shortcuts"
+  ],
+  "turns": [
+   {
+    "user": "Is there a shortcut to run a whole chunk?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'shortcuts'",
+   "skill": "shortcuts"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-troubleshooting-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:troubleshooting"
+  ],
+  "turns": [
+   {
+    "user": "R says could not find function st_read, what is wrong?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'troubleshooting'",
+   "skill": "troubleshooting"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-troubleshooting-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:troubleshooting"
+  ],
+  "turns": [
+   {
+    "user": "The map is blank after I added my layer, why?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'troubleshooting'",
+   "skill": "troubleshooting"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-troubleshooting-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:troubleshooting"
+  ],
+  "turns": [
+   {
+    "user": "I get an error that the R session disconnected."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'troubleshooting'",
+   "skill": "troubleshooting"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-packages-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:packages"
+  ],
+  "turns": [
+   {
+    "user": "Which package does ouRGeo use for rasters?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'packages'",
+   "skill": "packages"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-packages-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:packages"
+  ],
+  "turns": [
+   {
+    "user": "Do I need tmap installed to export a map?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'packages'",
+   "skill": "packages"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-packages-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:packages"
+  ],
+  "turns": [
+   {
+    "user": "What R packages power the drawing tools?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'packages'",
+   "skill": "packages"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-themes-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:themes"
+  ],
+  "turns": [
+   {
+    "user": "Switch to a light theme."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'themes'",
+   "skill": "themes"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-themes-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:themes"
+  ],
+  "turns": [
+   {
+    "user": "Make me a theme called Ocean based on the dark theme with a blue accent."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'themes'",
+   "skill": "themes"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-themes-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:themes"
+  ],
+  "turns": [
+   {
+    "user": "Change the code editor colour scheme."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'themes'",
+   "skill": "themes"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-store-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-store"
+  ],
+  "turns": [
+   {
+    "user": "Is there a plugin that adds a hexbin tool?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-store'",
+   "skill": "plugin-store"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-store-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-store"
+  ],
+  "turns": [
+   {
+    "user": "Search the plugin store for a weather data connector."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-store'",
+   "skill": "plugin-store"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-store-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-store"
+  ],
+  "turns": [
+   {
+    "user": "How do I update an installed plugin?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-store'",
+   "skill": "plugin-store"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-extending-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:extending"
+  ],
+  "turns": [
+   {
+    "user": "Can I add a new feature to ouRGeo myself?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'extending'",
+   "skill": "extending"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-extending-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:extending"
+  ],
+  "turns": [
+   {
+    "user": "I want ouRGeo to do something it does not do yet, what are my options?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'extending'",
+   "skill": "extending"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-extending-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:extending"
+  ],
+  "turns": [
+   {
+    "user": "How do plugins work in ouRGeo?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'extending'",
+   "skill": "extending"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-connectors-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-connectors"
+  ],
+  "turns": [
+   {
+    "user": "Write a plugin that connects my county gauges API to the Data Connector."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-connectors'",
+   "skill": "plugin-connectors"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-connectors-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-connectors"
+  ],
+  "turns": [
+   {
+    "user": "How do I describe an API as a data connector plugin?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-connectors'",
+   "skill": "plugin-connectors"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-connectors-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-connectors"
+  ],
+  "turns": [
+   {
+    "user": "What fields does a connector plugin need?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-connectors'",
+   "skill": "plugin-connectors"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-tools-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-tools"
+  ],
+  "turns": [
+   {
+    "user": "Make a plugin that adds a Toolbox tool to compute rate per 1000."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-tools'",
+   "skill": "plugin-tools"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-tools-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-tools"
+  ],
+  "turns": [
+   {
+    "user": "How do I add a toolbar button with a plugin?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-tools'",
+   "skill": "plugin-tools"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-tools-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-tools"
+  ],
+  "turns": [
+   {
+    "user": "Can a plugin add a new action as JSON?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-tools'",
+   "skill": "plugin-tools"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-code-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-code"
+  ],
+  "turns": [
+   {
+    "user": "My plugin needs real code, how does main.ts work?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-code'",
+   "skill": "plugin-code"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-code-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-code"
+  ],
+  "turns": [
+   {
+    "user": "What permissions does a code plugin have?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-code'",
+   "skill": "plugin-code"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-plugin-code-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:plugin-code"
+  ],
+  "turns": [
+   {
+    "user": "When does a plugin need code instead of JSON?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'plugin-code'",
+   "skill": "plugin-code"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-layout-1",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:layout"
+  ],
+  "turns": [
+   {
+    "user": "Move the console to the right side."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'layout'",
+   "skill": "layout"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-layout-2",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:layout"
+  ],
+  "turns": [
+   {
+    "user": "How do I dock the map beside the editor?"
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'layout'",
+   "skill": "layout"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ },
+ {
+  "id": "trigger-layout-3",
+  "domains": [
+   "trigger"
+  ],
+  "modules": [
+   "topic:layout"
+  ],
+  "turns": [
+   {
+    "user": "Make the left panel narrower."
+   }
+  ],
+  "fixture": {
+   "r": "nc <- data.frame(a = 1:3)"
+  },
+  "graders": [],
+  "probe": {
+   "tool": "use_skill",
+   "where": "i.name === 'layout'",
+   "skill": "layout"
+  },
+  "reference": {
+   "steps": [],
+   "answer": ""
+  }
+ }
+]

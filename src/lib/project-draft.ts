@@ -16,6 +16,8 @@ import { rClient, type DbReconnectEntry } from '@/lib/r-client'
 import { buildSessionData, type SessionData } from '@/lib/session-persistence'
 import { buildWorkspaceData, type WorkspaceData } from '@/lib/workspace-persistence'
 import { buildChatsData, type ChatsData } from '@/lib/ai-chats-persistence'
+import { useSkillStore } from '@/store/skills'
+import type { StoredSkillRecord } from '@/lib/skills/stored'
 import { buildExtras, type WorkingExtras } from '@/lib/project-state'
 import { allViews, onViewChange } from '@/lib/editor-view-state'
 import { useProjectStore } from '@/store/project'
@@ -36,6 +38,7 @@ export interface DraftUi {
   session: SessionData
   workspace?: Omit<WorkspaceData, 'layers'>
   chats?: ChatsData
+  skills?: StoredSkillRecord[]
   extras?: WorkingExtras
   databases?: DbReconnectEntry[]
 }
@@ -83,7 +86,8 @@ export function buildDraftUi(scratch: boolean): DraftUi {
   if (scratch) return { version: 1, session: sessionWithoutBodies() }
   const workspace = buildWorkspaceData()
   delete workspace.layers
-  return { version: 1, session: sessionWithoutBodies(), workspace, chats: buildChatsData(), extras: buildExtras(), databases: knownDatabases }
+  const skills = useSkillStore.getState().projectRecords()
+  return { version: 1, session: sessionWithoutBodies(), workspace, chats: buildChatsData(), ...(skills.length ? { skills } : {}), extras: buildExtras(), databases: knownDatabases }
 }
 
 function buildView(): DraftView {
@@ -193,6 +197,7 @@ export function startDraftWriter(): () => void {
     usePlottingStore.subscribe((s, p) => { if (s.plots !== p.plots || s.currentIndex !== p.currentIndex) schedule() }),
     useSessionStore.subscribe((s, p) => { if (s.consoleHistory !== p.consoleHistory || s.workingDir !== p.workingDir || s.workingEnv !== p.workingEnv) schedule() }),
     useAiStore.subscribe((s, p) => { if (s.chats !== p.chats || s.activeChatId !== p.activeChatId) schedule() }),
+    useSkillStore.subscribe((s, p) => { if (s.revision !== p.revision) schedule() }),
     useChunkStore.subscribe((s, p) => { if (s.outputs !== p.outputs) schedule() }),
     useGeometryEditStore.subscribe((s, p) => { if (s.namedSessions !== p.namedSessions || s.activeSessionId !== p.activeSessionId) schedule() }),
     useProjectStore.subscribe((s, p) => { if (s.isDirty !== p.isDirty) scheduleDraftWrite(0) }),

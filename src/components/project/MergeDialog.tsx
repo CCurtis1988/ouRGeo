@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import type { StoredSkillRecord } from '@/lib/skills/stored'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Button } from '../ui/button'
 import { cn } from '@/lib/utils'
@@ -19,7 +20,7 @@ import { fileSize } from '@/lib/project-files-ui'
 // Everything can be inspected first — you cannot choose well between two
 // versions you cannot see.
 
-const KIND_LABEL: Record<ItemKind, string> = { doc: 'Document', r: 'R object', layer: 'Map layer', plot: 'Plot', chat: 'Chat', file: 'Project file' }
+const KIND_LABEL: Record<ItemKind, string> = { doc: 'Document', r: 'R object', layer: 'Map layer', plot: 'Plot', chat: 'Chat', file: 'Project file', skill: 'Skill' }
 const keyOf = (item: MergeItem): string => `${item.kind}:${item.key}`
 const conflicts = (item: MergeItem): number => item.segments?.filter(s => s.kind === 'conflict').length ?? 0
 
@@ -168,6 +169,7 @@ function Inspect({ item, side }: { item: MergeItem; side: 'mine' | 'theirs' }): 
     const last = [...chat.messages].reverse().find(m => m.role === 'user')
     return <div className="text-xs text-geo-muted space-y-1"><p className="text-foreground">{chat.messages.length} messages</p>{last && <p className="line-clamp-4">Last question: {String(last.content).slice(0, 300)}</p>}</div>
   }
+  if (item.kind === 'skill') return <pre className="text-[11px] whitespace-pre-wrap break-all text-geo-muted max-h-64 overflow-auto">{(value as StoredSkillRecord).text.slice(0, 4000)}</pre>
   if (item.kind === 'file') {
     const file = value as ProjectFileEntry
     return <div className="text-xs text-geo-muted space-y-1"><p className="text-foreground">{file.folder ? `${file.folder}/` : ''}{file.name}</p><p>{fileSize(file.bytes)} · changed {new Date(file.updatedAt || file.importedAt).toLocaleString()}</p>{file.userDescription && <p>{file.userDescription}</p>}</div>

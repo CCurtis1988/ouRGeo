@@ -1,0 +1,290 @@
+[
+ {
+  "id": "tutorials-val-working-dir-terse-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(TRUE)"
+  },
+  "turns": [
+   {
+    "user": "where do i change r's working dir? point at it"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && (i.params || i).target === 'console.workingDir'"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "console.workingDir",
+       "message": "Click here to change R's working directory."
+      }
+     },
+     "result": "Highlighted console.workingDir."
+    }
+   ],
+   "answer": "I've highlighted the working directory control in the R console. Click it to change R's working directory."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "terminal.workingDir",
+       "message": "Click here to change the working directory."
+      }
+     },
+     "result": "Highlighted terminal.workingDir."
+    }
+   ],
+   "answer": "I've highlighted the working directory control in the Terminal."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-val-load-csv-myself-chatty-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "action:data:load",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "write.csv(head(datasets::quakes, 50), \"field_sites.csv\", row.names = FALSE)"
+  },
+  "turns": [
+   {
+    "user": "Hi! I've got a CSV called field_sites.csv in my working folder, and I really want to learn how to do this myself. Please don't import it for me, just show me which button I should click to get started."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && (i.params || i).target === 'toolbar.loadData'"
+    }
+   },
+   {
+    "r_state": "!any(vapply(ls(envir = globalenv()), function(n) is.data.frame(get(n, envir = globalenv())), logical(1)))"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "toolbar.loadData",
+       "message": "Click Load Data, then choose field_sites.csv."
+      }
+     },
+     "result": "Highlighted toolbar.loadData."
+    }
+   ],
+   "answer": "I've highlighted Load Data in the toolbar. Click it and choose field_sites.csv to start the import. I haven't imported anything."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "field_sites <- read.csv(\"field_sites.csv\")"
+    }
+   ],
+   "answer": "I imported field_sites.csv for you as field_sites."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-val-add-to-map-viewer-typo-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "action:env:view",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": []
+  },
+  "turns": [
+   {
+    "user": "were is the add to map buton in the data viewer? i want to put nc on the map myself so dont do it for me"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'env:view' && (i.params || i).name === 'nc'"
+    }
+   },
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && (i.params || i).target === 'dataViewer.addToMap'"
+    }
+   },
+   {
+    "app_state": "s.layers.length === 0"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "env:view",
+      "params": {
+       "name": "nc"
+      }
+     },
+     "result": "Opened nc in the Data Viewer."
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "dataViewer.addToMap",
+       "message": "Click Add to Map to send nc to the map."
+      }
+     },
+     "result": "Highlighted dataViewer.addToMap."
+    }
+   ],
+   "answer": "I've opened nc in the Data Viewer and highlighted Add to Map in its header. Click it when you're ready. I haven't added the layer."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "nc"
+     }
+    }
+   ],
+   "answer": "I've added nc to the map for you."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-val-select-counties-by-hand-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "action:map:select",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Can you show me how to select a few counties by hand? I'd rather click them on the map myself than have you pick them."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && (i.params || i).target === 'map.select'"
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "map.select",
+       "message": "Click here to turn on selection mode, then click counties on the map."
+      }
+     },
+     "result": "Highlighted map.select."
+    }
+   ],
+   "answer": "I've highlighted Selection mode on the map. Click it, then click the counties you want."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:select",
+      "params": {
+       "layer": "nc",
+       "where": "NAME %in% c(\"Wake\", \"Durham\", \"Orange\")"
+      }
+     },
+     "result": "Selected 3 features on nc."
+    }
+   ],
+   "answer": "I selected Wake, Durham and Orange counties for you."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ }
+]

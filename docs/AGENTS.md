@@ -206,11 +206,11 @@ the one that gets the same result quietly.
 30. **Never give the assistant a way to close its own panel.** It can end the
     conversation it is having.
 
-31. **The core prompt is a budget, not a place to add things.** Everything in
-    `buildOurgeoCore()` is paid for on every request by every provider,
-    including a local model with a 32k window. New material belongs in an
-    `ourgeo_docs` topic unless the model cannot act correctly without knowing it
-    up front.
+31. **The system prompt is a budget, not a place to add things.** Everything in
+    it is paid for on every request by every provider, including a local model
+    with a 32k window. New guidance belongs in a skill (a topic, or a user skill):
+    the prompt carries only the skill catalog, one "Use when …" line each, so
+    write that line well. (`buildOurgeoCore()` is not sent to any model.)
 
 ---
 

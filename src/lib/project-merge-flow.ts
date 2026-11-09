@@ -12,6 +12,8 @@
 // Cancel leaves the user in their own version, and the next save or open asks
 // again, because the file still differs from the base.
 
+import { useSkillStore } from '@/store/skills'
+import { renameRecord, sameSkillContent, type StoredSkillRecord } from '@/lib/skills/stored'
 import { create } from 'zustand'
 import { rClient, type MergeEnvItem } from '@/lib/r-client'
 import { planDocs, planKeyed, planR, mergeList, mineName, resolvedSide, type MergeItem, type WholeChoice } from '@/lib/project-merge'
@@ -34,6 +36,7 @@ interface BundleUi {
   workspace?: { layers?: SpatialLayer[] }
   plots?: { plots?: unknown; currentIndex?: number }
   chats?: { chats?: AiChat[] }
+  skills?: StoredSkillRecord[]
 }
 interface Inspected { ui: BundleUi; env: string | null; files: ProjectFileEntry[]; token: string }
 
@@ -66,6 +69,7 @@ async function plan(base: Inspected, theirs: Inspected): Promise<{ items: MergeI
   items.push(...planKeyed<SpatialLayer>('layer', base.ui.workspace?.layers ?? [], useSpatialStore.getState().layers, theirs.ui.workspace?.layers ?? [], l => l.id, l => l.name))
   items.push(...planKeyed<PlotEntry>('plot', normalizePersistedPlots(base.ui.plots?.plots), livePlots(), normalizePersistedPlots(theirs.ui.plots?.plots), plotKey, () => 'Plot', (a, b) => (a?.dataUrl ?? null) === (b?.dataUrl ?? null)))
   items.push(...planKeyed<AiChat>('chat', withMessages(base.ui.chats?.chats), withMessages(useAiStore.getState().chats), withMessages(theirs.ui.chats?.chats), c => c.id, c => c.title || 'Chat', (a, b) => JSON.stringify(a?.messages ?? null) === JSON.stringify(b?.messages ?? null)))
+  items.push(...planKeyed<StoredSkillRecord>('skill', base.ui.skills ?? [], useSkillStore.getState().projectRecords(), theirs.ui.skills ?? [], r => r.id, r => r.id.replace(/^@project\//, ''), sameSkillContent))
   const lease = await window.electronAPI.context.lease()
   const mineFiles = (await window.electronAPI.projectFiles.catalogue(lease.id)).files
   items.push(...planKeyed<ProjectFileEntry>('file', base.files, mineFiles, theirs.files, f => f.id, f => f.folder ? `${f.folder}/${f.name}` : f.name, (a, b) => fileFacts(a) === fileFacts(b)))
@@ -173,6 +177,9 @@ export async function startMerge(path: string): Promise<boolean> {
     usePlottingStore.setState({ plots, currentIndex: plots.length - 1 })
     const chats = mergeList<AiChat>(useAiStore.getState().chats, theirs.ui.chats?.chats ?? [], items.filter(i => i.kind === 'chat') as MergeItem<AiChat>[], whole, c => c.id, c => ({ ...c, id: crypto.randomUUID(), title: `${c.title || 'Chat'}_mine`, renamed: true }))
     useAiStore.getState().loadChats(chats, useAiStore.getState().activeChatId)
+    // Whatever the merge keeps still passes the trust rule: their version of a skill
+    // stays off until this device approves its text.
+    useSkillStore.getState().adoptProject(mergeList<StoredSkillRecord>(useSkillStore.getState().projectRecords(), theirs.ui.skills ?? [], items.filter(i => i.kind === 'skill') as MergeItem<StoredSkillRecord>[], whole, r => r.id, renameRecord))
     await applyR(items, choices)
     await applyFiles(path, items, choices)
     useProjectStore.getState().markDirty()
@@ -203,6 +210,7 @@ export async function revertLosses(path: string): Promise<string[]> {
     n(same(saved.ui.workspace?.layers ?? [], useSpatialStore.getState().layers, l => l.id), 'map layer', 'map layers')
     n(same(normalizePersistedPlots(saved.ui.plots?.plots), livePlots(), plotKey), 'plot', 'plots')
     n(same(withMessages(saved.ui.chats?.chats), withMessages(useAiStore.getState().chats), c => c.id), 'chat', 'chats')
+    n(planKeyed<StoredSkillRecord>('skill', saved.ui.skills ?? [], useSkillStore.getState().projectRecords(), saved.ui.skills ?? [], r => r.id, () => '', sameSkillContent).length, 'project skill', 'project skills')
   } catch { /* the bundle could not be read: count only the documents */ }
   finally { if (saved) await window.electronAPI.project.releaseOpen(saved.token).catch(() => undefined) }
   return parts

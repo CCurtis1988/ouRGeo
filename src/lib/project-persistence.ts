@@ -49,6 +49,8 @@ import { retryOnNetworkError } from '@/lib/transport-retry'
 import {
   buildChatsData, applyChatsData, resetChats, type ChatsData,
 } from '@/lib/ai-chats-persistence'
+import { useSkillStore } from '@/store/skills'
+import type { StoredSkillRecord } from '@/lib/skills/stored'
 
 const PROJECT_VERSION = 1
 const workspaceOperation = createWorkspaceQueue()
@@ -70,6 +72,10 @@ interface ProjectManifest {
      *  tolerance `activeByPanel` and `TabState.language` rely on. Absent means
      *  "this project has no chats", which is one empty one. */
     chats?: ChatsData
+    /** Skills saved with this project (lib/skills). Optional: older bundles have
+     *  none. A bundle cannot switch its own skills on: each stays off until this
+     *  device has approved that exact text (lib/skills/library.ts). */
+    skills?: StoredSkillRecord[]
     /** Map sessions, staged geometry edits, R's working directory and
      *  environment (lib/project-state.ts). Optional: older bundles have none. */
     extras?: WorkingExtras
@@ -144,10 +150,22 @@ function buildManifest(name: string, databases: DbReconnectEntry[], projectId: s
       workspace: buildWorkspaceData(),
       plots: { plots: p.plots, currentIndex: p.currentIndex },
       chats: buildChatsData(),
+      ...projectSkillsData(),
       extras: buildExtras(),
     },
     databases,
   }
+}
+
+/** Only when there are any, so a project without skills writes the same bundle as before. */
+function projectSkillsData(): { skills?: StoredSkillRecord[] } {
+  const skills = useSkillStore.getState().projectRecords()
+  return skills.length ? { skills } : {}
+}
+
+function applyProjectSkills(ui: ProjectManifest['ui']): void {
+  const heldBack = useSkillStore.getState().adoptProject(ui.skills ?? [])
+  if (heldBack.length) useSessionStore.getState().addConsoleEntry('info', `This project has ${heldBack.length} skill${heldBack.length === 1 ? '' : 's'} that this computer has not approved (${heldBack.join(', ')}). ${heldBack.length === 1 ? 'It is' : 'They are'} switched off until you switch ${heldBack.length === 1 ? 'it' : 'them'} on in the Skill Manager.`)
 }
 
 function applyProjectChats(ui: ProjectManifest['ui'], portable = true): void {
@@ -196,6 +214,7 @@ function draftAsUi(draft: ParsedDraft, bundle: ProjectManifest['ui']): { ui: Pro
       workspace: { ...(draft.ui?.workspace ?? bundle.workspace ?? {}), layers: draft.layers ?? bundle.workspace?.layers },
       plots: draft.plots ? { plots: draft.plots.plots, currentIndex: draft.plots.currentIndex } : bundle.plots,
       chats: draft.ui?.chats ?? bundle.chats,
+      skills: draft.ui?.skills ?? bundle.skills,
       extras: draft.ui?.extras ?? bundle.extras,
     },
   }
@@ -217,6 +236,7 @@ function clearWorkspaceStores(): void {
   // the next one would put a chat about someone else's data in front of a user
   // who has just opened something unrelated.
   resetChats()
+  useSkillStore.getState().clearProject()
 }
 
 // Reset the editor to a single blank scratch tab (used when temp has no
@@ -599,6 +619,7 @@ async function openProjectFromPath(path: string, options: { draft: ParsedDraft |
     resetToBlankScratch()
     const restored = draft ? draftAsUi(draft, manifest.ui) : { ui: manifest.ui, lost: [] as string[] }
     applyProjectChats(restored.ui, !draft)
+    applyProjectSkills(restored.ui)
     const loadedChats = useAiStore.getState().chats
     let context = validateProjectContext(manifest.context, useProjectStore.getState().projectId)
     const committedRevision = context.revision
@@ -878,7 +899,16 @@ export function setupProjectTracking(): () => void {
   const unsubContext = useContextStore.subscribe((s, p) => {
     if (s.projectContext !== p.projectContext) mark()
   })
+
+  // Project skills are project content. Usage counts and this device's switches
+  // are not, so only a change to a project skill's text marks the project dirty.
+  const projectSkillText = (): string => JSON.stringify(useSkillStore.getState().projectRecords().map(r => [r.text, r.resources ?? {}]))
+  let lastSkillText = projectSkillText()
+  const unsubSkills = useSkillStore.subscribe(() => {
+    const next = projectSkillText()
+    if (next !== lastSkillText) { lastSkillText = next; mark() }
+  })
   return () => {
-    unsubContext(); unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs(); unsubChats(); unsubGeometry()
+    unsubContext(); unsubSkills(); unsubEnv(); unsubSpatial(); unsubPlots(); unsubTabs(); unsubChats(); unsubGeometry()
   }
 }

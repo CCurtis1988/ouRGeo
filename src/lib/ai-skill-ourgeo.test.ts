@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOurgeoCore, OURGEO_TOPICS, topicListing, readTopic } from './ai-skill-ourgeo'
+import { buildOurgeoCore, OURGEO_TOPICS, topicDescriptors, topicListing, topicsMentioning, readTopic } from './ai-skill-ourgeo'
 import { actionById } from './ai-actions/registry'
 import { BUILTIN_GROUP_LABELS } from './ai-actions/types'
 
@@ -140,5 +140,31 @@ describe('the topic reference', () => {
 
   it('says that a layer is a view onto an R object, not a copy', () => {
     expect(OURGEO_TOPICS.maps).toMatch(/view onto an R object/)
+  })
+})
+
+describe('finding a topic by what its body says', () => {
+  const topics = { maps: 'Change the basemap here. The basemap gallery has many.', layout: 'Panels and the basemap toolbar button.', shortcuts: 'Keys.' }
+  it('ranks the topic that covers the word most', () => {
+    expect(topicsMentioning('basemap', topics)).toEqual(['maps', 'layout'])
+  })
+  it('prefers a topic covering more of the query over one repeating a single word', () => {
+    expect(topicsMentioning('basemap panels', topics)[0]).toBe('layout')
+  })
+  it('returns nothing rather than guessing', () => {
+    expect(topicsMentioning('quantum', topics)).toEqual([])
+    expect(topicsMentioning('the a of', topics)).toEqual([])
+  })
+  it.each([['basemap', 'maps'], ['change the basemap', 'maps'], ['knit', 'documents']])('finds %s in the real topics', (query, topic) => {
+    expect(topicsMentioning(query).slice(0, 3)).toContain(topic)
+  })
+})
+
+describe('every built-in topic says when to use it', () => {
+  // An empty summary left a topic findable only by its exact title (terminal and
+  // plugin-store were). The summary is what discovery shows the model.
+  it.each(topicDescriptors().map(d => [d.topic, d.summary]))('%s', (_topic, summary) => {
+    expect(summary).toMatch(/^Use (when|for|before) /)
+    expect(summary.length).toBeLessThanOrEqual(170)
   })
 })

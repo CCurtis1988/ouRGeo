@@ -92,6 +92,13 @@ export interface AiChat {
    */
   claudeSessionId: string | null
   /**
+   * Skills in use in this conversation, by broker source id (`skill:maps`,
+   * `skill:@user/short-report`). The host re-attaches them every turn, because a
+   * new broker is built per turn and a skill read last turn is otherwise gone.
+   * Optional: chats saved before skills were kept have none.
+   */
+  activeSkills?: string[]
+  /**
    * What this chat's transcript has already been told about the session, so
    * nothing is said twice. Per chat, because each has its own transcript.
    *
@@ -218,6 +225,9 @@ interface AiState {
   switchChat: (id: string) => void
   setConversationMemory: (chatId: string, statement: string, id?: string, change?: { kind: 'forget' } | { kind: 'pin'; pinned: boolean }) => void
   renameChat: (id: string, title: string) => void
+  /** Add a skill to the active chat (no-op if it is there), or take one out. */
+  activateSkill: (sourceId: string) => void
+  deactivateSkill: (sourceId: string) => void
   deleteChat: (id: string) => void
   /** Replace the whole set — a project load, or a restored session file. */
   loadChats: (chats: AiChat[], activeChatId: string | null) => void
@@ -454,6 +464,14 @@ export const useAiStore = create<AiState>((set, get) => ({
       claudeSessionId: null, lastSessionContext: null, updatedAt: Date.now() } : current) }))
   },
 
+  activateSkill: (sourceId) => set((s) => {
+    const chat = s.chats.find(c => c.id === s.activeChatId)
+    if (!chat || chat.activeSkills?.includes(sourceId)) return {}
+    return { chats: patchActiveChat(s.chats, s.activeChatId, c => ({ ...c, activeSkills: [...(c.activeSkills ?? []), sourceId] })) }
+  }),
+  deactivateSkill: (sourceId) => set((s) => ({
+    chats: patchActiveChat(s.chats, s.activeChatId, c => ({ ...c, activeSkills: (c.activeSkills ?? []).filter(id => id !== sourceId) })),
+  })),
   renameChat: (id, title) => set((s) => {
     const clean = title.trim()
     if (!clean) return s

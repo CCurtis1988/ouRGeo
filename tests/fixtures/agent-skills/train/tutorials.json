@@ -1,0 +1,462 @@
+[
+ {
+  "id": "tutorials-train-basemap-where-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Where do I change the basemap on the map? I can't find it."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && i.params.target === 'map.basemap'"
+    }
+   },
+   {
+    "max_tool_calls": 6
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "map.basemap",
+       "message": "Click here to pick a different basemap"
+      }
+     },
+     "result": "Highlighted map.basemap"
+    }
+   ],
+   "answer": "I've put a ring around the basemap button on the map. Click it to choose from the available basemaps. Pick one and the map switches straight away."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:setBasemap",
+      "params": {
+       "basemap": "OpenStreetMap"
+      }
+     },
+     "result": "Basemap set to OpenStreetMap"
+    }
+   ],
+   "answer": "I've changed the basemap to OpenStreetMap for you."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-train-export-tmap-terse-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials",
+   "topic:maps"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes_sf <- sf::st_as_sf(datasets::quakes, coords = c(\"long\", \"lat\"), crs = 4326)",
+   "layers": [
+    "quakes_sf"
+   ]
+  },
+  "turns": [
+   {
+    "user": "export map as tmap code - where's that button"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && i.params.target === 'map.export'"
+    }
+   },
+   {
+    "max_tool_calls": 6
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "map.export",
+       "message": "Export menu: choose Export to tmap code"
+      }
+     },
+     "result": "Highlighted map.export"
+    }
+   ],
+   "answer": "It's the Export button on the map, which I've highlighted. Open it and choose the tmap code option to get standalone R that reproduces the map."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "map:exportCode",
+      "params": {
+       "engine": "tmap",
+       "run": true
+      }
+     },
+     "result": "Generated tmap code in a new tab and ran it"
+    }
+   ],
+   "answer": "Done. I exported the map as tmap code into a new tab."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-train-record-console-typo-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars_df <- datasets::mtcars"
+  },
+  "turns": [
+   {
+    "user": "how do i recrod my console into a script? whats the button"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && i.params.target === 'toolbar.record'"
+    }
+   },
+   {
+    "max_tool_calls": 6
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "toolbar.record",
+       "message": "Record Console: captures everything you run into a document"
+      }
+     },
+     "result": "Highlighted toolbar.record"
+    }
+   ],
+   "answer": "It's the Record Console button in the top toolbar, which I've ringed. Click it to start recording. Everything you run from then on, including GUI actions that emit R, is captured into a document. Click it again to stop."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "session:record",
+      "params": {
+       "state": "start",
+       "destination": "new"
+      }
+     },
+     "result": "Recording started into Untitled-1"
+    }
+   ],
+   "answer": "I've started recording your console into a new document."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-train-attribute-table-es-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "condados <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "condados"
+   ]
+  },
+  "turns": [
+   {
+    "user": "¿Dónde puedo ver la tabla de atributos de la capa de condados? Enséñame dónde está, no la abras tú."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && ['map.contents', 'toolbar.environment'].includes(i.params.target)"
+    }
+   },
+   {
+    "max_tool_calls": 6
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:describe",
+      "params": {}
+     },
+     "result": "Map layers: condados (vector, visible). Open panels: Environment, Spatial Editor."
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "map.contents",
+       "message": "Haz clic derecho en 'condados' y abre su tabla de atributos"
+      }
+     },
+     "result": "Highlighted map.contents"
+    }
+   ],
+   "answer": "He marcado el panel Contents del mapa. Haz clic derecho sobre la capa «condados» y elige la opción para abrir su tabla de atributos. También puedes hacer clic en el objeto en el panel Environment."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "env:view",
+      "params": {
+       "name": "condados"
+      }
+     },
+     "result": "Opened condados in the Data Viewer"
+    }
+   ],
+   "answer": "He abierto la tabla de atributos de condados en el visor de datos."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-train-app-theme-fr-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "topic:tutorials",
+   "topic:themes"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "fleurs <- datasets::iris"
+  },
+  "turns": [
+   {
+    "user": "Comment est-ce que je change le thème de l'application ? Montre-moi où c'est, je veux le choisir moi-même."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && ['toolbar.settings', 'settings.illustratedThemes', 'settings.fieldThemes', 'settings.legacyThemes', 'settings.customThemes'].includes(i.params.target)"
+    }
+   },
+   {
+    "tool_not_called": "theme_create"
+   },
+   {
+    "max_tool_calls": 6
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "toolbar.settings",
+       "message": "Paramètres → Appearance : choisissez le thème de l'application"
+      }
+     },
+     "result": "Highlighted toolbar.settings"
+    }
+   ],
+   "answer": "J'ai entouré le bouton Paramètres dans la barre d'outils. Ouvrez-le, puis allez dans Appearance. Les thèmes de l'application y sont rangés en onglets : Illustrated, Field collection, Legacy et Custom. Cliquez sur celui qui vous plaît pour l'appliquer."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:theme",
+      "params": {
+       "theme": "arctic"
+      }
+     },
+     "result": "Theme switched to arctic"
+    }
+   ],
+   "answer": "J'ai changé le thème pour Arctic."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "tutorials-train-terminal-own-pane-chatty-01",
+  "domains": [
+   "tutorials"
+  ],
+  "modules": [
+   "action:ui:highlight",
+   "action:ui:openDialog",
+   "topic:tutorials",
+   "topic:layout"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "elev <- terra::rast(system.file(\"ex/elev.tif\", package = \"terra\"))",
+   "layers": [
+    "elev"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hey! I keep flipping between the R console and the terminal tab while I work on this elevation raster, and it's driving me a bit mad. I'd love the terminal in its own pane instead of a tab next to the console. Don't change it for me though, I want to learn where the setting lives so I can toggle it myself later."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && i.params && ['settings.terminalPlacement', 'toolbar.settings'].includes(i.params.target)"
+    }
+   },
+   {
+    "max_tool_calls": 8
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:openDialog",
+      "params": {
+       "dialog": "settings"
+      }
+     },
+     "result": "Opened settings"
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "settings.terminalPlacement",
+       "message": "Tick this to give the terminal its own pane"
+      }
+     },
+     "result": "Highlighted settings.terminalPlacement"
+    }
+   ],
+   "answer": "I've opened Settings and ringed the option you want: Settings → Terminal → \"Give the terminal its own pane\". Turn it on and the terminal moves out of the console's tab strip into a pane of its own. Turn it off again to put it back beside the console."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "layout:movePanel",
+      "params": {
+       "panel": "terminal",
+       "zone": "right"
+      }
+     },
+     "result": "Moved terminal to right zone"
+    }
+   ],
+   "answer": "I've moved the terminal into its own pane on the right for you."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ }
+]

@@ -1,0 +1,317 @@
+[
+ {
+  "id": "documents-val-ozone-section-chatty-01",
+  "domains": [
+   "documents"
+  ],
+  "modules": [
+   "action:editor:knit",
+   "topic:documents"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "documents": [
+    {
+     "fileName": "ozone-brief.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"Summer ozone brief\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = FALSE)\n```\n\n## Background\n\nOzone readings came from the Roosevelt Island monitor, using the `airquality` data.\n\n## Next steps\n\nAsk the borough office for the 1974 readings.\n"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hi! Could you pop a new section called Monthly ozone into my open report, between Background and Next steps? I'd love a little table in there with the average ozone for each month. Thanks so much!"
+   }
+  ],
+  "graders": [
+   {
+    "knits": "ozone-brief.Rmd"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='ozone-brief.Rmd')||{}).content||'';const b=c.search(/^#+\\s*Background/m),o=c.search(/^#+\\s*Monthly ozone/mi),n=c.search(/^#+\\s*Next steps/m);return b>=0&&b<o&&o<n&&c.includes('Roosevelt Island')&&c.includes('1974 readings')&&c.includes('opts_chunk')})()"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='ozone-brief.Rmd')||{}).content||'';const i=c.search(/^#+\\s*Monthly ozone/mi);if(i<0)return false;const m=c.slice(i);return /Ozone/.test(m)&&/```\\{r/.test(m)&&/na\\.rm|na\\.omit|complete\\.cases|is\\.na|drop_na|aggregate\\(\\s*(cbind\\(\\s*)?Ozone[^~\\n]*~/.test(m)})()"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Summer ozone brief\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = FALSE)\n```\n\n## Background\n\nOzone readings came from the Roosevelt Island monitor, using the `airquality` data.\n\n## Monthly ozone\n\nMean ozone for each month, leaving out days with no reading.\n\n```{r monthly-ozone}\nmonthly_ozone <- aggregate(Ozone ~ Month, data = airquality, FUN = mean)\nknitr::kable(monthly_ozone, digits = 1)\n```\n\n## Next steps\n\nAsk the borough office for the 1974 readings.\n"
+    }
+   ],
+   "answer": "I added the Monthly ozone section between Background and Next steps. Its table gives mean ozone by month from airquality and leaves out days with missing readings."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Summer ozone brief\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = FALSE)\n```\n\n## Background\n\nOzone readings came from the Roosevelt Island monitor, using the `airquality` data.\n\n## Monthly ozone\n\n```{r monthly-ozone}\nknitr::kable(as.data.frame(tapply(airquality$Ozone, airquality$Month, mean)))\n```\n\n## Next steps\n\nAsk the borough office for the 1974 readings.\n"
+    }
+   ],
+   "answer": "I added the Monthly ozone section with a table of mean ozone by month."
+  }
+ },
+ {
+  "id": "documents-val-two-tabs-depth-hist-terse-01",
+  "domains": [
+   "documents"
+  ],
+  "modules": [
+   "action:editor:listTabs",
+   "action:editor:activateTab",
+   "topic:documents"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "documents": [
+    {
+     "fileName": "fiji-quakes.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"Fiji earthquakes\"\noutput: html_document\n---\n\n## Overview\n\nThe `quakes` dataset lists seismic events near Fiji.\n\n```{r}\nsummary(quakes$mag)\n```\n"
+    },
+    {
+     "fileName": "cars-notes.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"Car notes\"\noutput: html_document\n---\n\n## Notes\n\nHeavier cars use more fuel.\n\n```{r}\nplot(wt ~ mpg, data = mtcars)\n```\n"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "earthquake report: add a histogram of depth"
+   }
+  ],
+  "graders": [
+   {
+    "knits": "fiji-quakes.Rmd"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='fiji-quakes.Rmd')||{}).content||'';return /hist\\(|geom_histogram/.test(c)&&/depth/.test(c)&&c.includes('summary(quakes$mag)')&&c.includes('seismic events near Fiji')})()"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='cars-notes.Rmd')||{}).content||'';return c.includes('Heavier cars use more fuel')&&!/depth/.test(c)})()"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "editor:activateTab",
+     "params": {
+      "name": "fiji-quakes.Rmd"
+     }
+    },
+    {
+     "document": "---\ntitle: \"Fiji earthquakes\"\noutput: html_document\n---\n\n## Overview\n\nThe `quakes` dataset lists seismic events near Fiji.\n\n```{r}\nsummary(quakes$mag)\n```\n\n## Depth\n\n```{r depth-histogram}\nhist(quakes$depth, main = \"Earthquake depth\", xlab = \"Depth (km)\")\n```\n"
+    }
+   ],
+   "answer": "I added a Depth section with a histogram of quakes$depth to fiji-quakes.Rmd."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "editor:activateTab",
+     "params": {
+      "name": "cars-notes.Rmd"
+     }
+    },
+    {
+     "document": "---\ntitle: \"Car notes\"\noutput: html_document\n---\n\n## Notes\n\nHeavier cars use more fuel.\n\n```{r}\nplot(wt ~ mpg, data = mtcars)\n```\n\n```{r depth-histogram}\nhist(quakes$depth, main = \"Earthquake depth\", xlab = \"Depth (km)\")\n```\n"
+    }
+   ],
+   "answer": "I added the depth histogram to the open report."
+  }
+ },
+ {
+  "id": "documents-val-nc-chunk-order-typo-01",
+  "domains": [
+   "documents"
+  ],
+  "modules": [
+   "action:editor:knit",
+   "topic:documents"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "library(sf)\nnc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc_albers <- sf::st_transform(nc, 5070)",
+   "documents": [
+    {
+     "fileName": "county-areas.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"NC county areas\"\noutput: html_document\n---\n\n```{r area}\nnc_albers$area_km2 <- as.numeric(st_area(nc_albers)) / 1e6\nhead(nc_albers[, c(\"NAME\", \"area_km2\")])\n```\n\n```{r read}\nnc <- st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc_albers <- st_transform(nc, 5070)\n```\n"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "my rmd runs fine when i do the chunks by hand in the session but knitting it fails, can you fix it? and tell me why it worked in my chunks but not on knit. dont want to loose the area calcuation"
+   }
+  ],
+  "graders": [
+   {
+    "knits": "county-areas.Rmd"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='county-areas.Rmd')||{}).content||'';const r=c.indexOf('st_read'),a=c.indexOf('st_area');return r>=0&&r<a&&c.includes('5070')&&c.includes('area_km2')&&!/eval\\s*[=:]\\s*[Ff]|error\\s*[=:]\\s*[Tt]|\\btry(Catch)?\\(/.test(c)})()"
+   },
+   {
+    "rubric": {
+     "required": [
+      "Knitting runs in a clean R session, so packages and objects from the live session are not available to it.",
+      "The chunk that reads and transforms the data has to run before the chunk that uses it."
+     ],
+     "forbidden": []
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"NC county areas\"\noutput: html_document\n---\n\n```{r read}\nlibrary(sf)\nnc <- st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc_albers <- st_transform(nc, 5070)\n```\n\n```{r area}\nnc_albers$area_km2 <- as.numeric(st_area(nc_albers)) / 1e6\nhead(nc_albers[, c(\"NAME\", \"area_km2\")])\n```\n"
+    }
+   ],
+   "answer": "The document is fixed. Knitting runs in a clean R session, so it could not see the sf package or the objects loaded in your live session, which is why your hand-run chunks worked. It also runs chunks from top to bottom, so the chunk that reads and transforms the data has to come before the area chunk. I added library(sf) and moved the read chunk first; the area calculation is unchanged."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"NC county areas\"\noutput: html_document\n---\n\n```{r area}\nlibrary(sf)\nnc_albers$area_km2 <- as.numeric(st_area(nc_albers)) / 1e6\nhead(nc_albers[, c(\"NAME\", \"area_km2\")])\n```\n\n```{r read}\nnc <- st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc_albers <- st_transform(nc, 5070)\n```\n"
+    }
+   ],
+   "answer": "The knit failed because sf was not loaded, so I added library(sf) to the first chunk."
+  }
+ },
+ {
+  "id": "documents-val-rain-session-table-01",
+  "domains": [
+   "documents"
+  ],
+  "modules": [
+   "action:env:view",
+   "action:editor:knit",
+   "topic:documents"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "rain <- data.frame(station = c(\"Alder\", \"Birch\", \"Cedar\", \"Dunmore\"), mm = c(412.5, 388, 501.25, 297))",
+   "documents": [
+    {
+     "fileName": "rainfall-note.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"Rainfall note\"\noutput: html_document\n---\n\n## Season totals\n\nTotals for the four gauges are below.\n"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "Can you finish my rainfall note? Add a bar chart of the rain table I've got in my session, one bar per station. It's going to a client, so no code should show in the knitted version."
+   }
+  ],
+  "graders": [
+   {
+    "knits": "rainfall-note.Rmd"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='rainfall-note.Rmd')||{}).content||'';return c.includes('four gauges')&&/barplot\\(|geom_col|geom_bar/.test(c)&&/echo\\s*[=:]\\s*(FALSE|false|F\\b)/.test(c)})()"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='rainfall-note.Rmd')||{}).content||'';return (/501\\.25/.test(c)&&/412\\.5/.test(c)&&/\\b388\\b/.test(c)&&/\\b297\\b/.test(c))||/readRDS\\(|read\\.csv\\(|read_csv\\(|load\\(/.test(c)})()"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Rainfall note\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = FALSE)\n```\n\n## Season totals\n\nTotals for the four gauges are below.\n\n```{r rain-chart}\nrain <- data.frame(\n  station = c(\"Alder\", \"Birch\", \"Cedar\", \"Dunmore\"),\n  mm = c(412.5, 388, 501.25, 297)\n)\nbarplot(rain$mm, names.arg = rain$station, ylab = \"Rainfall (mm)\")\n```\n"
+    }
+   ],
+   "answer": "I added the bar chart with one bar per station and turned off code display. Because knitting runs in a clean session, the note now builds the rain table itself."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Rainfall note\"\noutput: html_document\n---\n\n```{r setup, include=FALSE}\nknitr::opts_chunk$set(echo = FALSE)\n```\n\n## Season totals\n\nTotals for the four gauges are below.\n\n```{r rain-chart}\nbarplot(rain$mm, names.arg = rain$station, ylab = \"Rainfall (mm)\")\n```\n"
+    }
+   ],
+   "answer": "I added the bar chart from your rain table and turned off code display."
+  }
+ },
+ {
+  "id": "documents-val-min-hp-param-01",
+  "domains": [
+   "documents"
+  ],
+  "modules": [
+   "action:editor:knit",
+   "topic:documents"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "documents": [
+    {
+     "fileName": "powerful-cars.Rmd",
+     "language": "rmarkdown",
+     "content": "---\ntitle: \"Powerful cars\"\noutput: html_document\n---\n\n```{r}\nfast <- subset(mtcars, hp > 150)\nnrow(fast)\n```\n\nCars above 150 hp averaged `r round(mean(fast$mpg), 1)` mpg.\n\n```{r}\nboxplot(mpg ~ cyl, data = subset(mtcars, hp > 150))\n```\n"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "Pull the 150 hp cutoff in this report out into one variable called min_hp, set in a chunk at the top, so changing that single line updates everything in the report, including the sentence."
+   }
+  ],
+  "graders": [
+   {
+    "knits": "powerful-cars.Rmd"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='powerful-cars.Rmd')||{}).content||'';const b=c.replace(/^---[\\s\\S]*?\\n---/,'');const a=b.search(/\\bmin_hp\\s*(<-|=)\\s*150L?\\b/);const f=b.search(/\\bhp\\s*>\\s*min_hp\\b/);return a>=0&&f>a})()"
+   },
+   {
+    "app_state": "(()=>{const c=(s.tabs.find(t=>t.fileName==='powerful-cars.Rmd')||{}).content||'';const b=c.replace(/^---[\\s\\S]*?\\n---/,'');return (b.match(/\\b150L?\\b/g)||[]).length===1&&/mean\\(/.test(b)&&/boxplot\\(/.test(b)})()"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Powerful cars\"\noutput: html_document\n---\n\n```{r}\nmin_hp <- 150\n```\n\n```{r}\nfast <- subset(mtcars, hp > min_hp)\nnrow(fast)\n```\n\nCars above `r min_hp` hp averaged `r round(mean(fast$mpg), 1)` mpg.\n\n```{r}\nboxplot(mpg ~ cyl, data = fast)\n```\n"
+    }
+   ],
+   "answer": "The cutoff is now set once in min_hp in the first chunk. The filter, the sentence and the boxplot all follow it."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "document": "---\ntitle: \"Powerful cars\"\noutput: html_document\n---\n\n```{r}\nmin_hp <- 150\n```\n\n```{r}\nfast <- subset(mtcars, hp > min_hp)\nnrow(fast)\n```\n\nCars above 150 hp averaged `r round(mean(fast$mpg), 1)` mpg.\n\n```{r}\nboxplot(mpg ~ cyl, data = fast)\n```\n"
+    }
+   ],
+   "answer": "The cutoff is now set once in min_hp, and the report follows it."
+  }
+ }
+]

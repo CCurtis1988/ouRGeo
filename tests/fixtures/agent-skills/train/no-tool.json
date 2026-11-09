@@ -1,0 +1,217 @@
+[
+ {
+  "id": "no-tool-train-landcover-resample-terse-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "elev <- terra::rast(system.file(\"ex/elev.tif\", package = \"terra\"))",
+   "layers": [
+    "elev"
+   ]
+  },
+  "turns": [
+   {
+    "user": "General question, not about this layer: bilinear or nearest neighbour for resampling a land cover raster?"
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 0
+   },
+   {
+    "answer_regex": "\\bnear(est)?\\b|\\bngb\\b"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "rubric": {
+     "required": [
+      "Bilinear interpolation blends neighbouring class codes into values that do not represent real land cover classes."
+     ],
+     "forbidden": [
+      "Bilinear is the better resampling method for land cover."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Use nearest neighbour. Land cover cells hold categorical class codes, so each output cell needs to keep a real class. Bilinear interpolation blends neighbouring class codes into values that do not represent real land cover classes. In terra that means method = \"near\"."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Use bilinear. It blends neighbouring cells, so the output looks smoother and the class edges are more accurate."
+  }
+ },
+ {
+  "id": "no-tool-train-web-mercator-area-chatty-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hey, quick conceptual one that has nothing to do with what's on my map right now. A colleague of mine always calculates polygon areas in Web Mercator because that's what the basemap uses, and he says it's fine since the units are metres. Is there actually anything wrong with doing that?"
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 0
+   },
+   {
+    "answer_regex": "equal[- ]area|geodesic|ellipsoid|distort|inflat|exaggerat|overstat|overestimat|too (large|big)|stretch"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "rubric": {
+     "required": [
+      "Web Mercator distorts area increasingly with distance from the equator."
+     ],
+     "forbidden": [
+      "Web Mercator areas are reliable because the units are metres."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Yes, there is a problem. Web Mercator's units are called metres, but its scale changes with latitude, so it distorts area increasingly with distance from the equator and polygons come out too large. For area work, use an equal-area projection suited to the region, or calculate geodesic area on the ellipsoid from longitude and latitude. The basemap can stay in Web Mercator because it does not need to match the CRS used for the calculation."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Nothing wrong with it. EPSG:3857 is in metres, so st_area() gives square metres you can trust, and matching the basemap keeps everything consistent."
+  }
+ },
+ {
+  "id": "no-tool-train-within-vs-intersects-typo-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {},
+  "turns": [
+   {
+    "user": "whats the diffrence between st_within and st_intersects? when would a polgon pass one but not the other"
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 0
+   },
+   {
+    "answer_regex": "entire|complete|fully|wholly|all of|inside"
+   },
+   {
+    "answer_regex": "touch|bound|overlap|any (point|part)|shar(e|es|ing)|partial|cross"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "rubric": {
+     "required": [
+      "st_intersects is true when geometries share any point, while st_within requires one geometry to lie inside the other.",
+      "A polygon that straddles or only touches another polygon's boundary can pass st_intersects but fail st_within."
+     ],
+     "forbidden": [
+      "st_within and st_intersects are equivalent."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "st_intersects(a, b) is TRUE when the two geometries share at least one point, so overlapping or just touching at a boundary counts. st_within(a, b) is stricter: a must lie entirely inside b. A polygon that straddles b's boundary, or only touches it, passes st_intersects but fails st_within. A polygon fully inside b passes both."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "They do the same thing. Both return the features that fall in the other layer, and st_within() is just the faster name for it."
+  }
+ },
+ {
+  "id": "no-tool-train-missing-prj-assign-vs-transform-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "documents": [
+    {
+     "fileName": "import_notes.R",
+     "content": "# TODO: load the contractor's survey shapefile when it arrives\n",
+     "language": "r"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "A contractor is sending a shapefile with no .prj, and they've told me the coordinates are UTM zone 17N metres. When it arrives, should I fix that with st_transform or st_crs? I'm not asking you to do anything yet, I just want to understand which one is right."
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 1
+   },
+   {
+    "answer_regex": "st_crs|st_set_crs|assign crs|assign(ing)? (the|a|its)\\s+crs|declar"
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "rubric": {
+     "required": [
+      "Assigning a CRS labels the data without changing its coordinates.",
+      "st_transform needs a known source CRS because it recalculates coordinates."
+     ],
+     "forbidden": [
+      "st_transform is the right way to set the missing CRS."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Use st_crs(x) <- 32617, assuming the datum is WGS 84, or 26917 if it is NAD83. Assigning a CRS labels the data without changing its coordinates, which is what you want because the numbers are already UTM metres. st_transform needs a known source CRS because it recalculates coordinates, so it cannot fix a missing one. Once the CRS is assigned, you can use st_transform to convert the layer to another CRS."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Use st_transform(x, 32617). It converts the layer to UTM and records the CRS on the object, so it will line up with your other layers."
+  }
+ }
+]

@@ -1,0 +1,333 @@
+[
+ {
+  "id": "r-provenance-val-tracts-weighted-income-chatty-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "tracts <- data.frame(tract = c('T1', 'T2', 'T3'), pop = c(1000, 3000, 6000), income = c(40000, 50000, 70000))"
+  },
+  "turns": [
+   {
+    "user": "Hey, I'm putting together a quick note for the county planners and need one figure. I've got a table called tracts with population and income for each tract. What's the average income weighted by how many people live in each tract? Thanks!"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b61[,.\\s]?000\\b"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(weighted.mean(tracts$income, tracts$pop))"
+    }
+   ],
+   "answer": "The population-weighted average income is 61000."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(mean(tracts$income))"
+    }
+   ],
+   "answer": "The average income is about 53333.33."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ },
+ {
+  "id": "r-provenance-val-trails-gravel-ftus-typo-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "trails <- sf::st_sf(data.frame(name = c('Ridge', 'Creek', 'Mill'), surface = c('gravel', 'gravel', 'paved')), geometry = sf::st_sfc(sf::st_linestring(rbind(c(2000000, 700000), c(2006000, 708000))), sf::st_linestring(rbind(c(2010000, 700000), c(2010000, 702500))), sf::st_linestring(rbind(c(2020000, 700000), c(2023000, 704000))), crs = 2264))",
+   "layers": [
+    "trails"
+   ]
+  },
+  "turns": [
+   {
+    "user": "how many kilometres of gravle trail are in the trails layer?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b3[.,]81"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "len <- sf::st_length(trails[trails$surface == 'gravel', ])\nprint(round(as.numeric(units::set_units(sum(len), 'km')), 2))"
+    }
+   ],
+   "answer": "The trails layer has 3.81 km of gravel trail."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(sum(as.numeric(sf::st_length(trails[trails$surface == 'gravel', ]))) / 1000)"
+    }
+   ],
+   "answer": "The trails layer has 12.5 km of gravel trail."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ },
+ {
+  "id": "r-provenance-val-cobertura-pct-valid-es-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cobertura <- terra::rast(matrix(c(90, 120, 130, NA, 80, 10, 70, 95, 150, NA, 60, 20, NA, 101, 99, 100, 110, 30, NA, 50, 40, 30, 200, 35), nrow = 4, byrow = TRUE), crs = 'EPSG:32630', extent = terra::ext(400000, 406000, 4400000, 4404000))"
+  },
+  "turns": [
+   {
+    "user": "¿Qué porcentaje de las celdas válidas del ráster cobertura tiene un valor mayor que 100?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b30(?:[.,]0+)?\\s*(?:%|por\\s*ciento)"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "v <- terra::values(cobertura, mat = FALSE)\nv <- v[!is.na(v)]\nprint(100 * mean(v > 100))"
+    }
+   ],
+   "answer": "El 30 % de las celdas válidas de cobertura tiene un valor mayor que 100."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "v <- terra::values(cobertura, mat = FALSE)\nprint(100 * sum(v > 100, na.rm = TRUE) / length(v))"
+    }
+   ],
+   "answer": "El 25 % de las celdas de cobertura tiene un valor mayor que 100."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ },
+ {
+  "id": "r-provenance-val-nitrate-join-sentinel-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "wells <- data.frame(well = c('W1', 'W2', 'W3', 'W4'), district = c('North', 'North', 'South', 'East'))\nreadings <- data.frame(well = c('W1', 'W1', 'W2', 'W2', 'W3', 'W3', 'W3', 'W4', 'W4'), nitrate = c(4, 6, 5, -999, 7.9, 8.9, -999, 6.5, 7.5))"
+  },
+  "turns": [
+   {
+    "user": "Using wells and readings, which district has the highest mean nitrate in mg/L, and what is that mean? A nitrate value of -999 means no sample was taken."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\bSouth\\b"
+   },
+   {
+    "answer_regex": "\\b8[.,]40*\\b"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "r <- merge(readings[readings$nitrate != -999, ], wells, by = 'well')\nprint(aggregate(nitrate ~ district, r, mean))"
+    }
+   ],
+   "answer": "South has the highest mean nitrate, at 8.4 mg/L."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "r <- merge(readings, wells, by = 'well')\nprint(aggregate(nitrate ~ district, r, mean))"
+    }
+   ],
+   "answer": "East has the highest mean nitrate, at 7 mg/L."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ },
+ {
+  "id": "r-provenance-val-ward-flood-overlap-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sq <- function(x0, y0, x1, y1) sf::st_polygon(list(rbind(c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1), c(x0, y0))))\nwards <- sf::st_sf(data.frame(ward = c('A', 'B')), geometry = sf::st_sfc(sq(500000, 5000000, 501000, 5001000), sq(501000, 5000000, 502000, 5002000), crs = 32633))\nflood <- sf::st_sf(data.frame(zone = 'F1'), geometry = sf::st_sfc(sq(500700, 5000000, 501500, 5000400), crs = 32633))\nrm(sq)",
+   "layers": [
+    "wards",
+    "flood"
+   ]
+  },
+  "turns": [
+   {
+    "user": "How many hectares of Ward B are inside the flood zone, and what percentage of the ward is that?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b20(?:[.,]0+)?\\s*(?:ha\\b|hectares?\\b)"
+   },
+   {
+    "answer_regex": "\\b10(?:[.,]0+)?\\s*(?:%|percent)"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "b <- sf::st_geometry(wards[wards$ward == 'B', ])\nx <- sf::st_area(sf::st_intersection(b, sf::st_geometry(flood)))\nprint(round(as.numeric(x) / 1e4, 2))\nprint(round(100 * as.numeric(x) / as.numeric(sf::st_area(b)), 2))"
+    }
+   ],
+   "answer": "20 hectares of Ward B are inside the flood zone, which is 10% of the ward."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "x <- as.numeric(sf::st_area(flood))\nb <- as.numeric(sf::st_area(wards[wards$ward == 'B', ]))\nprint(x / 1e4)\nprint(100 * x / b)"
+    }
+   ],
+   "answer": "32 hectares of Ward B are inside the flood zone, which is 16% of the ward."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ },
+ {
+  "id": "r-provenance-val-inspections-distinct-fail-terse-01",
+  "domains": [
+   "r-provenance"
+  ],
+  "modules": [
+   "tool:execute_r_code"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "id <- rep(1:60, each = 3)\nvisit <- rep(1:3, times = 60)\nfailed <- (id %% 6 == 0) | (id %% 9 == 0 & visit == 1)\ninspections <- data.frame(site = sprintf('S%02d', id), visit = visit, result = ifelse(failed, 'fail', 'pass'))\nrm(id, visit, failed)"
+  },
+  "turns": [
+   {
+    "user": "inspections: distinct sites that failed at least once?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": "execute_r_code"
+   },
+   {
+    "answer_regex": "\\b13\\b"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "print(length(unique(inspections$site[inspections$result == 'fail'])))"
+    }
+   ],
+   "answer": "13 distinct sites failed at least once."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "print(sum(inspections$result == 'fail'))"
+    }
+   ],
+   "answer": "33 sites failed at least once."
+  },
+  "probe": {
+   "tool": "execute_r_code"
+  }
+ }
+]

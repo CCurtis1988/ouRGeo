@@ -1,0 +1,153 @@
+[
+ {
+  "id": "no-tool-val-union-combine-terse-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [
+   "topic:no-tool"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {},
+  "turns": [
+   {
+    "user": "st_union vs st_combine?"
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 1
+   },
+   {
+    "answer_regex": "dissolv|boundar|overlap"
+   },
+   {
+    "rubric": {
+     "required": [
+      "st_union merges geometries by dissolving their shared boundaries or overlaps.",
+      "st_combine groups geometries into one multi-part geometry without dissolving them."
+     ],
+     "forbidden": [
+      "st_union and st_combine produce equivalent geometry.",
+      "st_combine dissolves boundaries while st_union leaves them in place."
+     ]
+    }
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "st_union() dissolves: it merges the geometries, removing shared boundaries and overlaps. st_combine() only groups the features into one multi-part geometry without changing them, so internal boundaries stay. It is much faster, but adjacent polygons can produce an invalid MULTIPOLYGON. Use st_union() when you need the merged outline and st_combine() when you only need one grouped geometry."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "They are equivalent: both return a single MULTIPOLYGON from all features. st_combine is the older name and st_union is the newer one, so prefer st_union."
+  }
+ },
+ {
+  "id": "no-tool-val-areal-weighting-counts-income-chatty-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [
+   "topic:no-tool"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {},
+  "turns": [
+   {
+    "user": "Hey! Quick sanity check before I start on this tonight. I've got census tracts with total population and median household income, and I need to summarise them up to watersheds that cut right across the tract boundaries. My plan is to work out what fraction of each tract falls in each watershed, multiply both columns by that fraction, and add them up per watershed. That's fine, right? Nothing to run yet, the data isn't even in here."
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 0
+   },
+   {
+    "answer_regex": "intensive|extensive|weighted\\s+(mean|average)|not\\s+(additive|summable)|(can'?t|cannot|can not|don'?t|do not|never|shouldn'?t|should not)\\s+(be\\s+)?(sum|add)"
+   },
+   {
+    "rubric": {
+     "required": [
+      "Population is a count that can be apportioned by overlap share and summed across pieces.",
+      "Median household income must not be apportioned and summed like a count; at best it can be approximated with a weighted average."
+     ],
+     "forbidden": [
+      "The planned calculation is correct for both columns."
+     ]
+    }
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Your plan works for population but not for median income. Population is an extensive quantity, so splitting it by area share and summing is the usual approach, assuming people are spread evenly within each tract. Median income is intensive: splitting it and adding it up gives a meaningless total. Use a weighted average instead, ideally weighted by households or population rather than area, and treat the result as an approximation because medians do not combine exactly. If you use sf, st_interpolate_aw() handles this with its extensive argument, which should be TRUE for population and FALSE for income."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Yes, that works for both columns. Multiply each tract's value by the share of its area inside the watershed, then add up the pieces. st_intersection() and st_area() will give you those shares."
+  }
+ },
+ {
+  "id": "no-tool-val-summarise-sticky-geometry-typo-01",
+  "domains": [
+   "no-tool"
+  ],
+  "modules": [
+   "topic:no-tool"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc$size_class <- ifelse(nc$AREA > 0.1, \"large\", \"small\")",
+   "layers": [
+    "nc"
+   ]
+  },
+  "turns": [
+   {
+    "user": "why does group_by + summarise on an sf objct take ages and give me multipolygons back?? i only wanted a plain table of totals per grup. dont run anythng, just explain whats goin on and how to avoid it"
+   }
+  ],
+  "graders": [
+   {
+    "max_tool_calls": 0
+   },
+   {
+    "answer_regex": "sticky|st_union|union(s|ed|ing)?\\b|dissolv|(geometr(y|ies)).{0,60}(kept|keeps|retain|merged|combined)"
+   },
+   {
+    "answer_regex": "st_drop_geometry|st_set_geometry\\s*\\(|as\\.data\\.frame|as_tibble|<-\\s*NULL|(drop|remove|strip)\\w*\\s+(the\\s+)?geometr"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [],
+   "answer": "Geometry is sticky on sf objects, so summarise() keeps it even if you never mention it. For each group it also unions the polygons, which is the slow part and why you get MULTIPOLYGONs back. To get a plain table, drop the geometry first: x |> sf::st_drop_geometry() |> dplyr::group_by(group) |> dplyr::summarise(total = sum(value))."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "The multipolygons appear because your group column has many levels. Add .groups = \"drop\" to summarise() and call ungroup() afterwards; that returns a plain table and speeds it up."
+  }
+ }
+]

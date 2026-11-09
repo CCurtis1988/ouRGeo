@@ -1,0 +1,340 @@
+[
+ {
+  "id": "environments-train-backup-copy-chatty-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:create",
+   "action:env:copy",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "wells <- data.frame(id = 1:6, depth_m = c(42, 88, 17, 63, 120, 35), status = c('active', 'dry', 'active', 'capped', 'active', 'dry'))"
+  },
+  "turns": [
+   {
+    "user": "Hey! Before I start messing around with my wells table, could you stash a copy of it in a new environment called backup? I still want to keep working on the one in the global environment, so please don't take it away from there."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('backup', envir = globalenv(), inherits = FALSE) && is.environment(get('backup', envir = globalenv(), inherits = FALSE))"
+   },
+   {
+    "r_state": "local({ ok <- exists('backup', envir = globalenv(), inherits = FALSE) && exists('wells', envir = globalenv(), inherits = FALSE); if (ok) { b <- get('backup', envir = globalenv(), inherits = FALSE); ok <- is.environment(b) && exists('wells', envir = b, inherits = FALSE) && identical(get('wells', envir = b, inherits = FALSE), get('wells', envir = globalenv(), inherits = FALSE)) }; ok })"
+   },
+   {
+    "r_state": "exists('wells', envir = globalenv(), inherits = FALSE) && nrow(get('wells', envir = globalenv(), inherits = FALSE)) == 6L"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:create",
+     "params": {
+      "name": "backup"
+     }
+    },
+    {
+     "action": "env:copy",
+     "params": {
+      "name": "wells",
+      "to": "backup"
+     }
+    }
+   ],
+   "answer": "I created the backup environment and copied wells into it. The original wells table is still in the global environment."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "env:create",
+     "params": {
+      "name": "backup"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "wells",
+      "to": "backup"
+     }
+    }
+   ],
+   "answer": "I created the backup environment and put wells in it."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:copy'"
+  }
+ },
+ {
+  "id": "environments-train-rename-in-env-typo-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:rename",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "field <- new.env(parent = globalenv()); field$tmp_counts <- data.frame(site = c('A', 'B', 'C'), n = c(14L, 9L, 22L)); tmp_counts <- data.frame(site = 'Z', n = 1L)"
+  },
+  "turns": [
+   {
+    "user": "renmae tmp_counts to counts_2024 in the feild environment. the tmp_counts in global stays as it is"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ f <- get('field', envir = globalenv(), inherits = FALSE); exists('counts_2024', envir = f, inherits = FALSE) && !exists('tmp_counts', envir = f, inherits = FALSE) && identical(get('counts_2024', envir = f, inherits = FALSE)$n, c(14L, 9L, 22L)) })"
+   },
+   {
+    "r_state": "exists('tmp_counts', envir = globalenv(), inherits = FALSE) && nrow(get('tmp_counts', envir = globalenv(), inherits = FALSE)) == 1L && !exists('counts_2024', envir = globalenv(), inherits = FALSE)"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:rename",
+     "params": {
+      "name": "tmp_counts",
+      "newName": "counts_2024",
+      "env": "field"
+     }
+    }
+   ],
+   "answer": "Renamed tmp_counts to counts_2024 in the field environment. The tmp_counts in the global environment is unchanged."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "env:rename",
+     "params": {
+      "name": "tmp_counts",
+      "newName": "counts_2024"
+     }
+    }
+   ],
+   "answer": "Renamed tmp_counts to counts_2024."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:rename'"
+  }
+ },
+ {
+  "id": "environments-train-work-in-density-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:workIn",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "survey <- new.env(parent = globalenv()); survey$hits <- c(12, 30, 7, 44); survey$area_ha <- c(2, 5, 0.5, 8); area_ha <- c(1, 1, 1, 1)"
+  },
+  "turns": [
+   {
+    "user": "Switch me into the survey environment so I can use its objects by name. Then create hits_per_ha in there, which is hits divided by area_ha, and tell me the biggest value."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ s <- get('survey', envir = globalenv(), inherits = FALSE); exists('hits_per_ha', envir = s, inherits = FALSE) && isTRUE(all.equal(as.numeric(get('hits_per_ha', envir = s, inherits = FALSE)), c(6, 6, 14, 5.5))) })"
+   },
+   {
+    "r_state": "!exists('hits_per_ha', envir = globalenv(), inherits = FALSE)"
+   },
+   {
+    "answer_regex": "\\b14\\b"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:workIn",
+     "params": {
+      "env": "survey"
+     }
+    },
+    {
+     "r": "evalq({ hits_per_ha <- hits / area_ha; print(max(hits_per_ha)) }, survey)"
+    }
+   ],
+   "answer": "You are now working in the survey environment. I created hits_per_ha there, and its biggest value is 14."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "hits_per_ha <- survey$hits / area_ha; print(max(hits_per_ha))"
+    }
+   ],
+   "answer": "I created hits_per_ha, and its biggest value is 44."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:workIn'"
+  }
+ },
+ {
+  "id": "environments-train-move-data-frames-terse-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:list",
+   "action:env:move",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "inbox <- new.env(parent = globalenv()); reviewed <- new.env(parent = globalenv()); inbox$parcels <- data.frame(id = 1:4, area = c(1.2, 0.8, 3.1, 2.4)); inbox$roads <- data.frame(id = 1:2, km = c(5.5, 12)); inbox$cutoff <- 0.05; inbox$label <- 'draft'"
+  },
+  "turns": [
+   {
+    "user": "move all data frames from inbox to reviewed. leave the rest"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ i <- get('inbox', envir = globalenv(), inherits = FALSE); r <- get('reviewed', envir = globalenv(), inherits = FALSE); exists('parcels', envir = r, inherits = FALSE) && exists('roads', envir = r, inherits = FALSE) && !exists('parcels', envir = i, inherits = FALSE) && !exists('roads', envir = i, inherits = FALSE) && nrow(get('parcels', envir = r, inherits = FALSE)) == 4L && nrow(get('roads', envir = r, inherits = FALSE)) == 2L })"
+   },
+   {
+    "r_state": "local({ i <- get('inbox', envir = globalenv(), inherits = FALSE); r <- get('reviewed', envir = globalenv(), inherits = FALSE); exists('cutoff', envir = i, inherits = FALSE) && exists('label', envir = i, inherits = FALSE) && !exists('cutoff', envir = r, inherits = FALSE) && !exists('label', envir = r, inherits = FALSE) })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:move",
+     "params": {
+      "name": "parcels",
+      "from": "inbox",
+      "to": "reviewed"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "roads",
+      "from": "inbox",
+      "to": "reviewed"
+     }
+    }
+   ],
+   "answer": "Moved parcels and roads from inbox to reviewed. cutoff and label are still in inbox."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "reviewed$parcels <- inbox$parcels; reviewed$roads <- inbox$roads"
+    }
+   ],
+   "answer": "parcels and roads are now in reviewed."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:move'"
+  }
+ },
+ {
+  "id": "environments-train-map-from-env-counties-01",
+  "domains": [
+   "environments",
+   "maps"
+  ],
+  "modules": [
+   "action:env:move",
+   "action:map:addLayer",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "assign('study', new.env(parent = globalenv()), envir = globalenv()); assign('counties', sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE), envir = get('study', envir = globalenv(), inherits = FALSE))"
+  },
+  "turns": [
+   {
+    "user": "Please move the counties object out of my study environment into .GlobalEnv and put it on the map. I don't want a copy left behind in study."
+   }
+  ],
+  "graders": [
+   {
+    "app_state": "s.layers.length === 1 && /counties/i.test(s.layers[0].name)"
+   },
+   {
+    "r_state": "exists('counties', envir = globalenv(), inherits = FALSE) && inherits(get('counties', envir = globalenv(), inherits = FALSE), 'sf') && nrow(get('counties', envir = globalenv(), inherits = FALSE)) == 100L"
+   },
+   {
+    "r_state": "local({ s <- get('study', envir = globalenv(), inherits = FALSE); is.environment(s) && !exists('counties', envir = s, inherits = FALSE) })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:move",
+     "params": {
+      "name": "counties",
+      "from": "study",
+      "to": ".GlobalEnv"
+     }
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "counties"
+     }
+    }
+   ],
+   "answer": "I moved counties from the study environment into .GlobalEnv and added it to the map. No copy remains in study."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "assign('counties', get('counties', envir = get('study', envir = globalenv(), inherits = FALSE), inherits = FALSE), envir = globalenv())"
+    },
+    {
+     "action": "map:addLayer",
+     "params": {
+      "object": "counties"
+     }
+    }
+   ],
+   "answer": "The counties layer is now in .GlobalEnv and on the map."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:move'"
+  }
+ }
+]

@@ -1,0 +1,433 @@
+[
+ {
+  "id": "context-memory-train-counties-crs-decoy-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:map:status"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "counties <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\ncounties_utm <- sf::st_transform(counties, 32617)",
+   "layers": [
+    "counties",
+    "counties_utm"
+   ]
+  },
+  "turns": [
+   {
+    "user": "What CRS is the counties layer in?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "4267|NAD\\s?27"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   },
+   {
+    "max_tool_calls": 8
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "sf::st_crs(counties)"
+    }
+   ],
+   "answer": "`counties` is in NAD27 (EPSG:4267), which is geographic longitude/latitude. The separate `counties_utm` layer is a reprojected copy."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Map layers are usually in WGS 84 (EPSG:4326), so counties is almost certainly lon/lat WGS 84."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:status'"
+  }
+ },
+ {
+  "id": "context-memory-train-sites-no-temp-terse-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sites <- data.frame(site_id = 1:4, name = c(\"Alder\", \"Birch\", \"Cedar\", \"Dogwood\"), elev_m = c(120, 340, 95, 410), ph = c(6.8, 7.1, 5.9, 6.4), sampled = as.Date(c(\"2024-04-02\", \"2024-04-09\", \"2024-05-01\", \"2024-05-14\")))\nsites_old <- data.frame(site_id = 1:3, temp_c = c(11.2, 9.8, 13.5), notes = c(\"dry\", \"wet\", \"dry\"))"
+  },
+  "turns": [
+   {
+    "user": "quick q - does sites have a temperature column? if not, what columns does it have"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "\\bno\\b|\\bnot\\b|doesn.?t|does not|isn.?t|there is no"
+   },
+   {
+    "answer_regex": "elev_m"
+   },
+   {
+    "answer_regex": "sampled"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "names(sites)"
+    }
+   ],
+   "answer": "No, `sites` has no temperature column. Its columns are site_id, name, elev_m, ph and sampled. (`sites_old` has temp_c, but that is a separate object.)"
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Yes, temperature is stored in temp_c, alongside site_id and notes."
+  }
+ },
+ {
+  "id": "context-memory-train-which-raster-chatty-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:map:listObjects"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "dem <- terra::rast(system.file(\"ex/elev.tif\", package = \"terra\"))\nelevation_tbl <- data.frame(station = c(\"A\", \"B\", \"C\"), elevation = c(210, 305, 480))\ncounties <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)"
+  },
+  "turns": [
+   {
+    "user": "Hey, I lost track of what I loaded earlier. Which of my objects is actually a raster, and how many bands does it have?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "\\bdem\\b"
+   },
+   {
+    "answer_regex": "\\b1\\b|\\bone\\b|single"
+   },
+   {
+    "r_state": "exists(\"dem\", envir = globalenv()) && inherits(get(\"dem\", envir = globalenv()), \"SpatRaster\")"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "map:listObjects"
+    },
+    {
+     "r": "terra::nlyr(dem)"
+    }
+   ],
+   "answer": "`dem` is your only raster (a SpatRaster) and it has 1 band. `elevation_tbl` is a plain data frame and `counties` is an sf vector layer."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Your raster is elevation_tbl, which holds the elevation band."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'map:listObjects'"
+  }
+ },
+ {
+  "id": "context-memory-train-wells-two-envs-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "wells <- data.frame(id = 1:12, depth_m = seq(10, 120, by = 10))\nfield <- new.env()\nassign(\"wells\", data.frame(id = 1:30, depth_m = seq(5, 150, by = 5)), envir = field)"
+  },
+  "turns": [
+   {
+    "user": "How many wells are there?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "(\\b12\\b[\\s\\S]*\\b30\\b|\\b30\\b[\\s\\S]*\\b12\\b)|\\?"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "c(global = nrow(wells), field = nrow(field$wells))"
+    }
+   ],
+   "answer": "There are two objects named `wells`: the one in .GlobalEnv has 12 rows, and `field$wells` has 30 rows. Which one did you mean?"
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "nrow(wells)"
+    }
+   ],
+   "answer": "There are 12 wells."
+  }
+ },
+ {
+  "id": "context-memory-train-parcels-numeric-fr-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:map:listColumns"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "parcels_df <- data.frame(id = 1:4, owner = c(\"Martin\", \"Dubois\", \"Leroy\", \"Moreau\"), area_ha = c(2.5, 0.8, 4.1, 1.7), zoning = c(\"R1\", \"C2\", \"A\", \"R1\"), assessed = c(185000, 92000, 240000, 130000), x = c(2.30, 2.31, 2.33, 2.35), y = c(48.85, 48.86, 48.84, 48.87), stringsAsFactors = FALSE)\nparcels <- sf::st_as_sf(parcels_df, coords = c(\"x\", \"y\"), crs = 4326)\nrm(parcels_df)",
+   "layers": [
+    "parcels"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Quelles sont les colonnes numériques de la couche parcels ? Je voudrais colorer par l'une d'elles."
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "area_ha"
+   },
+   {
+    "answer_regex": "assessed"
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "sapply(sf::st_drop_geometry(parcels), is.numeric)"
+    }
+   ],
+   "answer": "La couche parcels a trois colonnes numériques : id, area_ha et assessed. owner et zoning sont catégorielles. Pour une carte choroplèthe, area_ha ou assessed sont les plus parlantes."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Les colonnes numériques habituelles sont AREA et PERIMETER ; vous pouvez colorer par AREA."
+  }
+ },
+ {
+  "id": "context-memory-train-nc-subset-shape-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:map:listColumns"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnc_counties <- nc[1:37, c(\"NAME\", \"FIPS\", \"BIR74\")]\nrm(nc)",
+   "layers": [
+    "nc_counties"
+   ]
+  },
+  "turns": [
+   {
+    "user": "How many features does nc_counties have, and which attribute fields?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "\\b37\\b"
+   },
+   {
+    "answer_regex": "BIR74"
+   },
+   {
+    "answer_regex": "FIPS"
+   },
+   {
+    "answer_not_regex": "\\b100\\b"
+   },
+   {
+    "numbers_grounded": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "list(n = nrow(nc_counties), fields = names(nc_counties))"
+    }
+   ],
+   "answer": "nc_counties has 37 features. Its attribute fields are NAME, FIPS and BIR74, plus the geometry column."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "It's the North Carolina counties dataset: 100 features with AREA, PERIMETER, CNTY_, CNTY_ID, NAME, FIPS, FIPSNO, CRESS_ID, BIR74, SID74, NWBIR74, BIR79, SID79 and NWBIR79."
+  }
+ },
+ {
+  "id": "context-memory-train-wells-crs-typo-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:map:status"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "wells <- sf::st_as_sf(data.frame(id = 1:5, depth_ft = c(120, 85, 240, 60, 175), x = c(2010000, 2025000, 2040000, 2055000, 2070000), y = c(700000, 712000, 698000, 725000, 705000)), coords = c(\"x\", \"y\"), crs = 2264)\nwells_wgs <- sf::st_transform(wells, 4326)",
+   "layers": [
+    "wells",
+    "wells_wgs"
+   ]
+  },
+  "turns": [
+   {
+    "user": "whats the crs of the welss layer? need to know before i buffer in feet"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "2264|North Carolina"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "sf::st_crs(wells)"
+    }
+   ],
+   "answer": "`wells` is in NAD83 / North Carolina (ftUS), EPSG:2264. It is projected and uses US survey feet as its unit, so a buffer distance in feet works directly. `wells_wgs` is a separate longitude/latitude copy."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "sf::st_crs(wells_wgs)"
+    }
+   ],
+   "answer": "The wells layer is in WGS 84 (EPSG:4326), so you should project it before buffering in feet."
+  }
+ },
+ {
+  "id": "context-memory-train-towns-pop-ambiguous-es-01",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [
+   "topic:context",
+   "action:env:list"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "towns <- data.frame(town = c(\"Alba\", \"Brisa\", \"Cora\", \"Duna\"), pop_2010 = c(1200, 3400, 560, 8900), pop_2020 = c(1350, 3610, 540, 9420))"
+  },
+  "turns": [
+   {
+    "user": "¿Cuál es la población total de towns?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "(14[.,\\s]?060[\\s\\S]*14[.,\\s]?920|14[.,\\s]?920[\\s\\S]*14[.,\\s]?060)|\\?"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "r": "c(pop_2010 = sum(towns$pop_2010), pop_2020 = sum(towns$pop_2020))"
+    }
+   ],
+   "answer": "towns tiene dos columnas de población: pop_2010 suma 14060 y pop_2020 suma 14920. ¿Cuál año le interesa?"
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "sum(towns$pop_2020)"
+    }
+   ],
+   "answer": "La población total es 14920."
+  }
+ }
+]

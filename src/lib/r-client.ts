@@ -210,9 +210,9 @@ class RClient {
    * connection, not R's considered answer, and `transport-retry.ts` is what
    * knows the difference.
    */
-  private async ask<T extends RResponse>(url: string, body: unknown): Promise<T> {
+  private async ask<T extends RResponse>(url: string, body: unknown, config?: { timeout: number }): Promise<T> {
     try {
-      const res = await this.http.post<T>(url, body)
+      const res = await (config ? this.http.post<T>(url, body, config) : this.http.post<T>(url, body))
       return res.data
     } catch (e) {
       const data = (e as { response?: { data?: unknown } })?.response?.data
@@ -592,8 +592,7 @@ class RClient {
   }
 
   async contextSchema(name: string, envName: string): Promise<RResponse & { columns?: ColumnInfo[] }> {
-    const { data } = await this.http.post('/context/schema', { name, envName }, { timeout: 8000 })
-    return data
+    return this.ask<RResponse & { columns?: ColumnInfo[] }>('/context/schema', { name, envName }, { timeout: 8000 })
   }
 
   async getObjectDataFrame(

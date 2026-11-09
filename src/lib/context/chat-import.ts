@@ -77,6 +77,8 @@ export function importChats(input: unknown, portable = false): AiChat[] {
     const usage = object(chat.tokenUsage)
     return [{ id: chat.id, title: chat.title, renamed: chat.renamed === true, createdAt: chat.createdAt, updatedAt: chat.updatedAt,
       messages, conversationMemories, provider: chat.provider as AiProvider, model: chat.model,
+      // Ids only; a skill since switched off or deleted simply fails to load.
+      ...(Array.isArray(chat.activeSkills) ? { activeSkills: chat.activeSkills.filter((id): id is string => typeof id === 'string' && /^skill:[\w@/:.-]{1,200}$/.test(id)).slice(0, 32) } : {}),
       claudeSessionId: !portable && identity(chat.claudeSessionId) ? chat.claudeSessionId : null,
       lastSessionContext: null,
       tokenUsage: { used: typeof usage?.used === 'number' && Number.isSafeInteger(usage.used) && usage.used >= 0 ? usage.used : 0,

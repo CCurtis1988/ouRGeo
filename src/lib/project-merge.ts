@@ -13,7 +13,7 @@
 import { merge3, conflictCount, type MergeSegment } from '@/lib/text-diff'
 import type { MergeEnvItem } from '@/lib/r-client'
 
-export type ItemKind = 'doc' | 'r' | 'layer' | 'plot' | 'chat' | 'file'
+export type ItemKind = 'doc' | 'r' | 'layer' | 'plot' | 'chat' | 'file' | 'skill'
 export type WholeChoice = 'mine' | 'theirs' | 'both'
 
 export interface MergeItem<T = unknown> {

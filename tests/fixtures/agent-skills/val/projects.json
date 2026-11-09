@@ -1,0 +1,249 @@
+[
+ {
+  "id": "projects-val-save-scripts-setting-typo-01",
+  "domains": [
+   "projects"
+  ],
+  "modules": [
+   "topic:projects",
+   "action:ui:highlight",
+   "action:ui:openDialog"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "invisible(NULL)",
+   "documents": [
+    {
+     "fileName": "analysis.R",
+     "content": "x <- 1\nprint(x)\n",
+     "language": "r"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "wehn I press Save on a project do my open .R scripts get written to their own files too? if theres a setting for that pont me at it, dont change it"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'ui:highlight' && JSON.stringify(i).includes('settings.projectsSaveDocuments')"
+    }
+   },
+   {
+    "answer_regex": "save document edits"
+   },
+   {
+    "rubric": {
+     "required": [
+      "By default, saving a project writes the project bundle but does not write open scripts to their own files.",
+      "Open scripts are written on project save only when the Save document edits setting is turned on."
+     ],
+     "forbidden": [
+      "Saving a project always writes open scripts to their own files.",
+      "The assistant changed the Save document edits setting."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:openDialog",
+      "params": {
+       "dialog": "settings"
+      }
+     },
+     "result": "Opened settings."
+    },
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "ui:highlight",
+      "params": {
+       "target": "settings.projectsSaveDocuments",
+       "message": "Turn this on to write open scripts to their files when you save the project."
+      }
+     },
+     "result": "Highlighted settings.projectsSaveDocuments."
+    }
+   ],
+   "answer": "Not by default. Saving a project writes the .ourgeoproj bundle and clears its draft, but it leaves open scripts' own files alone unless \"Save document edits when saving the project\" is on. I've highlighted that setting for you and haven't changed it."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Yes. Saving a project also writes every open script to its own file, so there is nothing to change."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'ui:highlight'"
+  }
+ },
+ {
+  "id": "projects-val-project-file-in-scratch-terse-01",
+  "domains": [
+   "projects"
+  ],
+  "modules": [
+   "action:project:status",
+   "action:project:files",
+   "topic:projects"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "site_summary <- data.frame(site = c('North', 'South', 'East'), samples = c(12L, 7L, 19L))"
+  },
+  "turns": [
+   {
+    "user": "put site_summary in Project Files as tables/site_summary.csv"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "['project:status', 'project:files'].includes(i.id)"
+    }
+   },
+   {
+    "answer_regex": "scratch"
+   },
+   {
+    "answer_regex": "save\\s+as|named project"
+   },
+   {
+    "rubric": {
+     "required": [
+      "The table was not added to Project Files because the scratch workspace has no Project Files library.",
+      "The user must save the session as a project before the table can go into Project Files."
+     ],
+     "forbidden": [
+      "The table is now saved in Project Files."
+     ]
+    }
+   },
+   {
+    "no_unrun_claims": true
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "project:status",
+      "params": {}
+     },
+     "result": "{\"name\":\"scratch\",\"path\":null,\"recents\":[]}"
+    }
+   ],
+   "answer": "This session is the scratch workspace, which has no Project Files library, so I haven't saved site_summary there. Use Save As to make it a named project, and then I can write it to tables/site_summary.csv."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "write.csv(site_summary, 'site_summary.csv', row.names = FALSE)"
+    }
+   ],
+   "answer": "Done. site_summary is now in Project Files as tables/site_summary.csv."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'project:status'"
+  }
+ },
+ {
+  "id": "projects-val-colleague-sees-unsaved-chatty-01",
+  "domains": [
+   "projects"
+  ],
+  "modules": [
+   "action:project:status",
+   "topic:projects"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc_counties <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)",
+   "layers": [
+    "nc_counties"
+   ]
+  },
+  "turns": [
+   {
+    "user": "Hi! My colleague Dana is going to open this project off our shared drive tonight. I've just added the counties layer and I'd rather not bother saving, since ouRGeo keeps everything as I go. She'll still see all of it, right?"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'project:status'"
+    }
+   },
+   {
+    "answer_regex": "scratch"
+   },
+   {
+    "answer_regex": "save\\s+as|\\.ourgeoproj|named project"
+   },
+   {
+    "r_state": "exists('nc_counties', envir = globalenv())"
+   },
+   {
+    "app_state": "s.layers.some(l => l.envName === 'nc_counties' || l.name === 'nc_counties')"
+   },
+   {
+    "rubric": {
+     "required": [
+      "The current session is scratch, so there is no saved project for the colleague to open until the user saves it as a project.",
+      "Once a project exists, colleagues opening the file see only what was saved, not changes kept in a draft on the user's computer."
+     ],
+     "forbidden": [
+      "The colleague will see the counties layer without the user saving.",
+      "The project has already been saved to the shared drive."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "tool": "run_ui_action",
+     "input": {
+      "id": "project:status",
+      "params": {}
+     },
+     "result": "{\"name\":\"scratch\",\"path\":null,\"recents\":[]}"
+    }
+   ],
+   "answer": "Not yet. You're in the scratch workspace, so there's no project file for Dana to open. Use Save As to create a .ourgeoproj on the shared drive. Even after that, unsaved changes stay in a draft on this computer, and Dana will only see what you've saved, so save again after any later edits."
+  },
+  "wrong": {
+   "steps": [],
+   "answer": "Yes, she'll see everything. ouRGeo keeps your work continuously, so the counties layer will be there when she opens it."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'project:status'"
+  }
+ }
+]

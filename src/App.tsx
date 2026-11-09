@@ -47,6 +47,10 @@ import type { LaunchState } from './lib/project-draft-types'
 import { reconnectToR, pruneStaleObjectTabs } from './lib/reconnect-r'
 import { loadTheme, loadUiScale, loadEditorThemes } from './lib/theme-persistence'
 import { loadCustomThemes } from './lib/custom-themes-persistence'
+import { useSkillStore } from './store/skills'
+import { loadSkillLibrary } from './lib/skills-persistence'
+// Registers built-in and plugin skill names as reserved before any skill can be created.
+import './lib/skills/catalog'
 import { useCustomThemeStore } from './store/custom-themes'
 import { applyTheme } from './lib/themes'
 import { applyEditorTheme } from './lib/editor-themes'
@@ -184,6 +188,12 @@ function MainApp(): React.ReactElement {
       try {
         useCustomThemeStore.getState().init(await loadCustomThemes())
       } catch { /* ship-only themes are a fine fallback */ }
+
+      // The user's skills, AFTER plugins: plugin skill names are reserved, and a
+      // user skill read before they registered could take one.
+      try {
+        useSkillStore.getState().init(await loadSkillLibrary())
+      } catch { /* shipped skills still work without the user's own */ }
 
       // Load and apply saved theme
       const savedTheme = await loadTheme()

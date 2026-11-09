@@ -1,4 +1,5 @@
 import { registerProjectFiles, projectFileLibrary } from './project-files/ipc'
+import { registerSkillFiles } from './skill-files'
 import { bundleTask } from './project-files/bundle-client'
 import { fileSignature } from './project-files/bundle'
 import { ProjectOpenWorkspaces } from './project-files/open-workspaces'
@@ -145,6 +146,7 @@ export function detectRInstallations(configuredPath: string | null): { path: str
 
 export function setupIpcHandlers(ipcMain: IpcMain): void {
   registerProjectFiles(ipcMain)
+  registerSkillFiles(ipcMain)
   const openWorkspaces = projectOpenWorkspaces = new ProjectOpenWorkspaces(app.getPath('userData'))
   ipcMain.handle('project:releaseOpen', async (event, token: string) => { requireContextOwner(event); await openWorkspaces.release(token, event.sender.id) })
 

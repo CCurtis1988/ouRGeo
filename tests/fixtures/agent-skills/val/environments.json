@@ -1,0 +1,245 @@
+[
+ {
+  "id": "environments-val-copy-collision-terse-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:copy",
+   "action:env:list",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file(\"shape/nc.shp\", package = \"sf\"), quiet = TRUE)\nnorth <- new.env(parent = .GlobalEnv)\nsouth <- new.env(parent = .GlobalEnv)\nnorth$counties <- nc[1:10, ]\nsouth$counties <- nc[11:14, ]\nrm(nc)"
+  },
+  "turns": [
+   {
+    "user": "copy counties from north to south as counties_north. originals stay as they are"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ n <- get('north', envir = globalenv()); s <- get('south', envir = globalenv()); exists('counties_north', envir = s, inherits = FALSE) && inherits(s$counties_north, 'sf') && identical(as.character(s$counties_north$FIPS), as.character(n$counties$FIPS)) })"
+   },
+   {
+    "r_state": "local({ nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE); s <- get('south', envir = globalenv()); exists('counties', envir = s, inherits = FALSE) && identical(as.character(s$counties$FIPS), as.character(nc$FIPS[11:14])) })"
+   },
+   {
+    "r_state": "local({ nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE); n <- get('north', envir = globalenv()); exists('counties', envir = n, inherits = FALSE) && identical(as.character(n$counties$FIPS), as.character(nc$FIPS[1:10])) })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:copy",
+     "params": {
+      "name": "counties",
+      "from": "north",
+      "to": "south",
+      "newName": "counties_north"
+     }
+    }
+   ],
+   "answer": "Copied counties from north into south as counties_north. South's own counties and the original in north are unchanged."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "env:copy",
+     "params": {
+      "name": "counties",
+      "from": "north",
+      "to": "south"
+     }
+    },
+    {
+     "action": "env:rename",
+     "params": {
+      "name": "counties",
+      "newName": "counties_north",
+      "env": "south"
+     }
+    }
+   ],
+   "answer": "Copied counties from north into south and renamed the copy counties_north."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:copy'"
+  }
+ },
+ {
+  "id": "environments-val-scenario-rate-shadow-typo-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:workIn",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "principal <- c(1000, 2500, 4000)\nrate <- 0.05\nscenario_b <- new.env(parent = .GlobalEnv)\nscenario_b$rate <- 0.08"
+  },
+  "turns": [
+   {
+    "user": "can you work in the scenario_b enviroment and calcuate interest as principal * rate? keep interest in there and tell me the total"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "local({ s <- get('scenario_b', envir = globalenv()); exists('interest', envir = s, inherits = FALSE) && isTRUE(all.equal(as.numeric(s$interest), c(80, 200, 320))) })"
+   },
+   {
+    "r_state": "!exists('interest', envir = globalenv(), inherits = FALSE)"
+   },
+   {
+    "r_state": "local({ s <- get('scenario_b', envir = globalenv()); isTRUE(all.equal(get('rate', envir = globalenv()), 0.05)) && isTRUE(all.equal(s$rate, 0.08)) })"
+   },
+   {
+    "answer_regex": "\\b600\\b"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:workIn",
+     "params": {
+      "env": "scenario_b"
+     }
+    },
+    {
+     "r": "evalq(interest <- principal * rate, scenario_b)"
+    }
+   ],
+   "answer": "Interest is now stored in scenario_b, using that environment's own rate. The total is 600."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "r": "scenario_b$interest <- principal * rate"
+    }
+   ],
+   "answer": "Interest is now stored in scenario_b. The total is 375."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:workIn'"
+  }
+ },
+ {
+  "id": "environments-val-archive-export-followup-01",
+  "domains": [
+   "environments"
+  ],
+  "modules": [
+   "action:env:create",
+   "action:env:move",
+   "action:env:save",
+   "topic:interface"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "transects <- data.frame(id = 1:6, length_m = c(120, 85, 240, 60, 175, 310))\ncrew <- c(\"Ana\", \"Bo\", \"Chidi\")\nnotes <- \"call the landowner\"\ndraft_fit <- lm(length_m ~ id, data = transects)"
+  },
+  "turns": [
+   {
+    "user": "Hey, could you set up a new environment called field_archive and tuck transects and crew into it? The notes and draft_fit can stay where they are."
+   },
+   {
+    "user": "Perfect, thanks. Now export that environment to field_archive.RData in the working directory."
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "exists('field_archive', envir = globalenv(), inherits = FALSE) && local({ a <- get('field_archive', envir = globalenv()); is.environment(a) && setequal(ls(a), c('crew', 'transects')) })"
+   },
+   {
+    "r_state": "!exists('transects', envir = globalenv(), inherits = FALSE) && !exists('crew', envir = globalenv(), inherits = FALSE) && exists('notes', envir = globalenv(), inherits = FALSE) && exists('draft_fit', envir = globalenv(), inherits = FALSE)"
+   },
+   {
+    "r_state": "local({ f <- 'field_archive.RData'; file.exists(f) && { e <- new.env(); load(f, envir = e); setequal(ls(e), c('crew', 'transects')) && nrow(e$transects) == 6 && sum(e$transects$length_m) == 990 && identical(e$crew, c('Ana', 'Bo', 'Chidi')) } })"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "env:create",
+     "params": {
+      "name": "field_archive"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "transects",
+      "to": "field_archive"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "crew",
+      "to": "field_archive"
+     }
+    },
+    {
+     "action": "env:save",
+     "params": {
+      "path": "field_archive.RData",
+      "env": "field_archive"
+     }
+    }
+   ],
+   "answer": "The field_archive environment now holds transects and crew, and it has been exported to field_archive.RData. The notes and draft_fit stayed in .GlobalEnv."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "env:create",
+     "params": {
+      "name": "field_archive"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "transects",
+      "to": "field_archive"
+     }
+    },
+    {
+     "action": "env:move",
+     "params": {
+      "name": "crew",
+      "to": "field_archive"
+     }
+    },
+    {
+     "r": "save(list = ls(globalenv()), envir = globalenv(), file = 'field_archive.RData')"
+    }
+   ],
+   "answer": "The field_archive environment holds transects and crew, and I saved the session to field_archive.RData."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'env:save'"
+  }
+ }
+]

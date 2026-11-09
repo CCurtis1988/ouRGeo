@@ -4,7 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   X, Eye, EyeOff, HelpCircle,
   Palette, Paintbrush, Puzzle, Cpu, Globe, Map, KeyRound, Bot, FileText, LayoutGrid, Mic,
-  SquareTerminal, Store, HeartPulse, ArrowUpCircle, Package, FolderCog, BellRing,
+  SquareTerminal, Store, HeartPulse, ArrowUpCircle, Package, FolderCog, BellRing, BookOpen,
 } from 'lucide-react'
 import { VersionHistoryDialog } from './VersionHistoryDialog'
 import { APP_VERSION } from './versionHistory'
@@ -103,6 +103,27 @@ function ApiKeysPicker() {
  *  in `EditorLayout`), so Settings is closed on the way — leaving it open
  *  behind a second modal would stack two focus traps and leave the user with a
  *  dialog they cannot reach behind one they can. */
+/** The way into the Skill Manager. A sibling of this dialog, like the Theme Studio. */
+function SkillManagerLink(): React.ReactElement {
+  const showDialog = useUiStore((s) => s.showDialog)
+  return (
+    <button
+      onClick={() => showDialog('skills')}
+      data-ourgeo-id="settings.skills"
+      className="mb-3 w-full flex items-center gap-2 rounded-md border border-geo-border
+        px-2.5 py-2 text-left hover:border-geo-accent group transition-colors"
+    >
+      <BookOpen className="w-3.5 h-3.5 text-geo-muted group-hover:text-geo-accent shrink-0" />
+      <span className="flex-1 min-w-0">
+        <span className="block text-xs text-foreground">Skills…</span>
+        <span className="block text-[10px] text-geo-muted leading-snug">
+          What the assistant knows how to do. Import, write, switch on and off, and review skills it wrote.
+        </span>
+      </span>
+    </button>
+  )
+}
+
 /** The way into the Plugin Manager. A sibling of this dialog, like the Theme
  *  Studio, and for the same focus-trap reason. */
 function PluginManagerLink(): React.ReactElement {
@@ -313,6 +334,7 @@ export function SettingsDialog({ children, open, onOpenChange }: SettingsDialogP
       title: 'AI Assistant', group: 'Assistant', icon: Bot,
       description: 'Memory, model, learning, privacy and budgets',
       content: <>
+        <SkillManagerLink />
         <ContextMemorySettings />
       </>,
     },

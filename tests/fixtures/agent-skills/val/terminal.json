@@ -1,0 +1,237 @@
+[
+ {
+  "id": "terminal-val-grep-no-match-exit-terse-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "writeLines(c('INFO pipeline started', 'WARN retry after non-fatal timeout', 'ERROR tile failed checksum', 'INFO fatal-error handler armed', 'INFO pipeline finished'), 'run.log')"
+  },
+  "turns": [
+   {
+    "user": "Terminal: grep -c for FATAL in run.log, case-sensitive. Give me the count and grep's exit code, and say what that exit code means here."
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /grep/.test(JSON.stringify(i.params || i))"
+    }
+   },
+   {
+    "answer_regex": "\\b0\\b|\\bzero\\b|\\bnone\\b|\\bno\\b[^.\\n]{0,30}(FATAL|lines?|match)"
+   },
+   {
+    "answer_regex": "exit[a-z]*\\b[^.\\n]{0,25}\\b1\\b"
+   },
+   {
+    "numbers_grounded": true
+   },
+   {
+    "rubric": {
+     "required": [
+      "Exit code 1 from grep here means that no lines matched."
+     ],
+     "forbidden": [
+      "The grep command failed or could not search the log."
+     ]
+    }
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "grep -c FATAL run.log"
+     }
+    }
+   ],
+   "answer": "grep -c counted 0 lines containing FATAL, and it exited with code 1. For grep, exit code 1 means no lines matched; it does not mean the command failed, and the log was read normally."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "grep -c FATAL run.log"
+     }
+    }
+   ],
+   "answer": "The grep command failed with exit code 1, so the log could not be searched."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ },
+ {
+  "id": "terminal-val-gz-disguised-csv-chatty-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "con <- gzfile('stations.csv', 'wb'); writeLines(c('station,reading', sprintf('ST%02d,%d', 1:37, 100L + 1:37)), con); close(con)"
+  },
+  "turns": [
+   {
+    "user": "Hi! A colleague just emailed me stations.csv, and when I open it in a text editor it's complete gibberish. Could you use the terminal to work out what kind of file it really is, and how many data rows are in it? The header doesn't count. Please don't load it into R, I just want to know what I'm dealing with first. Thanks!"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run'"
+    }
+   },
+   {
+    "answer_regex": "gzip|gunzip|\\.gz\\b"
+   },
+   {
+    "answer_regex": "\\b37\\b"
+   },
+   {
+    "r_code_not_regex": "read\\.(csv|table|delim)|read_csv|fread|readLines"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "file stations.csv"
+     }
+    },
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "zcat stations.csv | tail -n +2 | wc -l"
+     }
+    }
+   ],
+   "answer": "stations.csv is really gzip-compressed data, despite its .csv extension, which is why it looks like gibberish in a text editor. Once decompressed, it has 37 data rows, not counting the header."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "file stations.csv"
+     }
+    },
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "zcat stations.csv | wc -l"
+     }
+    }
+   ],
+   "answer": "stations.csv is really gzip-compressed data, and it has 38 data rows."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ },
+ {
+  "id": "terminal-val-git-latest-commit-typo-01",
+  "domains": [
+   "terminal"
+  ],
+  "modules": [
+   "action:terminal:run",
+   "topic:terminal"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": true
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "dir.create('survey-repo')\ng <- function(...) system2('git', c('-C', 'survey-repo', ...), stdout = FALSE, stderr = FALSE)\ng('init', '-q')\nadd <- function(file, msg, who, mail) {\n  writeLines(msg, file.path('survey-repo', file))\n  g('add', '.')\n  g('-c', shQuote(paste0('user.name=', who)), '-c', paste0('user.email=', mail), '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', shQuote(msg))\n}\nadd('notes.txt', 'Add field notes', 'Ana Ruiz', 'ana@example.org')\nadd('gauges.txt', 'Add gauge list', 'Ana Ruiz', 'ana@example.org')\nadd('gauges.txt', 'Fix typo in gauge list', 'Ana Ruiz', 'ana@example.org')\nadd('datum.txt', 'Correct datum offset for gauge G7', 'Ben Okafor', 'ben@example.org')"
+  },
+  "turns": [
+   {
+    "user": "theres a git repo in survey-repo/ , from the termnal can you tell me how many commits it has, who made the most recent one and what the mesage was"
+   }
+  ],
+  "graders": [
+   {
+    "tool_called": {
+     "name": "run_ui_action",
+     "where": "i.id === 'terminal:run' && /git/.test(JSON.stringify(i.params || i))"
+    }
+   },
+   {
+    "answer_regex": "\\b4\\b|\\bfour\\b"
+   },
+   {
+    "answer_regex": "Ben Okafor"
+   },
+   {
+    "answer_regex": "Correct datum offset for gauge G7"
+   }
+  ],
+  "reference": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "git -C survey-repo rev-list --count HEAD"
+     }
+    },
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "git --no-pager -C survey-repo log -1 --format='%an: %s'"
+     }
+    }
+   ],
+   "answer": "survey-repo has 4 commits. The most recent was made by Ben Okafor, with the message \"Correct datum offset for gauge G7\"."
+  },
+  "wrong": {
+   "steps": [
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "git -C survey-repo rev-list --count HEAD"
+     }
+    },
+    {
+     "action": "terminal:run",
+     "params": {
+      "command": "git --no-pager -C survey-repo log --reverse --format='%an: %s' | head -n 1"
+     }
+    }
+   ],
+   "answer": "survey-repo has 4 commits. The most recent was made by Ana Ruiz, with the message \"Add field notes\"."
+  },
+  "probe": {
+   "tool": "run_ui_action",
+   "where": "i.id === 'terminal:run'"
+  }
+ }
+]
