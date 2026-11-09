@@ -61,6 +61,7 @@
     "src/lib/app-updates.ts",
     "src/lib/data-preflight-types.ts",
     "src/lib/plugins/archive-policy.ts",
+    "src/lib/skills/archive.ts",
     "src/lib/plugins/store-origin.ts",
     "src/lib/plugins/service-policy.ts",
     "src/lib/plugins/permission-policy.ts"

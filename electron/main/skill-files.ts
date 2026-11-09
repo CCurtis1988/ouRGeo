@@ -7,13 +7,21 @@
 // hands back only text: no symlinks, no dot-paths, no path that leaves the
 // folder, and size limits that stop a stray folder from flooding the library.
 // Nothing read here is ever executed; scripts are kept as text for the model to read.
+// A `.zip` is read in memory (never extracted to disk) under the same rules, planned
+// by the pure `src/lib/skills/archive.ts` before any entry is inflated.
 
 import { dialog, type IpcMain } from 'electron'
+import AdmZip from 'adm-zip'
 import { lstat, mkdir, readdir, readFile, writeFile } from 'fs/promises'
 import { basename, dirname, join, relative, sep } from 'path'
+import { inflateRawSync } from 'zlib'
+import {
+  looksBinary, planSkillArchive, SKILL_MAX_FILE as MAX_FILE, SKILL_MAX_FILES as MAX_FILES,
+  SKILL_MAX_TOTAL as MAX_TOTAL, SKILL_RESOURCE_DIRS as RESOURCE_DIRS,
+} from '../../src/lib/skills/archive'
 
-const RESOURCE_DIRS = ['references', 'templates', 'scripts', 'assets']
-const MAX_FILES = 64, MAX_FILE = 512 * 1024, MAX_TOTAL = 4 * 1024 * 1024
+/** The compressed archive itself: a skill zip is small, and this bounds the read. */
+const MAX_ZIP = 16 * 1024 * 1024
 
 export interface SkillFileRead {
   /** The SKILL.md text. */
@@ -25,8 +33,6 @@ export interface SkillFileRead {
   /** Files left out, and why: shown to the user rather than dropped silently. */
   skipped: string[]
 }
-
-const looksBinary = (buffer: Buffer): boolean => buffer.subarray(0, 8000).includes(0)
 
 async function readSkillFolder(folder: string): Promise<SkillFileRead> {
   const text = await readFile(join(folder, 'SKILL.md'), 'utf8').catch(() => null)
@@ -56,16 +62,60 @@ async function readSkillFolder(folder: string): Promise<SkillFileRead> {
   return { text, fallbackName: basename(folder), resources, skipped }
 }
 
+/** Read one skill from a `.zip`, in memory. Declared sizes are checked before inflating and again after. */
+export async function readSkillZip(path: string): Promise<SkillFileRead> {
+  const name = basename(path)
+  const info = await lstat(path)
+  if (!info.isFile()) throw new Error(`"${name}" is not a file.`)
+  if (info.size > MAX_ZIP) throw new Error(`"${name}" is over 16 MB, which is too large for a skill.`)
+  let zip: AdmZip
+  try { zip = new AdmZip(await readFile(path)) } catch { throw new Error(`"${name}" could not be read as a zip archive.`) }
+  const entries = zip.getEntries()
+  const plan = planSkillArchive(entries.map(e => ({
+    name: e.entryName, size: e.header.size, isDirectory: e.isDirectory,
+    // Unix mode lives in the high 16 bits of the external attributes; 0o120000 is a link.
+    isLink: ((e.header.attr >>> 16) & 0o170000) === 0o120000,
+    encrypted: (e.header.flags & 1) === 1,
+  })))
+  if (!plan.ok) throw new Error(`"${name}": ${plan.error}`)
+  const byName = new Map(entries.map(e => [e.entryName, e]))
+  // A header can understate its size, so inflate with a hard output cap rather
+  // than trusting it (adm-zip's getData would inflate the whole entry first).
+  const inflate = (entryName: string, limit: number): Buffer | null => {
+    const entry = byName.get(entryName)
+    if (!entry) return null
+    const raw = entry.getCompressedData()
+    try {
+      if (entry.header.method === 0) return raw.length <= limit ? raw : null
+      if (entry.header.method === 8) return inflateRawSync(raw, { maxOutputLength: limit })
+    } catch { return null }
+    return null // other compression methods are not used for skill files
+  }
+  const skillBytes = inflate(plan.skillEntry, MAX_FILE)
+  if (!skillBytes) throw new Error(`"${name}": the SKILL.md is larger than it claims, or over 512 KB.`)
+  if (looksBinary(skillBytes)) throw new Error(`"${name}": the SKILL.md is not text.`)
+  const resources: Record<string, string> = {}, skipped = [...plan.skipped]
+  let total = 0
+  for (const r of plan.resources) {
+    const data = inflate(r.name, MAX_FILE)
+    if (!data || total + data.length > MAX_TOTAL) { skipped.push(`${r.path} (larger than it claims)`); continue }
+    if (looksBinary(data)) { skipped.push(`${r.path} (not text)`); continue }
+    resources[r.path] = data.toString('utf8'); total += data.length
+  }
+  return { text: skillBytes.toString('utf8'), fallbackName: plan.folder || name.replace(/\.zip$/i, ''), resources, skipped }
+}
+
 export function registerSkillFiles(ipcMain: IpcMain): void {
   ipcMain.handle('dialog:openSkill', async (_evt, kind: 'file' | 'folder'): Promise<SkillFileRead | null> => {
     const result = await dialog.showOpenDialog({
       title: kind === 'folder' ? 'Import a skill folder' : 'Import a skill',
-      ...(kind === 'folder' ? {} : { filters: [{ name: 'Skill', extensions: ['md', 'markdown'] }, { name: 'All Files', extensions: ['*'] }] }),
+      ...(kind === 'folder' ? {} : { filters: [{ name: 'Skill (SKILL.md or .zip)', extensions: ['md', 'markdown', 'zip'] }, { name: 'All Files', extensions: ['*'] }] }),
       properties: [kind === 'folder' ? 'openDirectory' : 'openFile'],
     })
     if (result.canceled || !result.filePaths[0]) return null
     const chosen = result.filePaths[0]
     if (kind === 'folder') return readSkillFolder(chosen)
+    if (/\.zip$/i.test(chosen)) return readSkillZip(chosen)
     // A SKILL.md chosen directly: if it sits in a skill folder, bring that folder's files too.
     const info = await lstat(chosen)
     if (info.size > MAX_FILE) throw new Error(`"${basename(chosen)}" is over 512 KB, which is too large for a skill.`)

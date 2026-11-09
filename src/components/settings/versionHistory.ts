@@ -16,6 +16,17 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.17.0',
+    date: 'November 2026',
+    title: 'Skills From a Zip, Edited Properly',
+    summary:
+      'Import a skill straight from a .zip, and edit skills in a real code editor.',
+    highlights: [
+      'Import file or .zip in the Skills manager now takes a zipped skill folder, as skills are usually shared. It is read without unpacking anything to disk, under the same limits as a folder, and arrives switched off.',
+      'Skill text opens in the same editor as your code: Markdown and R highlighted, line numbers, your editor theme, and Ctrl+S to save. Built-in skills stay read-only, with Duplicate to edit.',
+    ],
+  },
+  {
     version: '1.16.38',
     date: 'November 2026',
     title: 'Skills You Can See and Shape',

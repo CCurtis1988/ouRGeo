@@ -245,5 +245,8 @@ k=2 for Haiku and k=1 for Qwen against a k=2 baseline, so Qwen cells are noisy.
   - `plugins` and `tutorials` score 0 on every model and both builds.
   - `context-memory` and `safety` are down slightly on all three models.
   - Qwen's `failure-recovery` is 0/8.
-  - Deferred: zip import; the Monaco editor in the Skill Manager; H7 (`run-ourgeo` `launch
-    clean` deletes the real `layout.json`); Track B never ran.
+  - Track B never ran.
+- **Done after P5 (2026-11-09, 1.17.0):** zip import; the Monaco SKILL.md editor; and H7:
+  `run-ourgeo` `launch clean` now runs on a throwaway profile
+  (`OURGEO_CONTEXT_TEST_PROFILE`) instead of deleting `layout.json` and session files in
+  the real `~/.config/ourgeo`.

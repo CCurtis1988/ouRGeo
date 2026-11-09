@@ -37,6 +37,8 @@ and so does this:
 | `lib/skills/catalog.ts` | The one list of every skill: built-in topics, plugin skills, user skills, project skills, with on/off and mode applied. Broker sources, routing, the catalog and the manager all read it. |
 | `lib/skills/tools.ts` | `use_skill` (enum of catalog names) and `save_skill`. |
 | `lib/skills/turn.ts` | Skills the host attaches at turn start. |
+| `lib/skills/archive.ts`, `electron/main/skill-files.ts` | Import from a file, a folder or a `.zip`. A zip is read in memory, never unpacked to disk: the pure planner decides which entries count (one SKILL.md at the top or in one folder; resource folders only; no links, dot-paths or escaping paths; 64 files, 512 KB each, 4 MB total) before anything is inflated, and each entry is inflated with a hard output cap, so a header that understates a size cannot flood memory. |
+| `components/skills/SkillTextEditor.tsx` | The SKILL.md editor: the bundled Monaco (markdown, so ```r fences highlight as R) on the shared `EDITOR_MONACO_THEME`, read-only for built-in skills, Ctrl+S saves. jsdom tests mock it. |
 | `lib/skills/intent.ts` | `/name` and "use your X skill", the save request, the workflow digest. |
 | `ai-skill-ourgeo.ts` topic `skills` | The built-in skill about skills: using one by name, saving a workflow, and what the Skill Manager controls. It is what the assistant reads when asked how skills work. |
 

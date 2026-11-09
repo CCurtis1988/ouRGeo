@@ -2,6 +2,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 vi.mock('@/lib/skills-persistence', () => ({ saveSkillLibrary: vi.fn(async () => undefined), loadSkillLibrary: vi.fn() }))
+// Monaco does not run in jsdom; the editor is checked in the real app. A textarea
+// with the same props stands in, so the dialog's own logic is still tested.
+vi.mock('./SkillTextEditor', () => ({
+  SkillTextEditor: ({ value, onChange, readOnly, ariaLabel }: { value: string; onChange: (v: string) => void; readOnly: boolean; ariaLabel: string }) =>
+    <textarea aria-label={ariaLabel} value={value} readOnly={readOnly} onChange={e => onChange(e.target.value)} />,
+}))
 import { useSkillStore } from '@/store/skills'
 import { SkillManagerDialog } from './SkillManagerDialog'
 import { listSkills, testSkill, duplicateShipped, importSkill } from '@/lib/skills/manager'

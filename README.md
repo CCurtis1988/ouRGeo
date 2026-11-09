@@ -167,7 +167,7 @@ the whole analysis.
     context, or only when you ask;
   - lock one so the assistant cannot change it;
   - edit it, restore an earlier version, or test whether a message would bring it in;
-  - import a skill file or folder, which arrives switched off until you have read it.
+  - import a skill file, folder or .zip, which arrives switched off until you have read it.
 
   Skills saved with a project travel inside the `.ourgeoproj`, and stay off on another
   computer until approved there. A skill is guidance only: it cannot change what the

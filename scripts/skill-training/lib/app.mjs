@@ -1,3 +1,4 @@
+/* global window -- used inside page.evaluate callbacks, which run in the app */
 // Launch the BUILT app in eval mode inside a throwaway sandbox.
 //
 // Isolation (spec §4.1): HOME and XDG_CONFIG_HOME point into

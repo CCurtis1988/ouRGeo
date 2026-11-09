@@ -1,3 +1,4 @@
+/* global window -- used inside page.evaluate callbacks, which run in the app */
 // Run tasks against one student arm and grade them (spec §4–§5).
 //
 //   node scripts/skill-training/run.mjs --model haiku --split val [--runs 2]

@@ -11,6 +11,7 @@ import { _electron as electron } from 'playwright-core'
 import * as readline from 'node:readline'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as os from 'node:os'
 import { execSync } from 'node:child_process'
 
 const APP_DIR = path.resolve(import.meta.dirname, '../../..')
@@ -41,36 +42,48 @@ function rServerPids() {
   } catch { return [] }   // pgrep exits 1 when nothing matches
 }
 
-/** Session/workspace files ouRGeo restores on launch. Clearing them makes a run
- *  deterministic — otherwise you inherit whatever tabs the last session left. */
-const SESSION_FILES = [
-  'session.json', 'console.json', 'spatial-layers.json', 'spatial-ui.json',
-  'object-tabs.json', 'plots.json',
-  // `layout.json` is a PREFERENCE, not session state — the app deliberately
-  // keeps it between runs. It is wiped here anyway, because `launch clean`
-  // promises a deterministic starting UI and a layout carried over from the
-  // last run means panels are open that this run never opened.
-  'layout.json',
-]
+/** `launch clean` runs in a throwaway profile, never the user's own.
+ *
+ *  It used to unlink session files and `layout.json` inside the real
+ *  `~/.config/ourgeo`, so every clean run silently threw away the developer's
+ *  saved workspace layout (a preference the app keeps on purpose). Now the app
+ *  gets a fresh, private userData directory through the marked synthetic
+ *  profile that main already honours (`OURGEO_CONTEXT_TEST_PROFILE`, see
+ *  `electron/main/context/acceptance-profile.ts`), plus `XDG_CONFIG_HOME`
+ *  pointing beside it. Nothing in the real profile is read, written or deleted,
+ *  and the directory is removed on `quit`. */
+let cleanProfile = null
 
-function userDataDir() {
-  const home = process.env.HOME || ''
-  if (process.platform === 'darwin') return path.join(home, 'Library/Application Support/ourgeo')
-  if (process.platform === 'win32') return path.join(process.env.APPDATA || '', 'ourgeo')
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(home, '.config'), 'ourgeo')
+function makeCleanProfile() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ourgeo-driver-'))
+  const data = path.join(root, 'ourgeo')
+  fs.mkdirSync(data, { mode: 0o700 })
+  fs.chmodSync(data, 0o700)
+  fs.writeFileSync(path.join(data, '.context-acceptance'), 'synthetic-context-profile-v1\n', { mode: 0o600 })
+  // Skip the first-run health check: its modal covers the UI a run means to drive.
+  fs.writeFileSync(path.join(data, 'health-check.json'), JSON.stringify({ prompted: true, report: null }))
+  return { root, data: fs.realpathSync(data) }
+}
+
+function removeCleanProfile() {
+  if (!cleanProfile) return
+  // Only ever the directory this driver made (mkdtemp under the OS temp dir).
+  if (path.basename(cleanProfile.root).startsWith('ourgeo-driver-') && cleanProfile.root.startsWith(os.tmpdir())) {
+    fs.rmSync(cleanProfile.root, { recursive: true, force: true })
+  }
+  cleanProfile = null
 }
 
 const COMMANDS = {
-  /** `launch` — start the app. `launch clean` wipes the persisted session first. */
+  /** `launch` — start the app on your profile. `launch clean` — start it on a fresh throwaway profile. */
   async launch(arg) {
     if (app) return console.log('already launched')
 
+    let env = { ...process.env }
     if (arg === 'clean') {
-      const dir = userDataDir()
-      for (const f of SESSION_FILES) {
-        try { fs.unlinkSync(path.join(dir, f)) } catch { /* absent is fine */ }
-      }
-      console.log('cleared session files in', dir)
+      cleanProfile = makeCleanProfile()
+      env = { ...env, XDG_CONFIG_HOME: cleanProfile.root, OURGEO_CONTEXT_TEST_PROFILE: cleanProfile.data }
+      console.log('fresh profile', cleanProfile.data, '(your own settings are untouched)')
     }
 
     preexistingR = new Set(rServerPids())
@@ -83,7 +96,7 @@ const COMMANDS = {
     app = await electron.launch({
       executablePath: electronBin,
       args: ['--no-sandbox', APP_DIR],
-      env: { ...process.env },
+      env,
       timeout: 60_000,
     })
     page = app.windows().find((w) => !w.url().startsWith('devtools://')) ?? await app.firstWindow()
@@ -162,11 +175,17 @@ const COMMANDS = {
    *  DOM reports success but leaves the editor without a cursor, so subsequent
    *  keystrokes are silently dropped. This is the one place a DOM click is NOT
    *  the right tool. */
-  async 'focus-editor'() {
+  async 'focus-editor'(within) {
     if (!page) return console.log('ERROR: launch first')
-    const box = await page.locator('.monaco-editor .view-lines').first().boundingBox()
+    // `focus-editor <sel>` picks the Monaco inside <sel> (e.g. the Skill Manager's);
+    // bare, the first one on the page, which is the code editor.
+    const lines = page.locator(`${within ? `${within} ` : ''}.monaco-editor .view-lines`).first()
+    // Centre it and click its middle: in a scrolled dialog pane shorter than the
+    // editor, the top edge is clipped and a click there lands on whatever is above.
+    await lines.evaluate(el => el.scrollIntoView({ block: 'center' })).catch(() => {})
+    const box = await lines.boundingBox()
     if (!box) return console.log('NOT_FOUND')
-    await page.mouse.click(box.x + Math.min(60, box.width / 2), box.y + 10)
+    await page.mouse.click(box.x + Math.min(60, box.width / 2), within ? box.y + box.height / 2 : box.y + 10)
     // Monaco >= 0.5x focuses a `div.native-edit-context` (the EditContext API),
     // NOT the legacy hidden textarea — accept either.
     const ok = await page.evaluate(() => {
@@ -313,6 +332,7 @@ const COMMANDS = {
       if (preexistingR.has(pid)) continue
       try { process.kill(Number(pid)) } catch { /* already gone */ }
     }
+    removeCleanProfile()
   },
 
   help() { console.log('commands:', Object.keys(COMMANDS).join(', ')) },

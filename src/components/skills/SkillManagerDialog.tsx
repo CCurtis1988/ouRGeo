@@ -13,6 +13,7 @@ import { FILTER_LABELS, NEW_SKILL_TEXT, duplicateShipped, importSkill, listSkill
 import type { SkillEntry } from '@/lib/skills/catalog'
 import type { SkillMode } from '@/lib/skills/types'
 import { cn } from '@/lib/utils'
+import { SkillTextEditor } from './SkillTextEditor'
 
 // Where the user decides what the assistant follows (lib/skills, design note
 // ai-skills.md). A sibling of Settings, like the Theme Studio and the Plugin
@@ -91,7 +92,7 @@ export function SkillManagerDialog({ open, onOpenChange }: { open: boolean; onOp
 
           <div className="flex items-center gap-2 px-5 py-2 border-b border-geo-border shrink-0">
             <Button variant="ghost" size="sm" className="h-6 text-xs gap-1.5" onClick={create} data-ourgeo-id="skills.new"><Plus className="w-3 h-3" /> New skill</Button>
-            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1.5" onClick={() => void runImport('file')} data-ourgeo-id="skills.import"><Upload className="w-3 h-3" /> Import file…</Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1.5" onClick={() => void runImport('file')} data-ourgeo-id="skills.import"><Upload className="w-3 h-3" /> Import file or .zip…</Button>
             <Button variant="ghost" size="sm" className="h-6 text-xs gap-1.5" onClick={() => void runImport('folder')}><FolderOpen className="w-3 h-3" /> Import folder…</Button>
             {projectSaved && (
               <label className="flex items-center gap-1.5 text-[11px] text-geo-muted">
@@ -226,8 +227,8 @@ function SkillDetail({ entry, onNotice, onSelect }: { entry: SkillEntry; onNotic
 
         <div>
           <p className="text-[11px] text-geo-muted mb-1">{stored ? 'SKILL.md' : 'What it says (built in, read-only)'}</p>
-          <textarea aria-label={stored ? 'SKILL.md text' : 'Skill text (read-only)'} value={text} onChange={e => setText(e.target.value)} readOnly={!stored} spellCheck={false}
-            className="w-full h-72 bg-geo-bg border border-geo-border rounded p-2 font-mono text-[11px] text-foreground focus:outline-none focus:border-geo-accent" />
+          <SkillTextEditor key={entry.sourceId} ariaLabel={stored ? 'SKILL.md text' : 'Skill text (read-only)'} value={text} onChange={setText} readOnly={!stored}
+            onSave={stored && dirty ? save : undefined} />
           <div className="flex flex-wrap gap-2 mt-2">
             {stored && <Button size="sm" className="h-6 text-xs" disabled={!dirty} onClick={save}>Save</Button>}
             {stored && dirty && <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setText(original)}>Discard changes</Button>}

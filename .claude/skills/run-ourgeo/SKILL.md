@@ -67,7 +67,7 @@ Screenshots land in `/tmp/ourgeo-shots/` (override with `SCREENSHOT_DIR`).
 
 | command | what it does |
 |---|---|
-| `launch [clean]` | launch the app; `clean` first wipes the persisted session AND `layout.json`, so tabs and open panels are deterministic |
+| `launch [clean]` | launch the app on your own profile; `clean` launches it on a fresh throwaway profile instead (default layout, no restored tabs, no first-run health check), removed on `quit`. Your `~/.config/ourgeo` is never touched |
 | `ready` | block until the console prints "R session ready" |
 | `open <path>` | stub the native Open dialog and click Open — the normal way to load a file |
 | `stub-open <path>` / `stub-save <path>` | stub a native dialog without clicking |
@@ -79,7 +79,7 @@ Screenshots land in `/tmp/ourgeo-shots/` (override with `SCREENSHOT_DIR`).
 | `r <code>` | type R into the console and press Enter |
 | `console [n]` | tail of the R console pane |
 | `click <sel>` / `click-text <text>` / `title <substr>` | click by selector, text, or `title=""` |
-| `focus-editor` | put the caret in Monaco so `type`/`press` reach it |
+| `focus-editor [sel]` | put the caret in Monaco so `type`/`press` reach it; with `sel`, the Monaco inside it (e.g. `[data-testid="skill-text-editor"]`) |
 | `type <text>` / `press <key>` | keyboard input |
 | `wait <sel>` / `text [sel]` / `eval <js>` | wait, read innerText, evaluate in the page |
 | `errors` | renderer console errors collected since launch |
@@ -112,10 +112,14 @@ These are things that actually bit, not generic advice.
   first — this has previously manifested as an orphaned R process grabbing port
   9222 and breaking CDP-based tooling.
 
-- **The app restores its last session AND its layout on launch.** Without
-  `launch clean` you inherit whatever tabs and open panels the previous run
-  left. Panel state is the easier one to miss: `layout.json` is a preference the
-  app keeps deliberately, so a panel you opened three runs ago is still open.
+- **The app restores its last session AND its layout on launch.** Plain `launch`
+  uses your real profile, so you inherit whatever tabs and open panels the last
+  run left. `launch clean` gets a fresh profile in the OS temp dir instead
+  (`OURGEO_CONTEXT_TEST_PROFILE` + `XDG_CONFIG_HOME`), so it starts from the
+  default layout and has none of your settings: no API keys, no saved R path
+  (the app finds R on `PATH`), no plugins. It used to delete `layout.json` and
+  the session files in the real `~/.config/ourgeo`, which threw away the
+  developer's own layout on every clean run — never go back to that.
 
 - **`ss` times out when anything on screen animates.** Playwright waits for a
   stable frame; the map's render loop and a panel's loading spinner both keep
