@@ -218,6 +218,8 @@ interface AiState {
   appendStreamChunk: (chunk: string) => void
   finalizeStream: (fullContent: string, openAiMessages?: OpenAiAssistantMessage[]) => void
   cancelStream: () => void
+  /** End the stream `ac` began, if it is still the active one and was not stopped. True when it did. */
+  endStreamIfStill: (ac: AbortController) => boolean
   /** Start a fresh conversation and show it, keeping every existing one. */
   newChat: () => string
   /** Show an existing conversation, restoring the provider and model it was
@@ -573,6 +575,21 @@ export const useAiStore = create<AiState>((set, get) => ({
   setLastSessionContext: (lastSessionContext) => set((s) => ({
     chats: patchActiveChat(s.chats, s.activeChatId, (c) => ({ ...c, lastSessionContext })),
   })),
+  /**
+   * A turn can return before it ever reaches the model: the project, chat, R
+   * session, model or privacy settings changed while it was being prepared, or the
+   * main process's project scope did not match. Nothing ended its stream, so the
+   * panel showed Stop over a turn that was not running, for ever. The caller ends
+   * it here, but only its own: a turn that finished, failed or was stopped has
+   * already cleared its controller, and a newer turn has a different one.
+   */
+  endStreamIfStill: (ac) => {
+    const state = get()
+    if (!state.isStreaming || state.abortController !== ac || ac.signal.aborted) return false
+    state.finalizeStream(state.streamingContent)
+    return true
+  },
+
   setClaudeUsage: (fiveHour, sevenDay, resetsAt) =>
     set({ claudeUsage: { fiveHour, sevenDay, resetsAt } }),
 

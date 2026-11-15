@@ -111,3 +111,33 @@ describe('the session-state block a transcript-keeping provider was sent', () =>
     expect(active().lastSessionContext).toBeNull()
   })
 })
+
+describe('a turn that returns without an answer', () => {
+  it('ends its own stream, so Stop is not left showing over nothing', () => {
+    const ac = useAiStore.getState().beginStream()
+    expect(useAiStore.getState().endStreamIfStill(ac)).toBe(true)
+    expect(useAiStore.getState().isStreaming).toBe(false)
+    expect(messages()).toHaveLength(0)
+  })
+  it('keeps partial text it had streamed', () => {
+    const ac = useAiStore.getState().beginStream()
+    useAiStore.getState().appendStreamChunk('Reading nc…')
+    useAiStore.getState().endStreamIfStill(ac)
+    expect(messages().map(m => m.content)).toEqual(['Reading nc…'])
+  })
+  it('leaves alone a turn that already finished, was stopped, or a newer turn', () => {
+    const finished = useAiStore.getState().beginStream()
+    useAiStore.getState().finalizeStream('Done.')
+    expect(useAiStore.getState().endStreamIfStill(finished)).toBe(false)
+
+    const stopped = useAiStore.getState().beginStream()
+    useAiStore.getState().cancelStream()
+    expect(useAiStore.getState().endStreamIfStill(stopped)).toBe(false)
+
+    const older = useAiStore.getState().beginStream()
+    useAiStore.getState().cancelStream()
+    useAiStore.getState().beginStream()
+    expect(useAiStore.getState().endStreamIfStill(older)).toBe(false)
+    expect(useAiStore.getState().isStreaming).toBe(true)
+  })
+})

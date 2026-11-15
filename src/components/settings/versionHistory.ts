@@ -25,6 +25,7 @@ export const VERSION_HISTORY: ReleaseNote[] = [
       'Before, the assistant looked at your saved memories only when a message used words like "remember", "prefer", "units" or "format", so "draw a histogram" never brought in "Always make all plots dark themed". Every message is now matched against your memories, and the ones that fit are read first.',
       'Plots, charts, histograms, figures and maps now find memories about how plots should look, and a message no memory fits still sends none.',
       'Thorough was never the fix: the Context setting changes how much the assistant may look up, not what it is told. A memory you want on every message can still be marked Always apply in the Memory library.',
+      'Fixed: if the project, chat, R session, model or privacy settings changed while a message was being prepared, the panel could show Stop with no answer until you pressed it. The message now ends at once and says to send it again.',
     ],
   },
   {

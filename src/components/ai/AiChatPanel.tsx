@@ -720,6 +720,9 @@ export function AiChatPanel(): React.ReactElement {
         return
       }
       await runTurn(userMsg, text, apiKey, local, ac, attachments)
+      // A turn that stopped before an answer, without an error, must not leave
+      // Stop showing over nothing; say why, keeping any partial text.
+      if (useAiStore.getState().endStreamIfStill(ac)) setSendError('This message stopped before an answer: the project, chat, R session, model or privacy settings changed while it was being prepared. Send it again.')
     } catch (e) {
       // `runTurn` handles its own send failures; this is the belt for a throw
       // while the turn is being PREPARED. Without it the panel would be left

@@ -99,7 +99,10 @@ what "Always apply" is for.
 - **A turn could hang silently.** If preparation returns early (for example, the
   main process's project lease does not match the renderer's project), `handleSend`
   never ends the stream. The panel then shows a Stop button over a turn that is not
-  running, with no message. Found while building the eval project. Not fixed here.
+  running, with no message. Found while building the eval project. **Fixed in
+  1.17.1:** `useAiStore.endStreamIfStill(ac)` ends that turn's stream (only its own)
+  and the panel says to send again; reproduced in the real app with a mismatched
+  lease, the turn now ends in 0.14 s instead of streaming until stopped.
 - **Harness, eval only:**
   - Fixtures can seed memories (`fixture.memories`) into a saved eval project. The main process is told through an eval-only `eval:activateProject` handler, registered only with `OURGEO_EVAL=1`.
   - `--effort` selects the Context setting.
