@@ -325,6 +325,9 @@ Also `docs/context-implementation.md` (verified behaviour, pending work),
   shortens only completed older results; original user instructions are never clipped.
 - Usage/accounting: provider counters separate from occupancy estimates; missing
   fields stay unknown; encrypted content-free ledgers; estimated limits are not invoice caps.
+- Saved memories are matched to EVERY message at turn start (`memory-routing.ts`) and
+  read before skills/other evidence; never gate them behind keywords (a gate left
+  "Always make plots dark" unseen in ~80% of plot requests). Pinned = always sent.
 - Memory, exclusions, journals: AES-GCM in SQLite on a worker, key via safeStorage
   (Linux basic_text refused). Protected-policy failure fails closed. Suggestions need
   acceptance; forgetting resets provider sessions.

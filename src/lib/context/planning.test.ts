@@ -9,7 +9,7 @@ import type { MemoryRecord } from './types'
 
 describe('selective planning', () => {
   it.each(['Generate 100 rows of dummy data.', 'Hello', 'Explain R vector recycling.'])('selects no auxiliary sources for %s', text => {
-    expect(routeContext(text)).toEqual({ topics: [], environment: false, console: false, documents: false, memory: false })
+    expect(routeContext(text)).toEqual({ topics: [], environment: false, console: false, documents: false })
   })
   it('routes combinations rather than picking a single keyword winner', () => {
     const route = routeContext('Fix this knit error and use an autumn theme for the document')

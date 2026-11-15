@@ -5,6 +5,9 @@ import { lexicalScore } from './router'
  * never broaden source access and keep unrelated turns free of a profile. */
 export function preferenceCategories(text: string): string[] {
   const categories: string[] = []
+  // Plots and their look: "make a histogram" must find "Always make all plots dark
+  // themed", which shares no word with it (docs/context-memory-diagnosis.md).
+  if (/\b(?:plots?|plotting|charts?|graphs?|figures?|histograms?|boxplots?|scatter ?plots?|bar ?charts?|maps?|visuali[sz](?:e|ation)s?|ggplot2?|dark (?:theme|mode)|light (?:theme|mode)|themed?)\b/i.test(text)) categories.push('graphics')
   if (/\b(?:units?|metric|imperial|metres?|meters?|kilometres?|kilometers?|miles?|feet|distance|length|area|hectares?|acres?|buffer)\b/i.test(text)) categories.push('units')
   if (/\b(?:concise|brief|detailed|plain language|British English|American English|bullet points|step by step|large text|writing style|explain|explanation)\b/i.test(text)) categories.push('communication')
   if (/\b(?:CSV|JSON|GeoPackage|Markdown|R Markdown|Quarto|PDF|output format|export format)\b/i.test(text)) categories.push('formats')
@@ -50,10 +53,17 @@ export function preferenceMatch(query: string, statement: string): boolean {
   return categories.some(category => preferenceCategories(statement).includes(category))
 }
 
+/**
+ * How well a saved memory fits this request: a shared category (units, formats,
+ * CRS, communication, graphics) or shared meaningful words. Turn-start routing
+ * runs this on every message, so generic words must never count: "make a table"
+ * is not about "Always make all plots dark themed".
+ */
 export function memoryRelevance(query: string, title: string, summary: string): number {
   // "this project" appears in many instructions; it cannot outweigh the
   // convention actually needed for a distance or CRS question.
-  const stop = new Set(['a', 'an', 'the', 'this', 'that', 'my', 'our', 'your', 'in', 'for', 'of', 'to', 'we', 'did', 'do', 'is', 'are', 'was', 'what', 'which', 'why', 'how', 'i', 'use', 'used', 'project', 'please'])
+  const stop = new Set(['a', 'an', 'the', 'this', 'that', 'my', 'our', 'your', 'in', 'for', 'of', 'to', 'we', 'did', 'do', 'is', 'are', 'was', 'what', 'which', 'why', 'how', 'i', 'use', 'used', 'project', 'please',
+    'make', 'made', 'show', 'give', 'get', 'create', 'add', 'new', 'all', 'always', 'never', 'every', 'each', 'me', 'it', 'and', 'or', 'with', 'on', 'from', 'by', 'can', 'you', 'be'])
   const words = (query.match(/[\p{L}\p{N}_.:$-]+/gu) ?? []).filter(word => !stop.has(word.toLowerCase())).join(' ')
   return (preferenceMatch(query, `${title} ${summary}`) ? 40 : 0) + (words ? lexicalScore(words, title, summary) : 0)
 }

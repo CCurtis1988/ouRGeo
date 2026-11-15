@@ -1,0 +1,205 @@
+[
+ {
+  "id": "memory-ho-caption-hist",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes <- datasets::quakes[1:200, c('lat', 'long', 'depth', 'mag')]",
+   "memories": [
+    {
+     "statement": "Always add a caption with the data source to every figure"
+    },
+    {
+     "statement": "Always name new columns in UPPER CASE"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "draw a histogram of depth in my quakes table"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "r_code_regex": "caption\\s*=|\\bsub\\s*=|mtext\\s*\\(|title\\s*\\([^)]*sub\\s*=|\\bSource\\b"
+   }
+  ]
+ },
+ {
+  "id": "memory-ho-caption-line",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sales <- data.frame(month = seq(as.Date('2025-01-01'), by = 'month', length.out = 12), revenue = c(120, 135, 128, 150, 162, 158, 171, 180, 176, 190, 205, 214))",
+   "memories": [
+    {
+     "statement": "Always add a caption with the data source to every figure"
+    },
+    {
+     "statement": "Always name new columns in UPPER CASE"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "plot revenue over time from my sales table"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "r_code_regex": "caption\\s*=|\\bsub\\s*=|mtext\\s*\\(|title\\s*\\([^)]*sub\\s*=|\\bSource\\b"
+   }
+  ]
+ },
+ {
+  "id": "memory-ho-upper-kpl",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars[, c('mpg', 'cyl', 'gear')]",
+   "memories": [
+    {
+     "statement": "Always add a caption with the data source to every figure"
+    },
+    {
+     "statement": "Always name new columns in UPPER CASE"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "add a column to cars with mpg converted to kilometres per litre"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "new <- setdiff(names(cars), c('mpg', 'cyl', 'gear')); length(new) > 0 && all(grepl('^[A-Z][A-Z0-9_]*$', new))"
+   }
+  ]
+ },
+ {
+  "id": "memory-ho-upper-ratio",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars[, c('mpg', 'cyl', 'gear')]",
+   "memories": [
+    {
+     "statement": "Always add a caption with the data source to every figure"
+    },
+    {
+     "statement": "Always name new columns in UPPER CASE"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "add a column to cars with mpg per cylinder"
+   }
+  ],
+  "graders": [
+   {
+    "r_state": "new <- setdiff(names(cars), c('mpg', 'cyl', 'gear')); length(new) > 0 && all(grepl('^[A-Z][A-Z0-9_]*$', new))"
+   }
+  ]
+ },
+ {
+  "id": "memory-ho-rows-report",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes <- datasets::quakes[1:200, c('lat', 'long', 'depth', 'mag')]",
+   "memories": [
+    {
+     "statement": "Always state how many rows were used in every report"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "write a short report on my quakes table"
+   }
+  ],
+  "graders": [
+   {
+    "output_regex": "\\b200\\b"
+   }
+  ]
+ }
+]

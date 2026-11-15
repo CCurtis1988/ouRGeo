@@ -1,0 +1,465 @@
+[
+ {
+  "id": "memory-hist",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes <- datasets::quakes[1:200, c('lat', 'long', 'depth', 'mag')]",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "draw a histogram of depth in my quakes table"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-scatter",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "quakes <- datasets::quakes[1:200, c('lat', 'long', 'depth', 'mag')]",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "plot mag against depth for my quakes data"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-bar",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars[, c('mpg', 'cyl', 'gear')]",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "make a bar chart of mean mpg by cyl for my cars table"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-box",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars[, c('mpg', 'cyl', 'gear')]",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "show me a boxplot of mpg by gear from cars"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-line",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "sales <- data.frame(month = seq(as.Date('2025-01-01'), by = 'month', length.out = 12), revenue = c(120, 135, 128, 150, 162, 158, 171, 180, 176, 190, 205, 214))",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "plot revenue over time from my sales table"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-map",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "nc <- sf::st_read(system.file('shape/nc.shp', package = 'sf'), quiet = TRUE)",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "make a map of nc coloured by BIR74"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   }
+  ]
+ },
+ {
+  "id": "memory-trail-chart",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark",
+   "metric"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "trails <- data.frame(name = c('Ridge Loop', 'Creek Path', 'Summit Trail', 'Lake Walk', 'Pine Spur'), length_mi = c(4.2, 2.8, 7.5, 1.9, 3.3), elev_gain_ft = c(850, 220, 2400, 60, 510))",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "make a bar chart of my trail lengths"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   },
+   {
+    "r_code_regex": "1\\.609|1609|0\\.3048|3\\.28|\\bkm\\b|kilomet|\\bmetres?\\b|\\bmeters?\\b|set_units|\\(m\\)"
+   }
+  ]
+ },
+ {
+  "id": "memory-trail-elev",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "dark",
+   "metric"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "trails <- data.frame(name = c('Ridge Loop', 'Creek Path', 'Summit Trail', 'Lake Walk', 'Pine Spur'), length_mi = c(4.2, 2.8, 7.5, 1.9, 3.3), elev_gain_ft = c(850, 220, 2400, 60, 510))",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "chart elevation gain for each trail"
+   }
+  ],
+  "graders": [
+   {
+    "plot_made": true
+   },
+   {
+    "plot_dark": "theme_dark|dark_theme|ggdark|\\bdark(?:_?(?:bg|background|theme|mode))?\\b|\\b(?:bg|background)_?dark\\b|(?:plot|panel)\\.background\\s*=\\s*element_rect\\([^)]*fill\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)|\\bbg\\s*=\\s*[\\\"'](?:black|#[0-3]|gr[ae]y[1-3]\\d?\\b)"
+   },
+   {
+    "r_code_regex": "1\\.609|1609|0\\.3048|3\\.28|\\bkm\\b|kilomet|\\bmetres?\\b|\\bmeters?\\b|set_units|\\(m\\)"
+   }
+  ]
+ },
+ {
+  "id": "memory-trail-report",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [
+   "metric"
+  ],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "trails <- data.frame(name = c('Ridge Loop', 'Creek Path', 'Summit Trail', 'Lake Walk', 'Pine Spur'), length_mi = c(4.2, 2.8, 7.5, 1.9, 3.3), elev_gain_ft = c(850, 220, 2400, 60, 510))",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "write a short report on my trails table"
+   }
+  ],
+  "graders": [
+   {
+    "output_regex": "\\bkm\\b|kilomet|\\bmetres?\\b|\\bmeters?\\b"
+   }
+  ]
+ },
+ {
+  "id": "memory-control-mean",
+  "domains": [
+   "context-memory"
+  ],
+  "modules": [],
+  "uses": [],
+  "switches": {
+   "autopilot": true,
+   "web": false,
+   "terminal": false
+  },
+  "confirm": "approve",
+  "fixture": {
+   "r": "cars <- mtcars[, c('mpg', 'cyl', 'gear')]",
+   "memories": [
+    {
+     "statement": "Always make all plot dark themed"
+    },
+    {
+     "statement": "Always use metric units in charts and reports"
+    },
+    {
+     "statement": "We decided to use the 2020 census county boundaries"
+    },
+    {
+     "statement": "The client for this project is the county planning office"
+    }
+   ]
+  },
+  "turns": [
+   {
+    "user": "what's the mean mpg in my cars table?"
+   }
+  ],
+  "graders": [
+   {
+    "answer_regex": "20\\.09|20\\.1\\b"
+   },
+   {
+    "r_code_not_regex": "\\b(?:plot|hist|barplot|boxplot|ggplot|tm_shape|image|lines)\\s*\\("
+   }
+  ]
+ }
+]

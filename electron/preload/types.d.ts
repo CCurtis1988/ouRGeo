@@ -195,6 +195,8 @@ declare global {
     electronAPI: {
       /** True only when launched with OURGEO_EVAL=1 (skill-training harness). */
       evalMode: boolean
+      /** Eval mode only; absent otherwise. */
+      evalActivateProject?: (projectId: string | null) => Promise<void>
       context: {
         learningSettings: () => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>
         configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => Promise<import('../../src/lib/context/learning').MemoryLearningSettings>

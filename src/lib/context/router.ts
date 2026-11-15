@@ -1,4 +1,6 @@
-export interface ContextRoute { topics: string[]; environment: boolean; console: boolean; documents: boolean; memory: boolean }
+/** Which evidence to read at turn start. Memories are not here: they are matched to
+ * every message by relevance (memory-routing.ts), not behind a keyword gate. */
+export interface ContextRoute { topics: string[]; environment: boolean; console: boolean; documents: boolean }
 
 /** Multi-label routing has no I/O. General R and synthetic examples deliberately
  * match no source; installed corpus size cannot change that decision. */
@@ -13,7 +15,6 @@ export function routeContext(text: string): ContextRoute {
     environment: /\[[^\]\n]+\]|\b(?:this|active|selected) (?:layer|dataset|object)\b|\b(?:columns|schema|crs|workspace|environment)\b/i.test(text),
     console: /\b(?:error|failed|failure|warning|debug|console)\b/i.test(text),
     documents,
-    memory: /\b(?:remember|yesterday|previous|earlier|decid|prefer|units|distance|length|area|buffer|CRS|projection|format|style)\w*\b/i.test(text),
   }
 }
 

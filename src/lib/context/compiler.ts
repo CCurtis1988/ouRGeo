@@ -9,7 +9,9 @@ export function buildContextContract(options: { autoPilot: boolean; web: boolean
   // candidate keeps the MCP suffix rule below, so it stays byte-constant per
   // switch state exactly as the shipped one must (Claude prompt cache).
   const candidate = overlayValue('contract', '')
-  const catalog = options.skills ? `\n${options.skills}` : ''
+  // Eval mode only: a sentence appended to the shipped contract (memory study, F1).
+  const appended = overlayValue('contractAppend', '')
+  const catalog = (appended ? `\n${appended}` : '') + (options.skills ? `\n${options.skills}` : '')
   if (candidate) return candidate + catalog + (options.viaMcp ? '\nTools are named mcp__ourgeo__<name>; bare names here identify the same tools. ouRGeo tools are your only file, shell and web access.' : '')
   return `You are the R and spatial assistant in ouRGeo. Prefer concise runnable R. Every GUI operation exposes reproducible R; interface action IDs are not R functions.
 Context is selective: use context_search and context_read before guessing about workspace objects, application workflows or previous decisions. Workspace, console failures, documents, skills, actions and authorised memories are searchable. Absence here or an index miss does not mean a resource does not exist.

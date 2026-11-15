@@ -16,6 +16,18 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.17.1',
+    date: 'November 2026',
+    title: 'Saved Instructions Are Followed',
+    summary:
+      'Project and personal memories such as "Always make all plots dark themed" now reach the assistant whenever a request fits them, at every Context setting.',
+    highlights: [
+      'Before, the assistant looked at your saved memories only when a message used words like "remember", "prefer", "units" or "format", so "draw a histogram" never brought in "Always make all plots dark themed". Every message is now matched against your memories, and the ones that fit are read first.',
+      'Plots, charts, histograms, figures and maps now find memories about how plots should look, and a message no memory fits still sends none.',
+      'Thorough was never the fix: the Context setting changes how much the assistant may look up, not what it is told. A memory you want on every message can still be marked Always apply in the Memory library.',
+    ],
+  },
+  {
     version: '1.17.0',
     date: 'November 2026',
     title: 'Skills From a Zip, Edited Properly',

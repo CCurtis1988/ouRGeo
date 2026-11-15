@@ -223,7 +223,8 @@ export class ContextBroker {
     return response
   }
 
-  async read(input: Record<string, unknown>, reason = 'assistant requested evidence', tokenLimit = 1800): Promise<string> {
+  /** `hostChosen`: the host, not the model, picked this source at turn start (see `prefetch`). */
+  async read(input: Record<string, unknown>, reason = 'assistant requested evidence', tokenLimit = 1800, hostChosen = false): Promise<string> {
     this.check()
     const reference = String(input.cursor ?? input.ref ?? '')
     const cachedResult = resolveResult(this.host.identity, reference)
@@ -247,7 +248,9 @@ export class ContextBroker {
     const cacheKey = range ? JSON.stringify([source.id, source.revision, range.startLine, range.endLine]) : sourceRevisionKey(source.id, source.revision)
     let raw = this.cache.get(cacheKey)
     if (raw === undefined) {
-      this.takeCall(GUIDANCE_KINDS.has(source.kind))
+      // Saved memories the host matched to this message cost the model no lookup:
+      // at Balanced two of them used a third of Qwen's six (docs/context-memory-diagnosis.md).
+      this.takeCall(GUIDANCE_KINDS.has(source.kind) || (hostChosen && source.kind === 'memory'))
       const original = range && source.readRange ? await source.readRange(range, this.host.signal) : await source.read(this.host.signal)
       raw = redactContext(range && !source.readRange ? readDocumentRange(original, range) : original)
       if (raw.length > 1_000_000) return JSON.stringify({ status: 'BUDGET_LIMIT', recovery: 'Select a smaller document section or result.' })
@@ -398,7 +401,7 @@ export class ContextBroker {
       if (source && remaining > 100) {
         const limit = Math.min(remaining, Math.floor(allocation / selected.length))
         let result: string
-        try { result = await this.read({ ref: this.ref(source) }, 'local task routing', limit) }
+        try { result = await this.read({ ref: this.ref(source) }, 'local task routing', limit, true) }
         catch (error) {
           // Prefetch is optional evidence. A source that cannot be read, such as a
           // plain vector with no schema, is skipped rather than ending the turn;
@@ -414,7 +417,7 @@ export class ContextBroker {
           // checks and the normal lookup budget still apply to both reads.
           this.check()
           const current = this.eligible(['environment'], candidate => candidate.id === source.id)[0]
-          if (current) result = await this.read({ ref: this.ref(current) }, 'local task routing', limit)
+          if (current) result = await this.read({ ref: this.ref(current) }, 'local task routing', limit, true)
         }
         results.push(result)
       }

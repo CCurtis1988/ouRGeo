@@ -16,6 +16,7 @@ import { rBridge } from './r-bridge'
 import { startProjectFileAccess } from './project-files/ipc'
 import { createSleepRecovery, repaintWindow as forceRepaint } from './sleep-recovery'
 import { registerContextHandlers, stopContextProviders } from './context/ipc'
+import { activateContextProject } from './context/scope'
 import { managedContextRuntimesRunning, stopManagedContextRuntimes } from './context/managed-runtime'
 import { registerHealthHandlers } from './health-check'
 import { beginSession, markCleanExit, onFocusRequested, registerProjectDrafts } from './project-drafts'
@@ -213,6 +214,9 @@ app.whenReady().then(async () => {
     mainWindow.show(); mainWindow.focus()
   })
   registerContextHandlers(ipcMain, () => mainWindow?.webContents)
+  // Skill-training harness only: a task's synthetic saved project becomes the
+  // active context scope. Never registered in a normal launch.
+  if (process.env.OURGEO_EVAL === '1') ipcMain.handle('eval:activateProject', (_event, projectId: unknown) => activateContextProject(typeof projectId === 'string' ? projectId : null))
   registerThemeBackgrounds(ipcMain)
   registerHealthHandlers(ipcMain)
   registerAppUpdates(ipcMain)

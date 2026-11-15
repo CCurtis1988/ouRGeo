@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Skill-training harness only (docs/agent-skill-training-spec.md §4.1).
   // False in every normal launch, and the renderer installs nothing then.
   evalMode: process.env.OURGEO_EVAL === '1',
+  // Eval only: make the harness's synthetic project the main process's active
+  // context scope, so a turn's lease matches it. Absent in a normal launch.
+  ...(process.env.OURGEO_EVAL === '1' ? { evalActivateProject: (projectId: string | null) => ipcRenderer.invoke('eval:activateProject', projectId) } : {}),
   themeBackgrounds: {
     list: () => ipcRenderer.invoke('themeBackgrounds:list'),
     link: (themeId: string) => ipcRenderer.invoke('themeBackgrounds:link', themeId),

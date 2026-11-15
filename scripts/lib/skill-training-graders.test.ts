@@ -30,6 +30,11 @@ const CASES: [string, unknown, () => [unknown, unknown], unknown, unknown?][] = 
   ['tool_not_called', 'execute_r_code', () => [ep('', [ui('a:b')]), ep('', [r('1')])], {}],
   ['max_tool_calls', 1, () => [ep('', [r('1')]), ep('', [r('1'), r('2')])], {}],
   ['r_code_not_regex', 'unlink', () => [ep('', [r('sum(1)')]), ep('', [r('unlink("x")')])], {}],
+  ['r_code_regex', '1\\.609', () => [ep('', [r('x$km <- x$mi * 1.609')]), ep('', [r('x$mi')])], {}],
+  ['output_regex', '\\bkm\\b', () => [ep('It is 6.8 km long.'), ep('It is 4.2 miles long.')], {}],
+  // A light plot whose code merely mentions "darkblue" must not count as dark; a variable passed to par(bg) is caught by the image.
+  ['plot_dark', '\\bdark\\b|\\bbg\\s*=\\s*["\x27]black', () => [{ ...ep('', [r('bg <- "#1e1e1e"; par(bg = bg); hist(x)')]), plot: { made: 1, luminance: { whole: 0.12, border: 0.12 } } }, { ...ep('', [r('hist(x, col = "darkblue")')]), plot: { made: 1, luminance: { whole: 1, border: 1 } } }], {}],
+  ['plot_made', true, () => [{ ...ep(''), plot: { made: 1, luminance: null } }, { ...ep(''), plot: { made: 0, luminance: null } }], {}],
   ['answer_regex', '100 counties', () => [ep('There are 100 counties.'), ep('There are many.')], {}],
   ['answer_not_regex', '100', () => [ep('Run nrow(nc).'), ep('It is 100.')], {}],
   ['no_action_id_in_r', true, () => [ep('', [r('sf::st_read("a")')]), ep('', [r('map:addLayer("nc")')])], {}],

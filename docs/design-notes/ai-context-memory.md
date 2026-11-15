@@ -139,7 +139,21 @@ load cannot mistake a newer pending column policy for an empty Error, overwrite
 its success, or leave a stale privacy warning after recovery.
  Narrow deterministic preference settings supersede within one scope in
 the canonical transaction. Category routing uses meaningful terms, so generic
-“this project” prose cannot displace a relevant unit convention. Suggestions and
+“this project” prose cannot displace a relevant unit convention.
+
+**Turn-start memory routing runs on every message (1.17.1).** `memory-routing.ts`
+scores every saved memory against the request (`memoryRelevance`: a shared category,
+units, formats, CRS, communication or graphics, or shared meaningful words; generic
+verbs such as "make", "show" and "add" never count) and reads the best two before
+skills and other evidence, on their own allowance. It used to run only when the
+message contained a memory keyword ("remember", "prefer", "units", "format"…), and
+memories were last in the three prefetch slots, so "draw a histogram" never brought
+in "Always make all plots dark themed". Measured (docs/context-memory-diagnosis.md):
+a memory that reaches the model was followed every time on Haiku, Sonnet and Qwen;
+the gate let one reach the model in 18–25% of plain requests, and the Context
+setting changed nothing (Thorough 18–20%). A request no memory fits still selects
+none. Do not reintroduce a keyword gate; a memory that must be on every message is
+what "Always apply" (pinned) is for. Suggestions and
 inferred text never silently supersede a user-declared active instruction.
 Project mutations are queued because an R reset/load cannot be cancelled once
 it reaches the server. Imported editor/database paths are authorised against a

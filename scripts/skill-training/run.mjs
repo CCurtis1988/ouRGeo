@@ -3,6 +3,7 @@
 //
 //   node scripts/skill-training/run.mjs --model haiku --split val [--runs 2]
 //        [--mode episode|probe|oracle|null|wrong] [--overlay cand.json] [--ids a,b]
+//        [--effort efficient|balanced|thorough]   (the Context setting; default balanced)
 //
 // Modes `oracle`, `null` and `wrong` are the §5.5 controls: they replay the
 // task's reference solution, an empty answer, or its known-wrong solution
@@ -24,6 +25,8 @@ const args = process.argv.slice(2)
 const opt = (name, fallback) => args.includes(`--${name}`) ? args[args.indexOf(`--${name}`) + 1] : fallback
 const modelKey = opt('model', 'haiku'), split = opt('split', 'val'), runs = Number(opt('runs', '1'))
 const mode = opt('mode', 'episode'), overlayFile = opt('overlay', ''), ids = opt('ids', '').split(',').filter(Boolean)
+const effort = opt('effort', 'balanced')
+if (!['efficient', 'balanced', 'thorough'].includes(effort)) throw new Error(`Unknown effort ${effort}`)
 const label = opt('label', `${modelKey}-${split}-${mode}`)
 const arm = MODELS[modelKey]
 if (!arm) throw new Error(`Unknown model ${modelKey}`)
@@ -34,7 +37,7 @@ const sha = value => crypto.createHash('sha256').update(typeof value === 'string
 const tasks = loadTasks(split, { sealed: args.includes('--sealed') }).filter(t => !ids.length || ids.includes(t.id))
 if (!tasks.length) throw new Error(`No tasks for split ${split}${ids.length ? ` and ids ${ids}` : ''}`)
 const overlay = overlayFile ? JSON.parse(fs.readFileSync(overlayFile, 'utf8')) : null
-const surface = overlay ? sha(overlay) : 'baseline'
+const surface = (overlay ? sha(overlay) : 'baseline') + (effort === 'balanced' ? '' : `@${effort}`)
 const commit = BUILD_ID
 const ledgerDir = path.join(CACHE, 'ledger'); fs.mkdirSync(ledgerDir, { recursive: true })
 const ledger = path.join(ledgerDir, `${label}.jsonl`)
@@ -96,8 +99,8 @@ async function episode(task, run, key) {
   const call = (method, ...rest) => within(a.call(method, ...rest), method === 'send' ? arm.worstCaseMs + SEND_MARGIN_MS : BRIDGE_MS, method)
   await a.setApprove((task.confirm ?? 'approve') === 'approve')
   const sw = task.switches ?? {}
-  await call('configure', { autopilot: sw.autopilot ?? true, web: sw.web ?? false, terminal: sw.terminal ?? false })
-  const reset = await call('reset', { dir: a.work, r: task.fixture?.r, layers: task.fixture?.layers, documents: task.fixture?.documents, skills: task.fixture?.skills })
+  await call('configure', { autopilot: sw.autopilot ?? true, web: sw.web ?? false, terminal: sw.terminal ?? false, effort })
+  const reset = await call('reset', { dir: a.work, r: task.fixture?.r, layers: task.fixture?.layers, documents: task.fixture?.documents, skills: task.fixture?.skills, memories: task.fixture?.memories })
   if (!reset.ok) { log(`${task.id}: FIXTURE FAILED ${reset.output}`); return true }
   let ep
   if (mode === 'oracle') ep = await replay(a, task.reference?.steps, task.reference?.answer)
@@ -129,6 +132,10 @@ async function episode(task, run, key) {
   const record = { key, label, task: task.id, split, domains: task.domains, modules: task.modules, model: modelKey, modelId: arm.model, mode, run, surface, commit, at: new Date().toISOString(),
     pass: grade.pass, timedOut: grade.timedOut ?? false, results: grade.results, ms: ep.ms, toolCalls: ep.tools.length,
     inputTokens: usage.reduce((s, u) => s + (u.inputTokens ?? 0), 0), outputTokens: usage.reduce((s, u) => s + (u.outputTokens ?? 0), 0),
+    effort,
+    plot: ep.plot ?? null,
+    // What each turn put in front of the model, and why: which memories arrived, and how.
+    selected: (ep.turns ?? []).map(t => (t.trace?.selected ?? []).map(e => ({ sourceId: e.sourceId, kind: e.kind, reason: e.reason, tokens: e.estimatedTokens }))),
     episode: { final: ep.final, error: ep.error, sendError: ep.sendError ?? null, probe: ep.probe, tools: ep.tools.map(t => ({ ...t, result: String(t.result).slice(0, 20000) })) } }
   fs.appendFileSync(ledger, JSON.stringify(record) + '\n')
   // A timed-out or failed turn can leave the panel mid-stream; the next send

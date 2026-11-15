@@ -67,6 +67,34 @@ export const GRADERS = {
     const re = new RegExp(spec, 'i'), bad = rCode(ep).filter(code => re.test(code))
     return { pass: bad.length === 0, detail: bad.length ? `ran forbidden R: ${bad[0].slice(0, 120)}` : `no R matching /${spec}/` }
   },
+  /**
+   * The plot the turn made is dark: its rendered image (median luminance of the
+   * whole picture < 0.4, or of its border < 0.3), or R that plainly sets a dark
+   * theme (spec is that regex). Image first: code patterns miss variables.
+   */
+  async plot_dark(spec, ep) {
+    const lum = ep.plot?.luminance, made = ep.plot?.made ?? 0
+    const byImage = Boolean(lum && (lum.whole < 0.4 || lum.border < 0.3))
+    const re = new RegExp(spec, 'i'), byCode = rCode(ep).some(c => re.test(c))
+    return { pass: byImage || byCode, detail: `${made} plot(s); image luminance ${lum ? `whole ${lum.whole}, border ${lum.border}` : 'n/a'} (${byImage ? 'dark' : 'light'}); code ${byCode ? 'sets a dark theme' : 'no dark theme'}` }
+  },
+  /** The turn produced at least one plot in the Plots panel. */
+  async plot_made(_, ep) {
+    const made = ep.plot?.made ?? 0
+    return { pass: made > 0, detail: `${made} plot(s) captured` }
+  },
+  /** Some R the model ran matches (e.g. a dark plot theme). */
+  async r_code_regex(spec, ep) {
+    const re = new RegExp(spec, 'i'), code = rCode(ep), hit = code.find(c => re.test(c))
+    return { pass: Boolean(hit), detail: hit ? `ran R matching /${spec}/: ${hit.match(re)?.[0]}` : `no R matching /${spec}/ in ${code.length} R call(s)${code.length ? `: ${code.at(-1).slice(0, 160)}` : ''}` }
+  },
+  /** What the model produced matches: its answer, the R it ran, or a document it wrote. */
+  async output_regex(spec, ep) {
+    const re = new RegExp(spec, 'i')
+    const docs = ep.tools.filter(t => /write_document|edit_document/.test(t.name)).map(t => JSON.stringify(t.input))
+    const where = [['answer', ep.final], ...rCode(ep).map(c => ['R', c]), ...docs.map(d => ['document', d])].find(([, text]) => re.test(text))
+    return { pass: Boolean(where), detail: where ? `${where[0]} matches /${spec}/` : `neither the answer, the R nor a document matches /${spec}/` }
+  },
   async answer_regex(spec, ep) {
     const re = new RegExp(spec, 'i')
     return { pass: re.test(ep.final), detail: `final answer ${re.test(ep.final) ? 'matches' : 'does not match'} /${spec}/i` }
