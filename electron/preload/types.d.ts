@@ -220,6 +220,9 @@ declare global {
         inspectMemoryBackup: (id: string, lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryBackupInspection>
         restoreMemoryBackup: (id: string, lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryRestoreReceipt>
         retryMemoryStorage: (lease: string) => Promise<import('../../src/lib/context/storage-recovery').MemoryStorageHealth>
+        /** null = the user cancelled a dialog. Import reads either kind of file; the passphrase may be empty for a plain one. */
+        exportAboutYou: (protection: import('../../src/lib/context/memory-transfer').AboutYouProtection, passphrase: string, lease: string) => Promise<{ count: number; path: string; protection: import('../../src/lib/context/memory-transfer').AboutYouProtection } | null>
+        importAboutYou: (passphrase: string, mode: import('../../src/lib/context/memory-transfer').AboutYouImportMode, lease: string) => Promise<import('../../src/lib/context/memory-transfer').AboutYouImportReceipt | null>
         lease: () => Promise<{ id: string; projectId: string | null }>
         closeProject: (lease: string) => Promise<void>
         exclusions: (lease: string) => Promise<import('../../src/lib/context/exclusions').ExclusionSelection[]>

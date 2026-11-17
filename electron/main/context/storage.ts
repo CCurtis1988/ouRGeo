@@ -17,6 +17,7 @@ import type { LocalCleanupJob } from './cleanup'
 import type { MemoryCleanupStatus } from '../../../src/lib/context/types'
 import { validateColumnPolicy, type ColumnPolicySnapshot } from '../../../src/lib/context/column-policy'
 import { memoryRetention } from '../../../src/lib/context/retention'
+import { planAboutYouImport, type AboutYouImportMode, type AboutYouImportReceipt } from '../../../src/lib/context/memory-transfer'
 import { memoryBackupCatalog, verifyMemoryBackup } from './storage-recovery'
 import { repairMemoryUsageIndex, type MemoryIndexRepair } from './index-repair'
 import type { MemoryBackupReceipt, MemoryBackupInspection, MemoryRestoreReceipt } from '../../../src/lib/context/storage-recovery'
@@ -496,6 +497,19 @@ export class MemoryStorage {
       for (const job of this.cleanupJobs().filter(job => scopes.includes(job.scope) && job.state !== 'removed')) this.putCleanup({ ...job, generation: job.generation + 1, attempts: 0, state: 'pending', nextAttemptAt: Date.now() })
       this.db.exec('COMMIT')
     } catch (error) { this.rollback(error) }
+  }
+  /** Saves first, then forgets: `save` and `forget` each own a transaction,
+   * so a replace that stops part-way leaves extra memories, never fewer. Every
+   * record goes through `save`, so supersession, the search index and provider
+   * ingestion behave exactly as if the user had typed it. */
+  importAboutYou(records: MemoryRecord[], mode: AboutYouImportMode): AboutYouImportReceipt {
+    const ids = records.map(record => record.id)
+    const forgotten = new Set(ids.filter(id => this.db.prepare('SELECT id FROM tombstones WHERE id=?').get(id)))
+    const foreign = new Set(ids.filter(id => { const row = this.db.prepare('SELECT scope FROM record_scopes WHERE id=?').get(id); return !!row && row.scope !== 'global' }))
+    const plan = planAboutYouImport(this.list('global'), records, mode, forgotten, foreign, randomUUID)
+    for (const record of plan.save) this.save(record)
+    for (const id of plan.forget) this.forget(id, [], 'global')
+    return plan.receipt
   }
   filterDeleted(ids: string[]): string[] { return ids.filter(id => !this.db.prepare('SELECT id FROM tombstones WHERE id=?').get(id)) }
   filterLearningSources(ids: string[]): string[] { return ids.filter(id => !this.db.prepare('SELECT id FROM suppressed_sources WHERE id=?').get(id)) }

@@ -335,6 +335,11 @@ project instructions take precedence without changing About you.
 Project memory requires a saved project and commits on project save; Save As creates a new
 project identity with snapshot lineage. Scratch has conversation context and live
 resources, but no project memory. About you is protected local personal storage.
+To move About you to another machine the user exports it in Settings → AI Assistant →
+Storage & recovery (a .ourgeomemory.json of accepted memories, passphrase-sealed or plain
+JSON; plain files may be hand-edited by experts only in ouRGeo's exact format, as their
+_readme says — there is no shorthand) and imports it there, choosing Add to my memory or Replace my memory. The encrypted backup
+next to it needs this machine's keyring and cannot move. You have no action for either.
 Moving a project bundle keeps its identity. Duplicate bundles offer Open as this
 project or Open as a copy. Copies get new project/memory IDs and must be saved;
 external memory bindings and local exclusions are not inherited.

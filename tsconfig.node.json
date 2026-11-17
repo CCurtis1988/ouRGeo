@@ -36,6 +36,7 @@
     "src/lib/context/column-policy.ts",
     "src/lib/context/column-disclosure.ts",
     "src/lib/context/storage-recovery.ts",
+    "src/lib/context/memory-transfer.ts",
     "src/lib/context/policy.ts",
     "src/lib/context/exclusions.ts",
     "src/lib/context/budget.ts",

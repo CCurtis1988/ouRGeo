@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch'
 import { useContextStore } from '@/store/context'
 import { ContextFolders } from './ContextFolders'
 import { StorageRecoverySettings } from './StorageRecoverySettings'
+import { AboutYouTransfer } from './AboutYouTransfer'
 import { MemoryLibrary } from '@/components/ai/MemoryLibrary'
 import type { ContextEffort } from '@/lib/context/types'
 import type { LearningPolicy } from '@/lib/context/learning'
@@ -83,8 +84,9 @@ export function ContextMemorySettings(): React.ReactElement {
     {scopeLease && <ContextFolders api={window.electronAPI.context} lease={scopeLease} />}
       </div> },
       { id: 'budgets', title: 'Budgets', description: 'Set estimated chat limits and optional memory maintenance limits. These controls are separate from the model’s context window.', content: <div className="space-y-3"><ChatBudget /><MaintenanceBudget /></div> },
-      { id: 'storage', title: 'Storage & recovery', description: 'Back up local memory, recover protected storage and check cleanup. Personal memory uses your OS keyring; project files and readable exports can contain memory text.', content: <div className="space-y-3">
+      { id: 'storage', title: 'Storage & recovery', description: 'Back up local memory, move About you memory to another machine, recover protected storage and check cleanup. Personal memory uses your OS keyring; project files and readable exports can contain memory text.', content: <div className="space-y-3">
         <StorageRecoverySettings />
+        <AboutYouTransfer />
         <MemoryCleanup />
         <div className="space-y-2 rounded-lg border border-geo-border p-4">
           <h4 className="text-xs font-semibold text-foreground">Context diagnostics</h4>

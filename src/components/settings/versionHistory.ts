@@ -16,6 +16,20 @@ export interface ReleaseNote {
 
 export const VERSION_HISTORY: ReleaseNote[] = [
   {
+    version: '1.17.2',
+    date: 'November 2026',
+    title: 'Take About You With You',
+    summary:
+      'Export your About you memory to a passphrase-protected or plain JSON file and import it on another machine, adding to what is there or replacing it.',
+    highlights: [
+      'Settings → AI Assistant → Storage & recovery → Export About you memory writes a .ourgeomemory.json file sealed with a passphrase you choose. The encrypted backup beside it needs this machine’s keyring; the export opens anywhere with the passphrase.',
+      'Organisations that do not want a passphrase, or that manage the file themselves, can export plain JSON instead. It is not encrypted, and editing it is for expert users: the file keeps ouRGeo’s exact format, explains its rules in a _readme, and an import that finds a mistake names the memory and field to fix and imports nothing.',
+      'Only accepted About you memories are exported. Suggestions stay behind, and project and conversation memories already travel with their project.',
+      'Import with Add to my memory to keep everything you have and add what is new, or Replace my memory to make About you match the file. ouRGeo shows what will change and asks before writing.',
+      'A memory you forgot on this machine is never brought back by an import, and importing the same file twice changes nothing.',
+    ],
+  },
+  {
     version: '1.17.1',
     date: 'November 2026',
     title: 'Saved Instructions Are Followed',

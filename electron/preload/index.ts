@@ -116,6 +116,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     inspectMemoryBackup: (id: string, lease: string) => ipcRenderer.invoke('context:inspectMemoryBackup', id, lease),
     restoreMemoryBackup: (id: string, lease: string) => ipcRenderer.invoke('context:restoreMemoryBackup', id, lease),
     retryMemoryStorage: (lease: string) => ipcRenderer.invoke('context:retryMemoryStorage', lease),
+    exportAboutYou: (protection: import('../../src/lib/context/memory-transfer').AboutYouProtection, passphrase: string, lease: string) => ipcRenderer.invoke('context:exportAboutYou', protection, passphrase, lease),
+    importAboutYou: (passphrase: string, mode: import('../../src/lib/context/memory-transfer').AboutYouImportMode, lease: string) => ipcRenderer.invoke('context:importAboutYou', passphrase, mode, lease),
     lease: () => ipcRenderer.invoke('context:lease'),
     learningSettings: () => ipcRenderer.invoke('context:learningSettings'),
     configureLearning: (settings: import('../../src/lib/context/learning').MemoryLearningSettings) => ipcRenderer.invoke('context:configureLearning', settings),

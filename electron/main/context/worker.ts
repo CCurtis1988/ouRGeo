@@ -55,6 +55,10 @@ parentPort!.on('message', (message: { id: number; op: string; value?: unknown })
         result = store.maintenance().settle(input.id, input.result, input.dispatched, input.prepared); break
       }
       case 'list': result = store.list('global'); break
+      case 'importAboutYou': {
+        const input = message.value as { records: Parameters<MemoryStorage['importAboutYou']>[0]; mode: Parameters<MemoryStorage['importAboutYou']>[1] }
+        result = store.importAboutYou(input.records, input.mode); break
+      }
       case 'scopeSnapshot': result = store.scopeSnapshot(String(message.value)); break
       case 'bindingSnapshotCurrent': {
         const input = message.value as { bindingId: string; scope: string; generation: number }

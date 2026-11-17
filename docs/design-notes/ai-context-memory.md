@@ -197,6 +197,40 @@ records, imports missing global records as candidates, and stages authorised
 project journals. Disk-full failures pause writes until an actual transactional
 write probe succeeds. Damaged deletion ledgers cannot safely activate an older
 backup; automatic damaged-store replacement remains unfinished.
+
+**About you export/import (1.17.2).** The store key is wrapped by the OS keyring,
+so neither the canonical store nor its encrypted backups can move to another
+machine. `electron/main/context/memory-transfer.ts` writes a JSON envelope
+(`ourgeo-memory-backup` v1): scrypt (N=2^17, r=8, p=1) → AES-256-GCM, with the
+header (format, KDF and its parameters) as additional data so a cost edited down
+fails authentication; a file's own cost is bounded (N ≤ 2^20, ≤ 256 MiB) so a
+crafted export cannot ask for gigabytes. The sealed payload
+(`src/lib/context/memory-transfer.ts`) is accepted About you records only, with
+`evidence`/`supersedes` stripped — they name this profile's chat messages and
+records. Validation reuses `validMemoryShape` from `memory-schema.ts` (the
+project-bundle check) and refuses the whole file on one bad record. Import is
+`planAboutYouImport` (pure) → `MemoryStorage.importAboutYou`: ids are kept, so
+re-importing is a no-op and a tombstoned id is never revived (both modes); an id
+claimed by a project here imports as a copy. Merge keeps local wording; replace
+takes the file's wording and forgets every other About you record, candidates
+included, but keeps a same-worded local twin instead of forget-and-add. Saves run
+before forgets because each owns a transaction — an interrupted replace leaves
+extra memories, never fewer. Main owns the file dialogs and the confirmation
+(`dialog.showMessageBox`); the renderer supplies only passphrase and mode, and no
+assistant action reaches either path.
+
+*Plain exports.* Organisations that will not use a passphrase, or that edit the
+file outside ouRGeo, choose Plain JSON: the same payload (`format:
+'ourgeo-about-you'`) plus an ignored `_readme`. `readAboutYouFile` dispatches on
+`format`, so import reads either kind and asks for a passphrase only when the
+file is sealed. Editing is an expert path and deliberately has NO shorthand: a
+record must be exactly what ouRGeo writes (`memoryShapeProblem` names the field;
+unknown top-level and record fields are refused, since ouRGeo never writes one
+and in an edited file it is a typo that would otherwise vanish). Errors name the
+entry and quote its statement — except when the statement holds a credential,
+which an error must not repeat (a test caught the first draft doing so). A
+tombstone protects only an unchanged id: a hand-written entry with a new id can
+re-add words that were forgotten here, which the readme says.
 Reviewed transcript forgetting selects exact complete messages from loaded saved-
 project chats, or only the active scratch chat. No copies are selected by default.
 Canonical deletion and evidence suppression commit before transcript changes;

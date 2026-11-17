@@ -230,7 +230,13 @@ the whole analysis.
   Suggestions require acceptance, while automatic learning is an opt-in for
   narrow declared preferences/decisions. Scratch learning defaults to off.
   Project memory commits on project save; About you uses protected local
-  storage. Always apply pins show their estimated recurring cost. Explicit
+  storage. To move About you to another machine, use Settings → AI Assistant →
+  Storage & recovery → **Export About you memory**: a `.ourgeomemory.json` file
+  sealed with a passphrase you choose, or plain JSON for organisations that
+  manage the file themselves (accepted memories only). Plain files can be edited
+  by expert users but must keep ouRGeo's exact format; the file's `_readme` lists
+  the rules and import names the memory and field it refuses. Import either kind
+  to add to your memory or to replace it; forgotten memories stay forgotten. Always apply pins show their estimated recurring cost. Explicit
   remember/forget commands need no model call. Simple project
   instructions such as “Use miles for this project” await project save; a new
   preference supersedes a conflicting unit-system or English default in its own scope.

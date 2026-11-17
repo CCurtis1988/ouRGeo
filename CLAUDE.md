@@ -331,6 +331,11 @@ Also `docs/context-implementation.md` (verified behaviour, pending work),
 - Memory, exclusions, journals: AES-GCM in SQLite on a worker, key via safeStorage
   (Linux basic_text refused). Protected-policy failure fails closed. Suggestions need
   acceptance; forgetting resets provider sessions.
+- About you export/import (`memory-transfer.ts`, main + lib): passphrase-sealed JSON
+  (scrypt → AES-GCM, header is AAD) or plain JSON (expert-editable, exact format only —
+  no shorthand; errors never echo a credential), accepted global records only, evidence stripped.
+  Import keeps ids (tombstones block revival in both modes), saves before forgets;
+  main owns dialogs + confirmation; never an assistant action.
 - Managed providers (Mnemosyne/Hindsight) are experimental Linux profiles behind
   host-reviewed certificates; don't describe them as production connections.
   Changing the Mnemosyne bridge requires rerunning the offline/deletion spike.

@@ -1,9 +1,9 @@
-import { app, dialog, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, safeStorage, type IpcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { fetchWithoutLocalProbes } from '../local-network'
 import { Worker } from 'node:worker_threads'
 import { randomUUID } from 'node:crypto'
-import { mkdir, chmod } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, chmod, open as openFile, readFile, rename, rm, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import type { MemoryRecord, MemoryDeletion, AuthorisedFileLink, ProjectContext } from '../../../src/lib/context/types'
 import { redactContext } from '../../../src/lib/context/policy'
 import { validateProjectContext } from '../../../src/lib/context/memory-schema'
@@ -41,6 +41,8 @@ import { UsageAuthority } from './usage-authority'
 import { LocalCleanupRunner } from './cleanup'
 import type { LocalCleanupJob } from './cleanup'
 import type { MemoryCleanupStatus } from '../../../src/lib/context/types'
+import { aboutYouExport, plainAboutYouFile, type AboutYouImportMode, type AboutYouImportReceipt, type AboutYouProtection } from '../../../src/lib/context/memory-transfer'
+import { checkPassphrase, MEMORY_FILE_MAX_BYTES, readAboutYouFile, sealAboutYou } from './memory-transfer'
 
 const usageAuthority = new UsageAuthority()
 const writeRecovery = new MemoryWriteRecovery()
@@ -57,7 +59,7 @@ let hindsightProfiles: HindsightLocalProfiles | undefined
 let localServerPolicyRevision = 0
 let retentionStopped = false
 const accountingMutations = new Set(['recordInferenceUsage', 'prepareInferenceUsage', 'configureChatBudget', 'acknowledgeMigrationWrites'])
-const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'saveConnection', 'renewLocalServer', 'renewHindsightServer', 'removeConnection', 'activateBinding', 'importBinding', 'beginMigration', 'beginBuiltinMigration', 'finishMigration', 'cancelMigration', 'configureBinding', 'configureMaintenance', 'exclude'])
+const providerMutations = new Set([ 'saveColumnPolicies', 'forkColumnPolicies', 'restoreBackup', 'stageProject', 'sweepRetention', 'save', 'forget', 'learn', 'commitProject', 'importAboutYou', 'saveConnection', 'renewLocalServer', 'renewHindsightServer', 'removeConnection', 'activateBinding', 'importBinding', 'beginMigration', 'beginBuiltinMigration', 'finishMigration', 'cancelMigration', 'configureBinding', 'configureMaintenance', 'exclude'])
 export function stopContextProviders(): void { retentionStopped = true; clearTimeout(retentionTimer); providerActivation?.stop(); cleanupRunner?.stop(); pluginProviders?.close(); void localMemoryServer?.close() }
 
 async function sweepRetention(): Promise<void> {
@@ -607,6 +609,59 @@ export function registerContextHandlers(ipc: IpcMain, workspace: () => WebConten
     }
     guard()
     return dispatch('exclude', { scope: scope === 'project' ? `project:${input.projectId}` : scope, id, excluded: input.excluded }, guard)
+  })
+  /** Export and import ask in main, through OS dialogs: the renderer only
+   * supplies the passphrase and the mode. No assistant action reaches either —
+   * a model must not be able to copy someone's personal memory to a file, or
+   * replace it. The file path never comes from the renderer. */
+  ipc.handle('context:exportAboutYou', async (event, protection: AboutYouProtection, passphrase, lease) => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    if (protection !== 'passphrase' && protection !== 'none') throw new Error('Choose Protected with a passphrase or Plain JSON.')
+    if (protection === 'passphrase') checkPassphrase(passphrase)
+    const payload = aboutYouExport(await dispatch('list', undefined, guard) as MemoryRecord[])
+    if (!payload.memories.length) throw new Error('There are no accepted About you memories to export. Accept a suggestion or add a memory in the Memory Library first.')
+    const window = owner()
+    if (!window) throw new Error('The workspace is unavailable.')
+    const date = new Date().toISOString().slice(0, 10)
+    const choice = await dialog.showSaveDialog(BrowserWindow.fromWebContents(window)!, { title: 'Export About you memory', defaultPath: join(app.getPath('documents'), `ourgeo-about-you-${date}.ourgeomemory.json`), filters: [{ name: 'ouRGeo memory export', extensions: ['json'] }] })
+    if (choice.canceled || !choice.filePath) return null
+    const sealed = protection === 'passphrase' ? await sealAboutYou(payload, passphrase) : plainAboutYouFile(payload)
+    // Temp + fsync + rename, like project drafts: an interrupted export must
+    // not leave a half-written file that looks like a backup.
+    const target = choice.filePath, temporary = join(dirname(target), `.${randomUUID()}.partial`)
+    const handle = await openFile(temporary, 'wx', 0o600)
+    try { await handle.writeFile(sealed, 'utf8'); await handle.sync() } finally { await handle.close() }
+    try { await rename(temporary, target) } catch (error) { await rm(temporary, { force: true }); throw error }
+    return { count: payload.memories.length, path: target, protection }
+  })
+  ipc.handle('context:importAboutYou', async (event, passphrase, mode: AboutYouImportMode, lease): Promise<AboutYouImportReceipt | null> => {
+    authorised(event)
+    const guard = (): void => { if (contextLease().id !== lease) throw new Error('SCOPE_CHANGED') }
+    guard()
+    // Checked only if the file turns out to be sealed: a plain file needs none.
+    if (typeof passphrase !== 'string') throw new Error('Enter the passphrase, or leave it empty for a plain export.')
+    if (mode !== 'merge' && mode !== 'replace') throw new Error('Choose Add to my memory or Replace my memory.')
+    const window = owner()
+    if (!window) throw new Error('The workspace is unavailable.')
+    const parent = BrowserWindow.fromWebContents(window)!
+    const choice = await dialog.showOpenDialog(parent, { title: 'Import About you memory', defaultPath: app.getPath('documents'), properties: ['openFile'], filters: [{ name: 'ouRGeo memory export', extensions: ['json'] }] })
+    const path = choice.filePaths[0]
+    if (choice.canceled || !path) return null
+    if ((await stat(path)).size > MEMORY_FILE_MAX_BYTES) throw new Error('This file is larger than any About you export. Choose the .ourgeomemory.json file ouRGeo wrote.')
+    const { payload, protection } = await readAboutYouFile(await readFile(path, 'utf8'), passphrase)
+    const here = (await dispatch('list', undefined, guard) as MemoryRecord[]).filter(record => ['active', 'candidate'].includes(record.status)).length
+    const count = payload.memories.length
+    const exported = `${protection === 'none' ? ' plain (unprotected) file' : ' file'}${payload.exportedAt && Number.isFinite(Date.parse(payload.exportedAt)) ? ` exported ${new Date(payload.exportedAt).toLocaleString()}` : ''}`
+    const confirm = await dialog.showMessageBox(parent, mode === 'replace'
+      ? { type: 'warning', buttons: ['Cancel', 'Replace'], defaultId: 0, cancelId: 0, title: 'Replace About you memory', message: `Replace your About you memory with the ${count} memor${count === 1 ? 'y' : 'ies'} in this${exported}?`, detail: `The ${here} About you memor${here === 1 ? 'y' : 'ies'} on this machine that the file does not contain will be forgotten, including suggestions. Forgetting cannot be undone. Project and conversation memories are not affected.` }
+      : { type: 'question', buttons: ['Cancel', 'Import'], defaultId: 1, cancelId: 0, title: 'Import About you memory', message: `Add the ${count} memor${count === 1 ? 'y' : 'ies'} in this${exported} to your About you memory?`, detail: 'Memories you already have are kept as they are. Memories you forgot on this machine stay forgotten.' })
+    if (confirm.response !== 1) return null
+    writeRecovery.assertWritable()
+    const receipt = await dispatch('importAboutYou', { records: payload.memories, mode }, guard) as AboutYouImportReceipt
+    owner()?.send('context:retentionChanged')
+    return receipt
   })
   ipc.handle('context:listGlobal', event => { authorised(event); return dispatch('list') })
   ipc.handle('context:storageStatus', async event => { authorised(event); return { empty: await protectedPolicyAbsent(join(app.getPath('userData'), 'context')) } })
